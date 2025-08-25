@@ -20,12 +20,59 @@ import {
    ShoppingCart,
    RotateCcw,
    Bike,
+   LucideIcon,
 } from "lucide-react";
 import { AnalyticsSection } from "@/components/admin/analytics-section";
 import { format } from "date-fns";
 
+// Type definitions
+interface StatsCardProps {
+   title: string;
+   value: string;
+   change?: string;
+   icon: LucideIcon;
+   iconColor: string;
+}
+
+interface DetailedStatsData {
+   label: string;
+   value: string;
+}
+
+interface DetailedStatsCardProps {
+   title: string;
+   data: DetailedStatsData[];
+   icon: LucideIcon;
+   iconColor: string;
+}
+
+interface ProductItemProps {
+   image?: React.ReactNode;
+   name: string;
+   code: string;
+   price: string;
+   bgColor?: string;
+}
+
+interface UserItemProps {
+   name: string;
+   code: string;
+   amount: string;
+   avatar: string;
+}
+
+interface OrderItemProps {
+   orderId: string;
+   date: string;
+   customer: string;
+   email: string;
+   status: string;
+   method: string;
+   paymentStatus: string;
+}
+
 // Stats Card Component
-const StatsCard = ({ title, value, change, icon: Icon, iconColor }) => (
+const StatsCard: React.FC<StatsCardProps> = ({ title, value, change, icon: Icon, iconColor }) => (
    <div className="bg-white rounded-lg border shadow-sm p-6 flex flex-col h-full">
       <div className="flex items-center justify-between mb-4">
          <div className={`p-2 rounded-lg ${iconColor}`}>
@@ -47,7 +94,7 @@ const StatsCard = ({ title, value, change, icon: Icon, iconColor }) => (
 );
 
 // Detailed Stats Card Component
-const DetailedStatsCard = ({ title, data, icon: Icon, iconColor }) => (
+const DetailedStatsCard: React.FC<DetailedStatsCardProps> = ({ title, data, icon: Icon, iconColor }) => (
    <div className="bg-white rounded-lg border shadow-sm p-6 flex flex-col h-full">
       <div className="flex items-center justify-between mb-4">
          <div className={`p-2 rounded-lg ${iconColor}`}>
@@ -57,7 +104,7 @@ const DetailedStatsCard = ({ title, data, icon: Icon, iconColor }) => (
       <div className="flex flex-col flex-grow justify-between">
          <p className="text-sm font-medium text-gray-600 mb-3">{title}</p>
          <div className="space-y-2">
-            {data.map((item, index) => (
+            {data.map((item: DetailedStatsData, index: number) => (
                <div
                   key={index}
                   className="flex justify-between items-center"
@@ -74,7 +121,7 @@ const DetailedStatsCard = ({ title, data, icon: Icon, iconColor }) => (
 );
 
 // Product Item Component
-const ProductItem = ({ image, name, code, price, bgColor = "bg-gray-100" }) => (
+const ProductItem: React.FC<ProductItemProps> = ({ image, name, code, price, bgColor = "bg-gray-100" }) => (
    <div className="flex items-center gap-3 p-3">
       <div
          className={`w-10 h-10 rounded ${bgColor} flex items-center justify-center`}
@@ -90,7 +137,7 @@ const ProductItem = ({ image, name, code, price, bgColor = "bg-gray-100" }) => (
 );
 
 // User Item Component
-const UserItem = ({ name, code, amount, avatar }) => (
+const UserItem: React.FC<UserItemProps> = ({ name, code, amount, avatar }) => (
    <div className="flex items-center gap-3 p-3">
       <div className="w-10 h-10 bg-orange-500 rounded-full flex items-center justify-center">
          <span className="text-white font-medium">{avatar}</span>
@@ -104,7 +151,7 @@ const UserItem = ({ name, code, amount, avatar }) => (
 );
 
 // Order Item Component
-const OrderItem = ({
+const OrderItem: React.FC<OrderItemProps> = ({
    orderId,
    date,
    customer,
@@ -165,23 +212,23 @@ const OrderItem = ({
 );
 
 // Main Dashboard Component
-const Dashboard = () => {
+const Dashboard: React.FC = () => {
    const [date, setDate] = useState<Date | undefined>(new Date());
    const [calendarOpen, setCalendarOpen] = useState(false);
 
-   const ordersData = [
+   const ordersData: DetailedStatsData[] = [
       { label: "Pending", value: "800" },
       { label: "Approved", value: "1200" },
       { label: "Failed", value: "8" },
       { label: "Successful", value: "12,000" },
    ];
 
-   const refundsData = [
+   const refundsData: DetailedStatsData[] = [
       { label: "Total Refunded Orders", value: "2,000" },
       { label: "Total Refunded Money", value: "140,000" },
    ];
 
-   const ridersData = [
+   const ridersData: DetailedStatsData[] = [
       { label: "Total Orders", value: "18,000 RWF" },
       { label: "Total Money", value: "21,000,000" },
    ];
