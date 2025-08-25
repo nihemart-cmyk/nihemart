@@ -12,7 +12,7 @@ const layout = ({ children }: LayoutProps) => {
             <Sidebar />
         </div>
         <div className='w-full'>
-            <TopBar title='Dashboard' className='bg-surface-secondary' />
+            <TopBar variant='primary' title='Dashboard'/>
             {children}
         </div>
     </div>

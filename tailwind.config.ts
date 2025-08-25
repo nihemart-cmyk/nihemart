@@ -55,7 +55,11 @@ export default {
   			},
   			surface: {
   				secondary: '#F9FAFB'
-  			}
+  			},
+			text: {
+				primary: "#171717",
+				secondary: "#737373"
+			}
   		},
   		borderRadius: {
   			lg: 'var(--radius)',

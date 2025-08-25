@@ -6,7 +6,7 @@ interface UserAvatarProfileProps {
   user: {
     imageUrl?: string;
     fullName?: string | null;
-    emailAddress: string ;
+    position: string ;
   } | null;
 }
 
@@ -26,9 +26,9 @@ export function UserAvatarProfile({
 
       {showInfo && (
         <div className='grid flex-1 text-left text-sm leading-tight'>
-          <span className='truncate font-semibold'>{user?.fullName || ''}</span>
-          <span className='truncate text-xs'>
-            {user?.emailAddress || ''}
+          <span className='truncate font-medium text-text-primary'>{user?.fullName || ''}</span>
+          <span className='truncate text-sm text-text-secondary'>
+            {user?.position || ''}
           </span>
         </div>
       )}

@@ -10,7 +10,8 @@ import logo from '@/assets/logo.png';
 import { cn } from '@/lib/utils';
 import { Icons } from './icons';
 import AnimatedBackground from './ui/animated-bg';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, LogOut, Settings } from 'lucide-react';
+import { Button } from './ui/button';
 
 interface NavItem {
     id: string;
@@ -27,15 +28,64 @@ type FlatNavItem = {
 
 const navItems: NavItem[] = [
     { id: '1', title: 'Dashboard', href: '/admin', icon: Icons.sidebar.dashboard },
-    { id: '2', title: 'Analytics', href: '/admin/analytics', icon: Icons.sidebar.dashboard },
+    // { id: '2', title: 'Analytics', href: '/admin/analytics', icon: Icons.sidebar.dashboard },
+    {
+        id: '2',
+        title: 'Users',
+        icon: Icons.sidebar.users,
+        subLinks: [
+            { id: '2-1', title: 'User Management', href: '/admin/users' },
+            { id: '2-2', title: 'Add new user', href: '/admin/users/new' },
+            { id: '2-3', title: 'User roles & permissions', href: '/admin/users/permissions' },
+        ],
+    },
+    {
+        id: '3',
+        title: 'Orders',
+        icon: Icons.sidebar.orders,
+        subLinks: [
+            { id: '3-1', title: 'Orders Management', href: '/admin/orders' },
+            { id: '3-2', title: 'New orders', href: '/admin/orders/new' },
+        ],
+    },
     {
         id: '4',
-        title: 'Users',
-        icon: Icons.sidebar.dashboard,
+        title: 'Products',
+        icon: Icons.sidebar.products,
         subLinks: [
-            { id: '4-1', title: 'Users', href: '/admin/users' },
-            { id: '4-2', title: 'Add user', href: '/admin/users/new' },
-            { id: '4-3', title: 'User roles & permissions', href: '/admin/users/permissions' },
+            { id: '4-1', title: 'Add product', href: '/admin/products/new' },
+            { id: '4-2', title: 'Product Categories', href: '/admin/products/categories' },
+            { id: '4-3', title: 'Discounts & Offers', href: '/admin/products/discounts' },
+            { id: '4-4', title: 'Product Reviews / Ratings', href: '/admin/products/reviews' },
+        ],
+    },
+    {
+        id: '5',
+        title: 'Sales',
+        icon: Icons.sidebar.sales,
+        subLinks: [
+            { id: '5-1', title: 'Sales Overview / Dashboard', href: '/admin/sales' },
+            { id: '5-2', title: 'Sales Reports', href: '/admin/sales/reports' },
+        ],
+    },
+    {
+        id: '6',
+        title: 'Stock',
+        icon: Icons.sidebar.stock,
+        subLinks: [
+            { id: '6-1', title: 'Stock Management', href: '/admin/stock' },
+            { id: '6-2', title: 'Add Stock / Update Stock', href: '/admin/stock/manage' },
+            { id: '6-3', title: 'Stock History', href: '/admin/users/history' },
+        ],
+    },
+    {
+        id: '7',
+        title: 'Riders',
+        icon: Icons.sidebar.riders,
+        subLinks: [
+            { id: '7-1', title: 'Rider Management', href: '/admin/riders' },
+            { id: '7-2', title: 'Assign Orders to Riders', href: '/admin/riders/manage' },
+            { id: '7-3', title: 'Add New Rider', href: '/admin/riders/new' },
         ],
     },
 ];
@@ -95,7 +145,7 @@ const Sidebar: FC = () => {
 
     return (
         <div className='w-full h-full flex flex-col py-10 px-5'>
-            <div className="w-full mb-8 flex-shrink-0">
+            <div className="w-full ml-2 mb-8 flex-shrink-0">
                 <Image src={logo} alt="ilead logo" priority height={50} width={200} />
             </div>
 
@@ -114,7 +164,7 @@ const Sidebar: FC = () => {
                                             className={cn("px-6 py-2 flex items-center gap-3 w-full justify-start font-medium")}>
                                             <Icon size={20} />
                                             <span>{item.title}</span>
-                                            <motion.span className="ml-auto" animate={{ rotate: isOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
+                                            <motion.span className="ml-auto" animate={{ rotate: isOpen ? 0 : -90 }} transition={{ duration: 0.2 }}>
                                                 <ChevronDown size={16} />
                                             </motion.span>
                                         </button>
@@ -133,8 +183,8 @@ const Sidebar: FC = () => {
                                                                 key={subLink.id}
                                                                 href={subLink.href!}
                                                                 className={cn(
-                                                                    "px-4 py-2 flex items-center gap-3 w-full justify-start text-black",
-                                                                    isSubLinkActive ? "font-bold text-blue-500" : "font-medium"
+                                                                    "px-4 py-1 flex items-center gap-3 w-full justify-start text-neutral-600",
+                                                                    isSubLinkActive ? "font-bold text-neutral-800" : "font-medium"
                                                                 )}>
                                                                 <span>{subLink.title}</span>
                                                             </Link>
@@ -163,8 +213,13 @@ const Sidebar: FC = () => {
                 </div>
             </div>
 
-            <div className="pt-4 flex-shrink-0">
-                sidebar footer
+            <div className="pt-4 flex-shrink-0 w-full flex flex-col">
+                <Button variant={'ghost'} size={'lg'} className='h-12 flex items-center justify-start text-lg'>
+                    <Settings size={20} /> Settings
+                </Button>
+                <Button variant={'ghost'} size={'lg'} className='h-12 flex items-center justify-start text-lg'>
+                    <LogOut size={20} /> Logout
+                </Button>
             </div>
         </div>
     );
