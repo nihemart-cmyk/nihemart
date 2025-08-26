@@ -51,7 +51,7 @@ export default function AnimatedBackground({
                                 animate={{ opacity: 1 }}
                                 exit={{ opacity: 0 }}
                             >
-                                <div className="w-full bg-white h-full rounded-lg" />
+                                <div className="w-full bg-zinc-100 lg:bg-white h-full rounded-lg" />
                             </motion.div>
                         </div>
                     )}

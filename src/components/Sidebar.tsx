@@ -144,7 +144,7 @@ const Sidebar: FC = () => {
     };
 
     return (
-        <div className='w-full h-full flex flex-col py-10 px-5'>
+        <div className='w-full h-full flex flex-col py-10 px-1 lg:px-5'>
             <div className="w-full ml-2 mb-8 flex-shrink-0">
                 <Image src={logo} alt="ilead logo" priority height={50} width={200} />
             </div>

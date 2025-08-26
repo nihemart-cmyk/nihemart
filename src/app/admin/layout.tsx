@@ -8,7 +8,7 @@ interface LayoutProps {
 
 const layout = ({ children }: LayoutProps) => {
     return <div className='w-full h-screen overflow-hidden flex bg-white'>
-        <div className="w-80 border-r bg-surface-secondary border-border-primary h-full">
+        <div className="w-80 border-r bg-surface-secondary border-border-primary h-full hidden lg:block">
             <Sidebar />
         </div>
         <div className='w-full'>
