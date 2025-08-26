@@ -59,6 +59,13 @@ export default {
 			text: {
 				primary: "#171717",
 				secondary: "#737373"
+			},
+			brand: {
+				orange: "#FF6C00",
+				blue: "#2C9FE2"
+			},
+			warning: {
+				DEFAULT: '#EAB308'
 			}
   		},
   		borderRadius: {
@@ -82,11 +89,16 @@ export default {
   				to: {
   					height: '0'
   				}
-  			}
+  			},
+			marquee: {
+          		'0%': { transform: 'translateX(0%),skew(2deg)' },
+          		'100%': { transform: 'translateX(-100%),skew(2deg)' },
+        	},
   		},
   		animation: {
   			'accordion-down': 'accordion-down 0.2s ease-out',
-  			'accordion-up': 'accordion-up 0.2s ease-out'
+  			'accordion-up': 'accordion-up 0.2s ease-out',
+			 marquee: 'marquee 30s linear infinite',
   		}
   	}
   },

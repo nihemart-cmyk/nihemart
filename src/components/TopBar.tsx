@@ -4,13 +4,13 @@ import { DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuS
 import { cn } from '@/lib/utils'
 import { DropdownMenuGroup } from '@radix-ui/react-dropdown-menu'
 import { Bell, LogOut, SearchIcon } from 'lucide-react'
+import Link from 'next/link'
 import { useRouter } from 'next13-progressbar'
 import { FC } from 'react'
 import { Button } from './ui/button'
 import { DropdownMenu } from './ui/dropdown-menu'
-import { UserAvatarProfile } from './user-avatar-profile'
 import { Input } from './ui/input'
-import Link from 'next/link'
+import { UserAvatarProfile } from './user-avatar-profile'
 
 type TopBarProps = {
   className?: string
@@ -27,8 +27,10 @@ const TopBar: FC<TopBarProps> = (props) => {
   const { className, variant } = props;
 
   return <div className={cn('w-full py-3 px-10 flex items-center justify-between border-b border-b-brand-border bg-white', { "bg-surface-secondary": variant === 'secondary' }, className)}>
+    {/* <Button size={'icon'} variant={'secondary'} className='px-2 mr-3 md:hidden'>
+      <Menu />
+    </Button> */}
     {variant === 'primary' && <h3 className='font-bold text-3xl w-full'>{props.title}</h3>}
-
     <div className={cn("flex items-center justify-between gap-6", { "w-full": variant === 'secondary' })}>
       <div className="relative">
         <Input
