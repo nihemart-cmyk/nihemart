@@ -90,7 +90,7 @@ const TopBar: FC<TopBarProps> = (props) => {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem onClick={() => router.push('/dashboard/profile')}>
+              <DropdownMenuItem onClick={() => router.push('/admin/profile')}>
                 Profile
               </DropdownMenuItem>
               <DropdownMenuItem>Settings</DropdownMenuItem>
