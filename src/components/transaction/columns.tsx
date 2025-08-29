@@ -82,44 +82,42 @@ export const columns: ColumnDef<Payment>[] = [
         cell: ({ row }) => <span className="text-text-primary">#{row.getValue('order')}</span>
     },
     {
+        id: "customer",
+        accessorKey: "customer.namme",
+        header: "Name",
+    },
+    {
         accessorKey: "date",
         header: "DATE",
         cell: ({ row }) => <span className="text-text-secondary">{format(new Date(row.getValue('date')), "MMMM d, yyyy, HH:mm")}</span>
     },
     {
-        id: "customer",
-        header: "CUSTOMER",
-        cell: ({ row }) => <div className="">
-            <UserAvatarProfile user={{ fullName: "Severin RUTAYISIRE", subTitle: "severin@nihemart.com" }} showInfo />
-        </div>
-    },
-    {
-        accessorKey: "payment",
-        header: "PAYMENT",
-        cell: ({ row }) => <Payment status={row.getValue('payment') || ''} />
-    },
-    {
-        accessorKey: "status",
-        header: "STATUS",
-        cell: ({ row }) => <Status status={row.getValue('status') || ''} />
+        accessorKey: "amount",
+        header: () => <div className="">Amount</div>,
+        cell: ({ row }) => {
+            const amount = parseFloat(row.getValue("amount"))
+            const formatted = new Intl.NumberFormat("en-US", {
+                style: "currency",
+                currency: "RWF",
+            }).format(1300)
+
+            return <div className="">{formatted}</div>
+        },
     },
     {
         accessorKey: "method",
         header: "METHOD",
         cell: ({ row }) => <PaymentMethod method={row.getValue('method') || ''} />
     },
+    {
+        accessorKey: "payment",
+        header: "Status",
+        cell: ({ row }) => <Payment status={row.getValue('payment') || ''} />
+    },
     // {
-    //     accessorKey: "amount",
-    //     header: () => <div className="text-right">Amount</div>,
-    //     cell: ({ row }) => {
-    //         const amount = parseFloat(row.getValue("amount"))
-    //         const formatted = new Intl.NumberFormat("en-US", {
-    //             style: "currency",
-    //             currency: "USD",
-    //         }).format(amount)
-
-    //         return <div className="text-right font-medium">{formatted}</div>
-    //     },
+    //     accessorKey: "status",
+    //     header: "STATUS",
+    //     cell: ({ row }) => <Status status={row.getValue('status') || ''} />
     // },
     {
         id: "actions",

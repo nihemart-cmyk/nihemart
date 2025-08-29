@@ -1,5 +1,6 @@
-import OrdersMetrics from '@/components/orders/TransactionsMetrics'
-import OrdersTable from '@/components/orders/TransactionsTable'
+
+import OrdersMetrics from '@/components/orders/OrdersMetrics'
+import OrdersTable from '@/components/orders/OrdersTable'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { FC } from 'react'
 

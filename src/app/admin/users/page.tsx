@@ -1,5 +1,5 @@
-import OrdersMetrics from '@/components/orders/TransactionsMetrics'
-import OrdersTable from '@/components/orders/TransactionsTable'
+import OrdersMetrics from '@/components/transaction/TransactionsMetrics'
+import OrdersTable from '@/components/transaction/TransactionsTable'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { CustomerTable } from '@/components/users/customers-table'
 import CustomersMetrics from '@/components/users/CustomersMetrics'
