@@ -40,7 +40,7 @@ const FeaturedProducts: FC<FeaturedProductsProps> = ({ }) => {
         {Array.from({ length: 8 }).map((_, index) => (
           <CarouselItem key={index} className="sm:basis-1/2 lg:basis-1/3 xl:basis-1/4">
             <div className='shrink-0 group aspect-[9/12] bg-blue-100 rounded-2xl overflow-hidden relative' key={index}>
-              <Image src='/product2.png' alt='product' fill className='absolute object-cover z-0' />
+              <Image src='/Product2.png' alt='product' fill className='absolute object-cover z-0' />
               <div className="relative w-full z-10 text-lg h-full flex flex-col justify-between px-3 py-4">
                 <div className="w-full flex items-center justify-between">
                   <p className="px-4 py-1 text-white bg-red-500 rounded-full text-sm">Hot</p>
