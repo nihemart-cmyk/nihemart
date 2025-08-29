@@ -53,10 +53,11 @@ const navItems: NavItem[] = [
         title: 'Products',
         icon: Icons.sidebar.products,
         subLinks: [
-            { id: '4-1', title: 'Add product', href: '/admin/products/new' },
-            { id: '4-2', title: 'Product Categories', href: '/admin/products/categories' },
-            { id: '4-3', title: 'Discounts & Offers', href: '/admin/products/discounts' },
-            { id: '4-4', title: 'Product Reviews / Ratings', href: '/admin/products/reviews' },
+            { id: '4-1', title: 'Products Management', href: '/admin/products' },
+            { id: '4-2', title: 'Add product', href: '/admin/products/new' },
+            { id: '4-3', title: 'Product Categories', href: '/admin/products/categories' },
+            { id: '4-4', title: 'Discounts & Offers', href: '/admin/products/discounts' },
+            { id: '4-5', title: 'Product Reviews / Ratings', href: '/admin/products/reviews' },
         ],
     },
     {
