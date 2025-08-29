@@ -10,12 +10,12 @@ interface AnnouncementBarProps {
 
 const AnnouncementBar: FC<AnnouncementBarProps> = ({ }) => {
     return <div className='w-full bg-brand-orange text-white py-2'>
-        <MaxWidthWrapper size={'lg'} className='flex items-center justify-between'>
+        <MaxWidthWrapper size={'lg'} className='flex items-center justify-cener md:justify-between'>
             <div className="flex items-center gap-3">
-                <BadgePercent size={30} />
-                <p className='font-semibold'>Due to Rainy season it will affect delivery  </p>
+                <BadgePercent className='h-5 sm:h-7 w-5 sm:w-7'/>
+                <p className='font-semibold  text-sm md:text-base'>Due to Rainy season it will affect delivery  </p>
             </div>
-            <div className="flex items-center gap-1">
+            <div className="hidden items-center gap-1 md:flex">
                 <Link href={"#"}>
                     <Icons.landingPage.instagram className='h-6 w-6' />
                 </Link>

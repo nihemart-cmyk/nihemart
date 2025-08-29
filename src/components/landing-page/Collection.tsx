@@ -54,7 +54,7 @@ const Collection: FC<CollectionProps> = ({ }) => {
         });
     }, [winObje]);
     return <div className='my-10 relative'>
-        <div className="flex overflow-x-scroll scroll-smooth gap-5 pl-20 scrollbar-hidden" ref={sliderRef}
+        <div className="flex overflow-x-scroll scroll-smooth gap-5 pl-3 xs:pl-5 sm:pl-10 lg:pl-20 scrollbar-hidden" ref={sliderRef}
             onScroll={handleSliderScroll}>
             {Array(8).fill(3).map((_, i) => <div className='w-80 shrink-0 aspect-[9/12] bg-blue-100 rounded-2xl overflow-hidden relative' key={i}>
                 <Image src='/product.png' alt='product' fill className='absolute object-cover z-0' />
@@ -66,17 +66,17 @@ const Collection: FC<CollectionProps> = ({ }) => {
                 </div>
             </div>)}
         </div>
-        <div className="absolute inset-x-20 z-50 flex items-center justify-between top-1/2 -translate-y-1/2">
+        <div className="absolute inset-x-5 sm:inset-x-20 z-50 flex items-center justify-between top-1/2 -translate-y-1/2">
             <ChevronLeft
                 onClick={handleLeftChevClick}
                 size={40}
-                className={cn('text-3xl text-black bg-white border transition-colors duration-300 rounded-full p-2 cursor-pointer opacity-1', { "opacity-0": !chevAppear.left })}
+                className={cn('text-3xl text-black bg-white border border-neutral-700 transition-colors duration-300 rounded-full p-2 cursor-pointer opacity-1', { "opacity-0": !chevAppear.left })}
             />
 
             <ChevronRight
                 onClick={handleRightChevClick}
                 size={40}
-                className={cn('text-3xl p-2 text-black bg-white border transition-colors duration-300 rounded-full cursor-pointer opacity-1', { "opacity-0": !chevAppear.right })}
+                className={cn('text-3xl p-2 text-black bg-white border border-neutral-700 transition-colors duration-300 rounded-full cursor-pointer opacity-1', { "opacity-0": !chevAppear.right })}
             /></div>
     </div>
 }

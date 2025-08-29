@@ -9,6 +9,9 @@ export default {
   ],
   theme: {
   	extend: {
+		screens: {
+        	xs: "370px"
+      	},
   		colors: {
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',
@@ -91,14 +94,14 @@ export default {
   				}
   			},
 			marquee: {
-          		'0%': { transform: 'translateX(0%),skew(2deg)' },
-          		'100%': { transform: 'translateX(-100%),skew(2deg)' },
+          		'0%': { transform: 'translateX(0%)' },
+          		'100%': { transform: 'translateX(-100%)' },
         	},
   		},
   		animation: {
   			'accordion-down': 'accordion-down 0.2s ease-out',
   			'accordion-up': 'accordion-up 0.2s ease-out',
-			 marquee: 'marquee 30s linear infinite',
+			 marquee: 'marquee 15s linear infinite',
   		}
   	}
   },

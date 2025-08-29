@@ -66,7 +66,7 @@ const TopBar: FC<TopBarProps> = (props) => {
           <DropdownMenuTrigger asChild>
             <Button variant='ghost' className='relative px-0'>
               <UserAvatarProfile user={{
-                position: 'Admin',
+                subTitle: 'Admin',
                 fullName: 'FADHILI Josue',
                 imageUrl: profilePlaceholder.src
               }} showInfo={useMediaQuery("(min-width: 768px)")} />

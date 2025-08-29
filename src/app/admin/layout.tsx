@@ -1,5 +1,6 @@
 import Sidebar from '@/components/Sidebar'
 import TopBar from '@/components/TopBar'
+import { ScrollArea } from '@radix-ui/react-scroll-area'
 import { ReactNode } from 'react'
 
 interface LayoutProps {

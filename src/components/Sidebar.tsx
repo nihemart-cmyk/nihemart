@@ -9,8 +9,8 @@ import { usePathname, useRouter } from 'next/navigation';
 import logo from '@/assets/logo.png';
 import { cn } from '@/lib/utils';
 import { Icons } from './icons';
-import AnimatedBackground from './ui/animated-bg';
-import { ChevronDown, LogOut, Settings } from 'lucide-react';
+import SidebarAnimatedBackground from './admin/sidebar-animated-bg';
+import { BadgeDollarSign, ChevronDown, LogOut, Settings } from 'lucide-react';
 import { Button } from './ui/button';
 
 interface NavItem {
@@ -28,7 +28,7 @@ type FlatNavItem = {
 
 const navItems: NavItem[] = [
     { id: '1', title: 'Dashboard', href: '/admin', icon: Icons.sidebar.dashboard },
-    // { id: '2', title: 'Analytics', href: '/admin/analytics', icon: Icons.sidebar.dashboard },
+    { id: '8', title: 'Transactions', href: '/admin/transactions', icon: BadgeDollarSign },
     {
         id: '2',
         title: 'Users',
@@ -151,7 +151,7 @@ const Sidebar: FC = () => {
 
             <div className="flex-1 overflow-y-auto">
                 <div className="flex flex-col gap-1">
-                    <AnimatedBackground activeId={primaryActiveId}>
+                    <SidebarAnimatedBackground activeId={primaryActiveId}>
                         {navItems.map((item) => {
                             const Icon = item.icon;
                             const isOpen = openMenu === item.id;
@@ -209,7 +209,7 @@ const Sidebar: FC = () => {
                                 </Link>
                             );
                         })}
-                    </AnimatedBackground>
+                    </SidebarAnimatedBackground>
                 </div>
             </div>
 

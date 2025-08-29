@@ -11,6 +11,7 @@ import Image from 'next/image'
 import { FC, useState } from 'react'
 import MaxWidthWrapper from '../MaxWidthWrapper'
 import { Button } from '../ui/button'
+import { useMediaQuery } from "@/hooks/user-media-query"
 
 
 interface FeaturedProductsProps {
@@ -22,21 +23,22 @@ const promos = ["5% ON NEW PRODUCTS", "5% ON NEW PRODUCTS", "5% ON NEW PRODUCTS"
 
 const FeaturedProducts: FC<FeaturedProductsProps> = ({ }) => {
   const [category, setCategory] = useState<string>(categories[0])
+  const BUTTON_SIZE = useMediaQuery("(min-width: 768px)") ? 'lg' : 'sm'
   return <MaxWidthWrapper size={'lg'} className='my-20'>
     <h3 className='text-4xl font-bold text-neutral-900 mb-5'>Products under <span className='text-brand-orange'>RWF 15,000</span></h3>
-    <div className="flex items-center gap-3 mb-8">
-      {categories.map((cat, index) => <Button size={'lg'} className='rounded-full' key={index} variant={category == cat ? "default" : "secondary"} onClick={() => setCategory(categories[index])}>{cat}</Button>)}
+    <div className="flex items-center flex-wrap gap-3 mb-8">
+      {categories.map((cat, index) => <Button size={BUTTON_SIZE} className='rounded-full' key={index} variant={category == cat ? "default" : "secondary"} onClick={() => setCategory(categories[index])}>{cat}</Button>)}
     </div>
 
     <Carousel
       opts={{
         align: "center",
       }}
-      className="w-full"
+      className="w-full mt-12 sm:mt-0"
     >
       <CarouselContent>
         {Array.from({ length: 8 }).map((_, index) => (
-          <CarouselItem key={index} className="md:basis-1/2 lg:basis-1/3 xl:basis-1/4">
+          <CarouselItem key={index} className="sm:basis-1/2 lg:basis-1/3 xl:basis-1/4">
             <div className='shrink-0 group aspect-[9/12] bg-blue-100 rounded-2xl overflow-hidden relative' key={index}>
               <Image src='/product2.png' alt='product' fill className='absolute object-cover z-0' />
               <div className="relative w-full z-10 text-lg h-full flex flex-col justify-between px-3 py-4">
@@ -59,12 +61,23 @@ const FeaturedProducts: FC<FeaturedProductsProps> = ({ }) => {
           </CarouselItem>
         ))}
       </CarouselContent>
-      <CarouselPrevious Icon={ChevronLeft} className='-top-12 left-[94%]' />
-      <CarouselNext Icon={ChevronRight} className='-top-12 left-[97%]' />
+      <CarouselPrevious Icon={ChevronLeft} className='-top-7 sm:-top-12 right-10 left-auto' />
+      <CarouselNext Icon={ChevronRight} className='-top-7 sm:-top-12 left-auto right-0' />
     </Carousel>
 
-    <div className="bg-brand-orange mt-20 mb-24 text-white rounded-xl px-20 py-2 flex items-center justify-between gap-5">
-      {promos.map((promo, i) => <p key={i}>{promo}</p>)}
+    <div className="bg-brand-orange mt-10 sm:mt-20 mb-16 sm:mb-24 text-white rounded-xl py-2 overflow-hidden">
+      <div className="flex items-center">
+        {promos.map((promo, i) => (
+          <p key={`promo1-${i}`} className="shrink-0 pl-5 whitespace-nowrap animate-marquee">
+            {promo}
+          </p>
+        ))}
+        {promos.map((promo, i) => (
+          <p key={`promo2-${i}`} className="shrink-0 pl-5 whitespace-nowrap animate-marquee" style={{ animationDelay: "15s" }}>
+            {promo}
+          </p>
+        ))}
+      </div>
     </div>
   </MaxWidthWrapper>
 }

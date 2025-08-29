@@ -12,18 +12,19 @@ interface FooterProps {
 
 const Footer: FC<FooterProps> = ({ }) => {
     return <div className='bg-black text-white'>
-        <MaxWidthWrapper size={'lg'} className='divide-x divide-slate-800 grid grid-cols-2 min-h-96'>
-            <div className="flex flex-col pt-20 pb-5">
-                <div className="space-y-6">
-                    <h5 className='text-xl font-semibold'>Subscribe to our newsletter</h5>
-                    <div className="flex items-center gap-2 max-w-sm">
+        <MaxWidthWrapper size={'lg'} className='divide-y lg:divide-x divide-slate-800 grid lg:grid-cols-2 min-h-96'>
+            <div className="flex flex-col max-w-sm mx-auto pt-20 pb-5 gap-8">
+                <div>
+                    <h5 className='text-xl font-semibold mb-6'>Subscribe to our newsletter</h5>
+                    <div className="flex items-center gap-2 max-w-sm mb-2">
                         <Input placeholder='Enter your email' className='bg-slate-900 border-slate-800 h-12 placeholder:text-xl md:text-lg' />
                         <Button variant={'secondary'} className='h-12'><ArrowRight /></Button>
                     </div>
+                    <p className='text-slate-400'>By subscribing, you agree to our responsible data use.</p>
                 </div>
                 <p className="mt-auto">©2025 Nihemart - Online Store</p>
             </div>
-            <div className="flex flex-col justify-between pt-20 pb-5 pl-20">
+            <div className="flex flex-col justify-between pt-20 pb-5 lg:pl-20 gap-6">
                 <div className="flex justify-between">
                     <div className="flex flex-col gap-3 font-bold text-3xl">
                         <Link href={'#'} className='hover:text-slate-500 transition-colors'>About</Link>

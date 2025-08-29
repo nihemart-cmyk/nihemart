@@ -5,7 +5,7 @@ import { cva, VariantProps } from 'class-variance-authority'
 
 
 const wrapperVariants = cva(
-  'mx-auto w-full px-5 md:px-20',
+  'mx-auto w-full px-3 sm:px-5 md:px-20',
   {
    variants: {
     size: {

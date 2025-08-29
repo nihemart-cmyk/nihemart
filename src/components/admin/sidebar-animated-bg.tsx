@@ -9,7 +9,7 @@ import {
     useId,
 } from 'react';
 
-type AnimatedBackgroundProps = {
+type SidebarAnimatedBackgroundProps = {
     children:
     | ReactElement<{ 'data-id': string }>[]
     | ReactElement<{ 'data-id': string }>;
@@ -19,13 +19,13 @@ type AnimatedBackgroundProps = {
     ChildClasses?: string
 };
 
-export default function AnimatedBackground({
+export default function SidebarAnimatedBackground({
     children,
     activeId,
     className,
     ChildClasses,
     transition,
-}: AnimatedBackgroundProps) {
+}: SidebarAnimatedBackgroundProps) {
     const uniqueId = useId();
 
     return Children.map(children, (child: any, index) => {
