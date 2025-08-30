@@ -9,7 +9,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import logo from '@/assets/logo.png';
 import { cn } from '@/lib/utils';
 import { Icons } from './icons';
-import AnimatedBackground from './ui/animated-bg';
+import AnimatedBackground from './sidebar-animated-bg';
 import { ChevronDown, LogOut, Settings } from 'lucide-react';
 import { Button } from './ui/button';
 
