@@ -1,3 +1,5 @@
+'use client';
+
 import { Minus, Plus, Trash2, ShoppingBag } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -61,7 +63,7 @@ const Cart = () => {
                       </p>
                     </div>
                     {/* Price */}
-                    <p className="font-bold text-primary mt-1">
+                    <p className="font-bold text-orange-500 mt-1">
                       {item.price.toLocaleString()} RWF
                     </p>
                     {/* Quantity & Remove */}

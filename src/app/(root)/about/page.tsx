@@ -57,7 +57,7 @@ const About = () => {
   return (
     <div className="min-h-screen">
       {/* Hero Section */}
-      <section className="bg-gradient-to-br from-primary to-accent py-20">
+      <section className="bg-gradient-to-br from-orange-500 to-blue-500 py-20">
         <div className="container mx-auto px-4 text-center">
           <h1 className="text-4xl lg:text-6xl font-bold text-white mb-6">
             {t("about.title")}
@@ -69,7 +69,7 @@ const About = () => {
       </section>
 
       {/* Story Section */}
-      <section className="py-16">
+      <section className="p-16">
         <div className="container mx-auto px-4">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>
@@ -94,7 +94,7 @@ const About = () => {
       </section>
 
       {/* Values Section */}
-      <section className="py-16 bg-muted/30">
+      <section className="p-16 bg-muted/30">
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold mb-4">
@@ -109,8 +109,8 @@ const About = () => {
             {values.map((value, index) => (
               <Card key={index} className="text-center">
                 <CardContent className="p-6">
-                  <div className="mx-auto w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mb-4">
-                    <value.icon className="h-8 w-8 text-primary" />
+                  <div className="mx-auto w-16 h-16 bg-orange-500/10 rounded-full flex items-center justify-center mb-4">
+                    <value.icon className="h-8 w-8 text-orange-500" />
                   </div>
                   <h3 className="text-xl font-semibold mb-3">{value.title}</h3>
                   <p className="text-muted-foreground">{value.description}</p>
@@ -122,7 +122,7 @@ const About = () => {
       </section>
 
       {/* Team Section */}
-      <section className="py-16">
+      <section className="p-16">
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold mb-4">{t("about.teamTitle")}</h2>
@@ -141,7 +141,7 @@ const About = () => {
                     className="w-32 h-32 rounded-full mx-auto mb-4 object-cover"
                   />
                   <h3 className="text-xl font-semibold mb-1">{member.name}</h3>
-                  <p className="text-primary font-medium mb-3">{member.role}</p>
+                  <p className="text-orange-500 font-medium mb-3">{member.role}</p>
                   <p className="text-muted-foreground text-sm">
                     {member.description}
                   </p>
@@ -153,29 +153,29 @@ const About = () => {
       </section>
 
       {/* Stats Section */}
-      <section className="py-16 bg-muted/30">
+      <section className="p-16 bg-muted/30">
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 text-center">
             <div>
-              <h3 className="text-3xl font-bold text-primary mb-2">10K+</h3>
+              <h3 className="text-3xl font-bold text-orange-500 mb-2">10K+</h3>
               <p className="text-muted-foreground">
                 {t("about.stats.customers")}
               </p>
             </div>
             <div>
-              <h3 className="text-3xl font-bold text-primary mb-2">5K+</h3>
+              <h3 className="text-3xl font-bold text-orange-500 mb-2">5K+</h3>
               <p className="text-muted-foreground">
                 {t("about.stats.products")}
               </p>
             </div>
             <div>
-              <h3 className="text-3xl font-bold text-primary mb-2">50+</h3>
+              <h3 className="text-3xl font-bold text-orange-500 mb-2">50+</h3>
               <p className="text-muted-foreground">
                 {t("about.stats.partners")}
               </p>
             </div>
             <div>
-              <h3 className="text-3xl font-bold text-primary mb-2">99%</h3>
+              <h3 className="text-3xl font-bold text-orange-500 mb-2">99%</h3>
               <p className="text-muted-foreground">
                 {t("about.stats.satisfaction")}
               </p>

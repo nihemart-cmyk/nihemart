@@ -3,8 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "../globals.css";
 import Providers from "../Providers";
 import NavBar from "@/components/landing-page/NavBar";
-import { Footer } from "react-day-picker";
 import AnnouncementBar from "@/components/landing-page/AnnouncementBar";
+import Footer from "@/components/landing-page/Footer";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",

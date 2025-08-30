@@ -50,7 +50,7 @@ const Contact = () => {
   return (
     <div className="min-h-screen">
       {/* Hero Section */}
-      <section className="bg-gradient-to-br from-primary to-accent py-20">
+      <section className="bg-gradient-to-br from-orange-500 to-blue-500 py-20">
         <div className="container mx-auto px-4 text-center">
           <h1 className="text-4xl lg:text-6xl font-bold text-white mb-6">
             {t("nav.contact")}
@@ -61,7 +61,7 @@ const Contact = () => {
         </div>
       </section>
 
-      <section className="py-16">
+      <section className="p-16">
         <div className="container mx-auto px-4">
           <div className="grid lg:grid-cols-2 gap-12">
             {/* Contact Form */}
@@ -168,7 +168,7 @@ const Contact = () => {
       </section>
 
       {/* FAQ Section */}
-      <section className="py-16 bg-muted/30">
+      <section className="p-16 bg-muted/30">
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold mb-4">{t("contact.faqTitle")}</h2>
