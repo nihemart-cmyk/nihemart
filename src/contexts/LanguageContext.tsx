@@ -153,13 +153,11 @@ const enTranslations = {
   "hero.slide2.subtitle":
     "Discover cutting-edge technology at unbeatable prices",
   "hero.slide3.title": "Fashion & Style",
-  "hero.slide3.subtitle":
-    "Trendy clothing and accessories for every occasion",
+  "hero.slide3.subtitle": "Trendy clothing and accessories for every occasion",
 
   // Features
   "features.secure.title": "Secure Shopping",
-  "features.secure.description":
-    "Your data and payments are completely secure",
+  "features.secure.description": "Your data and payments are completely secure",
   "features.delivery.title": "Fast Delivery",
   "features.delivery.description":
     "Free delivery within Kigali, nationwide shipping available",
@@ -391,15 +389,19 @@ const rwTranslations = {
   "hero.slide2.title": "Ibikoresho bya Elegitoroniki bigezweho",
   "hero.slide2.subtitle": "Menya ikoranabuhanga rigezweho ku giciro cyiza",
   "hero.slide3.title": "Imyambarire & Imyenda",
-  "hero.slide3.subtitle": "Imyenda igezweho n'ibikoresho by'imyambarire kuri buri gihe",
+  "hero.slide3.subtitle":
+    "Imyenda igezweho n'ibikoresho by'imyambarire kuri buri gihe",
 
   // Features
   "features.secure.title": "Guhaha Neza",
-  "features.secure.description": "Amakuru yawe n'amafaranga yawe bifite umutekano",
+  "features.secure.description":
+    "Amakuru yawe n'amafaranga yawe bifite umutekano",
   "features.delivery.title": "Kugezwaho Vuba",
-  "features.delivery.description": "Kugeza ubuntu muri Kigali, no mu gihugu hose birashoboka",
+  "features.delivery.description":
+    "Kugeza ubuntu muri Kigali, no mu gihugu hose birashoboka",
   "features.support.title": "Ubufasha 24/7",
-  "features.support.description": "Fashwa igihe cyose ukeneye ubufasha bw'abakiriya bacu",
+  "features.support.description":
+    "Fashwa igihe cyose ukeneye ubufasha bw'abakiriya bacu",
 
   // Chatbot
   "chatbot.title": "Ubufasha bwa Chat",
@@ -485,7 +487,7 @@ const rwTranslations = {
   "about.stats.products": "Ibicuruzwa Biboneka",
   "about.stats.partners": "Abafatanyabikorwa",
   "about.stats.satisfaction": "Ibyishimo by’Abakiriya",
-}
+};
 
 // 2. Define all translation keys as a union type
 type TranslationKeys = keyof typeof enTranslations;
@@ -503,12 +505,16 @@ interface LanguageProviderProps {
 export const LanguageProvider: React.FC<LanguageProviderProps> = ({
   children,
 }) => {
-  const [language, setLanguage] = useState<Language>(() => {
-    const savedLanguage = localStorage.getItem("nihemart-language");
-    return savedLanguage === "rw" || savedLanguage === "en"
-      ? savedLanguage
-      : "en";
-  });
+  const [language, setLanguage] = useState<Language>("en");
+
+  React.useEffect(() => {
+    if (typeof window !== "undefined") {
+      const savedLanguage = localStorage.getItem("nihemart-language");
+      if (savedLanguage === "rw" || savedLanguage === "en") {
+        setLanguage(savedLanguage);
+      }
+    }
+  }, []);
 
   const handleSetLanguage = (lang: Language) => {
     setLanguage(lang);
