@@ -48,7 +48,7 @@ const NavBar: FC<NavBarProps> = ({}) => {
     }
   };
   return (
-    <div className="sticky top-0 w-full z-[999] bg-white border shadow-lg">
+    <div className="sticky top-0 w-full z-[999] bg-white border shadow-md">
       <MaxWidthWrapper
         size={"lg"}
         className="w-full flex items-center justify-between py-6"
