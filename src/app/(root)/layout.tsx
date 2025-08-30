@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
-import Providers from "./Providers";
-import { LanguageProvider } from "@/contexts/LanguageContext";
+import "../globals.css";
+import Providers from "../Providers";
+import NavBar from "@/components/landing-page/NavBar";
+import { Footer } from "react-day-picker";
+import AnnouncementBar from "@/components/landing-page/AnnouncementBar";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,7 +31,12 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <Providers>{children}</Providers>
+        <Providers>
+          <AnnouncementBar />
+          <NavBar />
+          {children}
+          <Footer />
+        </Providers>
       </body>
     </html>
   );

@@ -1,15 +1,20 @@
-'use client'
-import { FC, ReactNode } from 'react'
-import { NuqsAdapter } from 'nuqs/adapters/next/app'
+"use client";
+import { FC, ReactNode } from "react";
+import { NuqsAdapter } from "nuqs/adapters/next/app";
+import { LanguageProvider } from "@/contexts/LanguageContext";
 
 interface ProvidersProps {
-    children: ReactNode
+  children: ReactNode;
 }
 
 const Providers: FC<ProvidersProps> = ({ children }) => {
-    return <>
+  return (
+    <>
+      <LanguageProvider>
         <NuqsAdapter>{children}</NuqsAdapter>
+      </LanguageProvider>
     </>
-}
+  );
+};
 
-export default Providers
+export default Providers;
