@@ -1,5 +1,9 @@
-import React, { createContext, useContext, useState, ReactNode } from "react";
+'use client'
+import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 
+// ... (Your types and translation objects remain the same) ...
+
+// [Keep all your translation objects here: enTranslations, rwTranslations, translations]
 export type Language = "en" | "rw";
 
 interface LanguageContextType {
@@ -503,23 +507,28 @@ interface LanguageProviderProps {
 export const LanguageProvider: React.FC<LanguageProviderProps> = ({
   children,
 }) => {
-  const [language, setLanguage] = useState<Language>(() => {
+  // Initialize with a default, non-browser-dependent state.
+  const [language, setLanguage] = useState<Language>("rw");
+
+  useEffect(() => {
     const savedLanguage = localStorage.getItem("nihemart-language");
-    return savedLanguage === "rw" || savedLanguage === "en"
-      ? savedLanguage
-      : "en";
-  });
+    if (savedLanguage === "rw" || savedLanguage === "en") {
+      setLanguage(savedLanguage);
+    }
+  }, []);
 
   const handleSetLanguage = (lang: Language) => {
     setLanguage(lang);
-    localStorage.setItem("nihemart-language", lang);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("nihemart-language", lang);
+    }
   };
 
   const t = (key: string): string => {
     // Try selected language, then fallback to English, then fallback to key
     return (
-      translations[language][key as keyof (typeof translations)["en"]] ||
-      translations["en"][key as keyof (typeof translations)["en"]] ||
+      translations[language][key as TranslationKeys] ||
+      translations["en"][key as TranslationKeys] ||
       key
     );
   };
@@ -532,6 +541,7 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({
     </LanguageContext.Provider>
   );
 };
+
 
 export const useLanguage = (): LanguageContextType => {
   const context = useContext(LanguageContext);

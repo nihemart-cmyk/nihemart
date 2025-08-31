@@ -1,3 +1,4 @@
+'use client'
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -39,7 +40,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Load cart from localStorage on mount
   useEffect(() => {
-    const savedCart = localStorage.getItem('cart');
+    const savedCart = localStorage?.getItem('cart');
     if (savedCart) {
       try {
         const parsedCart = JSON.parse(savedCart);
@@ -49,11 +50,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setItems(parsedCart);
         } else {
           console.error('Invalid cart data in localStorage.');
-          localStorage.removeItem('cart'); // Clear invalid data
+          localStorage?.removeItem('cart'); // Clear invalid data
         }
       } catch (error) {
         console.error('Error loading cart from localStorage:', error);
-        localStorage.removeItem('cart'); // Clear invalid JSON
+        localStorage?.removeItem('cart'); // Clear invalid JSON
       }
     }
   }, []);
