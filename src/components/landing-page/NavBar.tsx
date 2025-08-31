@@ -26,7 +26,7 @@ export const routes = [
 
 const NavBar: FC<NavBarProps> = ({}) => {
   return (
-    <div className="sticky top-0 w-full z-[999] bg-white">
+    <div className="sticky top-0 w-full z-50 bg-white">
       <MaxWidthWrapper
         size={"lg"}
         className="w-full flex items-center justify-between py-6"

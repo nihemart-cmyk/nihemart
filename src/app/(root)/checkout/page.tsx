@@ -42,7 +42,7 @@ const Checkout = () => {
 
   // Basic form validation
   const validateForm = () => {
-    let formErrors: any = {};
+    const formErrors: any = {};
     const emailPattern = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/;
 
     // Check required fields
