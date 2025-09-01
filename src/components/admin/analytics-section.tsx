@@ -2,9 +2,10 @@
 "use client";
 
 import { useState } from "react";
-import { TrendingUp, Calendar, MoreVertical, ArrowUp } from "lucide-react";
+import { TrendingUp, Calendar, MoreVertical, Download } from "lucide-react";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { format } from "date-fns";
+import { ResponsiveContainer } from "recharts";
 
 import {
    Card,
@@ -130,7 +131,7 @@ export function AnalyticsSection() {
             <h3 className="text-2xl font-bold text-gray-900">Analytics</h3>
 
             <Button className="bg-orange-500 hover:bg-orange-600">
-               <ArrowUp className="w-4 h-4 mr-2" />
+               <Download className="w-4 h-4 mr-2" />
                Export
             </Button>
          </div>
@@ -201,48 +202,48 @@ export function AnalyticsSection() {
                <div className="bg-gray-50 rounded-lg p-4">
                   <ChartContainer
                      config={getChartConfig()}
-                     className="h-64 w-full"
+                     className="h-[300px] w-full"
                   >
-                     <AreaChart
-                        accessibilityLayer
-                        data={chartData}
-                        margin={{
-                           left: 12,
-                           right: 12,
-                           top: 12,
-                        }}
-                        width={800} // Increased width for better visibility
-                        height={300}
-                     >
-                        <CartesianGrid
-                           vertical={false}
-                           strokeDasharray="3 3"
-                        />
-                        <XAxis
-                           dataKey="day"
-                           tickLine={false}
-                           axisLine={false}
-                           tickMargin={8}
-                        />
-                        <YAxis
-                           tickLine={false}
-                           axisLine={false}
-                           tickMargin={8}
-                           width={40}
-                        />
-                        <ChartTooltip
-                           cursor={false}
-                           content={<ChartTooltipContent indicator="line" />}
-                        />
-                        <Area
-                           dataKey={activeTab}
-                           type="monotone"
-                           fill={`var(--color-${activeTab})`}
-                           fillOpacity={0.4}
-                           stroke={`var(--color-${activeTab})`}
-                           strokeWidth={2}
-                        />
-                     </AreaChart>
+                     <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart
+                           accessibilityLayer
+                           data={chartData}
+                           margin={{
+                              left: 12,
+                              right: 12,
+                              top: 12,
+                           }}
+                        >
+                           <CartesianGrid
+                              vertical={false}
+                              strokeDasharray="3 3"
+                           />
+                           <XAxis
+                              dataKey="day"
+                              tickLine={false}
+                              axisLine={false}
+                              tickMargin={8}
+                           />
+                           <YAxis
+                              tickLine={false}
+                              axisLine={false}
+                              tickMargin={8}
+                              width={40}
+                           />
+                           <ChartTooltip
+                              cursor={false}
+                              content={<ChartTooltipContent indicator="line" />}
+                           />
+                           <Area
+                              dataKey={activeTab}
+                              type="monotone"
+                              fill={`var(--color-${activeTab})`}
+                              fillOpacity={0.4}
+                              stroke={`var(--color-${activeTab})`}
+                              strokeWidth={2}
+                           />
+                        </AreaChart>
+                     </ResponsiveContainer>
                   </ChartContainer>
                </div>
             </CardContent>
