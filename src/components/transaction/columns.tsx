@@ -1,18 +1,16 @@
 "use client"
 
+import { momoIcon } from "@/assets"
+import { cn } from "@/lib/utils"
 import { ColumnDef } from "@tanstack/react-table"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "../ui/dropdown-menu"
+import { format } from "date-fns"
 import { Dot, MoreHorizontal } from "lucide-react"
+import Image from "next/image"
+import { Icons } from "../icons"
+import { Badge } from "../ui/badge"
 import { Button } from "../ui/button"
 import { Checkbox } from "../ui/checkbox"
-import { format } from "date-fns"
-import { UserAvatarProfile } from "../user-avatar-profile"
-import { Cell } from "recharts"
-import { cn } from "@/lib/utils"
-import { Badge } from "../ui/badge"
-import Image from "next/image"
-import { momoIcon } from "@/assets"
-import { Icons } from "../icons"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "../ui/dropdown-menu"
 
 type Payment = {
     order: string
