@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { User, Edit, Save, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,9 +8,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
 
 const Profile = () => {
   const { t } = useLanguage();
+  const { user } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
     fullName: '',
@@ -20,6 +24,47 @@ const Profile = () => {
     city: ''
   });
 
+  useEffect(() => {
+    const load = async () => {
+      if (!user) return;
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('full_name, phone, address, city')
+        .eq('id', user.id)
+        .maybeSingle();
+      if (!error) {
+        setFormData({
+          fullName: data?.full_name || '',
+          email: user.email || '',
+          phone: data?.phone || '',
+          address: data?.address || '',
+          city: data?.city || ''
+        });
+      }
+    };
+    load();
+  }, [user]);
+
+  const handleSave = async () => {
+    if (!user) return;
+    const { error } = await supabase.from('profiles').upsert({
+      id: user.id,
+      full_name: formData.fullName,
+      phone: formData.phone,
+      address: formData.address,
+      city: formData.city,
+    });
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success('Profile updated');
+    setIsEditing(false);
+  };
+
+  const handleCancel = () => {
+    setIsEditing(false);
+  };
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-4xl mx-auto">
@@ -111,11 +156,11 @@ const Profile = () => {
 
                 {isEditing && (
                   <div className="flex space-x-4">
-                    <Button>
+                    <Button onClick={handleSave}>
                       <Save className="h-4 w-4 mr-2" />
                       Save Changes
                     </Button>
-                    <Button variant="outline">
+                    <Button variant="outline" onClick={handleCancel}>
                       <X className="h-4 w-4 mr-2" />
                       Cancel
                     </Button>

@@ -5,7 +5,7 @@ import { FC, useState } from "react";
 import logo from "@/assets/logo.png";
 import MaxWidthWrapper from "../MaxWidthWrapper";
 import { cn } from "@/lib/utils";
-import { Globe, Menu, Search, ShoppingCart, UserRound } from "lucide-react";
+import { Globe, Menu, Search, ShoppingCart, User, UserRound } from "lucide-react";
 import { Button } from "../ui/button";
 import {
   DropdownMenu,
@@ -14,11 +14,13 @@ import {
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
 import Link from "next/link";
-
+import { toast } from "sonner";
 import { useLanguage, Language } from "@/contexts/LanguageContext";
 import { Badge } from "../ui/badge";
 import { Input } from "../ui/input";
 import { redirect } from "next/navigation";
+import { useCart } from "@/contexts/CartContext";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface NavBarProps {}
 
@@ -31,9 +33,9 @@ export const routes = [
 ] as const;
 
 const NavBar: FC<NavBarProps> = ({}) => {
-  // const { items } = useCart();
+  const { items } = useCart();
+  const { user, hasRole, signOut } = useAuth();
 
-  const items = [1, 2, 3, 4];
   const { language, setLanguage, t } = useLanguage();
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -47,6 +49,13 @@ const NavBar: FC<NavBarProps> = ({}) => {
       redirect(`/products?search=${encodeURIComponent(searchQuery)}`);
     }
   };
+
+  const handleLogout = async () => {
+    await signOut();
+    toast.success("Logged out");
+    redirect("/");
+  };
+
   return (
     <div className="sticky top-0 w-full z-[999] bg-white border shadow-md">
       <MaxWidthWrapper
@@ -98,7 +107,7 @@ const NavBar: FC<NavBarProps> = ({}) => {
             <DropdownMenuTrigger asChild>
               <Button
                 aria-label={t("nav.language") || "Select language"}
-                className="bg-orange-500"
+                className="bg-orange-500 hover:bg-orange-500/90"
               >
                 <Globe className="h-4 w-4" />
                 <span className=" hidden sm:inline text-xs">
@@ -106,7 +115,7 @@ const NavBar: FC<NavBarProps> = ({}) => {
                 </span>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="mt-5">
+            <DropdownMenuContent align="end" className="z-[9999]">
               <DropdownMenuItem onClick={() => handleLanguageChange("en")}>
                 English
               </DropdownMenuItem>
@@ -132,7 +141,7 @@ const NavBar: FC<NavBarProps> = ({}) => {
             </Link>
           </Button>
 
-          <DropdownMenu>
+          {/* <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" aria-label="User menu">
                 <UserRound className="h-5 w-5" />
@@ -140,15 +149,13 @@ const NavBar: FC<NavBarProps> = ({}) => {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="mt-5">
 
-              {/* WHEN NOT LOGGED IN - AFTER AUTH INTEGRATION */}
-              {/* <DropdownMenuItem asChild>
+              <DropdownMenuItem asChild>
                 <Link href={"/signin"}>{t("nav.login")}</Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <Link href={"/signup"}>{t("nav.register")}</Link>
-              </DropdownMenuItem> */}
+              </DropdownMenuItem>
 
-              {/* WHEN LOGGED IN - AFTER AUTH INTEGRATION */}
               <DropdownMenuItem asChild>
                 <Link href={"/profile"}>{t("nav.profile")}</Link>
               </DropdownMenuItem>
@@ -159,6 +166,43 @@ const NavBar: FC<NavBarProps> = ({}) => {
                 <Link href={"/admin"}>{t("nav.admin")}</Link>
               </DropdownMenuItem>
               <DropdownMenuItem>{t("nav.logout")}</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu> */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" aria-label="User menu">
+                <User className="h-5 w-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="z-[9999]">
+              {!user && (
+                <>
+                  <DropdownMenuItem asChild>
+                    <Link href={"/signin"}>{t("nav.login")}</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href={"/signup"}>{t("nav.register")}</Link>
+                  </DropdownMenuItem>
+                </>
+              )}
+              {user && (
+                <>
+                  <DropdownMenuItem asChild>
+                    <Link href={"/profile"}>{t("nav.profile")}</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href={"/orders"}>{t("nav.orders")}</Link>
+                  </DropdownMenuItem>
+                  {hasRole("admin") && (
+                    <DropdownMenuItem asChild>
+                      <Link href={"/admin"}>{t("nav.admin")}</Link>
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem onClick={handleLogout}>
+                    {t("nav.logout")}
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
           {/* Mobile menu */}

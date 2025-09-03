@@ -4,8 +4,8 @@ import { FC, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-  AdminSigninSchema,
-  TAdminSigninSchema,
+  AdminSignupSchema,
+  TAdminSignupSchema,
 } from "@/lib/validators/admin-auth";
 
 import { Button } from "@/components/ui/button";
@@ -27,42 +27,54 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { redirect } from "next/navigation";
 
-interface AdminSigninFormProps {}
+interface AdminSignupFormProps {}
 
-const AdminSigninForm: FC<AdminSigninFormProps> = ({}) => {
+const AdminSigninForm: FC<AdminSignupFormProps> = ({}) => {
   const [showPassword, setShowPassword] = useState<boolean>(false);
 
-  const form = useForm<TAdminSigninSchema>({
-    resolver: zodResolver(AdminSigninSchema),
+  const form = useForm<TAdminSignupSchema>({
+    resolver: zodResolver(AdminSignupSchema),
     defaultValues: {
       email: "",
+      fullName: "",
+      phoneNumber: "",
       password: "",
+      confirmPassword: "",
       rememberMe: false,
     },
   });
 
-  const onSubmit = async (formData: TAdminSigninSchema) => {
-    const { email, password } = formData;
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  const onSubmit = async (formData: TAdminSignupSchema) => {
+    if (formData.password !== formData.confirmPassword) {
+      toast.error('Passwords do not match');
+      return;
+    }
+
+    const redirectUrl = `${window.location.origin}/`;
+    const { error } = await supabase.auth.signUp({
+      email: formData.email,
+      password: formData.password,
+      options: {
+        emailRedirectTo: redirectUrl,
+        data: { full_name: formData.fullName, phone: formData.phoneNumber }
+      }
+    });
+
     if (error) {
       toast.error(error.message);
       return;
     }
 
-    const userId = data.user?.id;
-    if (userId) {
-      const { data: roles } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', userId);
-      const isAdmin = !!roles?.some((r: any) => r.role === 'admin');
-      // In Next.js, you can use search params or default to '/'
-      const from = typeof window !== "undefined"
-        ? new URLSearchParams(window.location.search).get("from")
-        : null;
-      toast.success('Logged in successfully');
-      redirect(isAdmin ? '/admin' : from || '/');
+    // If email confirmation is enabled, there may be no session yet
+    const { data: sessionData } = await supabase.auth.getSession();
+    if (!sessionData.session) {
+      toast.success('Registration successful. Please check your email to confirm.');
+      redirect('/signin');
+      return;
     }
+
+    toast.success('Registration successful');
+    redirect('/');
   };
 
   return (
@@ -97,6 +109,48 @@ const AdminSigninForm: FC<AdminSigninFormProps> = ({}) => {
 
             <FormField
               control={form.control}
+              name="fullName"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-zinc-500">Full Name</FormLabel>
+                  <FormControl>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                      <Input
+                        placeholder="John Doe"
+                        {...field}
+                        className="pl-10 border-gray-400 placeholder:text-gray-400 h-12 rounded-xl"
+                      />
+                    </div>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="phoneNumber"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-zinc-500">Phone Number</FormLabel>
+                  <FormControl>
+                    <div className="relative">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                      <Input
+                        placeholder="+250784148374"
+                        {...field}
+                        className="pl-10 border-gray-400 placeholder:text-gray-400 h-12 rounded-xl"
+                      />
+                    </div>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
               name="password"
               render={({ field }) => (
                 <FormItem>
@@ -107,6 +161,42 @@ const AdminSigninForm: FC<AdminSigninFormProps> = ({}) => {
                       <Input
                         type={showPassword ? "text" : "password"}
                         placeholder="Enter your password"
+                        {...field}
+                        className="pl-10 pr-10 border-gray-400 placeholder:text-gray-400 h-12 rounded-xl"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2"
+                        aria-label={
+                          showPassword ? "Hide password" : "Show password"
+                        }
+                      >
+                        {showPassword ? (
+                          <EyeOff className="h-5 w-5 text-gray-400" />
+                        ) : (
+                          <Eye className="h-5 w-5 text-gray-400" />
+                        )}
+                      </button>
+                    </div>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="confirmPassword"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-zinc-500">Confirm Password</FormLabel>
+                  <FormControl>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                      <Input
+                        type={showPassword ? "text" : "password"}
+                        placeholder="Confirm your password"
                         {...field}
                         className="pl-10 pr-10 border-gray-400 placeholder:text-gray-400 h-12 rounded-xl"
                       />
@@ -162,13 +252,13 @@ const AdminSigninForm: FC<AdminSigninFormProps> = ({}) => {
               size="lg"
               disabled={form.formState.isSubmitting}
             >
-              {form.formState.isSubmitting ? "Signing In..." : "Sign In"}
+              {form.formState.isSubmitting ? "Signing up..." : "Sign Up"}
             </Button>
             <Link
               className="text-sm text-center mt-4 text-orange-600 underline cursor-pointer"
-              href={"/signup"}
+              href={"/signin"}
             >
-              Don't have an account? Sign up
+              Have an account? Sign In
             </Link>
           </form>
         </Form>

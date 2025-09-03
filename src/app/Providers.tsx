@@ -4,7 +4,7 @@ import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { CartProvider } from "@/contexts/CartContext";
 import { ReactQueryProvider } from "@/providers/react.query.provider";
-import { AuthProvider } from "@/providers/auth.provider";
+import { AuthProvider } from "@/contexts/AuthContext";
 
 interface ProvidersProps {
    children: ReactNode;
