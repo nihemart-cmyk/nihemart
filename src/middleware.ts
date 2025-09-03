@@ -1,21 +1,44 @@
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
+import { cookies } from "next/headers";
+import { supabase } from "./integrations/supabase/client";
 
-export function middleware(req: NextRequest) {
-  const { pathname } = req.nextUrl;
+// Protect /admin and /profile routes
+export async function middleware(req: NextRequest) {
+  const url = req.nextUrl.clone();
+  // const supabase = createServerComponentClient({ cookies });
 
-  // Example: protect dashboard routes
-  if (pathname.startsWith("/dashboard")) {
-    // TODO: check cookies or Supabase session
-    const isLoggedIn = false; // replace with real check
-    if (!isLoggedIn) {
-      return NextResponse.redirect(new URL("/login", req.url));
+  // Get user session
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  // Protect /admin
+  if (url.pathname.startsWith("/admin")) {
+    if (!user) {
+      url.pathname = "/signin";
+      return NextResponse.redirect(url);
+    }
+    // Fetch user role from your DB or JWT
+    // Example: user.user_metadata.role === "admin"
+    if (user.user_metadata?.role !== "admin") {
+      url.pathname = "/";
+      return NextResponse.redirect(url);
+    }
+  }
+
+  // Protect /profile
+  if (url.pathname.startsWith("/profile")) {
+    if (!user) {
+      url.pathname = "/signin";
+      return NextResponse.redirect(url);
     }
   }
 
   return NextResponse.next();
 }
 
+// Specify which paths to match
 export const config = {
-  matcher: ["/dashboard/:path*"],
+  matcher: ["/admin/:path*", "/profile/:path*"],
 };
