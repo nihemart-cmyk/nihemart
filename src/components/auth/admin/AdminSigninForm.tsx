@@ -7,7 +7,6 @@ import {
   AdminSigninSchema,
   TAdminSigninSchema,
 } from "@/lib/validators/admin-auth";
-
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -21,16 +20,16 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
-
 import { Mail, Lock, Eye, EyeOff } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { redirect } from "next/navigation";
+import { useAuth } from "@/hooks/useAuth";
 
 interface AdminSigninFormProps {}
 
 const AdminSigninForm: FC<AdminSigninFormProps> = ({}) => {
   const [showPassword, setShowPassword] = useState<boolean>(false);
+  const { signIn, hasRole, user, loading } = useAuth();
 
   const form = useForm<TAdminSigninSchema>({
     resolver: zodResolver(AdminSigninSchema),
@@ -43,26 +42,21 @@ const AdminSigninForm: FC<AdminSigninFormProps> = ({}) => {
 
   const onSubmit = async (formData: TAdminSigninSchema) => {
     const { email, password } = formData;
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await signIn(email, password);
     if (error) {
-      toast.error(error.message);
+      toast.error(error);
       return;
     }
-
-    const userId = data.user?.id;
-    if (userId) {
-      const { data: roles } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', userId);
-      const isAdmin = !!roles?.some((r: any) => r.role === 'admin');
-      // In Next.js, you can use search params or default to '/'
-      const from = typeof window !== "undefined"
-        ? new URLSearchParams(window.location.search).get("from")
-        : null;
-      toast.success('Logged in successfully');
-      redirect(isAdmin ? '/admin' : from || '/');
-    }
+    // Wait for roles to be fetched
+    setTimeout(() => {
+      if (hasRole("admin")) {
+        toast.success("Logged in successfully");
+        redirect("/admin");
+      } else {
+        toast.success("Logged in successfully");
+        redirect("/");
+      }
+    }, 300);
   };
 
   return (

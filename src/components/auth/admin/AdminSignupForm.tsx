@@ -7,7 +7,6 @@ import {
   AdminSignupSchema,
   TAdminSignupSchema,
 } from "@/lib/validators/admin-auth";
-
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -21,16 +20,16 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
-
 import { Mail, Lock, Eye, EyeOff } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { redirect } from "next/navigation";
+import { useAuth } from "@/hooks/useAuth";
 
 interface AdminSignupFormProps {}
 
-const AdminSigninForm: FC<AdminSignupFormProps> = ({}) => {
+const AdminSignupForm: FC<AdminSignupFormProps> = ({}) => {
   const [showPassword, setShowPassword] = useState<boolean>(false);
+  const { signUp } = useAuth();
 
   const form = useForm<TAdminSignupSchema>({
     resolver: zodResolver(AdminSignupSchema),
@@ -46,35 +45,26 @@ const AdminSigninForm: FC<AdminSignupFormProps> = ({}) => {
 
   const onSubmit = async (formData: TAdminSignupSchema) => {
     if (formData.password !== formData.confirmPassword) {
-      toast.error('Passwords do not match');
+      toast.error("Passwords do not match");
       return;
     }
 
-    const redirectUrl = `${window.location.origin}/`;
-    const { error } = await supabase.auth.signUp({
-      email: formData.email,
-      password: formData.password,
-      options: {
-        emailRedirectTo: redirectUrl,
-        data: { full_name: formData.fullName, phone: formData.phoneNumber }
-      }
-    });
+    const { error } = await signUp(
+      formData.fullName,
+      formData.email,
+      formData.password,
+      formData.phoneNumber
+    );
 
     if (error) {
-      toast.error(error.message);
+      toast.error(error);
       return;
     }
 
-    // If email confirmation is enabled, there may be no session yet
-    const { data: sessionData } = await supabase.auth.getSession();
-    if (!sessionData.session) {
-      toast.success('Registration successful. Please check your email to confirm.');
-      redirect('/signin');
-      return;
-    }
-
-    toast.success('Registration successful');
-    redirect('/');
+    toast.success(
+      "Registration successful. Please check your email to confirm."
+    );
+    redirect("/signin");
   };
 
   return (
@@ -190,7 +180,9 @@ const AdminSigninForm: FC<AdminSignupFormProps> = ({}) => {
               name="confirmPassword"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-zinc-500">Confirm Password</FormLabel>
+                  <FormLabel className="text-zinc-500">
+                    Confirm Password
+                  </FormLabel>
                   <FormControl>
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
@@ -267,4 +259,4 @@ const AdminSigninForm: FC<AdminSignupFormProps> = ({}) => {
   );
 };
 
-export default AdminSigninForm;
+export default AdminSignupForm;

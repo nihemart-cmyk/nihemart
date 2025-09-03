@@ -5,7 +5,14 @@ import { FC, useState } from "react";
 import logo from "@/assets/logo.png";
 import MaxWidthWrapper from "../MaxWidthWrapper";
 import { cn } from "@/lib/utils";
-import { Globe, Menu, Search, ShoppingCart, User, UserRound } from "lucide-react";
+import {
+  Globe,
+  Menu,
+  Search,
+  ShoppingCart,
+  User,
+  UserRound,
+} from "lucide-react";
 import { Button } from "../ui/button";
 import {
   DropdownMenu,
@@ -20,7 +27,7 @@ import { Badge } from "../ui/badge";
 import { Input } from "../ui/input";
 import { redirect } from "next/navigation";
 import { useCart } from "@/contexts/CartContext";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/hooks/useAuth"; // <-- update this import
 
 interface NavBarProps {}
 
@@ -34,7 +41,7 @@ export const routes = [
 
 const NavBar: FC<NavBarProps> = ({}) => {
   const { items } = useCart();
-  const { user, hasRole, signOut } = useAuth();
+  const { user, hasRole, signOut } = useAuth(); // <-- use the hook
 
   const { language, setLanguage, t } = useLanguage();
   const [searchQuery, setSearchQuery] = useState("");
@@ -140,34 +147,6 @@ const NavBar: FC<NavBarProps> = ({}) => {
               )}
             </Link>
           </Button>
-
-          {/* <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" aria-label="User menu">
-                <UserRound className="h-5 w-5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="mt-5">
-
-              <DropdownMenuItem asChild>
-                <Link href={"/signin"}>{t("nav.login")}</Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href={"/signup"}>{t("nav.register")}</Link>
-              </DropdownMenuItem>
-
-              <DropdownMenuItem asChild>
-                <Link href={"/profile"}>{t("nav.profile")}</Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href={"/orders"}>{t("nav.orders")}</Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href={"/admin"}>{t("nav.admin")}</Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem>{t("nav.logout")}</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu> */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" aria-label="User menu">
