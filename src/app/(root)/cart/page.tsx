@@ -17,7 +17,7 @@ const Cart = () => {
     itemsCount,
     total,
     subtotal,
-    transport,
+    // transport,
   } = useCart();
 
   if (items.length === 0) {
@@ -117,10 +117,10 @@ const Cart = () => {
                   <span>Subtotal</span>
                   <span>{subtotal.toLocaleString()} RWF</span>
                 </div>
-                <div className="flex justify-between">
+                {/* <div className="flex justify-between">
                   <span>Transport fee</span>
                   <span>{transport.toLocaleString()} RWF</span>
-                </div>
+                </div> */}
                 <Separator />
                 <div className="flex justify-between font-bold text-lg">
                   <span>{t("cart.total")}</span>

@@ -1,112 +1,145 @@
 "use client";
-import React from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { Plus, ArrowUp } from "lucide-react";
+import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { ProductsTable } from "@/components/admin/products-table";
-import Link from "next/link";
+import { 
+  fetchProductsPage, 
+  fetchAllProductsForExport,
+  deleteProduct, 
+  updateProduct,
+  fetchCategories 
+} from "@/integrations/supabase/products";
+import type { Product, Category, ProductListPageFilters } from "@/integrations/supabase/products";
 
-// Main Products Page Component
 const ProductsPage = () => {
-   const products = [
-      {
-         id: 1,
-         name: "Air Jordan 1 Retro High OG 'Black & White'",
-         description: "Ready to hit the streets with sophistication.",
-         category: "Shoes",
-         stock: true,
-         price: "25,000",
-         qty: 32,
-         status: "Scheduled",
-         image: "👟",
-      },
-      {
-         id: 2,
-         name: "Nike Dri-FIT Micro Pique 2.0 Polo",
-         description: "The best-selling Nike polo just got better.",
-         category: "Fashion",
-         stock: true,
-         price: "25,000",
-         qty: 31,
-         status: "Delivered",
-         image: "👕",
-      },
-      {
-         id: 3,
-         name: "Air Jordan 1 Retro",
-         description: "A modern shoe built on the Air Jordan legacy.",
-         category: "Shoes",
-         stock: true,
-         price: "25,000",
-         qty: 21,
-         status: "Delivered",
-         image: "👟",
-      },
-      {
-         id: 4,
-         name: "iPhone 13 Pro Max",
-         description: "iPhone 13 Pro Max, 128GB",
-         category: "Electronic",
-         stock: false,
-         price: "25,000",
-         qty: 121,
-         status: "Cancel",
-         image: "📱",
-      },
-      {
-         id: 5,
-         name: "2020 Apple iPad Pro 2nd Gen",
-         description: "New advancements for upgraded performance",
-         category: "Electronic",
-         stock: true,
-         price: "25,000",
-         qty: 133,
-         status: "Delivered",
-         image: "📱",
-      },
-      {
-         id: 6,
-         name: "Apple 2021 iMac with M1 chip",
-         description: "An immersive 24-inch 4.5K Retina display",
-         category: "Electronic",
-         stock: true,
-         price: "25,000",
-         qty: 233,
-         status: "Delivered",
-         image: "📱",
-      },
-      {
-         id: 7,
-         name: "MacBook Pro Laptop M2 Pro chip",
-         description: "M2 Max takes power and speed to the next level",
-         category: "Electronic",
-         stock: true,
-         price: "25,000",
-         qty: 120,
-         status: "Delivered",
-         image: "📱",
-      },
-   ];
+  const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [totalCount, setTotalCount] = useState(0);
+  const [page, setPage] = useState(1);
+  const [limit] = useState(10);
+  const [filters, setFilters] = useState<ProductListPageFilters>({
+    search: '',
+    category: 'all',
+    status: 'all',
+  });
+  const [sort, setSort] = useState({ column: 'created_at', direction: 'desc' as 'asc' | 'desc' });
 
-   return (
-      <div className="min-h-screen  p-4 md:p-6">
+  const fetchAndSetProducts = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data, count } = await fetchProductsPage({
+        filters,
+        pagination: { page, limit },
+        sort,
+      });
+      setProducts(data);
+      setTotalCount(count);
+    } catch (error) {
+      console.error("Failed to fetch products:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [filters, page, limit, sort]);
+
+  useEffect(() => {
+    fetchAndSetProducts();
+  }, [fetchAndSetProducts]);
+
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const fetchedCategories = await fetchCategories();
+        setCategories(fetchedCategories);
+      } catch (error) {
+        console.error("Failed to load categories:", error);
+      }
+    };
+    loadCategories();
+  }, []);
+
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage);
+  };
+
+  const handleFilterChange = (newFilters: Partial<ProductListPageFilters>) => {
+    setPage(1);
+    setFilters(prev => ({ ...prev, ...newFilters }));
+  };
+
+  const handleSortChange = (column: string) => {
+    setSort(prev => ({
+      column,
+      direction: prev.column === column && prev.direction === 'asc' ? 'desc' : 'asc'
+    }));
+  };
+
+  const handleDeleteProduct = async (id: string) => {
+    if (window.confirm("Are you sure you want to delete this product?")) {
+      try {
+        await deleteProduct(id);
+        fetchAndSetProducts();
+      } catch (error) {
+        console.error("Failed to delete product:", error);
+      }
+    }
+  };
+
+  const handleStatusToggle = async (id: string, currentStatus: string | undefined) => {
+    const newStatus = currentStatus === 'active' ? 'draft' : 'active';
+    try {
+      await updateProduct(id, { status: newStatus });
+      fetchAndSetProducts();
+    } catch(error) {
+      console.error("Failed to update product status:", error);
+    }
+  };
+  
+  const handleExport = async () => {
+    try {
+      const productsToExport = await fetchAllProductsForExport({ filters, sort });
+      const headers = ["ID", "Name", "SKU", "Category", "Brand", "Price", "Stock", "Status"];
+      const csvContent = [
+        headers.join(","),
+        ...productsToExport.map(p => [
+          p.id,
+          `"${p.name?.replace(/"/g, '""')}"`,
+          p.sku || '',
+          p.category?.name || '',
+          p.brand || '',
+          p.price,
+          p.stock,
+          p.status
+        ].join(","))
+      ].join("\n");
+      
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
+      link.setAttribute("download", `products-export-${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error("Failed to export products:", error);
+    }
+  };
+
+  return (
+      <div className="min-h-screen p-4 md:p-6">
          <div className="max-w-full mx-auto">
-            {/* Header */}
             <div className="mb-6">
                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-4">
                   <div>
-                     <h1 className="text-2xl md:text-3xl font-bold text-gray-900">
-                        Products
-                     </h1>
-                     <p className="text-gray-600 mt-1">
-                        Monitor your store&apos;s products to increase your sales.
-                     </p>
+                     <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Products</h1>
+                     <p className="text-gray-600 mt-1">Monitor your store&apos;s products to increase your sales.</p>
                   </div>
                   <div className="flex items-center space-x-3">
-                     <Button
-                        variant="outline"
-                        className="flex items-center space-x-2"
-                     >
+                     <Button onClick={handleExport} variant="outline" className="flex items-center space-x-2">
                         <ArrowUp className="w-4 h-4" />
                         <span className="hidden sm:inline">Export</span>
                      </Button>
@@ -119,12 +152,22 @@ const ProductsPage = () => {
                   </div>
                </div>
             </div>
-
-            {/* Products Table */}
-            <ProductsTable products={products} />
+            <ProductsTable
+              products={products}
+              categories={categories}
+              loading={loading}
+              filters={filters}
+              sort={sort}
+              pagination={{ page, limit, totalCount }}
+              onFilterChange={handleFilterChange}
+              onPageChange={handlePageChange}
+              onSortChange={handleSortChange}
+              onDelete={handleDeleteProduct}
+              onStatusToggle={handleStatusToggle}
+            />
          </div>
       </div>
-   );
+  );
 };
 
 export default ProductsPage;

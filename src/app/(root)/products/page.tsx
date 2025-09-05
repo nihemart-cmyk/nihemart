@@ -1,369 +1,188 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Slider } from "@/components/ui/slider"
+import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
-import { Heart, ChevronDown, ChevronUp, Filter } from "lucide-react"
+import { Heart, ChevronDown, ChevronUp, Filter, Search } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { fetchStoreProducts, fetchStoreFilterData, fetchStoreSubcategories } from "@/integrations/supabase/store"
+import type { StoreProduct, StoreCategory, StoreSubcategory } from "@/integrations/supabase/store"
+import { useDebounce } from "@/hooks/use-debounce"
+import Image from "next/image"
+import { useCart } from "@/contexts/CartContext"
 
-interface Product {
-  id: number
-  name: string
-  price: number
-  rating: number
-  reviews: number
-  availability: string
-  image: string
-  isFavorite: boolean
-}
-
-const mockProducts: Product[] = Array.from({ length: 12 }, (_, i) => ({
-  id: i + 1,
-  name: "TDX Sinkers",
-  price: 675.0,
-  rating: 4.5,
-  reviews: 121,
-  availability: "5 types of shoes available",
-  image: "/product.png",
-  isFavorite: false,
-}))
-
-const categories = [
-  { name: "Kid", count: 18 },
-  { name: "Man", count: 12 },
-  { name: "Woman", count: 23 },
-  { name: "Casual", count: 67 },
-  { name: "Sport", count: 34 },
-  { name: "Rainbow", count: 12 },
-]
-
-const brands = [
-  { name: "Adidas", count: 18 },
-  { name: "Nike", count: 12 },
-  { name: "Jacik & Co", count: 23 },
-  { name: "My Shooed", count: 67 },
-  { name: "Florida Fox", count: 34 },
-]
-
-const ratings = [
-  { stars: 4.5, count: 1991 },
-  { stars: 4.0, count: 200 },
-  { stars: 3.5, count: 300 },
-  { stars: 3.0, count: 500 },
-]
+const PAGE_LIMIT = 12;
 
 export default function ProductListingPage() {
-  const router = useRouter()
-  const [products, setProducts] = useState(mockProducts)
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([])
-  const [selectedBrands, setSelectedBrands] = useState<string[]>([])
-  const [selectedRatings, setSelectedRatings] = useState<number[]>([])
-  const [priceRange, setPriceRange] = useState([0, 200])
-  const [sizeRange, setSizeRange] = useState([5, 10])
-  const [sortBy, setSortBy] = useState("popularity")
-  const [showMoreCategories, setShowMoreCategories] = useState(false)
-  const [showMoreBrands, setShowMoreBrands] = useState(false)
-  const [expandedSections, setExpandedSections] = useState({
-    category: true,
-    ratings: true,
-    brand: true,
-    price: true,
-    size: true,
-  })
-  const [isFilterOpen, setIsFilterOpen] = useState(false)
+  const router = useRouter();
+  const { addItem } = useCart();
+  
+  const [products, setProducts] = useState<StoreProduct[]>([]);
+  const [categories, setCategories] = useState<StoreCategory[]>([]);
+  const [subcategories, setSubcategories] = useState<StoreSubcategory[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [totalCount, setTotalCount] = useState(0);
+  const [page, setPage] = useState(1);
 
-  const handleCardClick = (productId: number) => {
-    router.push(`/products/${productId}`)
-  }
+  const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearchTerm = useDebounce(searchTerm, 500);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [selectedSubcategories, setSelectedSubcategories] = useState<string[]>([]);
+  const [priceRange, setPriceRange] = useState([0, 5000]);
+  const debouncedPriceRange = useDebounce(priceRange, 500);
+  
+  const [sortBy, setSortBy] = useState("created_at.desc");
 
-  const toggleFavorite = (e: React.MouseEvent, productId: number) => {
-    e.stopPropagation()
-    setProducts(
-      products.map((product) => (product.id === productId ? { ...product, isFavorite: !product.isFavorite } : product)),
-    )
-  }
+  const [expandedSections, setExpandedSections] = useState({ category: true, subcategory: true, price: true });
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
 
-  const toggleSection = (section: keyof typeof expandedSections) => {
-    setExpandedSections((prev) => ({
-      ...prev,
-      [section]: !prev[section],
-    }))
-  }
+  const fetchProducts = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [sortColumn, sortDirection] = sortBy.split('.');
+      const { data, count } = await fetchStoreProducts({
+        search: debouncedSearchTerm,
+        filters: {
+          categories: selectedCategories,
+          subcategories: selectedSubcategories,
+          priceRange: [debouncedPriceRange[0], debouncedPriceRange[1]],
+        },
+        sort: { column: sortColumn, direction: sortDirection as 'asc' | 'desc' },
+        pagination: { page, limit: PAGE_LIMIT }
+      });
+      setProducts(data);
+      setTotalCount(count);
+    } catch (error) {
+      console.error("Failed to fetch products", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [page, sortBy, selectedCategories, selectedSubcategories, debouncedPriceRange, debouncedSearchTerm]);
 
-  const renderStars = (rating: number) => {
+  useEffect(() => {
+    fetchProducts();
+  }, [fetchProducts]);
+
+  useEffect(() => {
+    const loadFilterData = async () => {
+      try {
+        const { categories } = await fetchStoreFilterData();
+        setCategories(categories);
+      } catch (error) { console.error("Failed to load category data", error); }
+    };
+    loadFilterData();
+  }, []);
+
+  useEffect(() => {
+    const loadSubcategories = async () => {
+      try {
+        const { subcategories } = await fetchStoreSubcategories(selectedCategories);
+        setSubcategories(subcategories);
+      } catch (error) { console.error("Failed to load subcategory data", error); }
+    };
+    if (selectedCategories.length > 0) {
+      loadSubcategories();
+    } else {
+      setSubcategories([]);
+      setSelectedSubcategories([]); // Clear subcategory selection if parent is deselected
+    }
+  }, [selectedCategories]);
+
+
+  const handleClearFilters = () => {
+    setSelectedCategories([]);
+    setSelectedSubcategories([]);
+    setPriceRange([0, 5000]);
+    setSearchTerm('');
+    setPage(1);
+  };
+  
+  const handleAddToCart = (e: React.MouseEvent, product: StoreProduct) => {
+    e.stopPropagation();
+    addItem({
+      product_id: product.id,
+      name: product.name,
+      price: product.price,
+      image: product.main_image_url || '/placeholder.svg'
+    });
+  };
+
+  const renderStars = (rating: number | null) => {
+    const r = Math.round(rating || 0);
     return Array.from({ length: 5 }, (_, i) => (
-      <span key={i} className={cn("text-sm", i < Math.floor(rating) ? "text-yellow-400" : "text-gray-300")}>
-        ★
-      </span>
-    ))
-  }
+      <span key={i} className={cn("text-sm", i < r ? "text-yellow-400" : "text-gray-300")}>★</span>
+    ));
+  };
+
+  const toggleSection = (section: keyof typeof expandedSections) => setExpandedSections(p => ({ ...p, [section]: !p[section] }));
 
   const FilterContent = () => (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold">Filters</h2>
-        <Button variant="ghost" size="sm" className="text-orange-500 hover:text-orange-600">
-          Clear All
-        </Button>
+      <div className="flex items-center justify-between"><h2 className="text-lg font-semibold">Filters</h2><Button onClick={handleClearFilters} variant="ghost" size="sm" className="text-orange-500 hover:text-orange-600">Clear All</Button></div>
+      
+      <div>
+        <button onClick={() => toggleSection("category")} className="flex items-center justify-between w-full mb-3"><h3 className="font-medium">Category</h3>{expandedSections.category ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</button>
+        {expandedSections.category && <div className="space-y-2">{categories.map(c => <div key={c.id} className="flex items-center justify-between"><div className="flex items-center space-x-2"><Checkbox id={c.id} checked={selectedCategories.includes(c.id)} onCheckedChange={checked => {setPage(1); setSelectedCategories(p => checked ? [...p, c.id] : p.filter(id => id !== c.id))}} /><label htmlFor={c.id} className="text-sm cursor-pointer">{c.name}</label></div><span className="text-xs text-gray-500">({c.products_count})</span></div>)}</div>}
       </div>
 
       <div>
-        <button onClick={() => toggleSection("category")} className="flex items-center justify-between w-full mb-3">
-          <h3 className="font-medium">Category</h3>
-          {expandedSections.category ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-        </button>
-        {expandedSections.category && (
-          <div className="space-y-2">
-            {categories.slice(0, showMoreCategories ? categories.length : 4).map((category) => (
-              <div key={category.name} className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id={category.name}
-                    checked={selectedCategories.includes(category.name)}
-                    onCheckedChange={(checked) => {
-                      if (checked) {
-                        setSelectedCategories([...selectedCategories, category.name])
-                      } else {
-                        setSelectedCategories(selectedCategories.filter((c) => c !== category.name))
-                      }
-                    }}
-                  />
-                  <label htmlFor={category.name} className="text-sm cursor-pointer">
-                    {category.name}
-                  </label>
-                </div>
-                <span className="text-xs text-gray-500">({category.count})</span>
-              </div>
-            ))}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowMoreCategories(!showMoreCategories)}
-              className="text-orange-500 hover:text-orange-600 p-0 h-auto"
-            >
-              {showMoreCategories ? "Show less" : "Show more"}
-            </Button>
-          </div>
-        )}
+        <button onClick={() => toggleSection("subcategory")} disabled={selectedCategories.length === 0} className="flex items-center justify-between w-full mb-3 disabled:opacity-50"><h3 className="font-medium">Subcategory</h3>{expandedSections.subcategory ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</button>
+        {expandedSections.subcategory && selectedCategories.length > 0 && <div className="space-y-2">{subcategories.map(sc => <div key={sc.id} className="flex items-center justify-between"><div className="flex items-center space-x-2"><Checkbox id={sc.id} checked={selectedSubcategories.includes(sc.id)} onCheckedChange={checked => {setPage(1); setSelectedSubcategories(p => checked ? [...p, sc.id] : p.filter(id => id !== sc.id))}} /><label htmlFor={sc.id} className="text-sm cursor-pointer">{sc.name}</label></div><span className="text-xs text-gray-500">({sc.products_count})</span></div>)}</div>}
       </div>
 
       <div>
-        <button onClick={() => toggleSection("ratings")} className="flex items-center justify-between w-full mb-3">
-          <h3 className="font-medium">Ratings</h3>
-          {expandedSections.ratings ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-        </button>
-        {expandedSections.ratings && (
-          <div className="space-y-2">
-            {ratings.map((rating) => (
-              <div key={rating.stars} className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id={`rating-${rating.stars}`}
-                    checked={selectedRatings.includes(rating.stars)}
-                    onCheckedChange={(checked) => {
-                      if (checked) {
-                        setSelectedRatings([...selectedRatings, rating.stars])
-                      } else {
-                        setSelectedRatings(selectedRatings.filter((r) => r !== rating.stars))
-                      }
-                    }}
-                  />
-                  <label
-                    htmlFor={`rating-${rating.stars}`}
-                    className="flex items-center space-x-1 text-sm cursor-pointer"
-                  >
-                    {renderStars(rating.stars)}
-                    <span>{rating.stars} & up</span>
-                  </label>
-                </div>
-                <span className="text-xs text-gray-500">({rating.count})</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div>
-        <button onClick={() => toggleSection("brand")} className="flex items-center justify-between w-full mb-3">
-          <h3 className="font-medium">Brand</h3>
-          {expandedSections.brand ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-        </button>
-        {expandedSections.brand && (
-          <div className="space-y-2">
-            {brands.slice(0, showMoreBrands ? brands.length : 4).map((brand) => (
-              <div key={brand.name} className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id={brand.name}
-                    checked={selectedBrands.includes(brand.name)}
-                    onCheckedChange={(checked) => {
-                      if (checked) {
-                        setSelectedBrands([...selectedBrands, brand.name])
-                      } else {
-                        setSelectedBrands(selectedBrands.filter((b) => b !== brand.name))
-                      }
-                    }}
-                  />
-                  <label htmlFor={brand.name} className="text-sm cursor-pointer">
-                    {brand.name}
-                  </label>
-                </div>
-                <span className="text-xs text-gray-500">({brand.count})</span>
-              </div>
-            ))}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowMoreBrands(!showMoreBrands)}
-              className="text-orange-500 hover:text-orange-600 p-0 h-auto"
-            >
-              {showMoreBrands ? "Show less" : "Show more"}
-            </Button>
-          </div>
-        )}
-      </div>
-
-      <div>
-        <button onClick={() => toggleSection("price")} className="flex items-center justify-between w-full mb-3">
-          <h3 className="font-medium">Price</h3>
-          {expandedSections.price ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-        </button>
-        {expandedSections.price && (
-          <div className="space-y-4">
-            <Slider value={priceRange} onValueChange={setPriceRange} max={200} step={10} className="w-full" />
-            <div className="flex justify-between text-sm text-gray-600">
-              <span>${priceRange[0]}</span>
-              <span>${priceRange[1]}</span>
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div>
-        <button onClick={() => toggleSection("size")} className="flex items-center justify-between w-full mb-3">
-          <h3 className="font-medium">Size</h3>
-          {expandedSections.size ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-        </button>
-        {expandedSections.size && (
-          <div className="space-y-4">
-            <Slider value={sizeRange} onValueChange={setSizeRange} min={5} max={12} step={0.5} className="w-full" />
-            <div className="flex justify-between text-sm text-gray-600">
-              <span>{sizeRange[0]}</span>
-              <span>{sizeRange[1]}</span>
-            </div>
-          </div>
-        )}
+        <button onClick={() => toggleSection("price")} className="flex items-center justify-between w-full mb-3"><h3 className="font-medium">Price</h3>{expandedSections.price ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</button>
+        {expandedSections.price && <div className="space-y-4"><Slider value={priceRange} onValueChange={setPriceRange} max={5000} step={10} className="w-full" /><div className="flex justify-between text-sm text-gray-600"><span>${priceRange[0]}</span><span>${priceRange[1]}</span></div></div>}
       </div>
     </div>
-  )
+  );
+
+  const totalPages = Math.ceil(totalCount / PAGE_LIMIT);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-orange-50">
       <div className="container mx-auto px-4 py-6">
         <div className="flex gap-6">
-          <div className="hidden lg:block w-80 flex-shrink-0">
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 sticky top-28">
-              <FilterContent />
-            </div>
-          </div>
+          <div className="hidden lg:block w-80 flex-shrink-0"><div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 sticky top-28"><FilterContent /></div></div>
 
           <div className="flex-1 min-w-0 space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white rounded-xl p-6 shadow-sm border border-slate-200">
-              <div className="flex items-center gap-4">
-                <p className="text-sm text-gray-600">
-                  <span className="text-orange-500 font-medium">Showing 12 Results</span> from total 230
-                </p>
-                <Sheet open={isFilterOpen} onOpenChange={setIsFilterOpen}>
-                  <SheetTrigger asChild>
-                    <Button variant="outline" size="sm" className="lg:hidden bg-transparent">
-                      <Filter className="h-4 w-4 mr-2" />
-                      Filters
-                    </Button>
-                  </SheetTrigger>
-                  <SheetContent side="right" className="w-full sm:w-96 overflow-y-auto">
-                    <SheetHeader className="mb-6">
-                      <SheetTitle>Filter Products</SheetTitle>
-                    </SheetHeader>
-                    <FilterContent />
-                  </SheetContent>
-                </Sheet>
+              <div className="flex items-center gap-4 flex-1">
+                <div className="relative w-full max-w-xs">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input placeholder="Search products..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9 bg-slate-50 border-slate-200" />
+                </div>
+                <Sheet open={isFilterOpen} onOpenChange={setIsFilterOpen}><SheetTrigger asChild><Button variant="outline" size="sm" className="lg:hidden bg-transparent"><Filter className="h-4 w-4 mr-2" />Filters</Button></SheetTrigger><SheetContent side="right" className="w-full sm:w-96 overflow-y-auto"><SheetHeader className="mb-6"><SheetTitle>Filter Products</SheetTitle></SheetHeader><FilterContent /></SheetContent></Sheet>
               </div>
-
               <div className="flex items-center gap-4">
-                <Select value={sortBy} onValueChange={setSortBy}>
-                  <SelectTrigger className="w-48">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="popularity">Popularity</SelectItem>
-                    <SelectItem value="price-low">Price: Low to High</SelectItem>
-                    <SelectItem value="price-high">Price: High to Low</SelectItem>
-                    <SelectItem value="rating">Rating</SelectItem>
-                    <SelectItem value="newest">Newest</SelectItem>
-                  </SelectContent>
-                </Select>
+                <p className="text-sm text-gray-600 hidden md:block"><span className="font-medium">{totalCount}</span> Products</p>
+                <Select value={sortBy} onValueChange={setSortBy}><SelectTrigger className="w-48"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="created_at.desc">Newest</SelectItem><SelectItem value="price.asc">Price: Low to High</SelectItem><SelectItem value="price.desc">Price: High to Low</SelectItem><SelectItem value="average_rating.desc">Rating</SelectItem></SelectContent></Select>
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
-              {products.map((product) => (
-                <Card
-                  key={product.id}
-                  onClick={() => handleCardClick(product.id)}
-                  className="group hover:shadow-xl transition-all duration-300 hover:-translate-y-1 bg-white border-0 shadow-md cursor-pointer"
-                >
+              {loading ? Array.from({ length: PAGE_LIMIT }).map((_, i) => <Card key={i} className="animate-pulse bg-gray-200 h-96"></Card>) : products.map((product) => (
+                <Card key={product.id} onClick={() => router.push(`/products/${product.id}`)} className="group hover:shadow-xl transition-all duration-300 hover:-translate-y-1 bg-white border-0 shadow-md cursor-pointer">
                   <CardContent className="p-5">
                     <div className="relative mb-4">
-                      <div className="bg-gradient-to-br from-slate-100 to-slate-200 rounded-xl p-4">
-                        <img
-                          src={product.image || "/placeholder.svg"}
-                          alt={product.name}
-                          className="w-full h-40 object-cover rounded-lg"
-                        />
+                      <div className="bg-gradient-to-br from-slate-100 to-slate-200 rounded-xl p-4 aspect-square">
+                        <Image src={product.main_image_url || "/placeholder.svg"} alt={product.name} fill className="object-contain rounded-lg p-4" />
                       </div>
-                      <button
-                        onClick={(e) => toggleFavorite(e, product.id)}
-                        className="absolute top-2 right-2 p-2 rounded-full bg-white/90 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-110"
-                      >
-                        <Heart
-                          className={cn(
-                            "h-4 w-4 transition-colors",
-                            product.isFavorite ? "fill-red-500 text-red-500" : "text-gray-400 hover:text-red-400",
-                          )}
-                        />
-                      </button>
+                      <button onClick={(e) => { e.stopPropagation() }} className="absolute top-2 right-2 p-2 rounded-full bg-white/90 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-110"><Heart className="h-4 w-4 text-gray-400 hover:text-red-400" /></button>
                     </div>
-
                     <div className="space-y-3">
-                      <h3 className="font-semibold text-gray-900 text-lg">{product.name}</h3>
-                      <p className="text-sm text-gray-500">{product.availability}</p>
-
-                      <div className="flex items-center space-x-1">
-                        {renderStars(product.rating)}
-                        <span className="text-sm text-gray-500 ml-2">({product.reviews})</span>
-                      </div>
-
-                      <p className="text-xl font-bold text-gray-900">€ {product.price.toFixed(2)}</p>
-
+                      <h3 className="font-semibold text-gray-900 text-lg truncate">{product.name}</h3>
+                      <p className="text-sm text-gray-500">{product.brand || 'Generic'}</p>
+                      <div className="flex items-center space-x-1">{renderStars(product.average_rating)}<span className="text-sm text-gray-500 ml-2">({product.review_count || 0})</span></div>
+                      <p className="text-xl font-bold text-gray-900">€{product.price.toFixed(2)}</p>
                       <div className="flex space-x-2 pt-3">
-                        <Button
-                          onClick={(e) => e.stopPropagation()}
-                          className="flex-1 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-md hover:shadow-lg transition-all duration-200"
-                        >
-                          Add To Cart
-                        </Button>
-                        <Button
-                          onClick={(e) => e.stopPropagation()}
-                          variant="outline"
-                          className="flex-1 border-orange-200 text-orange-500 hover:bg-orange-50 hover:border-orange-300 bg-transparent"
-                        >
-                          Add Shortlist
-                        </Button>
+                        <Button onClick={(e) => handleAddToCart(e, product)} className="flex-1 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-md hover:shadow-lg transition-all duration-200">Add To Cart</Button>
                       </div>
                     </div>
                   </CardContent>
@@ -371,29 +190,15 @@ export default function ProductListingPage() {
               ))}
             </div>
 
-            <div className="flex justify-center items-center flex-wrap gap-2 bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-slate-200">
-              <Button variant="outline" size="sm" className="hover:bg-orange-50 bg-transparent">
-                Previous
-              </Button>
-              {[1, 2, 3, 4, 5, 6, 7].map((page) => (
-                <Button
-                  key={page}
-                  variant={page === 1 ? "default" : "outline"}
-                  size="sm"
-                  className={cn(
-                    "w-10 h-10",
-                    page === 1
-                      ? "bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-md"
-                      : "hover:bg-orange-50",
-                  )}
-                >
-                  {page}
-                </Button>
-              ))}
-              <Button variant="outline" size="sm" className="hover:bg-orange-50 bg-transparent">
-                Next
-              </Button>
-            </div>
+            {totalPages > 1 && (
+              <div className="flex justify-center items-center flex-wrap gap-2 bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-slate-200">
+                <Button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} variant="outline" size="sm" className="hover:bg-orange-50 bg-transparent">Previous</Button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                  <Button key={p} onClick={() => setPage(p)} variant={page === p ? "default" : "outline"} size="sm" className={cn("w-10 h-10", page === p ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-md" : "hover:bg-orange-50")}>{p}</Button>
+                ))}
+                <Button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} variant="outline" size="sm" className="hover:bg-orange-50 bg-transparent">Next</Button>
+              </div>
+            )}
           </div>
         </div>
       </div>
