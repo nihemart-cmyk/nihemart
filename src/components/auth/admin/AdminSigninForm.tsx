@@ -162,7 +162,7 @@ const AdminSigninForm: FC<AdminSigninFormProps> = ({}) => {
               className="text-sm text-center mt-4 text-orange-600 underline cursor-pointer"
               href={"/signup"}
             >
-              Don't have an account? Sign up
+              Don&apos;t have an account? Sign up
             </Link>
           </form>
         </Form>

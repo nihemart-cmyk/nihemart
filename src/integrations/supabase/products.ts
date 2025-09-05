@@ -1,6 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
 
-// Workaround: use untyped client because Supabase types may lag behind migrations in this environment
 const sb = supabase as any;
 
 export type ProductStatus = "active" | "draft" | "out_of_stock";
@@ -9,17 +8,15 @@ export interface ProductBase {
   name: string;
   description?: string | null;
   short_description?: string | null;
-  price: number; // base price
+  price: number;
   compare_at_price?: number | null;
   cost_price?: number | null;
   sku?: string | null;
   barcode?: string | null;
   weight_kg?: number | null;
   dimensions?: string | null;
-  category?: string | null; // Legacy field for compatibility
-  subcategory?: string | null; // Legacy field for compatibility
-  category_id?: string | null; // New relationship field
-  subcategory_id?: string | null; // New relationship field
+  category_id?: string | null;
+  subcategory_id?: string | null;
   brand?: string | null;
   tags?: string[] | null;
   meta_title?: string | null;
@@ -30,16 +27,27 @@ export interface ProductBase {
   continue_selling_when_oos?: boolean;
   requires_shipping?: boolean;
   taxable?: boolean;
-  stock?: number; // total stock when not using variations
+  stock?: number;
   main_image_url?: string | null;
 }
 
-export interface Product extends Omit<ProductBase, 'category' | 'subcategory'> {
+export interface Product extends ProductBase {
   id: string;
   created_at: string;
   updated_at: string;
+  average_rating?: number;
+  review_count?: number;
   category?: { id: string; name: string } | null;
   subcategory?: { id: string; name: string } | null;
+}
+
+export interface ProductImage {
+  id?: string;
+  product_id?: string;
+  product_variation_id?: string | null;
+  url: string;
+  is_primary?: boolean;
+  position?: number;
 }
 
 export interface ProductVariation {
@@ -47,40 +55,63 @@ export interface ProductVariation {
   product_id?: string;
   name?: string | null;
   price?: number | null;
-  stock?: number; // per variation stock
-  // sku?: string | null;
-  attributes?: Record<string, string>;
+  stock?: number;
+  attributes?: {
+    color?: string;
+    size?: string;
+    [key: string]: string | undefined;
+  };
+  images?: ProductImage[];
 }
 
-export interface ProductImage {
-  id?: string;
-  product_id?: string;
-  url: string;
-  is_primary?: boolean;
-  position?: number;
+export interface Review {
+  id: string;
+  product_id: string;
+  user_id: string;
+  rating: number;
+  title?: string | null;
+  content?: string | null;
+  created_at: string;
+  author?: {
+    full_name?: string | null;
+  } | null;
 }
 
-export interface ProductQueryFilters {
+export interface ReviewBase {
+  product_id: string;
+  user_id: string;
+  rating: number;
+  title?: string;
+  content?: string;
+}
+
+export interface ProductListPageFilters {
   search?: string;
   category?: string;
   status?: ProductStatus | "all";
-  featured?: boolean;
-  limit?: number;
-  offset?: number;
 }
 
-export async function fetchProducts(filters: ProductQueryFilters = {}) {
+export interface ProductQueryOptions {
+  filters?: ProductListPageFilters;
+  pagination?: {
+    page: number;
+    limit: number;
+  };
+  sort?: {
+    column: string;
+    direction: 'asc' | 'desc';
+  };
+}
+
+const buildProductQuery = (filters: ProductListPageFilters = {}) => {
   let query = sb.from("products").select(`
     *,
-    category:categories(id, name),
-    subcategory:subcategories(id, name)
-  `).order("created_at", { ascending: false });
+    category:categories(id, name)
+  `);
 
   if (filters.search && filters.search.trim()) {
     const term = `%${filters.search.trim()}%`;
-    query = query.or(
-      `name.ilike.${term},brand.ilike.${term}`
-    );
+    query = query.or(`name.ilike.${term},brand.ilike.${term},sku.ilike.${term}`);
   }
   if (filters.category && filters.category !== "all") {
     query = query.eq("category_id", filters.category);
@@ -88,19 +119,41 @@ export async function fetchProducts(filters: ProductQueryFilters = {}) {
   if (filters.status && filters.status !== "all") {
     query = query.eq("status", filters.status);
   }
-  if (typeof filters.featured === "boolean") {
-    query = query.eq("featured", filters.featured);
-  }
-  if (typeof filters.limit === "number") {
-    query = query.limit(filters.limit);
-  }
-  if (typeof filters.offset === "number") {
-    query = query.range(filters.offset, (filters.offset || 0) + (filters.limit || 20) - 1);
-  }
+  return query;
+};
 
-  const { data, error } = await query;
+export async function fetchProductsPage({
+  filters = {},
+  pagination = { page: 1, limit: 10 },
+  sort = { column: 'created_at', direction: 'desc' }
+}: ProductQueryOptions) {
+  
+  const query = buildProductQuery(filters);
+
+  const { count, error: countError } = await query.select('*', { count: 'exact', head: true });
+  if (countError) throw countError;
+
+  const from = (pagination.page - 1) * pagination.limit;
+  const to = from + pagination.limit - 1;
+  
+  const dataQuery = buildProductQuery(filters)
+    .order(sort.column, { ascending: sort.direction === 'asc' })
+    .range(from, to);
+
+  const { data, error } = await dataQuery;
   if (error) throw error;
-  return data as Product[];
+  
+  return { data: data as Product[], count: count ?? 0 };
+}
+
+export async function fetchAllProductsForExport({ filters = {}, sort = { column: 'created_at', direction: 'desc' } }: Omit<ProductQueryOptions, 'pagination'>) {
+    const query = buildProductQuery(filters)
+      .order(sort.column, { ascending: sort.direction === 'asc' })
+      .limit(5000);
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return data as Product[];
 }
 
 export async function fetchProductById(id: string) {
@@ -112,13 +165,28 @@ export async function fetchProductById(id: string) {
   if (error) throw error;
   if (!data) return null;
 
-  const [variationsRes, imagesRes] = await Promise.all([
+  const productData = data as Product;
+
+  const [variationsRes, imagesRes, reviewsRes] = await Promise.all([
     sb.from("product_variations").select("*").eq("product_id", id).order("created_at", { ascending: true }),
-    sb.from("product_images").select("*").eq("product_id", id).order("position", { ascending: true })
+    sb.from("product_images").select("*").eq("product_id", id).order("position", { ascending: true }),
+    sb.from("reviews").select("*, author:profiles(full_name)").eq("product_id", id).order("created_at", { ascending: false })
   ]);
+
   if (variationsRes.error) throw variationsRes.error;
   if (imagesRes.error) throw imagesRes.error;
-  return { product: data as Product, variations: (variationsRes.data || []) as ProductVariation[], images: (imagesRes.data || []) as ProductImage[] };
+  if (reviewsRes.error) throw reviewsRes.error;
+
+  const allImages = (imagesRes.data || []) as ProductImage[];
+  const variations = (variationsRes.data || []).map((v: any) => ({
+    ...v,
+    images: allImages.filter(img => img.product_variation_id === v.id)
+  })) as ProductVariation[];
+
+  const generalImages = allImages.filter(img => !img.product_variation_id);
+  const reviews = (reviewsRes.data || []) as Review[];
+
+  return { product: productData, variations, images: generalImages, reviews };
 }
 
 export async function createProduct(
@@ -136,7 +204,6 @@ export async function createProduct(
       name: v.name ?? null,
       price: v.price ?? null,
       stock: v.stock ?? 0,
-      // sku: v.sku ?? null,
       attributes: v.attributes ?? {}
     }));
     const { error: vErr } = await sb.from("product_variations").insert(withProduct);
@@ -165,7 +232,6 @@ export async function updateProduct(
     if (error) throw error;
   }
   if (variations) {
-    // Simple strategy: delete existing variations and reinsert (transaction-less fallback)
     const { error: dErr } = await sb.from("product_variations").delete().eq("product_id", id);
     if (dErr) throw dErr;
     if (variations.length) {
@@ -174,7 +240,6 @@ export async function updateProduct(
         name: v.name ?? null,
         price: v.price ?? null,
         stock: v.stock ?? 0,
-        // sku: v.sku ?? null,
         attributes: v.attributes ?? {}
       }));
       const { error: iErr } = await sb.from("product_variations").insert(withProduct);
@@ -188,51 +253,9 @@ export async function deleteProduct(id: string) {
   if (error) throw error;
 }
 
-export async function uploadProductImage(file: File, productId: string) {
-  const ext = file.name.split(".").pop();
-  const path = `${productId}/${Date.now()}.${ext}`;
-  const { error } = await sb.storage.from("product-images").upload(path, file, {
-    cacheControl: "3600",
-    upsert: false
-  });
-  if (error) throw error;
-  const { data: pub } = await sb.storage.from("product-images").getPublicUrl(path);
-  return pub.publicUrl as string;
-}
-
-export async function bulkInsertProducts(rows: ProductBase[]) {
-  if (!rows.length) return { inserted: 0 };
-  // Chunk inserts to avoid payload limits
-  const chunkSize = 200;
-  let inserted = 0;
-  for (let i = 0; i < rows.length; i += chunkSize) {
-    const chunk = rows.slice(i, i + chunkSize);
-    const { data, error } = await sb.from("products").insert(chunk).select("id");
-    if (error) throw error;
-    inserted += data?.length || 0;
-  }
-  return { inserted };
-}
-
-export async function getProductStats() {
-  const { data, error } = await sb.rpc("get_product_stats");
-  if (error) throw error;
-  return (data || {}) as {
-    total_products: number;
-    active_products: number;
-    out_of_stock_products: number;
-    featured_count: number;
-    low_stock_count: number;
-  };
-}
-
-// Category and subcategory types
 export interface Category {
   id: string;
   name: string;
-  icon_url?: string;
-  link?: string;
-  created_at: string;
 }
 
 export interface Subcategory {
@@ -247,49 +270,13 @@ export interface CategoryWithSubcategories extends Category {
 }
 
 export async function fetchCategories(): Promise<Category[]> {
-  const { data, error } = await sb
-    .from('categories')
-    .select('*')
-    .order('name');
-  
-  if (error) {
-    console.error('Error fetching categories:', error);
-    throw error;
-  }
-  
-  return data || [];
-}
-
-export async function fetchSubcategories(categoryId?: string): Promise<Subcategory[]> {
-  let query = sb.from('subcategories').select('*').order('name');
-  
-  if (categoryId) {
-    query = query.eq('category_id', categoryId);
-  }
-  
-  const { data, error } = await query;
-  
-  if (error) {
-    console.error('Error fetching subcategories:', error);
-    throw error;
-  }
-  
+  const { data, error } = await sb.from('categories').select('id, name').order('name');
+  if (error) throw error;
   return data || [];
 }
 
 export async function fetchCategoriesWithSubcategories(): Promise<CategoryWithSubcategories[]> {
-  const { data, error } = await sb
-    .from('categories')
-    .select(`
-      *,
-      subcategories:subcategories(*)
-    `)
-    .order('name');
-  
-  if (error) {
-    console.error('Error fetching categories with subcategories:', error);
-    throw error;
-  }
-  
+  const { data, error } = await sb.from('categories').select(`*, subcategories:subcategories(*)`).order('name');
+  if (error) throw error;
   return data || [];
 }
