@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/supabase/client";
+import { supabase } from "@/integrations/supabase/client";
 
 async function fetchProducts() {
   const { data, error } = await supabase.from("products").select("*");
