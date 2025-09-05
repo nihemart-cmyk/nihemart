@@ -103,6 +103,84 @@ export interface ProductQueryOptions {
   };
 }
 
+export type OrderStatus = "pending" | "processing" | "shipped" | "delivered" | "cancelled";
+
+export interface OrderBase {
+  user_id: string;
+  status?: OrderStatus;
+  subtotal: number;
+  tax?: number;
+  total: number;
+  currency?: string;
+  customer_email: string;
+  customer_first_name: string;
+  customer_last_name: string;
+  customer_phone?: string;
+  delivery_address: string;
+  delivery_city: string;
+  delivery_notes?: string;
+}
+
+export interface Order extends OrderBase {
+  id: string;
+  order_number: string;
+  created_at: string;
+  updated_at: string;
+  shipped_at?: string | null;
+  delivered_at?: string | null;
+  items?: OrderItem[];
+}
+
+export interface OrderItem {
+  id: string;
+  order_id: string;
+  product_id?: string | null;
+  product_variation_id?: string | null;
+  product_name: string;
+  product_sku?: string | null;
+  variation_name?: string | null;
+  price: number;
+  quantity: number;
+  total: number;
+  created_at: string;
+}
+
+export interface OrderItemBase {
+  product_id?: string;
+  product_variation_id?: string;
+  product_name: string;
+  product_sku?: string;
+  variation_name?: string;
+  price: number;
+  quantity: number;
+  total: number;
+}
+
+export interface CreateOrderRequest {
+  order: OrderBase;
+  items: OrderItemBase[];
+}
+
+export interface OrderFilters {
+  status?: OrderStatus | "all";
+  search?: string;
+  date_from?: string;
+  date_to?: string;
+}
+
+export interface OrderQueryOptions {
+  filters?: OrderFilters;
+  pagination?: {
+    page: number;
+    limit: number;
+  };
+  sort?: {
+    column: string;
+    direction: 'asc' | 'desc';
+  };
+}
+
+
 const buildProductQuery = (filters: ProductListPageFilters = {}) => {
   let query = sb.from("products").select(`
     *,
@@ -119,6 +197,32 @@ const buildProductQuery = (filters: ProductListPageFilters = {}) => {
   if (filters.status && filters.status !== "all") {
     query = query.eq("status", filters.status);
   }
+  return query;
+};
+
+const buildOrderQuery = (filters: OrderFilters = {}) => {
+  let query = sb.from("orders").select(`
+    *,
+    items:order_items(*)
+  `);
+
+  if (filters.status && filters.status !== "all") {
+    query = query.eq("status", filters.status);
+  }
+
+  if (filters.search && filters.search.trim()) {
+    const term = `%${filters.search.trim()}%`;
+    query = query.or(`order_number.ilike.${term},customer_email.ilike.${term},customer_first_name.ilike.${term},customer_last_name.ilike.${term}`);
+  }
+
+  if (filters.date_from) {
+    query = query.gte("created_at", filters.date_from);
+  }
+
+  if (filters.date_to) {
+    query = query.lte("created_at", filters.date_to);
+  }
+
   return query;
 };
 
@@ -279,4 +383,223 @@ export async function fetchCategoriesWithSubcategories(): Promise<CategoryWithSu
   const { data, error } = await sb.from('categories').select(`*, subcategories:subcategories(*)`).order('name');
   if (error) throw error;
   return data || [];
+}
+
+// ==============Orders ======================
+
+// Fetch user's orders with pagination
+export async function fetchUserOrders({
+  filters = {},
+  pagination = { page: 1, limit: 10 },
+  sort = { column: 'created_at', direction: 'desc' }
+}: OrderQueryOptions) {
+  const query = buildOrderQuery(filters);
+
+  // Get count
+  const { count, error: countError } = await query.select('*', { count: 'exact', head: true });
+  if (countError) throw countError;
+
+  // Get data with pagination
+  const from = (pagination.page - 1) * pagination.limit;
+  const to = from + pagination.limit - 1;
+  
+  const dataQuery = buildOrderQuery(filters)
+    .order(sort.column, { ascending: sort.direction === 'asc' })
+    .range(from, to);
+
+  const { data, error } = await dataQuery;
+  if (error) throw error;
+  
+  return { data: data as Order[], count: count ?? 0 };
+}
+
+// Fetch all orders (admin only)
+export async function fetchAllOrders({
+  filters = {},
+  pagination = { page: 1, limit: 10 },
+  sort = { column: 'created_at', direction: 'desc' }
+}: OrderQueryOptions) {
+  return fetchUserOrders({ filters, pagination, sort });
+}
+
+// Fetch single order by ID
+export async function fetchOrderById(id: string): Promise<Order | null> {
+  const { data, error } = await sb
+    .from("orders")
+    .select(`
+      *,
+      items:order_items(*)
+    `)
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data as Order | null;
+}
+
+// Create new order
+export async function createOrder({ order, items }: CreateOrderRequest): Promise<Order> {
+  // Validate input data
+  if (!order.user_id) {
+    throw new Error('User ID is required');
+  }
+  
+  if (!items || items.length === 0) {
+    throw new Error('Order must contain at least one item');
+  }
+
+  // Validate each item
+  for (const item of items) {
+    if (!item.product_id) {
+      throw new Error('Each item must have a product_id');
+    }
+    if (!item.product_name || item.product_name.trim() === '') {
+      throw new Error('Each item must have a product_name');
+    }
+    if (typeof item.price !== 'number' || item.price <= 0) {
+      throw new Error('Each item must have a valid price');
+    }
+    if (typeof item.quantity !== 'number' || item.quantity <= 0) {
+      throw new Error('Each item must have a valid quantity');
+    }
+    
+    // Clean up UUID fields - ensure they're either valid UUIDs or null
+    if (item.product_variation_id === '') {
+      item.product_variation_id = null;
+    }
+    if (item.product_sku === '') {
+      item.product_sku = null;
+    }
+    if (item.variation_name === '') {
+      item.variation_name = null;
+    }
+  }
+
+  try {
+    // Start transaction by creating the order first
+    const { data: orderData, error: orderError } = await sb
+      .from("orders")
+      .insert([{
+        ...order,
+        status: order.status || 'pending'
+      }])
+      .select("*")
+      .single();
+
+    if (orderError) {
+      console.error('Order creation error:', orderError);
+      throw new Error(`Failed to create order: ${orderError.message}`);
+    }
+
+    const createdOrder = orderData as Order;
+
+    // Then create the order items
+    const orderItems = items.map(item => ({
+      order_id: createdOrder.id,
+      product_id: item.product_id,
+      product_variation_id: item.product_variation_id,
+      product_name: item.product_name,
+      product_sku: item.product_sku,
+      variation_name: item.variation_name,
+      price: item.price,
+      quantity: item.quantity,
+      total: item.total
+    }));
+
+    console.log('Creating order items:', JSON.stringify(orderItems, null, 2));
+
+    const { data: itemsData, error: itemsError } = await sb
+      .from("order_items")
+      .insert(orderItems)
+      .select("*");
+
+    if (itemsError) {
+      console.error('Order items creation error:', itemsError);
+      
+      // Try to rollback the order if possible
+      try {
+        await sb.from("orders").delete().eq("id", createdOrder.id);
+      } catch (rollbackError) {
+        console.error('Failed to rollback order:', rollbackError);
+      }
+      
+      throw new Error(`Failed to create order items: ${itemsError.message}`);
+    }
+
+    return {
+      ...createdOrder,
+      items: itemsData as OrderItem[]
+    };
+    
+  } catch (error) {
+    console.error('Order creation failed:', error);
+    throw error;
+  }
+}
+
+// Update order status
+export async function updateOrderStatus(id: string, status: OrderStatus, additionalFields?: Partial<Order>) {
+  const updates: any = { 
+    status,
+    ...additionalFields
+  };
+
+  // Set timestamp fields based on status
+  if (status === 'shipped' && !additionalFields?.shipped_at) {
+    updates.shipped_at = new Date().toISOString();
+  }
+  if (status === 'delivered' && !additionalFields?.delivered_at) {
+    updates.delivered_at = new Date().toISOString();
+  }
+
+  const { data, error } = await sb
+    .from("orders")
+    .update(updates)
+    .eq("id", id)
+    .select("*")
+    .single();
+
+  if (error) throw error;
+  return data as Order;
+}
+
+// Delete order (admin only, should be rare)
+export async function deleteOrder(id: string) {
+  const { error } = await sb
+    .from("orders")
+    .delete()
+    .eq("id", id);
+
+  if (error) throw error;
+}
+
+// Get order statistics (for admin dashboard)
+export async function getOrderStats() {
+  const { data: totalOrders, error: totalError } = await sb
+    .from("orders")
+    .select("id", { count: 'exact' });
+
+  if (totalError) throw totalError;
+
+  const { data: pendingOrders, error: pendingError } = await sb
+    .from("orders")
+    .select("id", { count: 'exact' })
+    .eq("status", "pending");
+
+  if (pendingError) throw pendingError;
+
+  const { data: recentOrders, error: recentError } = await sb
+    .from("orders")
+    .select("total")
+    .gte("created_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString());
+
+  if (recentError) throw recentError;
+
+  const totalRevenue = recentOrders?.reduce((sum: number, order: { total: any; }) => sum + Number(order.total), 0) || 0;
+
+  return {
+    total: totalOrders?.length || 0,
+    pending: pendingOrders?.length || 0,
+    revenue: totalRevenue
+  };
 }
