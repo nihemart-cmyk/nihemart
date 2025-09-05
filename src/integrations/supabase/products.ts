@@ -56,6 +56,7 @@ export interface ProductVariation {
   name?: string | null;
   price?: number | null;
   stock?: number;
+  sku?: string | null;
   attributes?: {
     color?: string;
     size?: string;
@@ -127,7 +128,7 @@ export async function fetchProductsPage({
   pagination = { page: 1, limit: 10 },
   sort = { column: 'created_at', direction: 'desc' }
 }: ProductQueryOptions) {
-  
+
   const query = buildProductQuery(filters);
 
   const { count, error: countError } = await query.select('*', { count: 'exact', head: true });
@@ -135,25 +136,25 @@ export async function fetchProductsPage({
 
   const from = (pagination.page - 1) * pagination.limit;
   const to = from + pagination.limit - 1;
-  
+
   const dataQuery = buildProductQuery(filters)
     .order(sort.column, { ascending: sort.direction === 'asc' })
     .range(from, to);
 
   const { data, error } = await dataQuery;
   if (error) throw error;
-  
+
   return { data: data as Product[], count: count ?? 0 };
 }
 
 export async function fetchAllProductsForExport({ filters = {}, sort = { column: 'created_at', direction: 'desc' } }: Omit<ProductQueryOptions, 'pagination'>) {
-    const query = buildProductQuery(filters)
-      .order(sort.column, { ascending: sort.direction === 'asc' })
-      .limit(5000);
+  const query = buildProductQuery(filters)
+    .order(sort.column, { ascending: sort.direction === 'asc' })
+    .limit(5000);
 
-    const { data, error } = await query;
-    if (error) throw error;
-    return data as Product[];
+  const { data, error } = await query;
+  if (error) throw error;
+  return data as Product[];
 }
 
 export async function fetchProductById(id: string) {
@@ -279,4 +280,102 @@ export async function fetchCategoriesWithSubcategories(): Promise<CategoryWithSu
   const { data, error } = await sb.from('categories').select(`*, subcategories:subcategories(*)`).order('name');
   if (error) throw error;
   return data || [];
+}
+
+export async function updateFullProduct(
+  productId: string,
+  productUpdates: Partial<ProductBase>,
+  variations: ProductVariation[],
+  newImageUrls: string[],
+  deletedImageIds: string[]
+) {
+
+  if (deletedImageIds.length > 0) {
+    const { data: imagesToDelete, error: selectError } = await sb
+      .from("product_images")
+      .select("url")
+      .in("id", deletedImageIds);
+
+    if (selectError) throw selectError;
+
+    if (imagesToDelete && imagesToDelete.length > 0) {
+      const filePaths = imagesToDelete.map((img: { url: string; }) => {
+        const parts = img.url.split('/');
+        return parts[parts.length - 1];
+      });
+      await sb.storage.from("product-images").remove(filePaths);
+    }
+
+    // Now delete the DB records
+    const { error: deleteError } = await sb
+      .from("product_images")
+      .delete()
+      .in("id", deletedImageIds);
+    if (deleteError) throw deleteError;
+  }
+
+  // 2. Add new images
+  if (newImageUrls.length > 0) {
+    const newImages = newImageUrls.map((url, idx) => ({
+      product_id: productId,
+      url,
+      position: 100 + idx, // Place new images at the end
+    }));
+    const { error: iErr } = await sb.from("product_images").insert(newImages);
+    if (iErr) throw iErr;
+  }
+
+  // 3. Update the main product data (including status)
+  const { data: remainingImages, error: imgErr } = await sb
+    .from("product_images")
+    .select("url")
+    .eq("product_id", productId)
+    .order("position", { ascending: true })
+    .limit(1);
+
+  if (imgErr) throw imgErr;
+
+  const newMainImage = remainingImages?.[0]?.url || newImageUrls[0] || null;
+  productUpdates.main_image_url = newMainImage;
+
+  const { data, error: productUpdateError } = await sb
+    .from("products")
+    .update(productUpdates)
+    .eq("id", productId)
+    .select()
+    .single();
+
+  if (productUpdateError) throw productUpdateError;
+
+  // 4. Handle variations (simple replace logic for this example)
+  const { error: dErr } = await sb.from("product_variations").delete().eq("product_id", productId);
+  if (dErr) throw dErr;
+
+  if (variations.length > 0) {
+    const withProduct = variations.map(v => ({
+      product_id: productId,
+      name: v.name ?? null,
+      price: v.price ?? null,
+      stock: v.stock ?? 0,
+      attributes: v.attributes ?? {}
+    }));
+    const { error: iErr } = await sb.from("product_variations").insert(withProduct);
+    if (iErr) throw iErr;
+  }
+
+  return data;
+}
+
+export async function createBulkProducts(products: ProductBase[]) {
+  const { data, error } = await sb
+    .from("products")
+    .insert(products)
+    .select();
+
+  if (error) {
+    console.error("Supabase bulk insert error:", error);
+    throw error;
+  }
+
+  return data as Product[];
 }

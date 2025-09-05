@@ -142,7 +142,7 @@ export const ProductsTable = ({
                         <TableCell>{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(product.price || 0)}</TableCell>
                         <TableCell>
                             <div className="flex items-center space-x-2">
-                                <Link href={`/admin/products/edit/${product.id}`}><Button variant="ghost" size="sm" className="h-8 w-8 p-0"><Edit className="w-4 h-4 text-gray-500" /></Button></Link>
+                                <Link href={`/admin/products/${product.id}/edit`}><Button variant="ghost" size="sm" className="h-8 w-8 p-0"><Edit className="w-4 h-4 text-gray-500" /></Button></Link>
                                 <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => onDelete(product.id)}><Trash2 className="w-4 h-4 text-gray-500" /></Button>
                             </div>
                         </TableCell>
