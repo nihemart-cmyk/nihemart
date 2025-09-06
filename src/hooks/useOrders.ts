@@ -45,7 +45,7 @@ export function useAllOrders(options: OrderQueryOptions = {}) {
    return useQuery({
       queryKey: orderKeys.list(options),
       queryFn: () => fetchAllOrders(options),
-      enabled: !!user && (hasRole("admin") || hasRole("super_admin")),
+      enabled: !!user && hasRole("admin"),
       staleTime: 1000 * 60 * 2, // 2 minutes for admin data
    });
 }
@@ -68,7 +68,7 @@ export function useOrderStats() {
    return useQuery({
       queryKey: orderKeys.stats(),
       queryFn: getOrderStats,
-      enabled: !!user && (hasRole("admin") || hasRole("super_admin")),
+      enabled: !!user && hasRole("admin"),
       staleTime: 1000 * 60 * 5, // 5 minutes
    });
 }
@@ -160,7 +160,7 @@ export function useOrders() {
    const { user, isLoggedIn, hasRole } = useAuth();
    const queryClient = useQueryClient();
 
-   const isAdmin = hasRole("admin") || hasRole("super_admin");
+   const isAdmin = hasRole("admin");
 
    return {
       // Query hooks

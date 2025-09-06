@@ -63,7 +63,9 @@ const Orders = () => {
     );
   }
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (status?: string) => {
+    if (!status) return <Badge variant="secondary">Unknown</Badge>;
+    
     const variants = {
       pending: 'secondary',
       processing: 'default',

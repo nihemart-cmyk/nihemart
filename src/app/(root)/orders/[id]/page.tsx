@@ -37,7 +37,7 @@ const OrderDetails = () => {
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
   const { data: order, isLoading, error } = useOrder(orderId);
-  const isAdmin = hasRole('admin') || hasRole('super_admin');
+  const isAdmin = hasRole('admin') ;
 
   // Redirect if not logged in
   if (!isLoggedIn) {
@@ -95,7 +95,8 @@ const OrderDetails = () => {
     );
   }
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status?: string) => {
+    if (!status) return 'bg-gray-500';
     switch (status) {
       case 'pending':
         return 'bg-yellow-500';
@@ -112,7 +113,8 @@ const OrderDetails = () => {
     }
   };
 
-  const getStatusIcon = (status: string) => {
+  const getStatusIcon = (status?: string) => {
+    if (!status) return <Clock className="h-4 w-4" />;
     switch (status) {
       case 'pending':
         return <Clock className="h-4 w-4" />;
@@ -159,7 +161,7 @@ Hello, I have a question about my order:
 
 *Order Details:*
 Order Number: ${order.order_number}
-Status: ${order.status.toUpperCase()}
+Status: ${(order.status || 'unknown').toUpperCase()}
 Total: ${order.total.toLocaleString()} RWF
 
 *Products:*
@@ -209,7 +211,7 @@ Please let me know if you need any additional information.
         <div className="flex items-center space-x-3">
           <Badge className={getStatusColor(order.status)} variant="secondary">
             {getStatusIcon(order.status)}
-            <span className="ml-2 capitalize">{order.status}</span>
+            <span className="ml-2 capitalize">{order.status || 'unknown'}</span>
           </Badge>
           
           <Button variant="outline" size="sm" onClick={handleWhatsAppContact}>
@@ -453,7 +455,7 @@ Please let me know if you need any additional information.
                     </Button>
                   )}
                   
-                  {['pending', 'processing'].includes(order.status) && (
+                  {order.status && ['pending', 'processing'].includes(order.status) && (
                     <Button
                       size="sm"
                       variant="destructive"

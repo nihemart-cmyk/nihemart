@@ -16,19 +16,10 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination"
 import { useOrders } from '@/hooks/useOrders'
-import { OrderStatus } from '@/integrations/supabase/products'
+import { OrderStatus, Order } from '@/integrations/supabase/products'
 
 interface OrdersTableProps {
 
-}
-
-type Order = {
-  order: string
-  date: Date
-  customer: { name: string, email: string }
-  payment: "paid" | 'failed' | 'pending'
-  status: "pending" | "processing" | "shipped" | "delivered" | "cancelled"
-  method: 'mobile_money' | 'credit_card'
 }
 
 const statusLabels = ['All', 'Pending', 'Processing', 'Delivered', 'Cancelled'] as const
@@ -163,7 +154,7 @@ const OrdersTable: FC<OrdersTableProps> = () => {
           <span className="ml-2">Loading orders...</span>
         </div>
       ) : (
-        <DataTable columns={columns} data={orders as Order[]} />
+        <DataTable columns={columns} data={orders} />
       )}
       <Pagination>
         <PaginationContent>

@@ -28,29 +28,31 @@ const Status = ({ status }: { status: Order["status"] }) => {
         }
       )}
     >
-      {status}
+      {status || 'unknown'}
     </Badge>
   )
 }
 
-const Payment = ({ status }: { status: Order["payment_status"] }) => {
+const Payment = ({ status }: { status?: string }) => {
+  const paymentStatus = status || "pending";
   return (
     <div
       className={cn(
         "flex items-center capitalize font-semibold",
-        { "text-green-500": status === "paid" },
-        { "text-red-500": status === "failed" },
-        { "text-yellow-500": status === "pending" }
+        { "text-green-500": paymentStatus === "paid" },
+        { "text-red-500": paymentStatus === "failed" },
+        { "text-yellow-500": paymentStatus === "pending" }
       )}
     >
       <Dot strokeWidth={7} />
-      {status}
+      {paymentStatus}
     </div>
   )
 }
 
-const PaymentMethod = ({ method }: { method: Order["payment_method"] }) => {
-  switch (method) {
+const PaymentMethod = ({ method }: { method?: string }) => {
+  const paymentMethod = method || "mobile_money";
+  switch (paymentMethod) {
     case "mobile_money":
       return <Image src={momoIcon} alt="momoIcon" height={30} width={70} />
     case "credit_card":
@@ -60,7 +62,7 @@ const PaymentMethod = ({ method }: { method: Order["payment_method"] }) => {
         </div>
       )
     default:
-      return null
+      return <span className="text-sm text-muted-foreground">Unknown</span>
   }
 }
 
@@ -94,7 +96,7 @@ export const columns: ColumnDef<Order>[] = [
     header: "DATE",
     cell: ({ row }) => {
       const dateValue = row.getValue("created_at")
-      const date = typeof dateValue === "string" ? new Date(dateValue) : dateValue
+      const date = typeof dateValue === "string" ? new Date(dateValue) : dateValue as Date
       return (
         <span className="text-text-secondary">
           {isValid(date) ? format(date, "MMMM d, yyyy, HH:mm") : "Invalid Date"}
@@ -119,9 +121,9 @@ export const columns: ColumnDef<Order>[] = [
     },
   },
   {
-    accessorKey: "payment_status",
+    id: "payment",
     header: "PAYMENT",
-    cell: ({ row }) => <Payment status={row.getValue("payment_status") || "pending"} />,
+    cell: ({ row }) => <Payment status="pending" />,
   },
   {
     accessorKey: "status",
@@ -129,9 +131,9 @@ export const columns: ColumnDef<Order>[] = [
     cell: ({ row }) => <Status status={row.getValue("status") || "pending"} />,
   },
   {
-    accessorKey: "payment_method",
+    id: "method",
     header: "METHOD",
-    cell: ({ row }) => <PaymentMethod method={row.getValue("payment_method") || "mobile_money"} />,
+    cell: ({ row }) => <PaymentMethod method="mobile_money" />,
   },
   {
     id: "actions",
