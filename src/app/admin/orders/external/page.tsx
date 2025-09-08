@@ -41,6 +41,7 @@ interface ExternalOrderItem {
 
 interface ExternalOrder {
    id: string;
+   order_number?: string;
    customer_name: string;
    customer_email?: string;
    customer_phone: string;
@@ -56,9 +57,13 @@ interface ExternalOrder {
 
 const columns: ColumnDef<ExternalOrder>[] = [
    {
-      accessorKey: "id",
-      header: "ORDER ID",
-      cell: ({ row }) => <div className="font-medium">#{row.original.id}</div>,
+      accessorKey: "order_number",
+      header: "ORDER",
+      cell: ({ row }) => (
+         <span className="text-text-primary">
+            #{row.getValue("order_number") || row.original.id}
+         </span>
+      ),
    },
    {
       accessorKey: "order_date",
@@ -175,6 +180,7 @@ export default function ExternalOrdersPage() {
    const ordersData: ExternalOrder[] = (ordersResponse?.data || [])
       .map((o: Order) => ({
          id: o.id,
+         order_number: o.order_number || undefined,
          customer_name:
             `${o.customer_first_name} ${o.customer_last_name}`.trim(),
          customer_email: o.customer_email || undefined,
