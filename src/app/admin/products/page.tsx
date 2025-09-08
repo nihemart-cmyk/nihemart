@@ -173,7 +173,7 @@ export default function ProductsPage() {
                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4 gap-4">
                   <div>
                      <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Products</h1>
-                     <p className="text-gray-600 mt-1">Monitor your store's products to increase your sales.</p>
+                     <p className="text-gray-600 mt-1">Monitor your store&apos;s products to increase your sales.</p>
                   </div>
                   <div className="flex items-center space-x-3">
                      <Button onClick={handleExport} variant="outline" className="flex items-center space-x-2" disabled={isExporting}>

@@ -65,7 +65,7 @@ const OrderDetails = () => {
           <Package className="h-24 w-24 text-muted-foreground mx-auto mb-6" />
           <h1 className="text-3xl font-bold mb-4">Order Not Found</h1>
           <p className="text-muted-foreground mb-8">
-            The order you're looking for doesn't exist or you don't have permission to view it.
+            The order you&aps;re looking for doesn&aps;t exist or you don&aps;t have permission to view it.
           </p>
           <Button onClick={() => router.push('/')}>
             <ArrowLeft className="h-4 w-4 mr-2" />
@@ -84,7 +84,7 @@ const OrderDetails = () => {
           <X className="h-24 w-24 text-red-500 mx-auto mb-6" />
           <h1 className="text-3xl font-bold mb-4">Access Denied</h1>
           <p className="text-muted-foreground mb-8">
-            You don't have permission to view this order.
+            You don&apos;t have permission to view this order.
           </p>
           <Button onClick={() => router.push('/')}>
             <ArrowLeft className="h-4 w-4 mr-2" />
