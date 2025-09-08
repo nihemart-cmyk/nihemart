@@ -1,197 +1,567 @@
 "use client";
-import { FC, useState } from 'react'
-import { DataTable } from './data-table'
-import { columns } from './columns'
-import { AnimatedBackground } from '../ui/animated-background'
-import { Input } from '../ui/input'
-import { ArrowUpDown, Download, Ellipsis, ListFilter, SearchIcon, Loader2 } from 'lucide-react'
-import { Button } from '../ui/button'
+import { FC, useState } from "react";
+import { DataTable } from "./data-table";
+import { columns } from "./columns";
+import { AnimatedBackground } from "../ui/animated-background";
+import { Input } from "../ui/input";
 import {
-  Pagination,
-  PaginationContent,
-  PaginationEllipsis,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination"
-import { useOrders } from '@/hooks/useOrders'
-import { OrderStatus, Order } from '@/integrations/supabase/products'
+   ArrowUpDown,
+   Download,
+   FilterX,
+   ListFilter,
+   SearchIcon,
+   Loader2,
+} from "lucide-react";
+import { Button } from "../ui/button";
+import {
+   Pagination,
+   PaginationContent,
+   PaginationEllipsis,
+   PaginationItem,
+   PaginationLink,
+   PaginationNext,
+   PaginationPrevious,
+} from "@/components/ui/pagination";
+import { useOrders } from "@/hooks/useOrders";
+import { OrderStatus, Order } from "@/types/orders";
+import {
+   Popover,
+   PopoverContent,
+   PopoverTrigger,
+} from "@/components/ui/popover";
+import { Label } from "../ui/label";
+import {
+   Select,
+   SelectContent,
+   SelectItem,
+   SelectTrigger,
+   SelectValue,
+} from "../ui/select";
+import { Checkbox } from "../ui/checkbox";
 
-interface OrdersTableProps {
+interface OrdersTableProps {}
 
-}
+type StatusLabel = "All" | "Pending" | "Processing" | "Delivered" | "Cancelled";
 
-const statusLabels = ['All', 'Pending', 'Processing', 'Delivered', 'Cancelled'] as const
+const statusLabels: StatusLabel[] = [
+   "All",
+   "Pending",
+   "Processing",
+   "Delivered",
+   "Cancelled",
+];
+
+const statusMapping = {
+   All: undefined,
+   Pending: "pending",
+   Processing: "processing",
+   Delivered: "delivered",
+   Cancelled: "cancelled",
+} as const;
 
 const OrdersTable: FC<OrdersTableProps> = () => {
-  const { useAllOrders } = useOrders()
-  const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState('All')
-  const [page, setPage] = useState(1)
-  const limit = 10
-  const [sort, setSort] = useState({ column: 'created_at', direction: 'desc' as 'asc' | 'desc' })
+   const { useAllOrders } = useOrders();
+   const [search, setSearch] = useState("");
+   const [statusFilter, setStatusFilter] = useState("All");
+   const [page, setPage] = useState(1);
+   const [limit, setLimit] = useState(10);
+   const [sort, setSort] = useState({
+      column: "created_at",
+      direction: "desc" as "asc" | "desc",
+   });
 
-  const statusValue = statusFilter !== 'All' ? statusFilter.toLowerCase() as OrderStatus : undefined
+   // Additional filters
+   const [dateRange, setDateRange] = useState<{ from?: string; to?: string }>(
+      {}
+   );
+   const [priceRange, setPriceRange] = useState<{ min?: number; max?: number }>(
+      {}
+   );
+   const [showPaid, setShowPaid] = useState<boolean | undefined>();
+   const [selectedCity, setSelectedCity] = useState<string>();
 
-  const { data: ordersData, isLoading, isError, error } = useAllOrders({
-    filters: {
-      search: search || undefined,
-      status: statusValue,
-    },
-    pagination: {
-      page,
-      limit,
-    },
-    sort,
-  })
+   // Convert status label to the correct format for the API
+   const statusValue = ((): OrderStatus | undefined => {
+      if (statusFilter === "All") return undefined;
+      return statusFilter.toLowerCase() as OrderStatus;
+   })();
 
-  const orders = ordersData?.data || []
-  const totalCount = ordersData?.count || 0
-  const totalPages = Math.ceil(totalCount / limit)
+   // Get orders with current filters
+   const currentStatus =
+      statusFilter === "All"
+         ? undefined
+         : (statusFilter.toLowerCase() as OrderStatus);
 
-  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearch(e.target.value)
-    setPage(1)
-  }
+   // Query options
+   const queryOptions = {
+      filters: {
+         search: search || undefined,
+         status: currentStatus,
+         dateFrom: dateRange.from,
+         dateTo: dateRange.to,
+         priceMin: priceRange.min,
+         priceMax: priceRange.max,
+         city: selectedCity,
+         isPaid: showPaid,
+      },
+      pagination: { page, limit },
+      sort,
+   };
 
-  const handleStatusChange = (label: typeof statusLabels[number]) => {
-    setStatusFilter(label)
-    setPage(1)
-  }
+   console.log(
+      "Querying orders with options:",
+      JSON.stringify(queryOptions, null, 2)
+   );
 
-  const handlePageChange = (newPage: number) => {
-    if (newPage >= 1 && newPage <= totalPages) {
-      setPage(newPage)
-    }
-  }
+   const {
+      data: ordersData,
+      isLoading,
+      isError,
+      error,
+      refetch,
+   } = useAllOrders({
+      ...queryOptions,
+   });
 
-  // Simple page range calculation for pagination
-  const getPageNumbers = () => {
-    const pages = []
-    const start = Math.max(1, page - 2)
-    const end = Math.min(totalPages, page + 2)
-    for (let i = start; i <= end; i++) {
-      pages.push(i)
-    }
-    return pages
-  }
+   const orders = ordersData?.data || [];
+   const totalCount = ordersData?.count || 0;
+   const totalPages = Math.max(1, Math.ceil(totalCount / limit));
+   const rangeStart = totalCount === 0 ? 0 : (page - 1) * limit + 1;
+   const rangeEnd = Math.min(totalCount, page * limit);
 
-  if (isError) {
-    return (
-      <div className='p-5 rounded-2xl bg-white mt-10'>
-        <p className="text-red-500">Error loading orders: {error?.message}</p>
-      </div>
-    )
-  }
+   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      setSearch(e.target.value);
+      setPage(1);
+   };
 
-  return (
-    <div className='p-5 rounded-2xl bg-white mt-10'>
-      <div className="flex gap-5 justify-between flex-col 2xl:flex-row pb-8">
-        <div className='hidden md:block rounded-[8px] h-fit py-2 px-3 bg-[#E8F6FB] p-[2px] relative'>
-          <AnimatedBackground
-            defaultValue='All'
-            className='rounded-lg bg-white dark:bg-zinc-700'
-            transition={{
-              ease: 'easeInOut',
-              duration: 0.2,
-            }}
-          >
-            {statusLabels.map((label, index) => {
-              return (
-                <button
-                  key={index}
-                  data-id={label}
-                  type='button'
-                  aria-label={`${label} view`}
-                  onClick={() => handleStatusChange(label)}
-                  className={`inline-flex h-10 px-2 items-center text-zinc-800 transition-transform active:scale-[0.98] ${statusFilter === label ? 'text-red-500' : ''} dark:text-zinc-50 group`}
-                >
-                  <span className='font-semibold mr-2'>{label}</span>
-                  <span className={`text-[#F26823] transition-all ${statusFilter === label ? 'opacity-100' : 'opacity-0'}`}>(240)</span>
-                </button>
-              );
-            })}
-          </AnimatedBackground>
-        </div>
-        <div className="flex gap-2 items-center max-[500px]:flex-wrap">
-          <div className="relative max-[500px]:w-full">
-            <Input
-              className="peer pe-10 border-none shadow-none h-10 sm:h-12 md:min-w-80 md:text-base bg-neutral-100 rounded-xl px-4"
-              placeholder="Search product, customer, etc..."
-              type="search"
-              value={search}
-              onChange={handleSearchChange}
-            />
-            <div className="text-muted-foreground/80 !cursor-pointer absolute inset-y-0 end-0 flex items-center justify-center pe-3 peer-disabled:opacity-50">
-              <SearchIcon size={20} className='text-black' />
+   const { invalidateOrders } = useOrders();
+   // Define filter change handler
+   const handleStatusChange = async (label: (typeof statusLabels)[number]) => {
+      console.log("Status change initiated:", label);
+
+      // Update the status filter
+      setStatusFilter(label);
+
+      // Reset page and other filters
+      setPage(1);
+      setDateRange({});
+      setPriceRange({});
+      setShowPaid(undefined);
+      setSelectedCity(undefined);
+
+      try {
+         // Force a refetch with the new status
+         await refetch();
+      } catch (error) {
+         console.error("Error refetching orders:", error);
+      }
+   };
+
+   const handlePageChange = (newPage: number) => {
+      if (newPage >= 1 && newPage <= totalPages) {
+         setPage(newPage);
+      }
+   };
+
+   // Simple page range calculation for pagination
+   const getPageNumbers = () => {
+      const pages = [];
+      const start = Math.max(1, page - 2);
+      const end = Math.min(totalPages, page + 2);
+      for (let i = start; i <= end; i++) {
+         pages.push(i);
+      }
+      return pages;
+   };
+
+   if (isError) {
+      return (
+         <div className="p-5 rounded-2xl bg-white mt-10">
+            <p className="text-red-500">
+               Error loading orders: {error?.message}
+            </p>
+         </div>
+      );
+   }
+
+   return (
+      <div className="p-5 rounded-2xl bg-white mt-10">
+         <div className="flex gap-5 justify-between flex-col 2xl:flex-row pb-8">
+            <div className="hidden md:block rounded-[8px] h-fit py-2 px-3 bg-[#E8F6FB] p-[2px] relative">
+               <AnimatedBackground
+                  defaultValue={statusFilter}
+                  className="rounded-lg bg-white dark:bg-zinc-700"
+                  onValueChange={(value) => {
+                     if (value && statusLabels.includes(value as StatusLabel)) {
+                        console.log("Triggering status change:", value);
+                        handleStatusChange(value as StatusLabel);
+                     }
+                  }}
+                  transition={{
+                     ease: "easeInOut",
+                     duration: 0.2,
+                  }}
+               >
+                  {statusLabels.map((label, index) => {
+                     const count = orders.filter((order) => {
+                        if (label === "All") return true;
+                        const expectedStatus = statusMapping[label];
+                        return order.status === expectedStatus;
+                     }).length;
+                     return (
+                        <button
+                           key={index}
+                           data-id={label}
+                           type="button"
+                           aria-label={`${label} view`}
+                           className={`inline-flex h-10 px-2 items-center text-zinc-800 transition-transform active:scale-[0.98] ${
+                              statusFilter === label ? "text-orange-500" : ""
+                           } dark:text-zinc-50 group`}
+                        >
+                           <span className="font-semibold mr-2">{label}</span>
+                           <span
+                              className={`text-[#F26823] transition-all ${
+                                 statusFilter === label
+                                    ? "opacity-100"
+                                    : "opacity-0"
+                              }`}
+                           >
+                              ({count})
+                           </span>
+                        </button>
+                     );
+                  })}
+               </AnimatedBackground>
             </div>
-          </div>
-          <Button variant={'outline'} className='px-3 h-10 sm:h-12'>
-            <ListFilter className='text-neutral-600' />
-          </Button>
-          <Button variant={'outline'} className='px-3 h-10 sm:h-12'>
-            <ArrowUpDown className='text-neutral-600' />
-          </Button>
-          <Button variant={'outline'} className='px-3 h-10 sm:h-12'>
-            <Ellipsis className='text-neutral-600' />
-          </Button>
-        </div>
-      </div>
-      <div className="flex flex-col sm:flex-row justify-between mb-3">
-        <div className="flex flex-col">
-          <h3 className='text-text-primary text-xl font-bold'>Order List</h3>
-          <p className='text-text-secondary'>Track orders list across your store.</p>
-        </div>
-        <Button className="bg-orange-500 hover:bg-orange-600 text-white">
-          <Download className="h-4 w-4 mr-2" />
-          Export
-        </Button>
-      </div>
-      {isLoading ? (
-        <div className="flex justify-center items-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin" />
-          <span className="ml-2">Loading orders...</span>
-        </div>
-      ) : (
-        <DataTable columns={columns} data={orders} />
-      )}
-      <Pagination>
-        <PaginationContent>
-          <PaginationItem>
-            <PaginationPrevious 
-              href="#" 
-              onClick={(e) => { e.preventDefault(); handlePageChange(page - 1); }} 
-              className={page === 1 ? 'pointer-events-none opacity-50' : ''} 
-            />
-          </PaginationItem>
-          {getPageNumbers().map((p) => (
-            <PaginationItem key={p}>
-              <PaginationLink 
-                href="#" 
-                isActive={p === page}
-                onClick={(e) => { e.preventDefault(); handlePageChange(p); }}
-              >
-                {p}
-              </PaginationLink>
-            </PaginationItem>
-          ))}
-          {page + 2 < totalPages && (
-            <PaginationItem>
-              <PaginationEllipsis />
-            </PaginationItem>
-          )}
-          <PaginationItem>
-            <PaginationNext 
-              href="#" 
-              onClick={(e) => { e.preventDefault(); handlePageChange(page + 1); }} 
-              className={page === totalPages ? 'pointer-events-none opacity-50' : ''} 
-            />
-          </PaginationItem>
-        </PaginationContent>
-      </Pagination>
-    </div>
-  )
-}
+            <div className="flex gap-2 items-center max-[500px]:flex-wrap">
+               <div className="relative max-[500px]:w-full">
+                  <Input
+                     className="peer pe-10 border-none shadow-none h-10 sm:h-12 md:min-w-80 md:text-base bg-neutral-100 rounded-xl px-4"
+                     placeholder="Search product, customer, etc..."
+                     type="search"
+                     value={search}
+                     onChange={handleSearchChange}
+                  />
+                  <div className="text-muted-foreground/80 !cursor-pointer absolute inset-y-0 end-0 flex items-center justify-center pe-3 peer-disabled:opacity-50">
+                     <SearchIcon
+                        size={20}
+                        className="text-black"
+                     />
+                  </div>
+               </div>
+               <Popover>
+                  <PopoverTrigger asChild>
+                     <Button
+                        variant={"outline"}
+                        className="px-3 h-10 sm:h-12 relative"
+                     >
+                        <ListFilter className="text-neutral-600" />
+                        {(!!dateRange.from ||
+                           !!dateRange.to ||
+                           !!priceRange.min ||
+                           !!priceRange.max ||
+                           showPaid !== undefined ||
+                           !!selectedCity) && (
+                           <div className="absolute -top-1 -right-1 w-2 h-2 bg-orange-500 rounded-full" />
+                        )}
+                     </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-80 p-4">
+                     <div className="space-y-4">
+                        <div className="space-y-2">
+                           <div className="flex items-center justify-between">
+                              <h4 className="font-medium">Filters</h4>
+                              {(!!dateRange.from ||
+                                 !!dateRange.to ||
+                                 !!priceRange.min ||
+                                 !!priceRange.max ||
+                                 showPaid !== undefined ||
+                                 !!selectedCity) && (
+                                 <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 px-2 text-orange-500"
+                                    onClick={() => {
+                                       setDateRange({});
+                                       setPriceRange({});
+                                       setShowPaid(undefined);
+                                       setSelectedCity(undefined);
+                                       setPage(1);
+                                    }}
+                                 >
+                                    <FilterX className="h-4 w-4 mr-1" />
+                                    Clear all
+                                 </Button>
+                              )}
+                           </div>
+                           <div className="border-t" />
+                        </div>
 
-export default OrdersTable
+                        {/* Date Range */}
+                        <div className="space-y-2">
+                           <Label>Date Range</Label>
+                           <div className="grid grid-cols-2 gap-2">
+                              <Input
+                                 type="date"
+                                 value={dateRange.from || ""}
+                                 onChange={(e) =>
+                                    setDateRange((prev) => ({
+                                       ...prev,
+                                       from: e.target.value,
+                                    }))
+                                 }
+                                 placeholder="From"
+                              />
+                              <Input
+                                 type="date"
+                                 value={dateRange.to || ""}
+                                 onChange={(e) =>
+                                    setDateRange((prev) => ({
+                                       ...prev,
+                                       to: e.target.value,
+                                    }))
+                                 }
+                                 placeholder="To"
+                              />
+                           </div>
+                        </div>
+
+                        {/* Price Range */}
+                        <div className="space-y-2">
+                           <Label>Price Range (RWF)</Label>
+                           <div className="grid grid-cols-2 gap-2">
+                              <Input
+                                 type="number"
+                                 value={priceRange.min || ""}
+                                 onChange={(e) =>
+                                    setPriceRange((prev) => ({
+                                       ...prev,
+                                       min: e.target.valueAsNumber,
+                                    }))
+                                 }
+                                 placeholder="Min"
+                              />
+                              <Input
+                                 type="number"
+                                 value={priceRange.max || ""}
+                                 onChange={(e) =>
+                                    setPriceRange((prev) => ({
+                                       ...prev,
+                                       max: e.target.valueAsNumber,
+                                    }))
+                                 }
+                                 placeholder="Max"
+                              />
+                           </div>
+                        </div>
+
+                        {/* City Filter */}
+                        <div className="space-y-2">
+                           <Label>City</Label>
+                           <Select
+                              value={selectedCity || "all"}
+                              onValueChange={(value) => {
+                                 setSelectedCity(
+                                    value === "all" ? undefined : value
+                                 );
+                                 setPage(1);
+                              }}
+                           >
+                              <SelectTrigger>
+                                 <SelectValue placeholder="Select city" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                 <SelectItem value="all">All Cities</SelectItem>
+                                 {[
+                                    ...new Set(
+                                       orders
+                                          .map((order) => order.delivery_city)
+                                          .filter((city): city is string =>
+                                             Boolean(city)
+                                          )
+                                    ),
+                                 ].map((city) => (
+                                    <SelectItem
+                                       key={city}
+                                       value={city}
+                                    >
+                                       {city}
+                                    </SelectItem>
+                                 ))}
+                              </SelectContent>
+                           </Select>
+                        </div>
+
+                        {/* Payment Status */}
+                        <div className="space-y-2">
+                           <Label>Payment Status</Label>
+                           <div className="flex items-center space-x-2">
+                              <Checkbox
+                                 id="paid"
+                                 checked={showPaid}
+                                 onCheckedChange={(checked) => {
+                                    setShowPaid(
+                                       checked === "indeterminate"
+                                          ? undefined
+                                          : checked
+                                    );
+                                    setPage(1);
+                                 }}
+                              />
+                              <label
+                                 htmlFor="paid"
+                                 className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                              >
+                                 Show only paid orders
+                              </label>
+                           </div>
+                        </div>
+                     </div>
+                  </PopoverContent>
+               </Popover>
+
+               <div className="flex items-center gap-3">
+                  <div className="text-sm text-muted-foreground hidden md:block">
+                     Showing {rangeStart}-{rangeEnd} of {totalCount}
+                  </div>
+                  <select
+                     value={limit}
+                     onChange={(e) => {
+                        const v = Number(e.target.value) || 10;
+                        setLimit(v);
+                        setPage(1);
+                     }}
+                     className="rounded border px-2 py-1 text-sm"
+                     aria-label="Rows per page"
+                  >
+                     <option value={10}>10</option>
+                     <option value={25}>25</option>
+                     <option value={50}>50</option>
+                  </select>
+               </div>
+
+               <Popover>
+                  <PopoverTrigger asChild>
+                     <Button
+                        variant={"outline"}
+                        className="px-3 h-10 sm:h-12"
+                     >
+                        <ArrowUpDown className="text-neutral-600" />
+                     </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-56 p-2">
+                     <div className="space-y-1">
+                        {[
+                           { label: "Date", column: "created_at" },
+                           { label: "Order Total", column: "total" },
+                           {
+                              label: "Customer Name",
+                              column: "customer_first_name",
+                           },
+                        ].map((sortOption) => (
+                           <Button
+                              key={sortOption.column}
+                              variant="ghost"
+                              className="w-full justify-start gap-2"
+                              onClick={() => {
+                                 setSort((prev) => ({
+                                    column: sortOption.column,
+                                    direction:
+                                       prev.column === sortOption.column &&
+                                       prev.direction === "asc"
+                                          ? "desc"
+                                          : "asc",
+                                 }));
+                                 setPage(1);
+                              }}
+                           >
+                              {sortOption.label}
+                              {sort.column === sortOption.column && (
+                                 <ArrowUpDown className="h-4 w-4" />
+                              )}
+                           </Button>
+                        ))}
+                     </div>
+                  </PopoverContent>
+               </Popover>
+            </div>
+         </div>
+         <div className="flex flex-col sm:flex-row justify-between mb-3">
+            <div className="flex flex-col">
+               <h3 className="text-text-primary text-xl font-bold">
+                  Order List
+               </h3>
+               <p className="text-text-secondary">
+                  Track orders list across your store.
+               </p>
+            </div>
+            <Button className="bg-orange-500 hover:bg-orange-600 text-white">
+               <Download className="h-4 w-4 mr-2" />
+               Export
+            </Button>
+         </div>
+         {isLoading ? (
+            <div className="flex justify-center items-center py-12">
+               <Loader2 className="h-8 w-8 animate-spin" />
+               <span className="ml-2">Loading orders...</span>
+            </div>
+         ) : (
+            <DataTable
+               columns={columns}
+               data={orders}
+            />
+         )}
+         <Pagination>
+            <PaginationContent>
+               <PaginationItem>
+                  <PaginationPrevious
+                     href="#"
+                     onClick={(e) => {
+                        e.preventDefault();
+                        handlePageChange(page - 1);
+                     }}
+                     className={
+                        page === 1 ? "pointer-events-none opacity-50" : ""
+                     }
+                  />
+               </PaginationItem>
+               {getPageNumbers().map((p) => (
+                  <PaginationItem key={p}>
+                     <PaginationLink
+                        href="#"
+                        isActive={p === page}
+                        onClick={(e) => {
+                           e.preventDefault();
+                           handlePageChange(p);
+                        }}
+                     >
+                        {p}
+                     </PaginationLink>
+                  </PaginationItem>
+               ))}
+               {page + 2 < totalPages && (
+                  <PaginationItem>
+                     <PaginationEllipsis />
+                  </PaginationItem>
+               )}
+               <PaginationItem>
+                  <PaginationNext
+                     href="#"
+                     onClick={(e) => {
+                        e.preventDefault();
+                        handlePageChange(page + 1);
+                     }}
+                     className={
+                        page === totalPages
+                           ? "pointer-events-none opacity-50"
+                           : ""
+                     }
+                  />
+               </PaginationItem>
+            </PaginationContent>
+         </Pagination>
+      </div>
+   );
+};
+
+export default OrdersTable;

@@ -39,15 +39,7 @@ const navItems: NavItem[] = [
             { id: '2-3', title: 'User roles & permissions', href: '/admin/users/permissions' },
         ],
     },
-    {
-        id: '3',
-        title: 'Orders',
-        icon: Icons.sidebar.orders,
-        subLinks: [
-            { id: '3-1', title: 'Orders Management', href: '/admin/orders' },
-            { id: '3-2', title: 'New orders', href: '/admin/orders/new' },
-        ],
-    },
+    
     {
         id: '4',
         title: 'Products',
@@ -58,6 +50,16 @@ const navItems: NavItem[] = [
             { id: '4-3', title: 'Product Categories', href: '/admin/products/categories' },
             { id: '4-4', title: 'Discounts & Offers', href: '/admin/products/discounts' },
             { id: '4-5', title: 'Product Reviews / Ratings', href: '/admin/products/reviews' },
+        ],
+    },
+    {
+        id: '3',
+        title: 'Orders',
+        icon: Icons.sidebar.orders,
+        subLinks: [
+            { id: '3-1', title: 'Orders Management', href: '/admin/orders' },
+            { id: '3-2', title: 'New orders', href: '/admin/orders/new' },
+            { id: '3-3', title: 'External orders', href: '/admin/orders/external' },
         ],
     },
     {

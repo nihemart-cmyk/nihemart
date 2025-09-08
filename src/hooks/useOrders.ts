@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
 import {
    fetchUserOrders,
    fetchAllOrders,
@@ -12,7 +13,7 @@ import {
    type OrderQueryOptions,
    type CreateOrderRequest,
    type OrderStatus,
-} from "@/integrations/supabase/products";
+} from "@/integrations/supabase/orders";
 
 // Query Keys
 export const orderKeys = {
@@ -30,9 +31,11 @@ export const orderKeys = {
 export function useUserOrders(options: OrderQueryOptions = {}) {
    const { user, isLoggedIn } = useAuth();
 
+   console.log("useUserOrders hook:", { user, isLoggedIn, options });
+
    return useQuery({
-      queryKey: orderKeys.list(options),
-      queryFn: () => fetchUserOrders(options),
+      queryKey: orderKeys.userOrders(user?.id || ""),
+      queryFn: () => fetchUserOrders(options, user?.id),
       enabled: isLoggedIn && !!user,
       staleTime: 1000 * 60 * 5, // 5 minutes
    });
@@ -44,9 +47,12 @@ export function useAllOrders(options: OrderQueryOptions = {}) {
 
    return useQuery({
       queryKey: orderKeys.list(options),
-      queryFn: () => fetchAllOrders(options),
+      queryFn: () => {
+         console.log("Executing fetchAllOrders with options:", options);
+         return fetchAllOrders(options);
+      },
       enabled: !!user && hasRole("admin"),
-      staleTime: 1000 * 60 * 2, // 2 minutes for admin data
+      staleTime: 0, // Disable stale time to always refetch
    });
 }
 
@@ -78,24 +84,52 @@ export function useCreateOrder() {
    const queryClient = useQueryClient();
    const { user } = useAuth();
 
-   return useMutation({
-      mutationFn: (orderData: CreateOrderRequest) => createOrder(orderData),
+   return useMutation<Order, Error, CreateOrderRequest>({
+      mutationFn: async (orderData: CreateOrderRequest) => {
+         console.log("Regular Order Mutation - Starting with data:", orderData);
+         if (!orderData.order || !orderData.items) {
+            console.error("Invalid order data:", orderData);
+            throw new Error("Invalid order data structure");
+         }
+         try {
+            const result = await createOrder(orderData);
+            if (!result) {
+               throw new Error("No response received from server");
+            }
+            console.log("Regular Order Mutation - Success:", result);
+            return result;
+         } catch (error) {
+            console.error("Regular Order Mutation - Error:", error);
+            throw error instanceof Error
+               ? error
+               : new Error("Unknown error occurred");
+         }
+      },
+      onMutate: (variables) => {
+         console.log("Regular Order Mutation - onMutate:", variables);
+      },
       onSuccess: (data) => {
-         // Invalidate and refetch orders
+         console.log("Regular Order Mutation - onSuccess:", data);
          queryClient.invalidateQueries({ queryKey: orderKeys.lists() });
-
-         // Optionally add the new order to the cache
-         queryClient.setQueryData(orderKeys.detail(data.id), data);
-
-         // If we have user orders cached, add this order to the beginning
+         if (data?.id) {
+            queryClient.setQueryData(orderKeys.detail(data.id), data);
+         }
          if (user) {
             queryClient.invalidateQueries({
                queryKey: orderKeys.userOrders(user.id),
             });
          }
       },
-      onError: (error) => {
-         console.error("Failed to create order:", error);
+      onError: (error: Error) => {
+         console.error("Regular Order Mutation - onError:", error);
+         toast.error(error.message || "Failed to create order");
+      },
+      onSettled: (data, error, variables) => {
+         console.log("Regular Order Mutation - onSettled:", {
+            data,
+            error,
+            variables,
+         });
       },
    });
 }
