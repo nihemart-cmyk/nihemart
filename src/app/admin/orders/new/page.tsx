@@ -121,7 +121,7 @@ const AdminNewOrdersPage: React.FC = () => {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-gray-600 flex items-center">
               <Calendar className="h-4 w-4 mr-2" />
-              Today's Orders
+              Today&apos;s Orders
             </CardTitle>
           </CardHeader>
           <CardContent>

@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useCallback } from "react";
-import { Plus, ArrowUp, Upload, Loader2, Download } from "lucide-react";
+import { Plus, Download, Upload, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as XLSX from 'xlsx';
@@ -17,7 +17,7 @@ import {
 } from "@/integrations/supabase/products";
 import type { Product, Category, Subcategory, ProductListPageFilters } from "@/integrations/supabase/products";
 
-const ProductsPage = () => {
+export default function ProductsPage() {
   const router = useRouter();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -70,9 +70,9 @@ const ProductsPage = () => {
     };
     loadCategoriesData();
   }, []);
-  
+
   const handleEditProduct = (id: string) => {
-    router.push(`/admin/products/${id}/edit`);
+    router.push(`/admin/products/edit/${id}`);
   };
 
   const handlePageChange = (newPage: number) => setPage(newPage);
@@ -116,55 +116,46 @@ const ProductsPage = () => {
       const productsToExport = await fetchAllProductsForExport({ filters, sort });
       
       const productDataForSheet = productsToExport.map(p => ({
-        "Product ID": p.id,
-        "Product Name": p.name,
-        "SKU": p.sku || '',
-        "Category": p.category?.name || '',
+        "ID": p.id,
+        "Name": p.name,
+        "Status": p.status,
+        "Category": p.category?.name || 'N/A',
         "Brand": p.brand || '',
         "Price": p.price,
-        "Compare At Price": p.compare_at_price || 0,
         "Stock": p.stock || 0,
-        "Status": p.status,
+        "SKU": p.sku || '',
+        "Featured": p.featured ? 'Yes' : 'No',
         "Created At": new Date(p.created_at).toLocaleString(),
       }));
 
-      const activeCount = productsToExport.filter(p => p.status === 'active').length;
-      const draftCount = productsToExport.filter(p => p.status === 'draft').length;
-      const totalStock = productsToExport.reduce((sum, p) => sum + (p.stock || 0), 0);
-      const totalValue = productsToExport.reduce((sum, p) => sum + ((p.price || 0) * (p.stock || 0)), 0);
-      const categoryCounts = productsToExport.reduce((acc, p) => {
-        const cat = p.category?.name || 'Uncategorized';
-        acc[cat] = (acc[cat] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>);
-
       const analyticsData = [
-        { Statistic: "Total Products", Value: productsToExport.length },
-        { Statistic: "Active Products", Value: activeCount },
-        { Statistic: "Draft Products", Value: draftCount },
-        { Statistic: "Total Stock Units", Value: totalStock },
-        { Statistic: "Estimated Total Stock Value", Value: totalValue.toFixed(2) },
-        {},
-        { Statistic: "Products Per Category", Value: ""},
-        ...Object.entries(categoryCounts).map(([name, count]) => ({
-          Statistic: `  ${name}`,
-          Value: count,
-        }))
+        ["Analytics Summary", ""],
+        ["Generated On", new Date().toLocaleString()],
+        [],
+        ["Metric", "Value"],
+        ["Total Products Exported", productsToExport.length],
+        ["Total Active Products", productsToExport.filter(p => p.status === 'active').length],
+        ["Total Draft Products", productsToExport.filter(p => p.status === 'draft').length],
+        ["Total Stock Units", productsToExport.reduce((sum, p) => sum + (p.stock || 0), 0)],
+        [],
+        ["Products by Category", ""],
+        ...Object.entries(productsToExport.reduce((acc, p) => {
+          const cat = p.category?.name || 'Uncategorized';
+          acc[cat] = (acc[cat] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>)).map(([name, count]) => ([`  ${name}`, count]))
       ];
       
       const wb = XLSX.utils.book_new();
+      
+      const wsAnalytics = XLSX.utils.aoa_to_sheet(analyticsData);
+      wsAnalytics['!cols'] = [{ wch: 30 }, { wch: 20 }];
+      XLSX.utils.book_append_sheet(wb, wsAnalytics, "Summary");
 
       const wsProducts = XLSX.utils.json_to_sheet(productDataForSheet);
-      wsProducts['!cols'] = [
-        { wch: 30 }, { wch: 40 }, { wch: 20 }, { wch: 25 }, { wch: 20 },
-        { wch: 15 }, { wch: 18 }, { wch: 10 }, { wch: 15 }, { wch: 20 },
-      ];
+      wsProducts['!cols'] = [ {wch:36}, {wch:40}, {wch:12}, {wch:20}, {wch:20}, {wch:10}, {wch:10}, {wch:20}, {wch:10}, {wch:20} ];
       XLSX.utils.book_append_sheet(wb, wsProducts, "Products");
-
-      const wsAnalytics = XLSX.utils.json_to_sheet(analyticsData, { skipHeader: true });
-      wsAnalytics['!cols'] = [{ wch: 30 }, { wch: 20 }];
-      XLSX.utils.book_append_sheet(wb, wsAnalytics, "Analytics Summary");
-
+      
       XLSX.writeFile(wb, `Products_Export_${new Date().toISOString().split('T')[0]}.xlsx`);
 
     } catch (error) {
@@ -214,6 +205,7 @@ const ProductsPage = () => {
               onSortChange={handleSortChange}
               onDelete={handleDeleteProduct}
               onStatusToggle={handleStatusToggle}
+              onEdit={handleEditProduct}
             />
          </div>
       </div>
@@ -227,5 +219,3 @@ const ProductsPage = () => {
     </>
   );
 };
-
-export default ProductsPage;
