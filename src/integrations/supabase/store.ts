@@ -60,10 +60,8 @@ export interface ProductVariationDetail {
   name: string | null;
   price: number | null;
   stock: number;
-  attributes: {
-    color?: string;
-    size?: string;
-  };
+  // THIS IS THE CORRECTED TYPE
+  attributes: Record<string, string>;
 }
 
 export interface ProductImageDetail {
@@ -89,6 +87,14 @@ export interface ProductPageData {
   images: ProductImageDetail[];
   reviews: ProductReview[];
   similarProducts: StoreProduct[];
+}
+
+export interface ReviewBase {
+  product_id: string;
+  user_id: string;
+  rating: number;
+  title?: string;
+  content?: string;
 }
 
 
@@ -164,17 +170,12 @@ export async function fetchStoreProductById(id: string): Promise<ProductPageData
   const [variationsRes, imagesRes, reviewsRes] = await Promise.all([
     sb.from('product_variations').select('id, name, price, stock, attributes').eq('product_id', id),
     sb.from('product_images').select('id, url, product_variation_id').eq('product_id', id),
-    // THIS IS THE LINE THAT WAS FIXED
     sb.from('reviews').select('id, rating, title, content, created_at, author:profiles!user_id(full_name)').eq('product_id', id),
   ]);
 
   if (variationsRes.error) throw variationsRes.error;
   if (imagesRes.error) throw imagesRes.error;
-  if (reviewsRes.error) {
-    // Log the detailed error from the reviews query
-    console.error("Error fetching reviews:", reviewsRes.error);
-    throw reviewsRes.error;
-  }
+  if (reviewsRes.error) throw reviewsRes.error;
 
   const categoryId = product.category?.id;
   let similarProducts: StoreProduct[] = [];
@@ -196,4 +197,29 @@ export async function fetchStoreProductById(id: string): Promise<ProductPageData
     reviews: (reviewsRes.data || []) as ProductReview[],
     similarProducts,
   };
+}
+
+export async function createStoreReview(reviewData: ReviewBase): Promise<ProductReview> {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+        throw new Error("You must be logged in to leave a review.");
+    }
+    
+    if (reviewData.user_id !== session.user.id) {
+        throw new Error("User ID mismatch.");
+    }
+
+    const { data, error } = await sb
+      .from('reviews')
+      .insert(reviewData)
+      .select('*, author:profiles!user_id(full_name)')
+      .single();
+
+    if (error) {
+        if (error.code === '23505') {
+            throw new Error("You have already submitted a review for this product.");
+        }
+        throw error;
+    }
+    return data as ProductReview;
 }

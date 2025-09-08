@@ -1,8 +1,7 @@
 "use client"
 import React from 'react';
 import Image from 'next/image';
-import Link from 'next/link';
-import { ChevronDown, Edit, Trash2, MoreHorizontal, ChevronLeft, ChevronRight, ChevronUp, Search } from 'lucide-react';
+import { ChevronDown, Edit, Trash2, ChevronLeft, ChevronRight, ChevronUp, Search } from 'lucide-react';
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -25,6 +24,7 @@ interface ProductsTableProps {
   onSortChange: (column: string) => void;
   onDelete: (id: string) => void;
   onStatusToggle: (id: string, currentStatus: string | undefined) => void;
+  onEdit: (id: string) => void;
 }
 
 export const ProductsTable = ({
@@ -39,6 +39,7 @@ export const ProductsTable = ({
   onSortChange,
   onDelete,
   onStatusToggle,
+  onEdit,
 }: ProductsTableProps) => {
   const totalPages = Math.ceil(pagination.totalCount / pagination.limit);
 
@@ -65,6 +66,49 @@ export const ProductsTable = ({
     { key: 'price', label: 'Price', sortable: true, minWidth: '120px' },
     { key: 'actions', label: 'Actions', sortable: false, minWidth: '100px' },
   ];
+  
+  const renderPagination = () => {
+    if (totalPages <= 1) return null;
+    const pages = [];
+    // Logic for creating pagination links (e.g., 1, 2, ..., 5, 6, 7, ..., 12)
+    // Simplified for now to show all pages for smaller counts
+    if (totalPages <= 7) {
+        for (let i = 1; i <= totalPages; i++) {
+            pages.push(i);
+        }
+    } else {
+        pages.push(1);
+        if (pagination.page > 3) pages.push('...');
+        
+        let startPage = Math.max(2, pagination.page - 1);
+        let endPage = Math.min(totalPages - 1, pagination.page + 1);
+        
+        if (pagination.page <= 3) {
+            startPage = 2;
+            endPage = 4;
+        }
+        if (pagination.page >= totalPages - 2) {
+            startPage = totalPages - 3;
+            endPage = totalPages - 1;
+        }
+
+        for (let i = startPage; i <= endPage; i++) {
+            pages.push(i);
+        }
+        
+        if (pagination.page < totalPages - 2) pages.push('...');
+        pages.push(totalPages);
+    }
+    return pages.map((p, i) => 
+        typeof p === 'number' ? (
+            <Button key={p} onClick={() => onPageChange(p)} variant={pagination.page === p ? "default" : "outline"} size="sm" className={cn("w-9 h-9", pagination.page === p && "bg-green-500 hover:bg-green-600")}>
+                {p}
+            </Button>
+        ) : (
+            <span key={`ellipsis-${i}`} className="flex items-center justify-center w-9 h-9">...</span>
+        )
+    );
+  };
 
   return (
     <div className="w-full min-h-[40vh]">
@@ -142,7 +186,7 @@ export const ProductsTable = ({
                         <TableCell>{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(product.price || 0)}</TableCell>
                         <TableCell>
                             <div className="flex items-center space-x-2">
-                                <Link href={`/admin/products/${product.id}/edit`}><Button variant="ghost" size="sm" className="h-8 w-8 p-0"><Edit className="w-4 h-4 text-gray-500" /></Button></Link>
+                                <Button onClick={() => onEdit(product.id)} variant="ghost" size="sm" className="h-8 w-8 p-0"><Edit className="w-4 h-4 text-gray-500" /></Button>
                                 <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => onDelete(product.id)}><Trash2 className="w-4 h-4 text-gray-500" /></Button>
                             </div>
                         </TableCell>
@@ -158,18 +202,12 @@ export const ProductsTable = ({
       
       <div className="flex items-center justify-between px-6 py-4 border-t">
         <div className="text-sm text-gray-500">
-          Displaying {Math.min((pagination.page - 1) * pagination.limit + 1, pagination.totalCount)} to {Math.min(pagination.page * pagination.limit, pagination.totalCount)} of {pagination.totalCount} entries
+          Page {pagination.page} of {totalPages}. Total {pagination.totalCount} products.
         </div>
         <div className="flex items-center space-x-2">
-          <Button variant="ghost" size="sm" className="flex items-center space-x-1" onClick={() => onPageChange(pagination.page - 1)} disabled={pagination.page <= 1}>
-            <ChevronLeft className="w-4 h-4" /><span>Previous</span>
-          </Button>
-          <div className="flex space-x-1">
-            <Button size="sm" className="w-8 h-8 bg-green-500 text-white hover:bg-green-600">{pagination.page}</Button>
-          </div>
-          <Button variant="ghost" size="sm" className="flex items-center space-x-1" onClick={() => onPageChange(pagination.page + 1)} disabled={pagination.page >= totalPages}>
-            <span>Next</span><ChevronRight className="w-4 h-4" />
-          </Button>
+          <Button variant="outline" size="sm" onClick={() => onPageChange(pagination.page - 1)} disabled={pagination.page <= 1}>Previous</Button>
+          <div className="flex items-center gap-1">{renderPagination()}</div>
+          <Button variant="outline" size="sm" onClick={() => onPageChange(pagination.page + 1)} disabled={pagination.page >= totalPages}>Next</Button>
         </div>
       </div>
     </div>

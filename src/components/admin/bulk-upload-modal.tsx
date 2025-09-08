@@ -4,12 +4,11 @@ import * as XLSX from 'xlsx';
 import { useDropzone } from 'react-dropzone';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { UploadCloud, FileText, Download, AlertCircle, Loader2 } from 'lucide-react';
+import { UploadCloud, Download, AlertCircle, Loader2 } from 'lucide-react';
 import type { ProductBase, Category, Subcategory } from '@/integrations/supabase/products';
 import { createBulkProducts } from '@/integrations/supabase/products';
 import { cn } from '@/lib/utils';
@@ -19,11 +18,9 @@ interface BulkUploadModalProps {
   onClose: () => void;
   onUploadComplete: () => void;
   categories: Category[];
-  // Pass all subcategories for the interactive dropdowns
   subcategories: Subcategory[]; 
 }
 
-// Enhance parsed product type to include validation errors
 interface ParsedProductRow {
   data: Partial<ProductBase> & { category_name?: string; subcategory_name?: string };
   errors: { [key: string]: string };
@@ -31,7 +28,6 @@ interface ParsedProductRow {
 }
 
 const REQUIRED_HEADERS = ['name', 'price', 'stock', 'category_name', 'subcategory_name'];
-const ALL_EXPECTED_HEADERS = [...REQUIRED_HEADERS, 'description', 'sku', 'brand', 'compare_at_price', 'weight_kg'];
 
 export const BulkUploadModal: React.FC<BulkUploadModalProps> = ({ isOpen, onClose, onUploadComplete, categories, subcategories }) => {
   const [file, setFile] = useState<File | null>(null);
@@ -135,29 +131,33 @@ export const BulkUploadModal: React.FC<BulkUploadModalProps> = ({ isOpen, onClos
   const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop, accept: { 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'] }, multiple: false });
 
   const handleDownloadSample = () => {
-    const sampleData = [
-      { name: "Classic T-Shirt", description: "A comfortable 100% cotton t-shirt.", price: 19.99, compare_at_price: 24.99, stock: 100, category_name: "Apparel", subcategory_name: "T-Shirts", sku: "TS-BLK-L", brand: "BrandName", weight_kg: 0.2 },
-      { name: "Wireless Headphones", description: "Noise-cancelling over-ear headphones with 20-hour battery life.", price: 99.50, compare_at_price: "", stock: 50, category_name: "Electronics", subcategory_name: "Audio", sku: "WH-001", brand: "TechBrand", weight_kg: 0.35 },
-    ];
+    const sampleData = [{ name: "Classic T-Shirt", description: "A comfortable 100% cotton t-shirt.", price: 19.99, compare_at_price: 24.99, stock: 100, category_name: "Apparel", subcategory_name: "T-Shirts", sku: "TS-BLK-L", brand: "BrandName", weight_kg: 0.2 }, { name: "Wireless Headphones", description: "Noise-cancelling over-ear headphones with 20-hour battery life.", price: 99.50, compare_at_price: "", stock: 50, category_name: "Electronics", subcategory_name: "Audio", sku: "WH-001", brand: "TechBrand", weight_kg: 0.35 }];
     const instructions = [
-      { Column: 'name', Required: 'Yes', Description: 'The name of the product.', Example: 'Classic T-Shirt' },
-      { Column: 'description', Required: 'No', Description: 'A short description of the product.', Example: 'A comfortable 100% cotton t-shirt.' },
-      { Column: 'price', Required: 'Yes', Description: 'The selling price of the product (numeric).', Example: 19.99 },
-      { Column: 'compare_at_price', Required: 'No', Description: 'The original price, to show a discount (numeric). Leave blank if not discounted.', Example: 24.99 },
-      { Column: 'stock', Required: 'Yes', Description: 'The number of items in stock (whole number).', Example: 100 },
-      { Column: 'category_name', Required: 'Yes', Description: 'The name of the main category. Must match an existing category exactly.', Example: 'Apparel' },
-      { Column: 'subcategory_name', Required: 'Yes', Description: 'The name of the subcategory. Must match an existing one within the chosen category.', Example: 'T-Shirts' },
-      { Column: 'sku', Required: 'No', Description: 'The Stock Keeping Unit for inventory tracking.', Example: 'TS-BLK-L' },
-      { Column: 'brand', Required: 'No', Description: 'The brand name of the product.', Example: 'BrandName' },
-      { Column: 'weight_kg', Required: 'No', Description: 'The weight of the item in kilograms (numeric).', Example: 0.2 },
+        ["Column", "Required", "Description", "Example"],
+        ["name", "Yes", "The name of the product.", "Classic T-Shirt"],
+        ["description", "No", "A short description of the product.", "A comfortable 100% cotton t-shirt."],
+        ["price", "Yes", "The selling price of the product (numeric).", 19.99],
+        ["compare_at_price", "No", "The original price, to show a discount (numeric).", 24.99],
+        ["stock", "Yes", "The number of items in stock (whole number).", 100],
+        ["category_name", "Yes", "Must match an existing category name exactly.", "Apparel"],
+        ["subcategory_name", "Yes", "Must match an existing subcategory within the chosen category.", "T-Shirts"],
+        ["sku", "No", "The Stock Keeping Unit for inventory tracking.", "TS-BLK-L"],
+        ["brand", "No", "The brand name of the product.", "BrandName"],
+        ["weight_kg", "No", "The weight of the item in kilograms (numeric).", 0.2]
     ];
     
     const productSheet = XLSX.utils.json_to_sheet(sampleData);
-    const instructionSheet = XLSX.utils.json_to_sheet(instructions);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, productSheet, "Products");
-    XLSX.utils.book_append_sheet(workbook, instructionSheet, "Instructions");
-    XLSX.writeFile(workbook, "bulk_products_template.xlsx");
+    productSheet['!cols'] = [{wch: 25}, {wch: 70}, {wch: 15}, {wch: 20}, {wch: 10}, {wch: 20}, {wch: 20}, {wch: 20}, {wch: 20}, {wch: 15}];
+
+    const instructionSheet = XLSX.utils.aoa_to_sheet(instructions);
+    instructionSheet['!cols'] = [{wch: 20}, {wch: 10}, {wch: 70}, {wch: 25}];
+    
+    const wb = XLSX.utils.book_new();
+    
+    XLSX.utils.book_append_sheet(wb, productSheet, "Products");
+    XLSX.utils.book_append_sheet(wb, instructionSheet, "Instructions");
+
+    XLSX.writeFile(wb, "Bulk_Upload_Template.xlsx");
   };
 
   const handleRowChange = (index: number, field: 'category_name' | 'subcategory_name', value: string) => {
@@ -165,7 +165,6 @@ export const BulkUploadModal: React.FC<BulkUploadModalProps> = ({ isOpen, onClos
     const rowToUpdate = newRows[index];
     rowToUpdate.data[field] = value;
     
-    // Re-validate the row
     const newErrors: { [key: string]: string } = {};
     const categoryName = rowToUpdate.data.category_name?.toLowerCase();
     if (!categoryName || !categoryMap.has(categoryName)) newErrors.category_name = `Invalid category.`;
@@ -174,7 +173,7 @@ export const BulkUploadModal: React.FC<BulkUploadModalProps> = ({ isOpen, onClos
     if (!subcategoryName || !subcategoryMap.has(subcategoryName)) newErrors.subcategory_name = `Invalid subcategory.`;
     else if (categoryMap.get(categoryName!) !== subcategoryMap.get(subcategoryName)?.category_id) {
       newErrors.subcategory_name = `Subcategory does not belong to the selected category.`;
-      if (field === 'category_name') { // If category changed, reset subcategory
+      if (field === 'category_name') {
         rowToUpdate.data.subcategory_name = '';
       }
     }
@@ -184,7 +183,7 @@ export const BulkUploadModal: React.FC<BulkUploadModalProps> = ({ isOpen, onClos
   
   const hasErrors = useMemo(() => parsedRows.some(row => Object.keys(row.errors).length > 0), [parsedRows]);
 
-const handleSubmit = async () => {
+  const handleSubmit = async () => {
     if (hasErrors) {
       setGeneralErrors(["Please fix all validation errors before creating products."]);
       return;
@@ -194,7 +193,6 @@ const handleSubmit = async () => {
     try {
       const productsToCreate = parsedRows.map(row => {
         const { category_name, subcategory_name, ...productData } = row.data;
-
         return {
           ...productData,
           status: 'draft',
@@ -206,8 +204,23 @@ const handleSubmit = async () => {
       await createBulkProducts(productsToCreate as ProductBase[]);
       onUploadComplete();
       onClose();
-    } catch (error) {
-      setGeneralErrors(['An error occurred during submission. Please check the console.']);
+    } catch (error: any) {
+        console.error("Submission Error:", error);
+        
+        // This is the new, improved error handling block
+        if (error && error.code === '23505') {
+            const detail = error.details || '';
+            const match = detail.match(/Key \((.*?)\)=\((.*?)\) already exists/);
+            if (match && match[1] && match[2]) {
+                const column = match[1];
+                const value = match[2];
+                setGeneralErrors([`Upload failed: A product with the ${column} "${value}" already exists. Please check your file for duplicate values.`]);
+            } else {
+                setGeneralErrors(['Upload failed due to a duplicate value (e.g., SKU). Please ensure all unique fields are unique.']);
+            }
+        } else {
+            setGeneralErrors(['An error occurred during submission. Please check the console for details.']);
+        }
     } finally {
       setIsSubmitting(false);
     }
@@ -228,7 +241,7 @@ const handleSubmit = async () => {
             <Button onClick={handleDownloadSample} variant="outline"><Download className="w-4 h-4 mr-2" />Download Template</Button>
           </div>
           <div className="md:col-span-3 flex flex-col gap-4 overflow-hidden">
-            {isProcessing && <div className="flex-center h-full"><Loader2 className="w-8 h-8 animate-spin" /></div>}
+            {isProcessing && <div className="flex items-center justify-center h-full"><Loader2 className="w-8 h-8 animate-spin" /></div>}
             {generalErrors.length > 0 && !isProcessing && (
               <Alert variant="destructive"><AlertCircle className="h-4 w-4" /><AlertTitle>Error</AlertTitle><AlertDescription><ul className="list-disc pl-5">{generalErrors.map((err, i) => <li key={i}>{err}</li>)}</ul></AlertDescription></Alert>
             )}
