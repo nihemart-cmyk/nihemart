@@ -1,7 +1,9 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, Suspense } from "react"
 import { useRouter } from "next/navigation"
+import { useQueryStates } from 'nuqs'
+import { parseAsInteger, parseAsString, parseAsArrayOf, parseAsJson } from 'nuqs'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -9,7 +11,7 @@ import { Slider } from "@/components/ui/slider"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
-import { Heart, ChevronDown, ChevronUp, Filter, Search } from "lucide-react"
+import { Heart, ChevronDown, ChevronUp, Filter, Search, PackageSearch } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { fetchStoreProducts, fetchStoreFilterData, fetchStoreSubcategories } from "@/integrations/supabase/store"
 import type { StoreProduct, StoreCategory, StoreSubcategory } from "@/integrations/supabase/store"
@@ -19,7 +21,7 @@ import { useCart } from "@/contexts/CartContext"
 
 const PAGE_LIMIT = 12;
 
-export default function ProductListingPage() {
+function ProductListingComponent() {
   const router = useRouter();
   const { addItem } = useCart();
   
@@ -28,33 +30,35 @@ export default function ProductListingPage() {
   const [subcategories, setSubcategories] = useState<StoreSubcategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
-  const [page, setPage] = useState(1);
 
-  const [searchTerm, setSearchTerm] = useState('');
-  const debouncedSearchTerm = useDebounce(searchTerm, 500);
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [selectedSubcategories, setSelectedSubcategories] = useState<string[]>([]);
-  const [priceRange, setPriceRange] = useState([0, 5000]);
-  const debouncedPriceRange = useDebounce(priceRange, 500);
+  const [filters, setFilters] = useQueryStates({
+    q: parseAsString.withDefault(''),
+    page: parseAsInteger.withDefault(1),
+    sort: parseAsString.withDefault('created_at.desc'),
+    categories: parseAsArrayOf(parseAsString).withDefault([]),
+    subcategories: parseAsArrayOf(parseAsString).withDefault([]),
+    price: parseAsJson<[number, number]>(value => value as [number, number]).withDefault([0, 5000]),
+  });
+
+  const debouncedSearchTerm = useDebounce(filters.q, 500);
+  const debouncedPriceRange = useDebounce(filters.price, 500);
   
-  const [sortBy, setSortBy] = useState("created_at.desc");
-
   const [expandedSections, setExpandedSections] = useState({ category: true, subcategory: true, price: true });
   const [isFilterOpen, setIsFilterOpen] = useState(false);
 
   const fetchProducts = useCallback(async () => {
     setLoading(true);
     try {
-      const [sortColumn, sortDirection] = sortBy.split('.');
+      const [sortColumn, sortDirection] = filters.sort.split('.');
       const { data, count } = await fetchStoreProducts({
         search: debouncedSearchTerm,
         filters: {
-          categories: selectedCategories,
-          subcategories: selectedSubcategories,
-          priceRange: [debouncedPriceRange[0], debouncedPriceRange[1]],
+          categories: filters.categories,
+          subcategories: filters.subcategories,
+          priceRange: debouncedPriceRange,
         },
         sort: { column: sortColumn, direction: sortDirection as 'asc' | 'desc' },
-        pagination: { page, limit: PAGE_LIMIT }
+        pagination: { page: filters.page, limit: PAGE_LIMIT }
       });
       setProducts(data);
       setTotalCount(count);
@@ -63,7 +67,7 @@ export default function ProductListingPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, sortBy, selectedCategories, selectedSubcategories, debouncedPriceRange, debouncedSearchTerm]);
+  }, [filters.page, filters.sort, filters.categories, filters.subcategories, debouncedPriceRange, debouncedSearchTerm]);
 
   useEffect(() => {
     fetchProducts();
@@ -82,27 +86,42 @@ export default function ProductListingPage() {
   useEffect(() => {
     const loadSubcategories = async () => {
       try {
-        const { subcategories } = await fetchStoreSubcategories(selectedCategories);
+        const { subcategories } = await fetchStoreSubcategories(filters.categories);
         setSubcategories(subcategories);
       } catch (error) { console.error("Failed to load subcategory data", error); }
     };
-    if (selectedCategories.length > 0) {
+    if (filters.categories.length > 0) {
       loadSubcategories();
     } else {
       setSubcategories([]);
-      setSelectedSubcategories([]); // Clear subcategory selection if parent is deselected
+      setFilters({ subcategories: [] });
     }
-  }, [selectedCategories]);
-
+  }, [filters.categories, setFilters]);
 
   const handleClearFilters = () => {
-    setSelectedCategories([]);
-    setSelectedSubcategories([]);
-    setPriceRange([0, 5000]);
-    setSearchTerm('');
-    setPage(1);
+    setFilters({
+      q: '',
+      categories: [],
+      subcategories: [],
+      price: [0, 5000],
+      page: 1,
+    });
   };
-  
+
+  const handleCategoryToggle = (id: string, checked: boolean) => {
+    setFilters(prev => ({
+        page: 1,
+        categories: checked ? [...prev.categories, id] : prev.categories.filter(catId => catId !== id)
+    }));
+  };
+
+  const handleSubcategoryToggle = (id: string, checked: boolean) => {
+    setFilters(prev => ({
+        page: 1,
+        subcategories: checked ? [...prev.subcategories, id] : prev.subcategories.filter(subId => subId !== id)
+    }));
+  };
+
   const handleAddToCart = (e: React.MouseEvent, product: StoreProduct) => {
     e.stopPropagation();
     addItem({
@@ -128,17 +147,17 @@ export default function ProductListingPage() {
       
       <div>
         <button onClick={() => toggleSection("category")} className="flex items-center justify-between w-full mb-3"><h3 className="font-medium">Category</h3>{expandedSections.category ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</button>
-        {expandedSections.category && <div className="space-y-2">{categories.map(c => <div key={c.id} className="flex items-center justify-between"><div className="flex items-center space-x-2"><Checkbox id={c.id} checked={selectedCategories.includes(c.id)} onCheckedChange={checked => {setPage(1); setSelectedCategories(p => checked ? [...p, c.id] : p.filter(id => id !== c.id))}} /><label htmlFor={c.id} className="text-sm cursor-pointer">{c.name}</label></div><span className="text-xs text-gray-500">({c.products_count})</span></div>)}</div>}
+        {expandedSections.category && <div className="space-y-2">{categories.map(c => <div key={c.id} className="flex items-center justify-between"><div className="flex items-center space-x-2"><Checkbox id={c.id} checked={filters.categories.includes(c.id)} onCheckedChange={(checked) => handleCategoryToggle(c.id, !!checked)} /><label htmlFor={c.id} className="text-sm cursor-pointer">{c.name}</label></div><span className="text-xs text-gray-500">({c.products_count})</span></div>)}</div>}
       </div>
 
       <div>
-        <button onClick={() => toggleSection("subcategory")} disabled={selectedCategories.length === 0} className="flex items-center justify-between w-full mb-3 disabled:opacity-50"><h3 className="font-medium">Subcategory</h3>{expandedSections.subcategory ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</button>
-        {expandedSections.subcategory && selectedCategories.length > 0 && <div className="space-y-2">{subcategories.map(sc => <div key={sc.id} className="flex items-center justify-between"><div className="flex items-center space-x-2"><Checkbox id={sc.id} checked={selectedSubcategories.includes(sc.id)} onCheckedChange={checked => {setPage(1); setSelectedSubcategories(p => checked ? [...p, sc.id] : p.filter(id => id !== sc.id))}} /><label htmlFor={sc.id} className="text-sm cursor-pointer">{sc.name}</label></div><span className="text-xs text-gray-500">({sc.products_count})</span></div>)}</div>}
+        <button onClick={() => toggleSection("subcategory")} disabled={filters.categories.length === 0} className="flex items-center justify-between w-full mb-3 disabled:opacity-50"><h3 className="font-medium">Subcategory</h3>{expandedSections.subcategory ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</button>
+        {expandedSections.subcategory && filters.categories.length > 0 && <div className="space-y-2">{subcategories.map(sc => <div key={sc.id} className="flex items-center justify-between"><div className="flex items-center space-x-2"><Checkbox id={sc.id} checked={filters.subcategories.includes(sc.id)} onCheckedChange={(checked) => handleSubcategoryToggle(sc.id, !!checked)} /><label htmlFor={sc.id} className="text-sm cursor-pointer">{sc.name}</label></div><span className="text-xs text-gray-500">({sc.products_count})</span></div>)}</div>}
       </div>
 
       <div>
         <button onClick={() => toggleSection("price")} className="flex items-center justify-between w-full mb-3"><h3 className="font-medium">Price</h3>{expandedSections.price ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</button>
-        {expandedSections.price && <div className="space-y-4"><Slider value={priceRange} onValueChange={setPriceRange} max={5000} step={10} className="w-full" /><div className="flex justify-between text-sm text-gray-600"><span>${priceRange[0]}</span><span>${priceRange[1]}</span></div></div>}
+        {expandedSections.price && <div className="space-y-4"><Slider value={filters.price} onValueChange={(value) => setFilters({ price: value as [number, number] })} max={5000} step={10} className="w-full" /><div className="flex justify-between text-sm text-gray-600"><span>${filters.price[0]}</span><span>${filters.price[1]}</span></div></div>}
       </div>
     </div>
   );
@@ -156,52 +175,73 @@ export default function ProductListingPage() {
               <div className="flex items-center gap-4 flex-1">
                 <div className="relative w-full max-w-xs">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input placeholder="Search products..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9 bg-slate-50 border-slate-200" />
+                  <Input placeholder="Search products..." value={filters.q} onChange={(e) => setFilters({ q: e.target.value, page: 1 })} className="pl-9 bg-slate-50 border-slate-200" />
                 </div>
                 <Sheet open={isFilterOpen} onOpenChange={setIsFilterOpen}><SheetTrigger asChild><Button variant="outline" size="sm" className="lg:hidden bg-transparent"><Filter className="h-4 w-4 mr-2" />Filters</Button></SheetTrigger><SheetContent side="right" className="w-full sm:w-96 overflow-y-auto"><SheetHeader className="mb-6"><SheetTitle>Filter Products</SheetTitle></SheetHeader><FilterContent /></SheetContent></Sheet>
               </div>
               <div className="flex items-center gap-4">
                 <p className="text-sm text-gray-600 hidden md:block"><span className="font-medium">{totalCount}</span> Products</p>
-                <Select value={sortBy} onValueChange={setSortBy}><SelectTrigger className="w-48"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="created_at.desc">Newest</SelectItem><SelectItem value="price.asc">Price: Low to High</SelectItem><SelectItem value="price.desc">Price: High to Low</SelectItem><SelectItem value="average_rating.desc">Rating</SelectItem></SelectContent></Select>
+                <Select value={filters.sort} onValueChange={(value) => setFilters({ sort: value })}><SelectTrigger className="w-48"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="created_at.desc">Newest</SelectItem><SelectItem value="price.asc">Price: Low to High</SelectItem><SelectItem value="price.desc">Price: High to Low</SelectItem><SelectItem value="average_rating.desc">Rating</SelectItem></SelectContent></Select>
               </div>
             </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
-              {loading ? Array.from({ length: PAGE_LIMIT }).map((_, i) => <Card key={i} className="animate-pulse bg-gray-200 h-96"></Card>) : products.map((product) => (
-                <Card key={product.id} onClick={() => router.push(`/products/${product.id}`)} className="group hover:shadow-xl transition-all duration-300 hover:-translate-y-1 bg-white border-0 shadow-md cursor-pointer">
-                  <CardContent className="p-5">
-                    <div className="relative mb-4">
-                      <div className="bg-gradient-to-br from-slate-100 to-slate-200 rounded-xl p-4 aspect-square">
-                        <Image src={product.main_image_url || "/placeholder.svg"} alt={product.name} fill className="object-contain rounded-lg p-4" />
+            
+            {!loading && products.length === 0 ? (
+              <div className="flex flex-col items-center justify-center text-center py-20 bg-white rounded-xl shadow-sm border border-slate-200">
+                <PackageSearch className="w-20 h-20 text-gray-300 mb-4" />
+                <h3 className="text-xl font-semibold text-gray-700">No Products Found</h3>
+                <p className="text-gray-500 mt-2">Try adjusting your filters or search term.</p>
+                <Button onClick={handleClearFilters} className="mt-6 bg-orange-500 hover:bg-orange-600">Clear Filters</Button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
+                {loading ? Array.from({ length: PAGE_LIMIT }).map((_, i) => <Card key={i} className="animate-pulse bg-gray-200 h-96"></Card>) : products.map((product) => (
+                  <Card key={product.id} onClick={() => router.push(`/products/${product.id}`)} className="group hover:shadow-xl transition-all duration-300 hover:-translate-y-1 bg-white border-0 shadow-md cursor-pointer">
+                    <CardContent className="p-5">
+                      <div className="relative mb-4">
+                        <div className="bg-gradient-to-br from-slate-100 to-slate-200 rounded-xl p-4 aspect-square">
+                          <Image src={product.main_image_url || "/placeholder.svg"} alt={product.name} fill className="object-contain rounded-lg p-4" />
+                        </div>
+                        <button onClick={(e) => { e.stopPropagation() }} className="absolute top-2 right-2 p-2 rounded-full bg-white/90 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-110"><Heart className="h-4 w-4 text-gray-400 hover:text-red-400" /></button>
                       </div>
-                      <button onClick={(e) => { e.stopPropagation() }} className="absolute top-2 right-2 p-2 rounded-full bg-white/90 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-110"><Heart className="h-4 w-4 text-gray-400 hover:text-red-400" /></button>
-                    </div>
-                    <div className="space-y-3">
-                      <h3 className="font-semibold text-gray-900 text-lg truncate">{product.name}</h3>
-                      <p className="text-sm text-gray-500">{product.brand || 'Generic'}</p>
-                      <div className="flex items-center space-x-1">{renderStars(product.average_rating)}<span className="text-sm text-gray-500 ml-2">({product.review_count || 0})</span></div>
-                      <p className="text-xl font-bold text-gray-900">€{product.price.toFixed(2)}</p>
-                      <div className="flex space-x-2 pt-3">
-                        <Button onClick={(e) => handleAddToCart(e, product)} className="flex-1 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-md hover:shadow-lg transition-all duration-200">Add To Cart</Button>
+                      <div className="space-y-3">
+                        <h3 className="font-semibold text-gray-900 text-lg truncate">{product.name}</h3>
+                        <p className="text-sm text-gray-500">{product.brand || 'Generic'}</p>
+                        <div className="flex items-center space-x-1">{renderStars(product.average_rating)}<span className="text-sm text-gray-500 ml-2">({product.review_count || 0})</span></div>
+                        <p className="text-xl font-bold text-gray-900">€{product.price.toFixed(2)}</p>
+                        <div className="flex space-x-2 pt-3">
+                          <Button onClick={(e) => handleAddToCart(e, product)} className="flex-1 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-md hover:shadow-lg transition-all duration-200">Add To Cart</Button>
+                        </div>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-
-            {totalPages > 1 && (
-              <div className="flex justify-center items-center flex-wrap gap-2 bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-slate-200">
-                <Button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} variant="outline" size="sm" className="hover:bg-orange-50 bg-transparent">Previous</Button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                  <Button key={p} onClick={() => setPage(p)} variant={page === p ? "default" : "outline"} size="sm" className={cn("w-10 h-10", page === p ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-md" : "hover:bg-orange-50")}>{p}</Button>
+                    </CardContent>
+                  </Card>
                 ))}
-                <Button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} variant="outline" size="sm" className="hover:bg-orange-50 bg-transparent">Next</Button>
+              </div>
+            )}
+
+            {!loading && totalPages > 1 && (
+              <div className="flex justify-center items-center flex-wrap gap-2 bg-white rounded-xl p-4 sm:p-6 shadow-sm border border-slate-200">
+                <Button onClick={() => setFilters({ page: Math.max(1, filters.page - 1) })} disabled={filters.page === 1} variant="outline" size="sm" className="hover:bg-orange-50 bg-transparent">Previous</Button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                  <Button key={p} onClick={() => setFilters({ page: p })} variant={filters.page === p ? "default" : "outline"} size="sm" className={cn("w-10 h-10", filters.page === p ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-md" : "hover:bg-orange-50")}>{p}</Button>
+                ))}
+                <Button onClick={() => setFilters({ page: Math.min(totalPages, filters.page + 1) })} disabled={filters.page === totalPages} variant="outline" size="sm" className="hover:bg-orange-50 bg-transparent">Next</Button>
               </div>
             )}
           </div>
         </div>
       </div>
     </div>
+  )
+}
+
+export default function ProductListingPageContainer() {
+  return (
+    <Suspense fallback={
+        <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-50 to-orange-50">
+            <p>Loading products...</p>
+        </div>
+    }>
+      <ProductListingComponent />
+    </Suspense>
   )
 }

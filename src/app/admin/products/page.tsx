@@ -72,7 +72,7 @@ export default function ProductsPage() {
   }, []);
 
   const handleEditProduct = (id: string) => {
-    router.push(`/admin/products/edit/${id}`);
+    router.push(`/admin/products/${id}/edit`);
   };
 
   const handlePageChange = (newPage: number) => setPage(newPage);

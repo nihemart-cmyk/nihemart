@@ -29,12 +29,14 @@ export default function ProductClientPage({ initialData }: ProductClientPageProp
   const [data] = useState<ProductPageData>(initialData);
 
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
-  const [selectedVariation, setSelectedVariation] = useState<ProductVariationDetail | null>(
-    data.variations.length > 0 ? data.variations[0] : null
-  );
   const [quantity, setQuantity] = useState(1);
   const [reviews, setReviews] = useState<ProductReview[]>(data.reviews || []);
   const [user, setUser] = useState<User | null>(null);
+
+  const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
+  const [selectedVariation, setSelectedVariation] = useState<ProductVariationDetail | null>(null);
+
+  const { product, variations, images, similarProducts } = data;
 
   useEffect(() => {
     const getUser = async () => {
@@ -43,23 +45,46 @@ export default function ProductClientPage({ initialData }: ProductClientPageProp
     };
     getUser();
   }, []);
+  
+  const uniqueAttributeValues = useMemo(() => {
+    const attributes: Record<string, Set<string>> = {};
+    variations.forEach(v => {
+      Object.entries(v.attributes).forEach(([key, value]) => {
+        if (!attributes[key]) attributes[key] = new Set();
+        value.split(',').map(s => s.trim()).forEach(val => attributes[key].add(val));
+      });
+    });
+    return Object.fromEntries(Object.entries(attributes).map(([key, valueSet]) => [key, Array.from(valueSet)]));
+  }, [variations]);
 
-  const { product, variations, images, similarProducts } = data;
+  useEffect(() => {
+    if (variations.length > 0) {
+      const initialOptions: Record<string, string> = {};
+      Object.keys(uniqueAttributeValues).forEach(key => {
+        initialOptions[key] = uniqueAttributeValues[key][0];
+      });
+      setSelectedOptions(initialOptions);
+    }
+  }, [variations, uniqueAttributeValues]);
+
+  useEffect(() => {
+    if (variations.length > 0 && Object.keys(selectedOptions).length > 0) {
+      const match = variations.find(variant => 
+        Object.entries(selectedOptions).every(([key, value]) => 
+          variant.attributes[key]?.split(',').map(s => s.trim()).includes(value)
+        )
+      );
+      setSelectedVariation(match || null);
+    }
+  }, [selectedOptions, variations]);
 
   const displayImages = useMemo(() => {
     const generalImages = images.filter(img => !img.product_variation_id).map(img => img.url);
-
     if (selectedVariation) {
       const variantImages = images.filter(img => img.product_variation_id === selectedVariation.id).map(img => img.url);
-      if (variantImages.length > 0) {
-        return variantImages;
-      }
+      if (variantImages.length > 0) return variantImages;
     }
-
-    if (generalImages.length > 0) {
-      return generalImages;
-    }
-
+    if (generalImages.length > 0) return generalImages;
     return product.main_image_url ? [product.main_image_url] : ["/placeholder.svg"];
   }, [images, selectedVariation, product.main_image_url]);
 
@@ -67,40 +92,25 @@ export default function ProductClientPage({ initialData }: ProductClientPageProp
     setSelectedImageIndex(0);
   }, [displayImages]);
 
-  const uniqueAttributeValues = useMemo(() => {
-    const attributes: Record<string, Set<string>> = {};
-    variations.forEach(v => {
-      Object.entries(v.attributes).forEach(([key, value]) => {
-        if (!attributes[key]) {
-          attributes[key] = new Set();
-        }
-        attributes[key].add(value);
-      });
-    });
-    return Object.fromEntries(Object.entries(attributes).map(([key, valueSet]) => [key, Array.from(valueSet)]));
-  }, [variations]);
-
-  const handleVariantSelect = (type: string, value: string) => {
-    const currentAttributes = selectedVariation?.attributes || {};
-    const newAttributes = { ...currentAttributes, [type]: value };
-
-    const bestMatch = variations.find(v =>
-      Object.entries(newAttributes).every(([key, val]) => v.attributes[key] === val)
-    ) || null;
-    setSelectedVariation(bestMatch);
+  const handleOptionSelect = (type: string, value: string) => {
+    setSelectedOptions(prev => ({ ...prev, [type]: value }));
   };
-
+  
   const handleAddToCart = () => {
+    if (!selectedVariation) {
+        toast.error("Please select a valid product combination.");
+        return;
+    }
     const itemToAdd = {
       product_id: product.id,
       name: product.name,
-      price: selectedVariation?.price ?? product.price,
+      price: selectedVariation.price ?? product.price,
       image: product.main_image_url || '/placeholder.svg',
-      variant: selectedVariation?.name || Object.values(selectedVariation?.attributes || {}).join(' / ') || undefined,
-      id: selectedVariation?.id ? `${product.id}-${selectedVariation.id}` : product.id,
+      variant: Object.values(selectedVariation.attributes).join(' / '),
+      id: `${product.id}-${selectedVariation.id}`,
     };
     for (let i = 0; i < quantity; i++) {
-      addItem(itemToAdd);
+        addItem(itemToAdd);
     }
   };
 
@@ -114,9 +124,10 @@ export default function ProductClientPage({ initialData }: ProductClientPageProp
     });
     return { average: total / reviews.length, distribution };
   }, [reviews]);
-
+  
   const currentPrice = selectedVariation?.price ?? product.price;
   const comparePrice = product.compare_at_price;
+  const inStock = (selectedVariation?.stock ?? 0) > 0;
 
   const onReviewSubmitted = (newReview: ProductReview) => {
     setReviews(prev => [newReview, ...prev]);
@@ -126,7 +137,6 @@ export default function ProductClientPage({ initialData }: ProductClientPageProp
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
-          {/* Image Gallery */}
           <div className="space-y-4">
             <div className="relative aspect-square bg-white rounded-lg overflow-hidden">
               <Image src={displayImages[selectedImageIndex] || "/placeholder.svg"} alt={product.name} fill className="object-contain p-4" />
@@ -136,11 +146,10 @@ export default function ProductClientPage({ initialData }: ProductClientPageProp
             <div className="flex gap-2 overflow-x-auto pb-2">{displayImages.map((image, index) => <button key={index} onClick={() => setSelectedImageIndex(index)} className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 ${selectedImageIndex === index ? "border-orange-500" : "border-gray-200"}`}><Image src={image} alt={`Thumbnail ${index + 1}`} width={80} height={80} className="object-cover w-full h-full" /></button>)}</div>
           </div>
 
-          {/* Product Details */}
           <div className="space-y-6">
             <div><h1 className="text-3xl font-bold text-gray-900">{product.name}</h1><p className="text-gray-600 mt-1">{product.brand || 'Generic Brand'}</p></div>
             <div className="space-y-2">
-              <div className="flex items-baseline gap-2"><span className="text-3xl font-bold text-orange-600">€{currentPrice.toFixed(2)}</span>{comparePrice && <span className="text-lg text-gray-500 line-through">€{comparePrice.toFixed(2)}</span>}</div>
+              <div className="flex items-baseline gap-2"><span className="text-3xl font-bold text-orange-600">{currentPrice} Rwf</span>{comparePrice && <span className="text-lg text-gray-500 line-through">{comparePrice.toFixed(2)} rwf</span>}</div>
               <div className="flex items-center gap-2">
                 <div className="flex items-center">{[...Array(5)].map((_, i) => <Star key={i} className={`h-4 w-4 ${i < Math.round(reviewStats.average) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`} />)}<span className="ml-1 text-sm font-medium">{reviewStats.average.toFixed(1)}</span></div>
                 <span className="text-sm text-gray-500">{reviews?.length || 0} Reviews</span>
@@ -152,34 +161,32 @@ export default function ProductClientPage({ initialData }: ProductClientPageProp
                 <Label className="text-base font-medium capitalize">Choose a {attr}</Label>
                 <div className="flex gap-2 flex-wrap">
                   {values.map(value => (
-                    <button key={value} onClick={() => handleVariantSelect(attr, value)} className={cn("px-4 py-2 rounded-lg border text-sm font-medium", selectedVariation?.attributes[attr] === value ? "border-orange-500 bg-orange-50 text-orange-600" : "border-gray-300")}>
+                    <button key={value} onClick={() => handleOptionSelect(attr, value)} className={cn("px-4 py-2 rounded-lg border text-sm font-medium", selectedOptions[attr] === value ? "border-orange-500 bg-orange-50 text-orange-600" : "border-gray-300")}>
                       {value}
                     </button>
                   ))}
                 </div>
               </div>
             ))}
-
+            
             <div className="flex items-center gap-4">
               <div className="flex items-center border rounded-lg"><Button variant="ghost" size="icon" onClick={() => setQuantity(q => Math.max(1, q - 1))}><Minus className="h-4 w-4" /></Button><span className="px-4 py-2 min-w-[3rem] text-center">{quantity}</span><Button variant="ghost" size="icon" onClick={() => setQuantity(q => q + 1)}><Plus className="h-4 w-4" /></Button></div>
-              <Button onClick={handleAddToCart} disabled={!selectedVariation && variations.length > 0} className="flex-1 h-12 text-base font-medium bg-gradient-to-r from-orange-500 to-orange-600 text-white">Add To Cart</Button>
+              <Button onClick={handleAddToCart} disabled={!selectedVariation || !inStock} className="flex-1 h-12 text-base font-medium bg-gradient-to-r from-orange-500 to-orange-600 text-white disabled:opacity-50">
+                {!selectedVariation ? "Unavailable" : !inStock ? "Out of Stock" : "Add To Cart"}
+              </Button>
             </div>
             <div className="space-y-3 pt-4 border-t"><div className="flex items-center gap-3"><Truck className="h-5 w-5 text-green-600" /><div><p className="font-medium text-green-600">Free Delivery</p><p className="text-sm text-gray-600">Enter your Postal code for Delivery Availability</p></div></div><div className="flex items-center gap-3"><RotateCcw className="h-5 w-5 text-orange-600" /><div><p className="font-medium text-orange-600">Return Delivery</p><p className="text-sm text-gray-600">Free 30 days Delivery Return. Details</p></div></div></div>
           </div>
         </div>
 
-        {/* Tabs */}
         <div className="mt-16">
           <Tabs defaultValue="description" className="w-full">
             <TabsList className="grid w-full grid-cols-2 max-w-md"><TabsTrigger value="description">Description</TabsTrigger><TabsTrigger value="reviews">Reviews ({reviews?.length || 0})</TabsTrigger></TabsList>
-            <TabsContent value="description" className="mt-8"><Card>
-              <CardContent className="p-6 prose max-w-none prose-p:my-2 prose-h3:mb-2 prose-h3:mt-4" dangerouslySetInnerHTML={{ __html: product.description || 'No description available.' }} />
-            </Card>
-            </TabsContent>
+            <TabsContent value="description" className="mt-8"><Card><CardContent className="p-6 prose max-w-none prose-p:my-2 prose-h3:mb-2 prose-h3:mt-4" dangerouslySetInnerHTML={{ __html: product.description || 'No description available.' }} /></Card></TabsContent>
             <TabsContent value="reviews" className="mt-8 space-y-8">
               {reviews.length > 0 && <Card><CardHeader><CardTitle>Customers Feedback</CardTitle></CardHeader><CardContent><div className="grid grid-cols-1 md:grid-cols-2 gap-8"><div className="text-center"><div className="text-5xl font-bold text-orange-600 mb-2">{reviewStats.average.toFixed(1)}</div><div className="flex justify-center mb-2">{[...Array(5)].map((_, i) => <Star key={i} className={`h-5 w-5 ${i < Math.round(reviewStats.average) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`} />)}</div><p className="text-gray-600">Product Rating</p></div><div className="space-y-2">{reviewStats.distribution.map(item => <div key={item.stars} className="flex items-center gap-2"><div className="flex">{[...Array(5)].map((_, i) => <Star key={i} className={`h-3 w-3 ${i < item.stars ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`} />)}</div><Progress value={item.percentage} className="flex-1 h-2" /><span className="text-sm text-gray-600 w-8">{item.percentage.toFixed(0)}%</span></div>)}</div></div></CardContent></Card>}
               <div className="space-y-6"><h3 className="text-xl font-semibold">Customer Reviews</h3>{reviews?.map(review => <Card key={review.id}><CardContent className="p-6"><div className="flex items-start gap-4"><Avatar><AvatarFallback>{review.author?.full_name?.charAt(0) || 'U'}</AvatarFallback></Avatar><div className="flex-1"><div className="flex items-center justify-between mb-2"><h4 className="font-semibold">{review.author?.full_name || 'Anonymous'}</h4><span className="text-sm text-gray-500">{new Date(review.created_at).toLocaleDateString()}</span></div><div className="flex items-center gap-2 mb-2">{[...Array(5)].map((_, i) => <Star key={i} className={`h-4 w-4 ${i < review.rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`} />)}</div><h5 className="font-medium mb-2">{review.title}</h5><p className="text-gray-600">{review.content}</p></div></div></CardContent></Card>)}</div>
-
+              
               {user ? (
                 <ReviewForm productId={product.id} userId={user.id} onReviewSubmitted={onReviewSubmitted} />
               ) : (
@@ -199,62 +206,60 @@ export default function ProductClientPage({ initialData }: ProductClientPageProp
   );
 }
 
-// Sub-component for the review form
 function ReviewForm({ productId, userId, onReviewSubmitted }: { productId: string, userId: string, onReviewSubmitted: (review: ProductReview) => void }) {
-  const [rating, setRating] = useState(0);
-  const [hoverRating, setHoverRating] = useState(0);
-  const [title, setTitle] = useState('');
-  const [content, setContent] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
+    const [rating, setRating] = useState(0);
+    const [hoverRating, setHoverRating] = useState(0);
+    const [title, setTitle] = useState('');
+    const [content, setContent] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = async () => {
-    if (rating === 0) {
-      toast.error("Please select a star rating.");
-      return;
-    }
-    setIsSubmitting(true);
-    try {
-      const newReview = await createStoreReview({
-        product_id: productId,
-        user_id: userId,
-        rating,
-        title,
-        content,
-      });
-      toast.success("Thank you for your review!");
-      onReviewSubmitted(newReview);
-      // Reset form
-      setRating(0);
-      setTitle('');
-      setContent('');
-    } catch (error: any) {
-      toast.error(error.message || "Failed to submit review.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+    const handleSubmit = async () => {
+        if (rating === 0) {
+            toast.error("Please select a star rating.");
+            return;
+        }
+        setIsSubmitting(true);
+        try {
+            const newReview = await createStoreReview({
+                product_id: productId,
+                user_id: userId,
+                rating,
+                title,
+                content,
+            });
+            toast.success("Thank you for your review!");
+            onReviewSubmitted(newReview);
+            setRating(0);
+            setTitle('');
+            setContent('');
+        } catch (error: any) {
+            toast.error(error.message || "Failed to submit review.");
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
 
-  return (
-    <Card>
-      <CardHeader><CardTitle>Write a Review</CardTitle></CardHeader>
-      <CardContent className="space-y-4">
-        <div>
-          <Label>Your Rating</Label>
-          <div className="flex gap-1 mt-2" onMouseLeave={() => setHoverRating(0)}>
-            {[1, 2, 3, 4, 5].map(star => (
-              <Star
-                key={star}
-                className={cn("h-6 w-6 cursor-pointer", (hoverRating || rating) >= star ? "text-yellow-400 fill-yellow-400" : "text-gray-300")}
-                onMouseEnter={() => setHoverRating(star)}
-                onClick={() => setRating(star)}
-              />
-            ))}
-          </div>
-        </div>
-        <div><Label htmlFor="review-title">Review Title</Label><Input id="review-title" value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g., Great Product!" className="mt-2" /></div>
-        <div><Label htmlFor="review-content">Your Review</Label><Textarea id="review-content" value={content} onChange={e => setContent(e.target.value)} placeholder="Tell us what you think..." className="mt-2 min-h-[120px]" /></div>
-        <Button onClick={handleSubmit} disabled={isSubmitting} className="bg-gradient-to-r from-orange-500 to-orange-600 text-white">{isSubmitting ? "Submitting..." : "Submit Review"}</Button>
-      </CardContent>
-    </Card>
-  );
+    return (
+        <Card>
+            <CardHeader><CardTitle>Write a Review</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+                <div>
+                    <Label>Your Rating</Label>
+                    <div className="flex gap-1 mt-2" onMouseLeave={() => setHoverRating(0)}>
+                        {[1, 2, 3, 4, 5].map(star => (
+                            <Star 
+                                key={star} 
+                                className={cn("h-6 w-6 cursor-pointer", (hoverRating || rating) >= star ? "text-yellow-400 fill-yellow-400" : "text-gray-300")}
+                                onMouseEnter={() => setHoverRating(star)}
+                                onClick={() => setRating(star)}
+                            />
+                        ))}
+                    </div>
+                </div>
+                <div><Label htmlFor="review-title">Review Title</Label><Input id="review-title" value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g., Great Product!" className="mt-2" /></div>
+                <div><Label htmlFor="review-content">Your Review</Label><Textarea id="review-content" value={content} onChange={e => setContent(e.target.value)} placeholder="Tell us what you think..." className="mt-2 min-h-[120px]" /></div>
+                <Button onClick={handleSubmit} disabled={isSubmitting} className="bg-gradient-to-r from-orange-500 to-orange-600 text-white">{isSubmitting ? "Submitting..." : "Submit Review"}</Button>
+            </CardContent>
+        </Card>
+    );
 }
