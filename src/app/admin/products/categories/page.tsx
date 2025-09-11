@@ -6,8 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import CategoriesTable from '@/components/admin/categories-table';
 import AddEditCategoryDialog from '@/components/admin/add-category-dialog';
-import { fetchCategories, deleteCategory } from '@/integrations/categories';
-import type { Category } from '@/integrations/categories';
+import { fetchCategories, deleteCategory } from '@/integrations/supabase/categories';
+import type { Category } from '@/integrations/supabase/categories';
 import { useDebounce } from '@/hooks/use-debounce';
 
 export default function CategoriesPage() {

@@ -3,7 +3,7 @@
 import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Edit, Trash2 } from 'lucide-react';
-import type { Category } from '@/integrations/categories';
+import type { Category } from '@/integrations/supabase/categories';
 import Image from 'next/image';
 
 interface CategoriesTableProps {

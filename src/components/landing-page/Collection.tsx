@@ -3,82 +3,131 @@ import { cn } from '@/lib/utils';
 import { ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
 import Image from 'next/image';
 import { FC, RefObject, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
+import { fetchCategories } from '@/integrations/supabase/categories';
+import type { Category } from '@/integrations/supabase/categories';
 
-interface CollectionProps {
+interface CollectionProps {}
 
-}
-
-// const products = 
-
-const Collection: FC<CollectionProps> = ({ }) => {
+const Collection: FC<CollectionProps> = ({}) => {
+    const [categories, setCategories] = useState<Category[]>([]);
+    const [loading, setLoading] = useState(true);
     const [chevAppear, setChevApp] = useState<{left: boolean, right: boolean}>({ left: false, right: false });
-    const [winObje, setWindow] = useState({});
     const sliderRef: RefObject<HTMLDivElement | null> = useRef(null);
+
+    useEffect(() => {
+        const loadCategories = async () => {
+            setLoading(true);
+            try {
+                // Fetching only the first 8 categories for the landing page
+                const { data } = await fetchCategories({ page: 1, limit: 8 });
+                setCategories(data);
+            } catch (error) {
+                console.error("Failed to fetch categories:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        loadCategories();
+    }, []);
 
     const handleSliderScroll = () => {
         const slider = sliderRef.current;
-        const scrollWidth = slider!.scrollLeft + slider!.offsetWidth;
-        const isLeft = slider!.scrollLeft > 2;
-        const isRight = scrollWidth + 15 <= slider!.scrollWidth;
-
-        if (isLeft) {
-            if (isRight && isRight) {
-                setChevApp({ right: true, left: true });
-            } else {
-                setChevApp({ right: false, left: true });
-            }
-        } else {
-            setChevApp({ right: true, left: false });
-        }
+        if (!slider) return;
+        
+        const scrollWidth = slider.scrollLeft + slider.offsetWidth;
+        const isLeft = slider.scrollLeft > 2;
+        const isRight = scrollWidth < slider.scrollWidth - 2; // Added a small buffer
+        
+        setChevApp({ left: isLeft, right: isRight });
     };
+
     const handleLeftChevClick = () => {
         const slider = sliderRef.current;
-        slider!.scrollLeft -= 305;
+        if (slider) slider.scrollLeft -= 320; // Card width (w-80 = 320px) + gap
     };
+
     const handleRightChevClick = () => {
         const slider = sliderRef.current;
-        slider!.scrollLeft += 305;
+        if (slider) slider.scrollLeft += 320;
     };
 
     useEffect(() => {
-        if (typeof window !== undefined) setWindow(window);
         const slider = sliderRef.current;
-        if (slider!.scrollWidth > slider!.offsetWidth) {
-            setChevApp({ left: false, right: true });
-        }
+        if (!slider || loading) return;
 
-        window.addEventListener("resize", () => {
-            if (slider!.scrollWidth > slider!.offsetWidth)
-                setChevApp({ left: false, right: true });
-            else setChevApp({ left: false, right: false });
-        });
-    }, [winObje]);
-    return <div className='my-10 relative'>
-        <div className="flex overflow-x-scroll scroll-smooth gap-5 pl-3 xs:pl-5 sm:pl-10 lg:pl-20 scrollbar-hidden" ref={sliderRef}
-            onScroll={handleSliderScroll}>
-            {Array(8).fill(3).map((_, i) => <div className='w-80 shrink-0 aspect-[9/12] bg-blue-100 rounded-2xl overflow-hidden relative' key={i}>
-                <Image src='/product.png' alt='product' fill className='absolute object-cover z-0' />
-                <div className="relative w-full z-10 h-full bg-gradient-to-t from-black from-0% to-70% flex flex-col justify-end text-white px-3 pb-4">
-                    <h4 className='font-semibold'>All products</h4>
-                    <div className="flex items-center justify-between">
-                        <p className='text-sm'>Check out all our products</p> <ArrowRight />
-                    </div>
+        const checkChevrons = () => {
+            if (slider.scrollWidth > slider.offsetWidth) {
+                handleSliderScroll();
+            } else {
+                setChevApp({ left: false, right: false });
+            }
+        };
+
+        // Initial check
+        checkChevrons();
+        
+        // Check on window resize
+        window.addEventListener("resize", checkChevrons);
+        
+        return () => window.removeEventListener("resize", checkChevrons);
+    }, [loading, categories]);
+
+    return (
+        <div className='my-10 relative'>
+            <div 
+                className="flex overflow-x-scroll scroll-smooth gap-5 pl-3 xs:pl-5 sm:pl-10 lg:pl-20 scrollbar-hidden" 
+                ref={sliderRef}
+                onScroll={handleSliderScroll}
+            >
+                {loading 
+                    ? Array(6).fill(0).map((_, i) => (
+                        <div key={i} className='w-80 shrink-0 aspect-[9/12] bg-gray-200 rounded-2xl animate-pulse' />
+                    ))
+                    : categories.map((category) => (
+                        <Link href={`/products?categories=${category.id}`} key={category.id} className='block w-80 shrink-0 aspect-[9/12] bg-blue-100 rounded-2xl overflow-hidden relative group'>
+                            <Image 
+                                src={category.icon_url || '/placeholder.svg'} 
+                                alt={category.name} 
+                                fill 
+                                className='absolute object-cover z-0 group-hover:scale-105 transition-transform duration-300' 
+                            />
+                            <div className="relative w-full z-10 h-full bg-gradient-to-t from-black/80 from-0% to-transparent to-70% flex flex-col justify-end text-white px-5 pb-5">
+                                <h4 className='text-2xl font-semibold'>{category.name}</h4>
+                                <div className="flex items-center justify-between mt-1">
+                                    <p className='text-sm opacity-80'>Check out all our products</p> 
+                                    <ArrowRight className='group-hover:translate-x-1 transition-transform' />
+                                </div>
+                            </div>
+                        </Link>
+                    ))
+                }
+            </div>
+            
+            {!loading && (
+                <div className="absolute inset-x-3 xs:inset-x-5 sm:inset-x-10 lg:inset-x-20 z-20 flex items-center justify-between top-1/2 -translate-y-1/2 pointer-events-none">
+                    <button
+                        onClick={handleLeftChevClick}
+                        className={cn(
+                            'text-black bg-white/80 backdrop-blur-sm border border-neutral-300 transition-all duration-300 rounded-full p-2 cursor-pointer pointer-events-auto', 
+                            { "opacity-0 scale-50": !chevAppear.left, "opacity-100 scale-100 hover:bg-white": chevAppear.left }
+                        )}
+                    >
+                        <ChevronLeft size={24} />
+                    </button>
+                    <button
+                        onClick={handleRightChevClick}
+                        className={cn(
+                            'text-black bg-white/80 backdrop-blur-sm border border-neutral-300 transition-all duration-300 rounded-full p-2 cursor-pointer pointer-events-auto', 
+                            { "opacity-0 scale-50": !chevAppear.right, "opacity-100 scale-100 hover:bg-white": chevAppear.right }
+                        )}
+                    >
+                        <ChevronRight size={24} />
+                    </button>
                 </div>
-            </div>)}
+            )}
         </div>
-        <div className="absolute inset-x-5 sm:inset-x-20 z-50 flex items-center justify-between top-1/2 -translate-y-1/2">
-            <ChevronLeft
-                onClick={handleLeftChevClick}
-                size={40}
-                className={cn('text-3xl text-black bg-white border border-neutral-700 transition-colors duration-300 rounded-full p-2 cursor-pointer opacity-1', { "opacity-0": !chevAppear.left })}
-            />
-
-            <ChevronRight
-                onClick={handleRightChevClick}
-                size={40}
-                className={cn('text-3xl p-2 text-black bg-white border border-neutral-700 transition-colors duration-300 rounded-full cursor-pointer opacity-1', { "opacity-0": !chevAppear.right })}
-            /></div>
-    </div>
+    );
 }
 
-export default Collection
+export default Collection;

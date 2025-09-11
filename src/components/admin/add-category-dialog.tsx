@@ -8,8 +8,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
-import { createCategory, updateCategory } from '@/integrations/categories';
-import type { Category } from '@/integrations/categories';
+import { createCategory, updateCategory } from '@/integrations/supabase/categories';
+import type { Category } from '@/integrations/supabase/categories';
 
 const categorySchema = z.object({
   name: z.string().min(2, 'Category name must be at least 2 characters long.'),
