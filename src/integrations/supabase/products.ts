@@ -57,13 +57,23 @@ export interface ProductVariation {
    images?: ProductImage[];
 }
 
-export interface ProductVariationInput extends Omit<ProductVariation, 'images'>{
+export interface ProductVariationInput
+   extends Omit<ProductVariation, "images"> {
    imageFiles?: File[];
 }
 
-export interface Category { id: string; name: string; }
-export interface Subcategory { id: string; name: string; category_id: string; }
-export interface CategoryWithSubcategories extends Category { subcategories: Subcategory[]; }
+export interface Category {
+   id: string;
+   name: string;
+}
+export interface Subcategory {
+   id: string;
+   name: string;
+   category_id: string;
+}
+export interface CategoryWithSubcategories extends Category {
+   subcategories: Subcategory[];
+}
 
 export interface ProductListPageFilters {
    search?: string;
@@ -83,100 +93,166 @@ export interface ProductQueryOptions {
    };
 }
 
-
 const uploadFile = async (file: File, bucket: string): Promise<string> => {
-  const filePath = `${Date.now()}-${file.name}`;
-  const { error } = await sb.storage.from(bucket).upload(filePath, file);
-  if (error) throw error;
-  const { data } = sb.storage.from(bucket).getPublicUrl(filePath);
-  return data.publicUrl;
+   const filePath = `${Date.now()}-${file.name}`;
+   const { error } = await sb.storage.from(bucket).upload(filePath, file);
+   if (error) throw error;
+   const { data } = sb.storage.from(bucket).getPublicUrl(filePath);
+   return data.publicUrl;
 };
 
 export async function createProductWithImages(
-  productData: ProductBase,
-  mainImageFiles: File[],
-  variationsData: ProductVariationInput[]
+   productData: ProductBase,
+   mainImageFiles: File[],
+   variationsData: ProductVariationInput[]
 ) {
-  const mainImageUrls = await Promise.all(mainImageFiles.map(file => uploadFile(file, 'product-images')));
-  if (mainImageUrls.length > 0) {
-    productData.main_image_url = mainImageUrls[0];
-  }
-  
-  const { data: createdProduct, error: productError } = await sb.from('products').insert(productData).select().single();
-  if (productError) throw productError;
+   const mainImageUrls = await Promise.all(
+      mainImageFiles.map((file) => uploadFile(file, "product-images"))
+   );
+   if (mainImageUrls.length > 0) {
+      productData.main_image_url = mainImageUrls[0];
+   }
 
-  if (mainImageUrls.length > 0) {
-    const mainImagesToInsert = mainImageUrls.map((url, index) => ({
-      product_id: createdProduct.id,
-      url,
-      position: index,
-      is_primary: index === 0,
-    }));
-    const { error: mainImagesError } = await sb.from('product_images').insert(mainImagesToInsert);
-    if (mainImagesError) throw mainImagesError;
-  }
+   const { data: createdProduct, error: productError } = await sb
+      .from("products")
+      .insert(productData)
+      .select()
+      .single();
+   if (productError) throw productError;
 
-  for (const variation of variationsData) {
-    const { imageFiles = [], ...variationDetails } = variation;
-    const { data: createdVariation, error: variationError } = await sb.from('product_variations').insert({ ...variationDetails, product_id: createdProduct.id }).select('id').single();
-    if (variationError) throw variationError;
+   if (mainImageUrls.length > 0) {
+      const mainImagesToInsert = mainImageUrls.map((url, index) => ({
+         product_id: createdProduct.id,
+         url,
+         position: index,
+         is_primary: index === 0,
+      }));
+      const { error: mainImagesError } = await sb
+         .from("product_images")
+         .insert(mainImagesToInsert);
+      if (mainImagesError) throw mainImagesError;
+   }
 
-    if (imageFiles.length > 0) {
-      const variantImageUrls = await Promise.all(imageFiles.map(file => uploadFile(file, 'product-images')));
-      const variantImagesToInsert = variantImageUrls.map((url, index) => ({ product_id: createdProduct.id, product_variation_id: createdVariation.id, url, position: index }));
-      const { error: variantImagesError } = await sb.from('product_images').insert(variantImagesToInsert);
-      if (variantImagesError) throw variantImagesError;
-    }
-  }
-  return createdProduct;
+   for (const variation of variationsData) {
+      const { imageFiles = [], ...variationDetails } = variation;
+      const { data: createdVariation, error: variationError } = await sb
+         .from("product_variations")
+         .insert({ ...variationDetails, product_id: createdProduct.id })
+         .select("id")
+         .single();
+      if (variationError) throw variationError;
+
+      if (imageFiles.length > 0) {
+         const variantImageUrls = await Promise.all(
+            imageFiles.map((file) => uploadFile(file, "product-images"))
+         );
+         const variantImagesToInsert = variantImageUrls.map((url, index) => ({
+            product_id: createdProduct.id,
+            product_variation_id: createdVariation.id,
+            url,
+            position: index,
+         }));
+         const { error: variantImagesError } = await sb
+            .from("product_images")
+            .insert(variantImagesToInsert);
+         if (variantImagesError) throw variantImagesError;
+      }
+   }
+   return createdProduct;
 }
 
 export async function updateProductWithImages(
-  productId: string,
-  productData: Partial<ProductBase>,
-  mainImageFiles: File[],
-  variationsData: ProductVariationInput[]
+   productId: string,
+   productData: Partial<ProductBase>,
+   mainImageFiles: File[],
+   variationsData: ProductVariationInput[]
 ) {
-  await sb.from('product_variations').delete().eq('product_id', productId);
-  await sb.from('product_images').delete().eq('product_id', productId).is('product_variation_id', null);
+   await sb.from("product_variations").delete().eq("product_id", productId);
+   await sb
+      .from("product_images")
+      .delete()
+      .eq("product_id", productId)
+      .is("product_variation_id", null);
 
-  const mainImageUrls = await Promise.all(mainImageFiles.map(file => uploadFile(file, 'product-images')));
-  if (mainImageUrls.length > 0 && !productData.main_image_url) {
-    productData.main_image_url = mainImageUrls[0];
-  }
+   const mainImageUrls = await Promise.all(
+      mainImageFiles.map((file) => uploadFile(file, "product-images"))
+   );
+   if (mainImageUrls.length > 0 && !productData.main_image_url) {
+      productData.main_image_url = mainImageUrls[0];
+   }
 
-  const { data: updatedProduct, error: productError } = await sb.from('products').update(productData).eq('id', productId).select().single();
-  if (productError) throw productError;
+   const { data: updatedProduct, error: productError } = await sb
+      .from("products")
+      .update(productData)
+      .eq("id", productId)
+      .select()
+      .single();
+   if (productError) throw productError;
 
-  if (mainImageUrls.length > 0) {
-    const imagesToInsert = mainImageUrls.map((url, i) => ({ product_id: productId, url, position: i, is_primary: i === 0 }));
-    await sb.from('product_images').insert(imagesToInsert);
-  }
+   if (mainImageUrls.length > 0) {
+      const imagesToInsert = mainImageUrls.map((url, i) => ({
+         product_id: productId,
+         url,
+         position: i,
+         is_primary: i === 0,
+      }));
+      await sb.from("product_images").insert(imagesToInsert);
+   }
 
-  for (const variation of variationsData) {
-    const { imageFiles = [], ...variationDetails } = variation;
-    const { data: newVar, error: varErr } = await sb.from('product_variations').insert({ ...variationDetails, product_id: productId }).select('id').single();
-    if (varErr) throw varErr;
-    if (imageFiles.length > 0) {
-      const varUrls = await Promise.all(imageFiles.map(f => uploadFile(f, 'product-images')));
-      const varImgs = varUrls.map((url, i) => ({ product_id: productId, product_variation_id: newVar.id, url, position: i }));
-      await sb.from('product_images').insert(varImgs);
-    }
-  }
-  return updatedProduct;
+   for (const variation of variationsData) {
+      const { imageFiles = [], ...variationDetails } = variation;
+      const { data: newVar, error: varErr } = await sb
+         .from("product_variations")
+         .insert({ ...variationDetails, product_id: productId })
+         .select("id")
+         .single();
+      if (varErr) throw varErr;
+      if (imageFiles.length > 0) {
+         const varUrls = await Promise.all(
+            imageFiles.map((f) => uploadFile(f, "product-images"))
+         );
+         const varImgs = varUrls.map((url, i) => ({
+            product_id: productId,
+            product_variation_id: newVar.id,
+            url,
+            position: i,
+         }));
+         await sb.from("product_images").insert(varImgs);
+      }
+   }
+   return updatedProduct;
 }
 
 export async function fetchProductForEdit(id: string) {
-  const { data: product, error } = await sb.from('products').select('*').eq('id', id).single();
-  if (error) throw error;
-  
-  const { data: images } = await sb.from('product_images').select('*').eq('product_id', id).order('position');
-  const { data: variations } = await sb.from('product_variations').select('*').eq('product_id', id);
+   const { data: product, error } = await sb
+      .from("products")
+      .select("*")
+      .eq("id", id)
+      .single();
+   if (error) throw error;
 
-  const mainImages = (images || []).filter((img: { product_variation_id: any; }) => !img.product_variation_id);
-  const variationsWithImages = (variations || []).map((v: { id: any; }) => ({ ...v, images: (images || []).filter((img: { product_variation_id: any; }) => img.product_variation_id === v.id) }));
+   const { data: images } = await sb
+      .from("product_images")
+      .select("*")
+      .eq("product_id", id)
+      .order("position");
+   const { data: variations } = await sb
+      .from("product_variations")
+      .select("*")
+      .eq("product_id", id);
 
-  return { product, mainImages, variations: variationsWithImages };
+   const mainImages = (images || []).filter(
+      (img: { product_variation_id: any }) => !img.product_variation_id
+   );
+   const variationsWithImages = (variations || []).map((v: { id: any }) => ({
+      ...v,
+      images: (images || []).filter(
+         (img: { product_variation_id: any }) =>
+            img.product_variation_id === v.id
+      ),
+   }));
+
+   return { product, mainImages, variations: variationsWithImages };
 }
 
 // RESTORED FUNCTIONS
@@ -184,7 +260,9 @@ const buildProductQuery = (filters: ProductListPageFilters = {}) => {
    let query = sb.from("products").select(`*, category:categories(id, name)`);
    if (filters.search && filters.search.trim()) {
       const term = `%${filters.search.trim()}%`;
-      query = query.or(`name.ilike.${term},brand.ilike.${term},sku.ilike.${term}`);
+      query = query.or(
+         `name.ilike.${term},brand.ilike.${term},sku.ilike.${term}`
+      );
    }
    if (filters.category && filters.category !== "all") {
       query = query.eq("category_id", filters.category);
@@ -195,21 +273,34 @@ const buildProductQuery = (filters: ProductListPageFilters = {}) => {
    return query;
 };
 
-
-export async function fetchProductsPage({ filters = {}, pagination = { page: 1, limit: 10 }, sort = { column: "created_at", direction: "desc" }, }: ProductQueryOptions) {
+export async function fetchProductsPage({
+   filters = {},
+   pagination = { page: 1, limit: 10 },
+   sort = { column: "created_at", direction: "desc" },
+}: ProductQueryOptions) {
    const query = buildProductQuery(filters);
-   const { count, error: countError } = await query.select("*", { count: "exact", head: true });
+   const { count, error: countError } = await query.select("*", {
+      count: "exact",
+      head: true,
+   });
    if (countError) throw countError;
    const from = (pagination.page - 1) * pagination.limit;
    const to = from + pagination.limit - 1;
-   const dataQuery = buildProductQuery(filters).order(sort.column, { ascending: sort.direction === "asc" }).range(from, to);
+   const dataQuery = buildProductQuery(filters)
+      .order(sort.column, { ascending: sort.direction === "asc" })
+      .range(from, to);
    const { data, error } = await dataQuery;
    if (error) throw error;
    return { data: data as Product[], count: count ?? 0 };
 }
 
-export async function fetchAllProductsForExport({ filters = {}, sort = { column: "created_at", direction: "desc" }, }: Omit<ProductQueryOptions, "pagination">) {
-   const query = buildProductQuery(filters).order(sort.column, { ascending: sort.direction === "asc" }).limit(5000);
+export async function fetchAllProductsForExport({
+   filters = {},
+   sort = { column: "created_at", direction: "desc" },
+}: Omit<ProductQueryOptions, "pagination">) {
+   const query = buildProductQuery(filters)
+      .order(sort.column, { ascending: sort.direction === "asc" })
+      .limit(5000);
    const { data, error } = await query;
    if (error) throw error;
    return data as Product[];
@@ -221,26 +312,59 @@ export async function deleteProduct(id: string) {
 }
 
 export async function updateProduct(id: string, updates: Partial<ProductBase>) {
-  if (Object.keys(updates).length) {
-    const { error } = await sb.from("products").update(updates).eq("id", id);
-    if (error) throw error;
-  }
+   if (Object.keys(updates).length) {
+      const { error } = await sb.from("products").update(updates).eq("id", id);
+      if (error) throw error;
+   }
 }
 
 export async function fetchCategories(): Promise<Category[]> {
-   const { data, error } = await sb.from("categories").select("id, name").order("name");
+   const { data, error } = await sb
+      .from("categories")
+      .select("id, name")
+      .order("name");
    if (error) throw error;
    return data || [];
 }
 
-export async function fetchCategoriesWithSubcategories(): Promise<CategoryWithSubcategories[]> {
-   const { data, error } = await sb.from("categories").select(`*, subcategories:subcategories(*)`).order("name");
+export async function fetchCategoriesWithSubcategories(): Promise<
+   CategoryWithSubcategories[]
+> {
+   const { data, error } = await sb
+      .from("categories")
+      .select(`*, subcategories:subcategories(*)`)
+      .order("name");
    if (error) throw error;
    return data || [];
 }
 
 export async function createBulkProducts(products: ProductBase[]) {
-    const { data, error } = await sb.from('products').insert(products);
-    if (error) throw error;
-    return data;
+   const { data, error } = await sb.from("products").insert(products);
+   if (error) throw error;
+   return data;
+}
+
+export async function createProduct(
+   product: ProductBase,
+   variations?: ProductVariation[]
+) {
+   const { data, error } = await sb
+      .from("products")
+      .insert(product)
+      .select()
+      .single();
+   if (error) throw error;
+
+   if (variations && variations.length > 0) {
+      const variationsWithProductId = variations.map((v) => ({
+         ...v,
+         product_id: data.id,
+      }));
+      const { error: variationsError } = await sb
+         .from("product_variations")
+         .insert(variationsWithProductId);
+      if (variationsError) throw variationsError;
+   }
+
+   return data;
 }

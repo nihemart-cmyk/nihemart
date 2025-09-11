@@ -51,7 +51,7 @@ export const useProducts = () => {
          id: string;
          product: Partial<ProductBase>;
          variations?: ProductVariation[];
-      }) => updateProduct(id, product, variations),
+      }) => updateProduct(id, product),
       onSuccess: (_, { id }) => {
          queryClient.invalidateQueries({ queryKey: productKeys.detail(id) });
          queryClient.invalidateQueries({ queryKey: productKeys.lists() });
