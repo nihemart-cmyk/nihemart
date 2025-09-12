@@ -20,7 +20,7 @@ const Collection: FC<CollectionProps> = ({}) => {
             setLoading(true);
             try {
                 // Fetching only the first 8 categories for the landing page
-                const { data } = await fetchCategories({ page: 1, limit: 8 });
+                const { data } = await fetchCategories({ page: 1, limit: 20 });
                 setCategories(data);
             } catch (error) {
                 console.error("Failed to fetch categories:", error);
@@ -90,7 +90,7 @@ const Collection: FC<CollectionProps> = ({}) => {
                                 src={category.icon_url || '/placeholder.svg'} 
                                 alt={category.name} 
                                 fill 
-                                className='absolute object-cover z-0 group-hover:scale-105 transition-transform duration-300' 
+                                className='absolute object-contain z-0 group-hover:scale-105 transition-transform duration-300 p-5' 
                             />
                             <div className="relative w-full z-10 h-full bg-gradient-to-t from-black/80 from-0% to-transparent to-70% flex flex-col justify-end text-white px-5 pb-5">
                                 <h4 className='text-2xl font-semibold'>{category.name}</h4>
