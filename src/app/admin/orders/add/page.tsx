@@ -20,12 +20,10 @@ import { ProductSelect } from "@/components/orders/ProductSelect";
 import { useProducts } from "@/hooks/useProducts";
 import { Product } from "@/integrations/supabase/products";
 import { Order, OrderItemInput } from "@/types/orders";
-import { Loader2 } from "lucide-react";
+import { Loader2, Plus, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { useExternalOrders } from "@/hooks/useExternalOrders";
-
-// Using type from @/types/orders
 
 export default function AddOrderPage() {
    const router = useRouter();
@@ -55,7 +53,7 @@ export default function AddOrderPage() {
    const [orderItems, setOrderItems] = useState<OrderItemInput[]>([
       {
          product_name: "",
-         product_id: "", // This should be replaced with actual product ID when selected
+         product_id: "",
          quantity: 1,
          price: 0,
          total: 0,
@@ -66,7 +64,7 @@ export default function AddOrderPage() {
       (sum, item) => sum + item.price * item.quantity,
       0
    );
-   const total = subtotal; // Add tax or shipping if needed
+   const total = subtotal;
 
    const handleItemChange = (
       index: number,
@@ -76,7 +74,6 @@ export default function AddOrderPage() {
       const newItems = [...orderItems];
       newItems[index] = { ...newItems[index], [field]: value };
 
-      // Update total when price or quantity changes
       if (field === "price" || field === "quantity") {
          const item = newItems[index];
          item.total = item.price * item.quantity;
@@ -90,7 +87,7 @@ export default function AddOrderPage() {
          ...orderItems,
          {
             product_name: "",
-            product_id: "temp", // This should be replaced with actual product ID when selected
+            product_id: "temp",
             quantity: 1,
             price: 0,
             total: 0,
@@ -119,7 +116,6 @@ export default function AddOrderPage() {
       try {
          console.log("Starting validation...");
 
-         // Merge selectedProducts into orderItems in case ProductSelect updated selectedProducts
          const normalizedItems = orderItems.map((item, idx) => {
             const sel = selectedProducts[idx];
             if (sel) {
@@ -134,10 +130,8 @@ export default function AddOrderPage() {
             return item;
          });
 
-         // Update local state so UI stays in sync
          setOrderItems(normalizedItems);
 
-         // Validate form
          if (
             !formData.customer_email ||
             !formData.customer_first_name ||
@@ -154,7 +148,6 @@ export default function AddOrderPage() {
             return;
          }
 
-         // Validate items (require product_name, positive quantity and price)
          const invalidItems = normalizedItems
             .map((item, idx) => ({ item, idx }))
             .filter(
@@ -172,14 +165,12 @@ export default function AddOrderPage() {
             return;
          }
 
-         // Check user
          if (!user?.id) {
             toast.error("You must be logged in to create an order");
             setIsSubmitting(false);
             return;
          }
 
-         // Prepare the final order data
          const orderData = {
             order: {
                ...formData,
@@ -199,11 +190,9 @@ export default function AddOrderPage() {
 
          console.log("Submitting order with data:", orderData);
 
-         // Submit the order
          const result = await createOrder.mutateAsync(orderData);
          console.log("Order created successfully:", result);
 
-         // Show success message and redirect
          toast.success("Order created successfully");
          router.push("/admin/orders");
       } catch (error: any) {
@@ -215,85 +204,113 @@ export default function AddOrderPage() {
    };
 
    return (
-      <ScrollArea className="h-[calc(100vh-5rem)] bg-surface-secondary">
-         <div className="w-full mx-auto py-10 px-6">
+      <ScrollArea className="h-[calc(100vh-5rem)]">
+         <div className="p-6">
             <form onSubmit={handleSubmit}>
-               <Card>
-                  <CardHeader>
-                     <CardTitle>Add New Order</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-6">
+               <div className="flex justify-between items-center mb-8">
+                  <h1 className="text-2xl font-semibold">Add New Order</h1>
+                  <div className="flex gap-3">
+                     <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => router.push("/admin/orders")}
+                     >
+                        Cancel
+                     </Button>
+                     <Button
+                        type="submit"
+                        disabled={isSubmitting}
+                        className="bg-green-600 hover:bg-green-700"
+                     >
+                        {isSubmitting ? (
+                           <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Creating Order...
+                           </>
+                        ) : (
+                           "Create Order"
+                        )}
+                     </Button>
+                  </div>
+               </div>
+
+               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  <div className="lg:col-span-2 space-y-6">
                      {/* Customer Information */}
-                     <div className="space-y-4">
-                        <h3 className="font-semibold">Customer Information</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                           <div>
-                              <Label htmlFor="firstName">First Name *</Label>
-                              <Input
-                                 id="firstName"
-                                 value={formData.customer_first_name}
-                                 onChange={(e) =>
-                                    setFormData({
-                                       ...formData,
-                                       customer_first_name: e.target.value,
-                                    })
-                                 }
-                                 required
-                              />
+                     <Card>
+                        <CardHeader>
+                           <CardTitle>Customer Information</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                 <Label htmlFor="firstName">First Name *</Label>
+                                 <Input
+                                    id="firstName"
+                                    value={formData.customer_first_name}
+                                    onChange={(e) =>
+                                       setFormData({
+                                          ...formData,
+                                          customer_first_name: e.target.value,
+                                       })
+                                    }
+                                    required
+                                 />
+                              </div>
+                              <div>
+                                 <Label htmlFor="lastName">Last Name *</Label>
+                                 <Input
+                                    id="lastName"
+                                    value={formData.customer_last_name}
+                                    onChange={(e) =>
+                                       setFormData({
+                                          ...formData,
+                                          customer_last_name: e.target.value,
+                                       })
+                                    }
+                                    required
+                                 />
+                              </div>
+                              <div>
+                                 <Label htmlFor="email">Email *</Label>
+                                 <Input
+                                    id="email"
+                                    type="email"
+                                    value={formData.customer_email}
+                                    onChange={(e) =>
+                                       setFormData({
+                                          ...formData,
+                                          customer_email: e.target.value,
+                                       })
+                                    }
+                                    required
+                                 />
+                              </div>
+                              <div>
+                                 <Label htmlFor="phone">Phone</Label>
+                                 <Input
+                                    id="phone"
+                                    value={formData.customer_phone}
+                                    onChange={(e) =>
+                                       setFormData({
+                                          ...formData,
+                                          customer_phone: e.target.value,
+                                       })
+                                    }
+                                 />
+                              </div>
                            </div>
-                           <div>
-                              <Label htmlFor="lastName">Last Name *</Label>
-                              <Input
-                                 id="lastName"
-                                 value={formData.customer_last_name}
-                                 onChange={(e) =>
-                                    setFormData({
-                                       ...formData,
-                                       customer_last_name: e.target.value,
-                                    })
-                                 }
-                                 required
-                              />
-                           </div>
-                           <div>
-                              <Label htmlFor="email">Email *</Label>
-                              <Input
-                                 id="email"
-                                 type="email"
-                                 value={formData.customer_email}
-                                 onChange={(e) =>
-                                    setFormData({
-                                       ...formData,
-                                       customer_email: e.target.value,
-                                    })
-                                 }
-                                 required
-                              />
-                           </div>
-                           <div>
-                              <Label htmlFor="phone">Phone</Label>
-                              <Input
-                                 id="phone"
-                                 value={formData.customer_phone}
-                                 onChange={(e) =>
-                                    setFormData({
-                                       ...formData,
-                                       customer_phone: e.target.value,
-                                    })
-                                 }
-                              />
-                           </div>
-                        </div>
-                     </div>
+                        </CardContent>
+                     </Card>
 
                      {/* Delivery Information */}
-                     <div className="space-y-4">
-                        <h3 className="font-semibold">Delivery Information</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                           <div className="md:col-span-2">
-                              <Label htmlFor="address">
-                                 Delivery Address *
-                              </Label>
+                     <Card>
+                        <CardHeader>
+                           <CardTitle>Delivery Information</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                           <div>
+                              <Label htmlFor="address">Delivery Address *</Label>
                               <Input
                                  id="address"
                                  value={formData.delivery_address}
@@ -306,54 +323,46 @@ export default function AddOrderPage() {
                                  required
                               />
                            </div>
-                           <div>
-                              <Label htmlFor="city">City *</Label>
-                              <Input
-                                 id="city"
-                                 value={formData.delivery_city}
-                                 onChange={(e) =>
-                                    setFormData({
-                                       ...formData,
-                                       delivery_city: e.target.value,
-                                    })
-                                 }
-                                 required
-                              />
+                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              <div>
+                                 <Label htmlFor="city">City *</Label>
+                                 <Input
+                                    id="city"
+                                    value={formData.delivery_city}
+                                    onChange={(e) =>
+                                       setFormData({
+                                          ...formData,
+                                          delivery_city: e.target.value,
+                                       })
+                                    }
+                                    required
+                                 />
+                              </div>
+                              <div>
+                                 <Label htmlFor="status">Order Status</Label>
+                                 <Select
+                                    value={formData.status}
+                                    onValueChange={(value) =>
+                                       setFormData({
+                                          ...formData,
+                                          status: value as Order["status"],
+                                       })
+                                    }
+                                 >
+                                    <SelectTrigger>
+                                       <SelectValue placeholder="Select status" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                       <SelectItem value="pending">Pending</SelectItem>
+                                       <SelectItem value="processing">Processing</SelectItem>
+                                       <SelectItem value="shipped">Shipped</SelectItem>
+                                       <SelectItem value="delivered">Delivered</SelectItem>
+                                       <SelectItem value="cancelled">Cancelled</SelectItem>
+                                    </SelectContent>
+                                 </Select>
+                              </div>
                            </div>
                            <div>
-                              <Label htmlFor="status">Order Status</Label>
-                              <Select
-                                 value={formData.status}
-                                 onValueChange={(value) =>
-                                    setFormData({
-                                       ...formData,
-                                       status: value as Order["status"],
-                                    })
-                                 }
-                              >
-                                 <SelectTrigger>
-                                    <SelectValue placeholder="Select status" />
-                                 </SelectTrigger>
-                                 <SelectContent>
-                                    <SelectItem value="pending">
-                                       Pending
-                                    </SelectItem>
-                                    <SelectItem value="processing">
-                                       Processing
-                                    </SelectItem>
-                                    <SelectItem value="shipped">
-                                       Shipped
-                                    </SelectItem>
-                                    <SelectItem value="delivered">
-                                       Delivered
-                                    </SelectItem>
-                                    <SelectItem value="cancelled">
-                                       Cancelled
-                                    </SelectItem>
-                                 </SelectContent>
-                              </Select>
-                           </div>
-                           <div className="md:col-span-2">
                               <Label htmlFor="notes">Delivery Notes</Label>
                               <Textarea
                                  id="notes"
@@ -367,76 +376,78 @@ export default function AddOrderPage() {
                                  placeholder="Any special instructions for delivery"
                               />
                            </div>
-                        </div>
-                     </div>
+                        </CardContent>
+                     </Card>
 
                      {/* Order Items */}
-                     <div className="space-y-4">
-                        <div className="flex justify-between items-center">
-                           <h3 className="font-semibold">Order Items</h3>
-                           <Button
-                              type="button"
-                              variant="outline"
-                              onClick={addOrderItem}
-                           >
-                              Add Item
-                           </Button>
-                        </div>
-                        <div className="space-y-4">
+                     <Card>
+                        <CardHeader>
+                           <div className="flex justify-between items-center">
+                              <CardTitle>Order Items</CardTitle>
+                              <Button
+                                 type="button"
+                                 variant="outline"
+                                 onClick={addOrderItem}
+                                 size="sm"
+                              >
+                                 <Plus className="mr-2 h-4 w-4" />
+                                 Add Item
+                              </Button>
+                           </div>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
                            {orderItems.map((item, index) => (
                               <div
                                  key={index}
-                                 className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end border-b pb-4"
+                                 className="p-4 border rounded-lg space-y-4 relative"
                               >
-                                 <div className="md:col-span-2">
-                                    <Label>Product *</Label>
-                                    <ProductSelect
-                                       products={products?.data || []}
-                                       selectedProduct={selectedProducts[index]}
-                                       onSelect={(product) => {
-                                          setSelectedProducts((prev) => {
-                                             const next = [...prev];
-                                             next[index] = product;
-                                             return next;
-                                          });
-                                          handleItemChange(
-                                             index,
-                                             "product_id",
-                                             product.id
-                                          );
-                                          handleItemChange(
-                                             index,
-                                             "product_name",
-                                             product.name
-                                          );
-                                          handleItemChange(
-                                             index,
-                                             "price",
-                                             product.price
-                                          );
-                                       }}
-                                    />
-                                 </div>
-                                 <div>
-                                    <Label>Price (RWF) *</Label>
-                                    <Input
-                                       type="number"
-                                       min="0"
-                                       value={item.price.toString()}
-                                       onChange={(e) =>
-                                          handleItemChange(
-                                             index,
-                                             "price",
-                                             e.target.value
-                                                ? parseFloat(e.target.value)
-                                                : 0
-                                          )
-                                       }
-                                       required
-                                    />
-                                 </div>
-                                 <div className="flex gap-2">
-                                    <div className="flex-1">
+                                 {orderItems.length > 1 && (
+                                    <Button
+                                       type="button"
+                                       variant="ghost"
+                                       size="icon"
+                                       className="absolute top-2 right-2"
+                                       onClick={() => removeOrderItem(index)}
+                                    >
+                                       <Trash2 className="h-4 w-4 text-destructive" />
+                                    </Button>
+                                 )}
+                                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                    <div className="md:col-span-2">
+                                       <Label>Product *</Label>
+                                       <ProductSelect
+                                          products={products?.data || []}
+                                          selectedProduct={selectedProducts[index]}
+                                          onSelect={(product) => {
+                                             setSelectedProducts((prev) => {
+                                                const next = [...prev];
+                                                next[index] = product;
+                                                return next;
+                                             });
+                                             handleItemChange(index, "product_id", product.id);
+                                             handleItemChange(index, "product_name", product.name);
+                                             handleItemChange(index, "price", product.price);
+                                          }}
+                                       />
+                                    </div>
+                                    <div>
+                                       <Label>Price (RWF) *</Label>
+                                       <Input
+                                          type="number"
+                                          min="0"
+                                          step="0.01"
+                                          value={item.price.toString()}
+                                          onChange={(e) =>
+                                             handleItemChange(
+                                                index,
+                                                "price",
+                                                e.target.value ? parseFloat(e.target.value) : 0
+                                             )
+                                          }
+                                          required
+                                       />
+                                    </div>
+                                    <div>
                                        <Label>Quantity *</Label>
                                        <Input
                                           type="number"
@@ -446,69 +457,76 @@ export default function AddOrderPage() {
                                              handleItemChange(
                                                 index,
                                                 "quantity",
-                                                e.target.value
-                                                   ? parseInt(e.target.value)
-                                                   : 1
+                                                e.target.value ? parseInt(e.target.value) : 1
                                              )
                                           }
                                           required
                                        />
                                     </div>
-                                    {orderItems.length > 1 && (
-                                       <Button
-                                          type="button"
-                                          variant="destructive"
-                                          className="mb-0.5"
-                                          onClick={() => removeOrderItem(index)}
-                                       >
-                                          Remove
-                                       </Button>
-                                    )}
                                  </div>
                               </div>
                            ))}
-                        </div>
-                     </div>
+                        </CardContent>
+                     </Card>
+                  </div>
 
+                  <div className="space-y-6">
                      {/* Order Summary */}
-                     <div className="space-y-4">
-                        <h3 className="font-semibold">Order Summary</h3>
-                        <div className="space-y-2">
-                           <div className="flex justify-between">
-                              <span>Subtotal</span>
-                              <span>{subtotal.toLocaleString()} RWF</span>
+                     <Card>
+                        <CardHeader>
+                           <CardTitle>Order Summary</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                           <div className="space-y-2">
+                              <div className="flex justify-between text-sm">
+                                 <span>Subtotal</span>
+                                 <span>{subtotal.toLocaleString()} RWF</span>
+                              </div>
+                              <div className="flex justify-between font-semibold text-lg border-t pt-2">
+                                 <span>Total</span>
+                                 <span>{total.toLocaleString()} RWF</span>
+                              </div>
                            </div>
-                           <div className="flex justify-between font-bold">
-                              <span>Total</span>
-                              <span>{total.toLocaleString()} RWF</span>
-                           </div>
-                        </div>
-                     </div>
+                        </CardContent>
+                     </Card>
 
-                     <div className="flex justify-end space-x-4">
-                        <Button
-                           type="button"
-                           variant="outline"
-                           onClick={() => router.push("/admin/orders")}
-                        >
-                           Cancel
-                        </Button>
-                        <Button
-                           type="submit"
-                           disabled={isSubmitting}
-                        >
-                           {isSubmitting ? (
-                              <>
-                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                 Creating Order...
-                              </>
-                           ) : (
-                              "Create Order"
-                           )}
-                        </Button>
-                     </div>
-                  </CardContent>
-               </Card>
+                     {/* Order Settings */}
+                     <Card>
+                        <CardHeader>
+                           <CardTitle>Order Settings</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                           <div className="flex items-center justify-between rounded-lg border p-3">
+                              <div className="space-y-0.5">
+                                 <Label className="text-base">External Order</Label>
+                                 <div className="text-sm text-muted-foreground">
+                                    Mark as external order
+                                 </div>
+                              </div>
+                              <span className="text-sm text-muted-foreground">No</span>
+                           </div>
+                           <div className="flex items-center justify-between rounded-lg border p-3">
+                              <div className="space-y-0.5">
+                                 <Label className="text-base">Payment Status</Label>
+                                 <div className="text-sm text-muted-foreground">
+                                    Order payment status
+                                 </div>
+                              </div>
+                              <span className="text-sm text-muted-foreground">Unpaid</span>
+                           </div>
+                           <div className="flex items-center justify-between rounded-lg border p-3">
+                              <div className="space-y-0.5">
+                                 <Label className="text-base">Source</Label>
+                                 <div className="text-sm text-muted-foreground">
+                                    Order source channel
+                                 </div>
+                              </div>
+                              <span className="text-sm text-muted-foreground">Website</span>
+                           </div>
+                        </CardContent>
+                     </Card>
+                  </div>
+               </div>
             </form>
          </div>
       </ScrollArea>

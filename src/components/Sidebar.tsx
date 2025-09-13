@@ -147,8 +147,13 @@ const Sidebar: FC = () => {
    const imageUrl = user?.user_metadata?.avatar_url || "";
 
    const handleLogout = async () => {
-      await signOut();
-      toast.success("Logged out successfully");
+      try {
+         await signOut();
+         toast.success("Successfully logged out");
+         router.push("/");
+      } catch (error) {
+         toast.error("Error logging out");
+      }
    };
 
    const [primaryActiveId, setPrimaryActiveId] = useState<string | null>(null);
@@ -309,12 +314,13 @@ const Sidebar: FC = () => {
                <Settings size={20} /> Settings
             </Button>
             <Button
-               variant={"ghost"}
-               size={"lg"}
-               className="h-12 flex items-center justify-start text-lg"
+               variant="ghost"
+               size="lg"
                onClick={handleLogout}
+               className="h-12 flex items-center justify-start text-lg text-red-600 hover:text-red-700 hover:bg-red-50"
             >
-               <LogOut size={20} /> Logout
+               <LogOut className="h-5 w-5 mr-2" />
+               Logout
             </Button>
          </div>
       </div>

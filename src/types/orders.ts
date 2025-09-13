@@ -2,6 +2,7 @@ export type OrderStatus =
    | "pending"
    | "processing"
    | "shipped"
+   | "assigned"
    | "delivered"
    | "cancelled";
 

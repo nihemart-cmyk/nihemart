@@ -27,6 +27,7 @@ import { Input } from "./ui/input";
 import { UserAvatarProfile } from "./user-avatar-profile";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { useLogout } from "@/hooks/useLogout";
 
 type TopBarProps = {
    className?: string;
@@ -44,11 +45,7 @@ const TopBar: FC<TopBarProps> = (props) => {
    const router = useRouter();
    const { className, variant } = props;
    const { user, roles, signOut, isLoggedIn } = useAuth();
-
-   const handleLogout = async () => {
-      await signOut();
-      toast.success("Logged out successfully");
-   };
+   const { handleLogout } = useLogout();
 
    const fullName = user?.user_metadata?.full_name || user?.email || "User";
    const role = roles.has("admin") ? "Admin" : "User";

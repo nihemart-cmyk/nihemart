@@ -175,27 +175,59 @@ export async function createOrder({
       const createdOrder = orderData as Order;
 
       // Then create the order items
-      const orderItems = items.map((item) => ({
-         order_id: createdOrder.id,
-         product_id: item.product_id,
-         product_variation_id: item.product_variation_id || null,
-         product_name: item.product_name,
-         product_sku: item.product_sku || null,
-         variation_name: item.variation_name || null,
-         price: item.price,
-         quantity: item.quantity,
-         total: item.price * item.quantity,
-      }));
+      // Validate and normalize item ids to avoid sending concatenated ids to UUID columns
+      const isUuid = (v: any) =>
+         typeof v === "string" && /^[0-9a-fA-F-]{36}$/.test(v);
 
-      const { error: itemsError } = await sb
+      const orderItems = items.map((item) => {
+         const pid = item.product_id;
+         const pvid = item.product_variation_id;
+
+         const normalizedProductId = isUuid(pid) ? pid : null;
+         const normalizedVariationId = isUuid(pvid) ? pvid : null;
+
+         if (!normalizedProductId) {
+            console.warn(
+               "createOrder: product_id is not a valid UUID, storing null to avoid DB error:",
+               pid
+            );
+         }
+
+         return {
+            order_id: createdOrder.id,
+            product_id: normalizedProductId,
+            product_variation_id: normalizedVariationId,
+            product_name: item.product_name,
+            product_sku: item.product_sku || null,
+            variation_name: item.variation_name || null,
+            price: item.price,
+            quantity: item.quantity,
+            total: item.price * item.quantity,
+         } as any;
+      });
+
+      const { error: itemsError, data: itemsData } = await sb
          .from("order_items")
-         .insert(orderItems);
+         .insert(orderItems)
+         .select();
 
       if (itemsError) {
          // Try to rollback the order if possible
-         await sb.from("orders").delete().eq("id", createdOrder.id);
+         try {
+            await sb.from("orders").delete().eq("id", createdOrder.id);
+         } catch (rollbackErr) {
+            console.error(
+               "Failed to rollback order after items error:",
+               rollbackErr
+            );
+         }
          console.error("Order items creation error:", itemsError);
-         throw new Error(`Failed to create order items: ${itemsError.message}`);
+         // Attach more context when throwing
+         throw new Error(
+            `Failed to create order items: ${
+               itemsError.message || JSON.stringify(itemsError)
+            }`
+         );
       }
 
       // Return the complete order with items

@@ -104,8 +104,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       try {
          await supabase.auth.signOut();
          set({ user: null, session: null, roles: new Set() });
+         // Clear any auth-related local storage
+         localStorage.removeItem("sb-auth-token");
+         // Redirect to home page
+         window.location.href = "/";
       } catch (error) {
          console.error("Error signing out:", error);
+         throw error;
       }
    },
    hasRole: (role) => get().roles.has(role),

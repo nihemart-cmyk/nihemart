@@ -12,6 +12,7 @@ import {
    ShoppingCart,
    User,
    UserRound,
+   LogOut,
 } from "lucide-react";
 import { Button } from "../ui/button";
 import {
@@ -28,6 +29,7 @@ import { Input } from "../ui/input";
 import { redirect } from "next/navigation";
 import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/hooks/useAuth"; // <-- update this import
+import { useRouter } from "next/navigation";
 
 interface NavBarProps {}
 
@@ -41,7 +43,8 @@ export const routes = [
 
 const NavBar: FC<NavBarProps> = ({}) => {
    const { items } = useCart();
-   const { user, hasRole, signOut } = useAuth(); // <-- use the hook
+   const { user, hasRole, signOut } = useAuth(); 
+   const router = useRouter();
 
    const { language, setLanguage, t } = useLanguage();
    const [searchQuery, setSearchQuery] = useState("");
@@ -58,9 +61,13 @@ const NavBar: FC<NavBarProps> = ({}) => {
    };
 
    const handleLogout = async () => {
-      await signOut();
-      toast.success("Logged out");
-      redirect("/");
+      try {
+         await signOut();
+         toast.success("Successfully logged out");
+         router.push("/");
+      } catch (error) {
+         toast.error("Error logging out");
+      }
    };
 
    return (
@@ -195,6 +202,7 @@ const NavBar: FC<NavBarProps> = ({}) => {
                               </DropdownMenuItem>
                            )}
                            <DropdownMenuItem onClick={handleLogout}>
+                              <LogOut className="h-4 w-4 mr-2" />
                               {t("nav.logout")}
                            </DropdownMenuItem>
                         </>

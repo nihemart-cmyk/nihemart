@@ -10,7 +10,24 @@ import { Separator } from "@/components/ui/separator";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrders } from "@/hooks/useOrders";
-import { Loader2, ShoppingCart, CheckCircle2 } from "lucide-react";
+import { useCart } from "@/contexts/CartContext";
+import AddressDialog from "@/components/ui/address-dialog";
+import {
+   Collapsible,
+   CollapsibleTrigger,
+   CollapsibleContent,
+} from "@/components/ui/collapsible";
+import { useAddresses } from "@/hooks/useAddresses";
+import {
+   Loader2,
+   ShoppingCart,
+   CheckCircle2,
+   MapPin,
+   Package,
+   CreditCard,
+   ChevronDown,
+   ChevronRight,
+} from "lucide-react";
 import { toast } from "sonner";
 
 interface CartItem {
@@ -36,32 +53,75 @@ const Checkout = () => {
       address: "",
       city: "",
       phone: "",
+      delivery_notes: "",
    });
    const [orderItems, setOrderItems] = useState<CartItem[]>([]);
    const [errors, setErrors] = useState<any>({});
    const [isSubmitting, setIsSubmitting] = useState(false);
+   const [isAddressOpen, setIsAddressOpen] = useState(false);
+   const [addressOpen, setAddressOpen] = useState(false);
+   const [instructionsOpen, setInstructionsOpen] = useState(false);
+   const [paymentOpen, setPaymentOpen] = useState(false);
 
-   // Load cart and user data
+   const {
+      saved: savedAddresses,
+      selected: selectedAddress,
+      selectAddress,
+      reloadSaved,
+   } = useAddresses();
+
+   const { items: cartItems, clearCart } = useCart();
+
    useEffect(() => {
-      // Load cart from localStorage
-      const savedCart = localStorage.getItem("cart");
-      if (savedCart) {
-         try {
-            const parsedCart = JSON.parse(savedCart);
-            if (Array.isArray(parsedCart)) {
-               // Clean up cart items to ensure valid UUIDs
-               const cleanedCart = parsedCart.map((item) => ({
-                  ...item,
-                  id: item.id.replace(/-$/, ""), // Remove trailing dash if exists
-                  variation_id:
-                     item.variation_id?.replace(/-$/, "") || undefined, // Clean variation_id too
-               }));
-               setOrderItems(cleanedCart);
+      try {
+         const addr = (
+            selectedAddress?.street ||
+            formData.address ||
+            ""
+         ).trim();
+         const cityEmpty = !formData.city || !formData.city.trim();
+         if (!addr || !cityEmpty) return;
+
+         const parts = addr
+            .split(",")
+            .map((p) => p.trim())
+            .filter(Boolean);
+         if (parts.length >= 2) {
+            const possibleCity = parts[parts.length - 1];
+            if (possibleCity && possibleCity.length > 1) {
+               setFormData((prev) => ({ ...prev, city: possibleCity }));
+               return;
             }
-         } catch (error) {
-            console.error("Error loading cart from localStorage:", error);
-            toast.error("Failed to load cart items");
          }
+
+         // Fallback: simple keyword checks
+         if (/kigali/i.test(addr)) {
+            setFormData((prev) => ({ ...prev, city: "Kigali" }));
+         }
+      } catch (err) {
+         console.error("Auto-fill city error:", err);
+      }
+   }, [formData.address, selectedAddress]);
+
+   // Keep local orderItems in sync with cart context (single source of truth)
+   useEffect(() => {
+      try {
+         if (Array.isArray(cartItems)) {
+            const cleaned = cartItems.map((item: any) => ({
+               ...item,
+               id:
+                  typeof item.id === "string"
+                     ? item.id.replace(/-$/, "")
+                     : item.id,
+               variation_id:
+                  typeof item.product_variation_id === "string"
+                     ? item.product_variation_id.replace(/-$/, "")
+                     : item.variation_id || item.product_variation_id,
+            }));
+            setOrderItems(cleaned);
+         }
+      } catch (err) {
+         console.error("Error syncing cart items:", err);
       }
 
       // Pre-fill user data if logged in
@@ -75,7 +135,7 @@ const Checkout = () => {
                "",
          }));
       }
-   }, [user]);
+   }, [cartItems, user]);
 
    // Redirect if cart is empty
    useEffect(() => {
@@ -91,7 +151,7 @@ const Checkout = () => {
       (sum, item) => sum + item.price * item.quantity,
       0
    );
-   const transport = 1000; // Fixed transport cost
+   const transport = 1700; // Updated to match image
    const total = subtotal + transport;
 
    // Form validation
@@ -118,6 +178,12 @@ const Checkout = () => {
    const handleCreateOrder = async () => {
       // Prevent multiple submissions
       if (isSubmitting) return;
+
+      console.log("handleCreateOrder invoked", {
+         isSubmitting,
+         formData,
+         orderItems,
+      });
 
       const formErrors = validateForm();
       if (Object.keys(formErrors).length > 0) {
@@ -149,21 +215,52 @@ const Checkout = () => {
                customer_email: formData.email.trim(),
                customer_first_name: formData.firstName.trim(),
                customer_last_name: formData.lastName.trim(),
-               customer_phone: formData.phone.trim() || undefined,
-               delivery_address: formData.address.trim(),
-               delivery_city: formData.city.trim(),
+               // Prefer selected saved address values when present
+               customer_phone:
+                  (selectedAddress?.phone || formData.phone || "").trim() ||
+                  undefined,
+               delivery_address: (
+                  selectedAddress?.street ||
+                  formData.address ||
+                  ""
+               ).trim(),
+               delivery_city: (
+                  selectedAddress?.city ||
+                  formData.city ||
+                  ""
+               ).trim(),
                status: "pending" as const,
             },
-            items: orderItems.map((item) => ({
-               product_id: item.id,
-               product_variation_id: item.variation_id || null, // Ensure null instead of undefined
-               product_name: item.name,
-               product_sku: item.sku || null, // Ensure null instead of undefined
-               variation_name: item.variation_name || null, // Ensure null instead of undefined
-               price: item.price,
-               quantity: item.quantity,
-               total: item.price * item.quantity,
-            })),
+            items: orderItems.map((item) => {
+               // Prefer explicit product_id stored on the cart item.
+               // Fallback: if `id` was generated as `${product_id}-${product_variation_id}`
+               // we can recover product_id by taking the first 36 chars (UUID length).
+               const explicitProductId = (item as any).product_id;
+               let resolvedProductId = explicitProductId;
+               if (!resolvedProductId && typeof item.id === "string") {
+                  const idStr = item.id as string;
+                  if (idStr.length === 36) {
+                     resolvedProductId = idStr;
+                  } else if (idStr.length >= 73 && idStr[36] === "-") {
+                     // pattern: <36 chars uuid>-<36 chars uuid>
+                     resolvedProductId = idStr.slice(0, 36);
+                  } else {
+                     // last resort: leave id as-is (may be legacy or SKU)
+                     resolvedProductId = idStr;
+                  }
+               }
+
+               return {
+                  product_id: resolvedProductId,
+                  product_variation_id: item.variation_id || null, // Ensure null instead of undefined
+                  product_name: item.name,
+                  product_sku: item.sku || null, // Ensure null instead of undefined
+                  variation_name: item.variation_name || null, // Ensure null instead of undefined
+                  price: item.price,
+                  quantity: item.quantity,
+                  total: item.price * item.quantity,
+               };
+            }),
          };
 
          console.log(
@@ -171,34 +268,63 @@ const Checkout = () => {
             JSON.stringify(orderData, null, 2)
          );
 
-         const createdOrder = await createOrder.mutateAsync(orderData as any);
-
-         // Clear cart only after successful order creation
-         localStorage.removeItem("cart");
-         setOrderItems([]); // Clear local state too
-
-         toast.success(
-            `Order #${createdOrder.order_number} has been created successfully!`
-         );
-
-         // Redirect to order details page
-         router.push(`/orders/${createdOrder.id}`);
-      } catch (error: any) {
-         console.error("Order creation failed:", error);
-
-         // More specific error handling
-         if (error?.message?.includes("uuid")) {
-            toast.error("Invalid product data. Please refresh and try again.");
-         } else if (error?.message?.includes("foreign key")) {
-            toast.error(
-               "Product no longer available. Please update your cart."
-            );
-         } else {
-            toast.error(
-               `Failed to create order: ${error?.message || "Unknown error"}`
-            );
+         // include delivery instructions if provided
+         if (formData.delivery_notes) {
+            orderData.order.delivery_notes = formData.delivery_notes;
          }
-      } finally {
+
+         // Use mutate with callbacks so React Query handles async and we reliably observe network activity
+         createOrder.mutate(orderData as any, {
+            onMutate: (vars) => {
+               console.log("createOrder.onMutate", vars);
+            },
+            onSuccess: (createdOrder: any) => {
+               console.log("createOrder.onSuccess", createdOrder);
+               // Clear cart only after successful order creation (use context)
+               try {
+                  clearCart();
+               } catch (e) {
+                  // fallback
+                  localStorage.removeItem("cart");
+               }
+               setOrderItems([]); // Clear local state too
+
+               toast.success(
+                  `Order #${createdOrder.order_number} has been created successfully!`
+               );
+
+               // Redirect to order details page
+               router.push(`/orders/${createdOrder.id}`);
+            },
+            onError: (error: any) => {
+               console.error("createOrder.onError", error);
+               // More specific error handling
+               if (error?.message?.includes("uuid")) {
+                  toast.error(
+                     "Invalid product data. Please refresh and try again."
+                  );
+               } else if (error?.message?.includes("foreign key")) {
+                  toast.error(
+                     "Product no longer available. Please update your cart."
+                  );
+               } else {
+                  toast.error(
+                     `Failed to create order: ${
+                        error?.message || "Unknown error"
+                     }`
+                  );
+               }
+            },
+            onSettled: () => {
+               setIsSubmitting(false);
+            },
+         });
+      } catch (error: any) {
+         console.error("Order creation failed (sync):", error);
+         // fallback error feedback
+         toast.error(
+            `Failed to create order: ${error?.message || "Unknown error"}`
+         );
          setIsSubmitting(false);
       }
    };
@@ -274,142 +400,245 @@ Total: ${total.toLocaleString()} RWF
 
    return (
       <div className="container mx-auto px-4 py-8">
-         <h1 className="text-3xl font-bold mb-8">{t("checkout.title")}</h1>
+         <h1 className="text-4xl font-extrabold tracking-tight mb-8">
+            Checkout
+         </h1>
 
          <div className="grid lg:grid-cols-2 gap-8">
             <div className="space-y-6">
-               <Card>
-                  <CardHeader>
-                     <CardTitle>{t("checkout.orderInfo")}</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                     <div>
-                        <Label htmlFor="email">{t("checkout.email")}</Label>
-                        <Input
-                           id="email"
-                           type="email"
-                           value={formData.email}
-                           onChange={(e) =>
-                              setFormData({
-                                 ...formData,
-                                 email: e.target.value,
-                              })
-                           }
-                           disabled={isSubmitting}
-                        />
-                        {errors.email && (
-                           <span className="text-red-500 text-sm">
-                              {errors.email}
+               {/* Add delivery address section */}
+               <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                     <div className="flex items-center space-x-3">
+                        <MapPin className="h-5 w-5 text-gray-600" />
+                        <h2 className="text-lg font-medium">
+                           Add delivery address
+                        </h2>
+                     </div>
+                     <Button
+                        onClick={() => setIsAddressOpen(true)}
+                        size="sm"
+                        variant="outline"
+                        className="border border-gray-300 text-gray-700 hover:bg-gray-50"
+                     >
+                        Add a new address
+                     </Button>
+                  </div>
+
+                  <AddressDialog
+                     open={isAddressOpen}
+                     onOpenChange={(open) => {
+                        setIsAddressOpen(open);
+                        if (!open) reloadSaved();
+                     }}
+                  />
+
+                  {/* Address Selection */}
+                  <Collapsible
+                     open={addressOpen}
+                     onOpenChange={setAddressOpen}
+                  >
+                     <CollapsibleTrigger asChild>
+                        <button className="w-full text-left p-0 flex items-center space-x-2 text-gray-600 hover:text-gray-800">
+                           {addressOpen ? (
+                              <ChevronDown className="h-4 w-4" />
+                           ) : (
+                              <ChevronRight className="h-4 w-4" />
+                           )}
+                           <span className="text-sm">
+                              Select delivery address
                            </span>
-                        )}
-                     </div>
-                     <div className="grid grid-cols-2 gap-4">
-                        <div>
-                           <Label htmlFor="firstName">
-                              {t("checkout.firstName")}
-                           </Label>
-                           <Input
-                              id="firstName"
-                              value={formData.firstName}
-                              onChange={(e) =>
-                                 setFormData({
-                                    ...formData,
-                                    firstName: e.target.value,
-                                 })
-                              }
-                              disabled={isSubmitting}
-                           />
-                           {errors.firstName && (
-                              <span className="text-red-500 text-sm">
-                                 {errors.firstName}
-                              </span>
+                        </button>
+                     </CollapsibleTrigger>
+                     <CollapsibleContent className="mt-4">
+                        <div className="border rounded-lg p-4 bg-gray-50">
+                           {savedAddresses && savedAddresses.length > 0 ? (
+                              <div className="space-y-3">
+                                 {savedAddresses.map((addr) => (
+                                    <div
+                                       key={addr.id}
+                                       role="button"
+                                       tabIndex={0}
+                                       onClick={() => {
+                                          selectAddress(addr.id);
+                                          setFormData((prev) => ({
+                                             ...prev,
+                                             address:
+                                                addr.street ||
+                                                addr.display_name,
+                                             city: addr.city || prev.city,
+                                             phone: addr.phone || prev.phone,
+                                          }));
+                                       }}
+                                       onKeyDown={(e) => {
+                                          if (e.key === "Enter") {
+                                             selectAddress(addr.id);
+                                             setFormData((prev) => ({
+                                                ...prev,
+                                                address:
+                                                   addr.street ||
+                                                   addr.display_name,
+                                                city: addr.city || prev.city,
+                                                phone: addr.phone || prev.phone,
+                                             }));
+                                          }
+                                       }}
+                                       className={`p-4 rounded-lg cursor-pointer transition-colors border-2 bg-white hover:border-orange-300 ${
+                                          selectedAddress?.id === addr.id
+                                             ? "border-orange-400 bg-orange-50"
+                                             : "border-gray-200"
+                                       }`}
+                                    >
+                                       <div className="flex items-start">
+                                          <div className="flex items-center mr-3">
+                                             <div
+                                                className={`h-4 w-4 rounded-full border-2 flex items-center justify-center ${
+                                                   selectedAddress?.id ===
+                                                   addr.id
+                                                      ? "bg-orange-500 border-orange-500"
+                                                      : "border-gray-300"
+                                                }`}
+                                             >
+                                                {selectedAddress?.id ===
+                                                   addr.id && (
+                                                   <div className="h-2 w-2 bg-white rounded-full" />
+                                                )}
+                                             </div>
+                                          </div>
+                                          <div className="flex-1">
+                                             <p className="font-medium text-sm text-gray-800">
+                                                {addr.display_name}
+                                             </p>
+                                             <p className="text-sm text-gray-600">
+                                                {addr.city}
+                                             </p>
+                                             {addr.phone && (
+                                                <p className="text-sm text-blue-600">
+                                                   Contact Phone: {addr.phone}
+                                                </p>
+                                             )}
+                                          </div>
+                                       </div>
+                                    </div>
+                                 ))}
+                                 <div className="flex justify-end pt-4">
+                                    <Button
+                                       className="bg-orange-400 hover:bg-orange-500 text-white px-6"
+                                       onClick={() => {
+                                          setAddressOpen(false);
+                                          setInstructionsOpen(true);
+                                       }}
+                                    >
+                                       Next
+                                    </Button>
+                                 </div>
+                              </div>
+                           ) : (
+                              <div className="text-sm text-gray-500">
+                                 No saved addresses. Add one above.
+                              </div>
                            )}
                         </div>
-                        <div>
-                           <Label htmlFor="lastName">
-                              {t("checkout.lastName")}
-                           </Label>
-                           <Input
-                              id="lastName"
-                              value={formData.lastName}
-                              onChange={(e) =>
-                                 setFormData({
-                                    ...formData,
-                                    lastName: e.target.value,
-                                 })
-                              }
-                              disabled={isSubmitting}
-                           />
-                           {errors.lastName && (
-                              <span className="text-red-500 text-sm">
-                                 {errors.lastName}
-                              </span>
-                           )}
-                        </div>
-                     </div>
-                     <div>
-                        <Label htmlFor="address">{t("checkout.address")}</Label>
-                        <Input
-                           id="address"
-                           value={formData.address}
-                           onChange={(e) =>
-                              setFormData({
-                                 ...formData,
-                                 address: e.target.value,
-                              })
-                           }
-                           disabled={isSubmitting}
-                        />
-                        {errors.address && (
-                           <span className="text-red-500 text-sm">
-                              {errors.address}
+                     </CollapsibleContent>
+                  </Collapsible>
+               </div>
+
+               {/* Delivery instructions section */}
+               <div className="space-y-4">
+                  <Collapsible
+                     open={instructionsOpen}
+                     onOpenChange={setInstructionsOpen}
+                  >
+                     <CollapsibleTrigger asChild>
+                        <button className="w-full text-left p-0 flex items-center space-x-3 text-gray-600 hover:text-gray-800">
+                           <Package className="h-5 w-5" />
+                           <span className="text-lg font-medium">
+                              Delivery instructions
                            </span>
-                        )}
-                     </div>
-                     <div className="grid grid-cols-2 gap-4">
-                        <div>
-                           <Label htmlFor="city">{t("checkout.city")}</Label>
-                           <Input
-                              id="city"
-                              value={formData.city}
-                              onChange={(e) =>
-                                 setFormData({
-                                    ...formData,
-                                    city: e.target.value,
-                                 })
-                              }
-                              disabled={isSubmitting}
-                           />
-                           {errors.city && (
-                              <span className="text-red-500 text-sm">
-                                 {errors.city}
-                              </span>
-                           )}
+                        </button>
+                     </CollapsibleTrigger>
+                     <CollapsibleContent className="mt-4">
+                        <div className="space-y-3">
+                           <div>
+                              <Label
+                                 htmlFor="delivery_notes"
+                                 className="text-sm font-medium"
+                              >
+                                 Delivery instructions
+                              </Label>
+                              <textarea
+                                 id="delivery_notes"
+                                 rows={4}
+                                 placeholder="Write delivery instructions"
+                                 value={formData.delivery_notes || ""}
+                                 onChange={(e) =>
+                                    setFormData((prev) => ({
+                                       ...prev,
+                                       delivery_notes: e.target.value,
+                                    }))
+                                 }
+                                 className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none"
+                              />
+                              <p className="mt-1 text-xs text-gray-500">
+                                 Provide specific instructions for how you'd
+                                 like your order to be selected and delivered.
+                              </p>
+                           </div>
+                           <div className="flex space-x-2 pt-2">
+                              <Button
+                                 variant="outline"
+                                 onClick={() => setInstructionsOpen(false)}
+                                 className="border-gray-300 text-gray-700"
+                              >
+                                 Prev
+                              </Button>
+                              <Button
+                                 className="bg-orange-400 hover:bg-orange-500 text-white"
+                                 onClick={() => {
+                                    setInstructionsOpen(false);
+                                    setPaymentOpen(true);
+                                 }}
+                              >
+                                 Next
+                              </Button>
+                           </div>
                         </div>
-                        <div>
-                           <Label htmlFor="phone">{t("checkout.phone")}</Label>
-                           <Input
-                              id="phone"
-                              value={formData.phone}
-                              onChange={(e) =>
-                                 setFormData({
-                                    ...formData,
-                                    phone: e.target.value,
-                                 })
-                              }
-                              disabled={isSubmitting}
-                              placeholder="+250..."
-                           />
+                     </CollapsibleContent>
+                  </Collapsible>
+               </div>
+
+               {/* Payment Method section */}
+               <div className="space-y-4">
+                  <Collapsible
+                     open={paymentOpen}
+                     onOpenChange={setPaymentOpen}
+                  >
+                     <CollapsibleTrigger asChild>
+                        <button className="w-full text-left p-0 flex items-center space-x-3 text-gray-600 hover:text-gray-800">
+                           <CreditCard className="h-5 w-5" />
+                           <span className="text-lg font-medium">
+                              Payment Method
+                           </span>
+                        </button>
+                     </CollapsibleTrigger>
+                     <CollapsibleContent className="mt-4">
+                        <div className="border rounded-lg p-4 bg-gray-50">
+                           <p className="text-sm text-gray-600">
+                              Select payment method at checkout.
+                           </p>
                         </div>
-                     </div>
-                  </CardContent>
-               </Card>
+                     </CollapsibleContent>
+                  </Collapsible>
+               </div>
             </div>
 
+            {/* Order Summary - Right Side */}
             <div>
-               <Card className="sticky top-4">
-                  <CardHeader>
-                     <CardTitle>{t("checkout.orderSummary")}</CardTitle>
+               <Card className="sticky top-4 border border-gray-200">
+                  <CardHeader className="pb-4">
+                     <CardTitle className="text-lg font-medium">
+                        Order Summary
+                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-4">
                      {orderItems.map((item, index) => (
@@ -417,39 +646,90 @@ Total: ${total.toLocaleString()} RWF
                            key={`${item.id}-${
                               item.variation_id || "no-variation"
                            }-${index}`}
-                           className="flex justify-between"
                         >
-                           <span>
-                              {item.name}
-                              {item.variation_name && (
-                                 <span className="text-sm text-muted-foreground ml-2">
-                                    ({item.variation_name})
-                                 </span>
-                              )}
-                              <span className="ml-2">x{item.quantity}</span>
-                           </span>
-                           <span>
-                              {(item.price * item.quantity).toLocaleString()}{" "}
-                              RWF
-                           </span>
+                           <div className="flex items-start space-x-3">
+                              <div className="w-12 h-12 bg-gray-100 rounded flex-shrink-0 flex items-center justify-center">
+                                 <Package className="h-6 w-6 text-gray-400" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                 <h4 className="font-medium text-sm text-gray-900 truncate">
+                                    {item.name}
+                                 </h4>
+                                 {item.variation_name && (
+                                    <p className="text-xs text-gray-500">
+                                       Size: {item.variation_name} •
+                                    </p>
+                                 )}
+                                 <p className="text-sm font-medium text-gray-900 mt-1">
+                                    RWF {item.price.toLocaleString()}
+                                 </p>
+                                 <p className="text-xs text-gray-500">
+                                    Quantity: {item.quantity}
+                                 </p>
+                              </div>
+                           </div>
                         </div>
                      ))}
-                     <Separator />
-                     <div className="flex justify-between">
-                        <span>{t("checkout.subtotal")}</span>
-                        <span>{subtotal.toLocaleString()} RWF</span>
-                     </div>
-                     <div className="flex justify-between">
-                        <span>{t("checkout.transport")}</span>
-                        <span>{transport.toLocaleString()} RWF</span>
-                     </div>
-                     <Separator />
-                     <div className="flex justify-between font-bold text-lg">
-                        <span>{t("checkout.total")}</span>
-                        <span>{total.toLocaleString()} RWF</span>
+
+                     <Separator className="my-4" />
+
+                     <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                           <span>Subtotal</span>
+                           <span>RWF {subtotal.toLocaleString()}</span>
+                        </div>
+                        <div className="flex justify-between text-sm items-center">
+                           <div className="flex items-center">
+                              <span>Delivery Fee</span>
+                              <div className="ml-1 w-3 h-3 rounded-full border border-gray-400 flex items-center justify-center">
+                                 <span className="text-xs text-gray-400">
+                                    i
+                                 </span>
+                              </div>
+                           </div>
+                           <span>RWF {transport.toLocaleString()}</span>
+                        </div>
+                        <Separator />
+                        <div className="flex justify-between text-lg font-bold">
+                           <span>Total</span>
+                           <span>RWF {total.toLocaleString()}</span>
+                        </div>
                      </div>
 
-                     <div className="space-y-3">
+                     <div className="space-y-3 pt-4">
+                        {selectedAddress && (
+                           <div className="border-2 border-amber-200 p-4 rounded-lg bg-gradient-to-r from-amber-50 to-white shadow-sm flex items-start justify-between">
+                              <div className="flex items-start">
+                                 <div className="mr-3 mt-0.5">
+                                    <CheckCircle2 className="h-6 w-6 text-amber-600" />
+                                 </div>
+                                 <div>
+                                    <p className="text-sm font-medium">
+                                       Delivering to
+                                    </p>
+                                    <p className="text-sm font-semibold">
+                                       {selectedAddress.display_name}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                       {selectedAddress.city}
+                                       {selectedAddress.phone
+                                          ? ` • ${selectedAddress.phone}`
+                                          : ""}
+                                    </p>
+                                 </div>
+                              </div>
+                              <div className="flex items-center">
+                                 <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => setAddressOpen(true)}
+                                 >
+                                    Change
+                                 </Button>
+                              </div>
+                           </div>
+                        )}
+
                         {isLoggedIn ? (
                            <Button
                               className="w-full"

@@ -22,6 +22,7 @@ import { Icons } from "../icons";
 import { useState } from "react";
 import { CustomerDetailsDialog } from "./CustomerDetailsDialog";
 import { OrderDetailsDialog } from "./OrderDetailsDialog";
+import { AssignRiderDialog } from "./AssignRiderDialog";
 import { useOrders } from "@/hooks/useOrders";
 
 // Import the Supabase Order type
@@ -36,6 +37,7 @@ const Status = ({ status }: { status: Order["status"] }) => {
                status === "pending" ||
                status === "processing" ||
                status === "shipped",
+            "bg-blue-500/10 text-blue-500": status === "assigned",
             "bg-red-500/10 text-red-500": status === "cancelled",
          })}
       >
@@ -207,6 +209,13 @@ export const columns: ColumnDef<Order>[] = [
                      Processing
                   </DropdownMenuItem>
                   <DropdownMenuItem
+                     onClick={() =>
+                        handleStatusChange("assigned" as OrderStatus)
+                     }
+                  >
+                     Assigned
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
                      onClick={() => handleStatusChange("delivered")}
                   >
                      Delivered
@@ -242,6 +251,7 @@ export const columns: ColumnDef<Order>[] = [
          const order = row.original;
          const [showCustomerDetails, setShowCustomerDetails] = useState(false);
          const [showOrderDetails, setShowOrderDetails] = useState(false);
+         const [showAssignDialog, setShowAssignDialog] = useState(false);
 
          return (
             <>
@@ -277,6 +287,11 @@ export const columns: ColumnDef<Order>[] = [
                      >
                         View order details
                      </DropdownMenuItem>
+                     <DropdownMenuItem
+                        onClick={() => setShowAssignDialog(true)}
+                     >
+                        Assign to rider
+                     </DropdownMenuItem>
                   </DropdownMenuContent>
                </DropdownMenu>
 
@@ -295,6 +310,12 @@ export const columns: ColumnDef<Order>[] = [
                   open={showOrderDetails}
                   onOpenChange={setShowOrderDetails}
                   order={order}
+               />
+
+               <AssignRiderDialog
+                  open={showAssignDialog}
+                  onOpenChange={setShowAssignDialog}
+                  orderId={order.id}
                />
             </>
          );

@@ -87,12 +87,19 @@ export function useCreateOrder() {
    return useMutation<Order, Error, CreateOrderRequest>({
       mutationFn: async (orderData: CreateOrderRequest) => {
          console.log("Regular Order Mutation - Starting with data:", orderData);
+         console.log(
+            "Regular Order Mutation - calling integrations.createOrder..."
+         );
          if (!orderData.order || !orderData.items) {
             console.error("Invalid order data:", orderData);
             throw new Error("Invalid order data structure");
          }
          try {
             const result = await createOrder(orderData);
+            console.log(
+               "Regular Order Mutation - integrations.createOrder returned:",
+               result
+            );
             if (!result) {
                throw new Error("No response received from server");
             }

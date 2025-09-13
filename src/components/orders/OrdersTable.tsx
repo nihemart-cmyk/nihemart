@@ -60,7 +60,8 @@ const statusMapping = {
 } as const;
 
 const OrdersTable: FC<OrdersTableProps> = () => {
-   const { useAllOrders } = useOrders();
+   const { useAllOrders, useOrderStats } = useOrders();
+   const { data: statsData } = useOrderStats();
    const [search, setSearch] = useState("");
    const [statusFilter, setStatusFilter] = useState("All");
    const [page, setPage] = useState(1);
@@ -203,29 +204,174 @@ const OrdersTable: FC<OrdersTableProps> = () => {
                   }}
                >
                   {statusLabels.map((label, index) => {
-                     const count = orders.filter((order) => {
-                        if (label === "All") return true;
-                        const expectedStatus = statusMapping[label];
-                        return order.status === expectedStatus;
-                     }).length;
+                     const mapping = statusMapping[label];
+
+                     const parseNumber = (v: any) => {
+                        if (v == null) return 0;
+                        if (typeof v === "number") return v;
+                        const n = Number(v);
+                        return Number.isFinite(n) ? n : 0;
+                     };
+
+                     const countFromStats = (stats: any): number => {
+                        if (!stats) return 0;
+                        const mappingStr = String(mapping ?? "").toLowerCase();
+
+                        // If it's an array, try multiple heuristics
+                        if (Array.isArray(stats)) {
+                           // If label is All, sum any numeric-looking keys
+                           if (label === "All") {
+                              // Sum only keys that likely represent counts (avoid amounts/prices/revenue)
+                              const isCountKey = (k: string) =>
+                                 /count|orders?|qty|num|items?/i.test(k) &&
+                                 !/amount|price|revenue|sum|total_amount/i.test(
+                                    k
+                                 );
+                              return stats.reduce((acc: number, s: any) => {
+                                 if (!s || typeof s !== "object") return acc;
+                                 // Prefer explicit count-like keys
+                                 const key = Object.keys(s).find((k) =>
+                                    isCountKey(k)
+                                 );
+                                 if (key) return acc + parseNumber(s[key]);
+
+                                 // Fallback to common keys but avoid amount-like keys
+                                 const fallback =
+                                    s.count ??
+                                    s.order_count ??
+                                    s.qty ??
+                                    s.num ??
+                                    s.items ??
+                                    s.total;
+                                 // Ensure fallback key's original property name isn't something like total_amount
+                                 if (fallback != null)
+                                    return acc + parseNumber(fallback);
+
+                                 return acc;
+                              }, 0);
+                           }
+
+                           // try to find an element where any string value matches mappingStr
+                           const found = stats.find((s: any) => {
+                              if (!s || typeof s !== "object") return false;
+                              return Object.values(s).some(
+                                 (val: any) =>
+                                    String(val).toLowerCase() === mappingStr
+                              );
+                           });
+                           if (found) {
+                              const v =
+                                 found.count ??
+                                 found.total ??
+                                 found.qty ??
+                                 found.value ??
+                                 found.num ??
+                                 found.amount;
+                              if (v != null) return parseNumber(v);
+                              // otherwise pick any numeric property
+                              const numeric = Object.values(found).find(
+                                 (x: any) =>
+                                    typeof x === "number" ||
+                                    (!isNaN(Number(x)) &&
+                                       String(x).trim() !== "")
+                              );
+                              return parseNumber(numeric);
+                           }
+
+                           // fallback: try to find an object that has a key containing the mapping
+                           for (const s of stats) {
+                              if (s && typeof s === "object") {
+                                 const key = Object.keys(s).find(
+                                    (k) =>
+                                       k.toLowerCase().includes(mappingStr) &&
+                                       /count|total|qty|value|num|amount/i.test(
+                                          k
+                                       )
+                                 );
+                                 if (key) return parseNumber(s[key]);
+                              }
+                           }
+
+                           return 0;
+                        }
+
+                        // If it's an object map
+                        if (typeof stats === "object") {
+                           if (label === "All") {
+                              // Sum only keys that look like counts
+                              const isCountKey = (k: string) =>
+                                 /count|orders?|qty|num|items?/i.test(k) &&
+                                 !/amount|price|revenue|sum|total_amount/i.test(
+                                    k
+                                 );
+                              const keys =
+                                 Object.keys(stats).filter(isCountKey);
+                              if (keys.length)
+                                 return keys.reduce(
+                                    (acc: number, k: string) =>
+                                       acc + parseNumber((stats as any)[k]),
+                                    0
+                                 );
+                              if (stats.total != null)
+                                 return parseNumber(stats.total);
+                              // fallback: sum numeric-looking values
+                              return Object.values(stats).reduce(
+                                 (acc: number, v: any) =>
+                                    acc +
+                                    (typeof v === "number"
+                                       ? v
+                                       : Number(v) || 0),
+                                 0
+                              );
+                           }
+
+                           // direct key match (case-insensitive)
+                           const directKey = Object.keys(stats).find(
+                              (k) => k.toLowerCase() === mappingStr
+                           );
+                           if (directKey) return parseNumber(stats[directKey]);
+
+                           // partial match
+                           const key = Object.keys(stats).find((k) =>
+                              k.toLowerCase().includes(mappingStr)
+                           );
+                           if (key) return parseNumber(stats[key]);
+                        }
+
+                        return 0;
+                     };
+
+                     let count = 0;
+                     if (statsData) {
+                        try {
+                           count = countFromStats(statsData);
+                        } catch (e) {
+                           count = 0;
+                        }
+                     }
+
+                     // Fallback to counting from loaded orders if stats didn't yield a number
+                     if (!count) {
+                        count = orders.filter((order) => {
+                           if (label === "All") return true;
+                           const expectedStatus = statusMapping[label];
+                           return order.status === expectedStatus;
+                        }).length;
+                     }
+
                      return (
                         <button
                            key={index}
                            data-id={label}
                            type="button"
                            aria-label={`${label} view`}
+                           onClick={() => handleStatusChange(label as any)}
                            className={`inline-flex h-10 px-2 items-center text-zinc-800 transition-transform active:scale-[0.98] ${
                               statusFilter === label ? "text-orange-500" : ""
                            } dark:text-zinc-50 group`}
                         >
                            <span className="font-semibold mr-2">{label}</span>
-                           <span
-                              className={`text-[#F26823] transition-all ${
-                                 statusFilter === label
-                                    ? "opacity-100"
-                                    : "opacity-0"
-                              }`}
-                           >
+                           <span className="text-[#F26823] transition-all">
                               ({count})
                            </span>
                         </button>
@@ -420,25 +566,7 @@ const OrdersTable: FC<OrdersTableProps> = () => {
                   </PopoverContent>
                </Popover>
 
-               <div className="flex items-center gap-3">
-                  <div className="text-sm text-muted-foreground hidden md:block">
-                     Showing {rangeStart}-{rangeEnd} of {totalCount}
-                  </div>
-                  <select
-                     value={limit}
-                     onChange={(e) => {
-                        const v = Number(e.target.value) || 10;
-                        setLimit(v);
-                        setPage(1);
-                     }}
-                     className="rounded border px-2 py-1 text-sm"
-                     aria-label="Rows per page"
-                  >
-                     <option value={10}>10</option>
-                     <option value={25}>25</option>
-                     <option value={50}>50</option>
-                  </select>
-               </div>
+             
 
                <Popover>
                   <PopoverTrigger asChild>

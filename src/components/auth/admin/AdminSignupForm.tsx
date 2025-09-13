@@ -20,11 +20,12 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
-import { Mail, Lock, Eye, EyeOff, Loader, LogIn } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, Loader } from "lucide-react";
 import { toast } from "sonner";
 import { redirect } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
+import { GoogleSignInButton } from "./google-signin-button";
 
 interface AdminSignupFormProps {}
 
@@ -94,22 +95,11 @@ const AdminSignupForm: FC<AdminSignupFormProps> = ({}) => {
             </CardTitle>
          </CardHeader>
          <CardContent>
-            <Button
-               type="button"
+            <GoogleSignInButton
                onClick={handleGoogleSignUp}
-               className="w-full mb-4 flex items-center justify-center gap-2 border border-gray-300 bg-white text-black hover:bg-gray-50"
-               disabled={googleLoading}
-            >
-               {googleLoading ? (
-                  <Loader
-                     className="animate-spin"
-                     size={18}
-                  />
-               ) : (
-                  <LogIn size={18} />
-               )}
-               Sign up with Google
-            </Button>
+               loading={googleLoading}
+               variant="signup"
+            />
             <div className="relative my-4">
                <div className="absolute inset-0 flex items-center">
                   <span className="w-full border-t border-gray-200" />
