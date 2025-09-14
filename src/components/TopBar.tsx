@@ -28,6 +28,7 @@ import { UserAvatarProfile } from "./user-avatar-profile";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { useLogout } from "@/hooks/useLogout";
+import NotificationsBell from "@/components/NotificationsBell";
 
 type TopBarProps = {
    className?: string;
@@ -100,12 +101,8 @@ const TopBar: FC<TopBarProps> = (props) => {
                </div>
             </div>
             <div className="flex items-center gap-2 sm:gap-4">
-               <Link
-                  href={"#"}
-                  className="border border-border-primary p-2 rounded-full"
-               >
-                  <Bell className="w-7 h-7" />
-               </Link>
+               <NotificationsBell />
+
                <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                      <Button

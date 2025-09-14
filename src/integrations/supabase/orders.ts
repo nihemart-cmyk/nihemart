@@ -124,18 +124,20 @@ export async function fetchUserOrders(
 
 // Fetch single order
 export async function fetchOrderById(id: string) {
+   // Use maybeSingle() so when the query returns 0 rows we get `null` instead of a PostgREST coercion error
    const { data, error } = await sb
       .from("orders")
       .select("*, items:order_items(*)")
       .eq("id", id)
-      .single();
+      .maybeSingle();
 
    if (error) {
       console.error("Error fetching order:", error);
       throw error;
    }
 
-   return data as Order;
+   // data may be null if no order matches the id
+   return data as Order | null;
 }
 
 // Create new order
@@ -231,7 +233,11 @@ export async function createOrder({
       }
 
       // Return the complete order with items
-      return await fetchOrderById(createdOrder.id);
+      const fullOrder = await fetchOrderById(createdOrder.id);
+      if (!fullOrder) {
+         throw new Error("Failed to retrieve created order");
+      }
+      return fullOrder;
    } catch (error) {
       console.error("Order creation failed:", error);
       throw error;

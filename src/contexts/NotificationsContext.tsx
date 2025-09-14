@@ -1,0 +1,236 @@
+"use client";
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
+import { fetchRiderByUserId } from "@/integrations/supabase/riders";
+import { toast } from "sonner";
+
+type Notification = {
+   id: string;
+   title: string;
+   body?: string;
+   created_at: string;
+   read?: boolean;
+   meta?: any;
+};
+
+type NotificationsContextValue = {
+   notifications: Notification[];
+   addNotification: (n: Notification) => void;
+   markAsRead: (id: string) => void;
+   clear: () => void;
+};
+
+const NotificationsContext = createContext<NotificationsContextValue | null>(
+   null
+);
+
+export const useNotifications = () => {
+   const ctx = useContext(NotificationsContext);
+   if (!ctx) throw new Error("useNotifications must be used within provider");
+   return ctx;
+};
+
+export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
+   children,
+}) => {
+   const { user, hasRole } = useAuth();
+   const [notifications, setNotifications] = useState<Notification[]>([]);
+   const [riderId, setRiderId] = useState<string | null>(null);
+
+   useEffect(() => {
+      if (!user) return;
+
+      let notificationsChannel: any = null;
+      const addNotificationLocal = (n: Notification) => {
+         setNotifications((prev) => [n, ...prev]);
+         toast.message(n.title + (n.body ? ` — ${n.body}` : ""));
+      };
+
+      const fetchPersisted = async () => {
+         try {
+            // fetch notifications for this user (explicit recipient_user_id)
+            const resUser = await fetch(
+               `/api/notifications?userId=${encodeURIComponent(
+                  user.id
+               )}&limit=100`
+            );
+            const userJson = resUser.ok
+               ? await resUser.json()
+               : { notifications: [] };
+            let combined: Notification[] = userJson.notifications || [];
+
+            // fetch role-based notifications: admin
+            if (hasRole && hasRole("admin")) {
+               const resAdmin = await fetch(
+                  `/api/notifications?role=admin&limit=100`
+               );
+               if (resAdmin.ok) {
+                  const adminJson = await resAdmin.json();
+                  combined = [...(adminJson.notifications || []), ...combined];
+               }
+            }
+
+            // fetch rider role notifications (fallback), filter by riderId if available
+            // fetch rider mapping for this user to include rider-role fallback notifications
+            let foundRiderId: string | null = null;
+            try {
+               const rider = await fetchRiderByUserId(user.id);
+               if (rider && rider.id) {
+                  foundRiderId = rider.id;
+                  if (!riderId) setRiderId(rider.id);
+               }
+            } catch (err) {
+               // ignore
+            }
+
+            if (foundRiderId) {
+               const resRider = await fetch(
+                  `/api/notifications?role=rider&limit=200`
+               );
+               if (resRider.ok) {
+                  const riderJson = await resRider.json();
+                  const riderFiltered = (riderJson.notifications || []).filter(
+                     (n: any) => {
+                        try {
+                           const meta =
+                              typeof n.meta === "string"
+                                 ? JSON.parse(n.meta)
+                                 : n.meta || {};
+                           return (
+                              meta &&
+                              meta.rider_id &&
+                              String(meta.rider_id) === String(foundRiderId)
+                           );
+                        } catch (e) {
+                           return false;
+                        }
+                     }
+                  );
+                  combined = [...riderFiltered, ...combined];
+               }
+            }
+
+            // dedupe by id and set state
+            const seen = new Set();
+            const deduped = combined.filter((x: any) => {
+               if (!x || !x.id) return false;
+               if (seen.has(x.id)) return false;
+               seen.add(x.id);
+               return true;
+            });
+            setNotifications((prev) => [...deduped, ...prev].slice(0, 200));
+         } catch (err) {
+            console.error("fetchPersisted notifications err", err);
+         }
+      };
+
+      const setupRealtime = () => {
+         // subscribe to notifications INSERTs that are either for this user or for role=admin
+         notificationsChannel = supabase
+            .channel(`public:notifications:user:${user.id}`)
+            .on(
+               "postgres_changes",
+               {
+                  event: "INSERT",
+                  schema: "public",
+                  table: "notifications",
+                  // The filter syntax in supabase channels only supports column filters; we listen to all and filter client-side
+               },
+               (payload) => {
+                  const row = payload.new;
+                  const recipientUser = row.recipient_user_id;
+                  const recipientRole = row.recipient_role;
+
+                  const isForUser =
+                     recipientUser && String(recipientUser) === String(user.id);
+                  const isForAdmin =
+                     recipientRole &&
+                     recipientRole === "admin" &&
+                     hasRole &&
+                     hasRole("admin");
+                  let isForRiderFallback = false;
+                  if (recipientRole === "rider") {
+                     try {
+                        const meta =
+                           typeof row.meta === "string"
+                              ? JSON.parse(row.meta)
+                              : row.meta || {};
+                        if (
+                           meta &&
+                           meta.rider_id &&
+                           riderId &&
+                           String(meta.rider_id) === String(riderId)
+                        )
+                           isForRiderFallback = true;
+                     } catch (e) {
+                        // ignore parse error
+                     }
+                  }
+
+                  if (isForUser || isForAdmin || isForRiderFallback) {
+                     addNotificationLocal({
+                        id: row.id,
+                        title: row.title,
+                        body: row.body,
+                        meta: row.meta,
+                        created_at: row.created_at,
+                        read: row.read,
+                     });
+                  }
+               }
+            )
+            .subscribe();
+      };
+
+      fetchPersisted();
+      setupRealtime();
+
+      return () => {
+         try {
+            if (notificationsChannel)
+               supabase.removeChannel(notificationsChannel);
+         } catch (err) {
+            try {
+               notificationsChannel?.unsubscribe?.();
+            } catch {}
+         }
+      };
+   }, [user?.id, hasRole, riderId]);
+
+   const addNotification = (n: Notification) =>
+      setNotifications((prev) => [n, ...prev].slice(0, 100));
+
+   const markAsRead = async (id: string) => {
+      try {
+         // Call mark-read API
+         const res = await fetch(`/api/notifications/mark-read`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ids: [id] }),
+         });
+         if (!res.ok) throw new Error("Failed to mark as read");
+         setNotifications((prev) =>
+            prev.map((p) => (p.id === id ? { ...p, read: true } : p))
+         );
+      } catch (err) {
+         console.error("markAsRead err", err);
+         // still mark locally for UX
+         setNotifications((prev) =>
+            prev.map((p) => (p.id === id ? { ...p, read: true } : p))
+         );
+      }
+   };
+
+   const clear = () => setNotifications([]);
+
+   return (
+      <NotificationsContext.Provider
+         value={{ notifications, addNotification, markAsRead, clear }}
+      >
+         {children}
+      </NotificationsContext.Provider>
+   );
+};
+
+export default NotificationsContext;

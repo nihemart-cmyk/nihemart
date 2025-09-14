@@ -88,7 +88,9 @@ const Checkout = () => {
             .map((p: string) => p.trim())
             .filter(Boolean);
          if (parts.length >= 2) {
-            const possibleCity = parts[parts.length - 1];
+            // Prefer the second-to-last segment as city (addresses often are "street, city, country")
+            const possibleCity =
+               parts.length >= 2 ? parts[parts.length - 2] : parts[0];
             if (possibleCity && possibleCity.length > 1) {
                setFormData((prev) => ({ ...prev, city: possibleCity }));
                return;
@@ -161,16 +163,26 @@ const Checkout = () => {
       const emailPattern = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/;
 
       if (!formData.firstName.trim())
-         formErrors.firstName = t("checkout.errors.firstNameRequired");
+         formErrors.firstName =
+            t("checkout.errors.firstNameRequired") || "First name is required";
       if (!formData.lastName.trim())
-         formErrors.lastName = t("checkout.errors.lastNameRequired");
+         formErrors.lastName =
+            t("checkout.errors.lastNameRequired") || "Last name is required";
       if (!formData.email.trim() || !emailPattern.test(formData.email)) {
-         formErrors.email = t("checkout.errors.validEmailRequired");
+         formErrors.email =
+            t("checkout.errors.validEmailRequired") ||
+            "Please enter a valid email";
       }
-      if (!formData.address.trim())
-         formErrors.address = t("checkout.errors.addressRequired");
+      // If a saved address is selected, treat it as a valid address
+      const hasAddressValue =
+         (formData.address && formData.address.trim()) || selectedAddress;
+      if (!hasAddressValue)
+         formErrors.address =
+            t("checkout.errors.addressRequired") ||
+            "Delivery address is required";
       if (!formData.city.trim())
-         formErrors.city = t("checkout.errors.cityRequired");
+         formErrors.city =
+            t("checkout.errors.cityRequired") || "City is required";
 
       return formErrors;
    };
@@ -189,6 +201,13 @@ const Checkout = () => {
       const formErrors = validateForm();
       if (Object.keys(formErrors).length > 0) {
          setErrors(formErrors);
+         // Provide immediate user feedback so clicking doesn't feel like a no-op
+         const msgs = Object.values(formErrors).filter(Boolean);
+         if (msgs.length > 0) {
+            toast.error(String(msgs[0]));
+         } else {
+            toast.error("Please fix the highlighted errors and try again.");
+         }
          return;
       }
 
@@ -280,6 +299,15 @@ const Checkout = () => {
          }
 
          // Use mutate with callbacks so React Query handles async and we reliably observe network activity
+         if (!createOrder || typeof createOrder.mutate !== "function") {
+            console.error("createOrder mutation is not available", createOrder);
+            toast.error(
+               "Unable to submit order right now. Please try again later."
+            );
+            setIsSubmitting(false);
+            return;
+         }
+
          createOrder.mutate(orderData as CreateOrderRequest, {
             onSuccess: (createdOrder: any) => {
                console.log("createOrder.onSuccess", createdOrder);
@@ -464,12 +492,21 @@ Total: ${total.toLocaleString()} RWF
                                        tabIndex={0}
                                        onClick={() => {
                                           selectAddress(addr.id);
+                                          // Use the first segment (usually street) for the address field
+                                          const streetOrName =
+                                             addr.street ??
+                                             addr.display_name ??
+                                             "";
+                                          const firstSegment =
+                                             streetOrName
+                                                .split(",")
+                                                .map((p) => p.trim())
+                                                .filter(Boolean)[0] ||
+                                             streetOrName;
                                           setFormData((prev) => ({
                                              ...prev,
                                              address:
-                                                addr.street ??
-                                                addr.display_name ??
-                                                prev.address,
+                                                firstSegment || prev.address,
                                              city: addr.city ?? prev.city,
                                              phone: addr.phone ?? prev.phone,
                                           }));
@@ -477,12 +514,21 @@ Total: ${total.toLocaleString()} RWF
                                        onKeyDown={(e) => {
                                           if (e.key === "Enter") {
                                              selectAddress(addr.id);
+                                             const streetOrName =
+                                                addr.street ??
+                                                addr.display_name ??
+                                                "";
+                                             const firstSegment =
+                                                streetOrName
+                                                   .split(",")
+                                                   .map((p) => p.trim())
+                                                   .filter(Boolean)[0] ||
+                                                streetOrName;
+
                                              setFormData((prev) => ({
                                                 ...prev,
                                                 address:
-                                                   addr.street ??
-                                                   addr.display_name ??
-                                                   prev.address,
+                                                   firstSegment || prev.address,
                                                 city: addr.city ?? prev.city,
                                                 phone: addr.phone ?? prev.phone,
                                              }));

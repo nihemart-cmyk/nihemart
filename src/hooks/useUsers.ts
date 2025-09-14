@@ -9,6 +9,8 @@ export interface UserRow {
    phone?: string;
    created_at?: string;
    role?: AppRole;
+   orderCount?: number;
+   totalSpend?: number;
 }
 
 export function useUsers() {
@@ -29,27 +31,30 @@ export function useUsers() {
          setLoading(false);
          return;
       }
-      // 2. Fetch emails from API route
-      let emails: { id: string; email: string }[] = [];
+      // 2. Fetch enriched users from API route (order aggregates + email + role)
+      let enriched: any[] = [];
       try {
          const res = await fetch("/api/admin/list-users");
          if (res.ok) {
             const json = await res.json();
-            emails = json.users;
+            enriched = json.users || [];
          }
       } catch (e) {
-         // ignore, fallback to empty
+         // ignore, fallback to profiles only
       }
-      // 3. Merge by id
+
+      // 3. Merge by id to produce UserRow[] with aggregates
       const users: UserRow[] = (profiles as any[]).map((u) => {
-         const found = emails.find((e) => e.id === u.id);
+         const found = enriched.find((e: any) => e.id === u.id) || {};
          return {
             id: u.id,
-            email: found?.email || "",
+            email: found.email || "",
             full_name: u.full_name,
             phone: u.phone,
             created_at: u.created_at,
-            role: "user",
+            role: (found.role as AppRole) || "user",
+            orderCount: Number(found.order_count || 0),
+            totalSpend: Number(found.total_spend || 0),
          };
       });
       setUsers(users);
@@ -61,30 +66,47 @@ export function useUsers() {
       async (userId: string, role: AppRole) => {
          setLoading(true);
          setError(null);
-         // Upsert into user_roles
-         const { error } = await supabase
-            .from("user_roles")
-            .upsert([{ user_id: userId, role }], { onConflict: "user_id" });
-         if (error) {
-            setError(error.message);
-         } else {
+         try {
+            const res = await fetch("/api/admin/update-user-role", {
+               method: "POST",
+               headers: { "Content-Type": "application/json" },
+               body: JSON.stringify({ userId, role }),
+            });
+            if (!res.ok) {
+               const json = await res.json();
+               throw new Error(json.error || "Failed to update role");
+            }
             await fetchUsers();
+         } catch (err: any) {
+            setError(err.message || "Failed to update role");
+         } finally {
+            setLoading(false);
          }
-         setLoading(false);
       },
       [fetchUsers]
    );
 
    // Delete user (soft delete by disabling or hard delete)
    const deleteUser = useCallback(
-      async (userId: string) => {
+      async (userId: string, hardDelete = false) => {
          setLoading(true);
          setError(null);
-         // Remove from user_roles and optionally from auth.users (if allowed)
-         await supabase.from("user_roles").delete().eq("user_id", userId);
-         // Optionally: await supabase.auth.admin.deleteUser(userId);
-         await fetchUsers();
-         setLoading(false);
+         try {
+            const res = await fetch("/api/admin/delete-user", {
+               method: "POST",
+               headers: { "Content-Type": "application/json" },
+               body: JSON.stringify({ userId, hardDelete }),
+            });
+            if (!res.ok) {
+               const json = await res.json();
+               throw new Error(json.error || "Failed to delete user");
+            }
+            await fetchUsers();
+         } catch (err: any) {
+            setError(err.message || "Failed to delete user");
+         } finally {
+            setLoading(false);
+         }
       },
       [fetchUsers]
    );

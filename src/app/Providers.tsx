@@ -6,6 +6,7 @@ import { LanguageProvider } from "@/contexts/LanguageContext";
 import { CartProvider } from "@/contexts/CartContext";
 import { ReactQueryProvider } from "@/providers/react.query.provider";
 import { AuthProvider } from "@/providers/auth.provider";
+import { NotificationsProvider } from "@/contexts/NotificationsContext";
 
 interface ProvidersProps {
    children: ReactNode;
@@ -16,9 +17,11 @@ const Providers: FC<ProvidersProps> = ({ children }) => {
       <ReactQueryProvider>
          <LanguageProvider>
             <AuthProvider>
-               <CartProvider>
-                  <NuqsAdapter>{children}</NuqsAdapter>
-               </CartProvider>
+               <NotificationsProvider>
+                  <CartProvider>
+                     <NuqsAdapter>{children}</NuqsAdapter>
+                  </CartProvider>
+               </NotificationsProvider>
             </AuthProvider>
          </LanguageProvider>
       </ReactQueryProvider>

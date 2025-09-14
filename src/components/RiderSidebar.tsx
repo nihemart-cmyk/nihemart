@@ -207,6 +207,7 @@ const RiderSidebar: FC = () => {
                variant={"ghost"}
                size={"lg"}
                className="h-12 flex items-center justify-start text-lg"
+               onClick={() => router.push("/rider/settings")}
             >
                <Settings size={20} /> Settings
             </Button>

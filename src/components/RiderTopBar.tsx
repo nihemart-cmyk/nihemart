@@ -17,8 +17,13 @@ import { cn } from "@/lib/utils";
 import { DropdownMenuGroup } from "@radix-ui/react-dropdown-menu";
 import { CircleEllipsis, LogOut, Menu } from "lucide-react";
 import { useRouter } from "next13-progressbar";
+import { useEffect, useState } from "react";
+import { fetchRiderByUserId } from "@/integrations/supabase/riders";
+import { useRiderAssignments } from "@/hooks/useRiders";
+import { Bell } from "lucide-react";
+import NotificationsBell from "@/components/NotificationsBell";
 import { FC } from "react";
-import Sidebar from "./Sidebar";
+import RiderSidebar from "./RiderSidebar";
 import { Button } from "./ui/button";
 import { DropdownMenu } from "./ui/dropdown-menu";
 import { useAuth } from "@/hooks/useAuth";
@@ -46,6 +51,17 @@ const RiderTopBar: FC<TopBarProps> = (props) => {
       toast.success("Logged out successfully");
    };
 
+   const [rider, setRider] = useState<any | null>(null);
+   const { user } = useAuth();
+   useEffect(() => {
+      if (!user) return;
+      fetchRiderByUserId(user.id)
+         .then(setRider)
+         .catch(() => null);
+   }, [user]);
+
+   const { data: assignments = [] } = useRiderAssignments(rider?.id);
+
    return (
       <div
          className={cn(
@@ -68,7 +84,7 @@ const RiderTopBar: FC<TopBarProps> = (props) => {
                className="lg:hidden pt-3 pb-6 pr-6 pl-0"
             >
                <SheetTitle className="sr-only">Edit profile</SheetTitle>
-               <Sidebar />
+               <RiderSidebar />
             </SheetContent>
          </Sheet>
          <div className="flex gap-5 items-center">
@@ -78,8 +94,12 @@ const RiderTopBar: FC<TopBarProps> = (props) => {
                </h3>
             )}
             <Badge className="flex items-center gap-1 text-black bg-gray-200 py-2 rounded-2xl hover:bg-gray-300">
-               <div className="h-2 w-2 rounded-full bg-green-600"></div>
-               Active
+               <div
+                  className={`h-2 w-2 rounded-full ${
+                     rider?.active ? "bg-green-600" : "bg-red-500"
+                  }`}
+               ></div>
+               {rider?.active ? "Active" : "Unavailable"}
             </Badge>
          </div>
          <div
@@ -87,9 +107,9 @@ const RiderTopBar: FC<TopBarProps> = (props) => {
                "w-full": variant === "secondary",
             })}
          >
-            <p className="text-white bg-orange-500 py-1 px-3 rounded-2xl">
-               Change Availability
-            </p>
+            <div className="flex items-center gap-3">
+               <NotificationsBell />
+            </div>
             <DropdownMenu>
                <DropdownMenuTrigger asChild>
                   <Button

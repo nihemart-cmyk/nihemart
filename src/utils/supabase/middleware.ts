@@ -60,15 +60,23 @@ export async function updateSession(request: NextRequest) {
    ) {
       const url = request.nextUrl.clone();
 
-      // Fetch user roles to determine redirect
+      // Fetch user roles to determine redirect. Use user metadata as a fallback
+      // because the user_roles row may not exist yet immediately after admin-created users.
       const { data: roles } = await supabase
          .from("user_roles")
          .select("role")
          .eq("user_id", user.id);
 
-      if (roles?.some((r: any) => r.role === "admin")) {
+      const metaRole = (user as any)?.user_metadata?.role as string | undefined;
+
+      const isAdmin =
+         roles?.some((r: any) => r.role === "admin") || metaRole === "admin";
+      const isRider =
+         roles?.some((r: any) => r.role === "rider") || metaRole === "rider";
+
+      if (isAdmin) {
          url.pathname = "/admin";
-      } else if (roles?.some((r: any) => r.role === "rider")) {
+      } else if (isRider) {
          url.pathname = "/rider";
       } else {
          url.pathname = "/";
@@ -84,7 +92,11 @@ export async function updateSession(request: NextRequest) {
          .select("role")
          .eq("user_id", user.id);
 
-      if (!roles?.some((r: any) => r.role === "admin")) {
+      const metaRole = (user as any)?.user_metadata?.role as string | undefined;
+      const isAdmin =
+         roles?.some((r: any) => r.role === "admin") || metaRole === "admin";
+
+      if (!isAdmin) {
          const url = request.nextUrl.clone();
          url.pathname = "/";
          return NextResponse.redirect(url);
@@ -98,7 +110,11 @@ export async function updateSession(request: NextRequest) {
          .select("role")
          .eq("user_id", user.id);
 
-      if (!roles?.some((r: any) => r.role === "rider")) {
+      const metaRole = (user as any)?.user_metadata?.role as string | undefined;
+      const isRider =
+         roles?.some((r: any) => r.role === "rider") || metaRole === "rider";
+
+      if (!isRider) {
          const url = request.nextUrl.clone();
          url.pathname = "/";
          return NextResponse.redirect(url);

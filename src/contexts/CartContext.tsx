@@ -22,6 +22,7 @@ interface CartContextType {
    itemsCount: number;
    total: number;
    subtotal: number;
+   initialized: boolean;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -37,21 +38,57 @@ export const useCart = () => {
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({
    children,
 }) => {
-   const [items, setItems] = useState<CartItem[]>([]);
-
-   useEffect(() => {
+   // Initialize synchronously from localStorage to avoid UI flicker when navigating
+   const [items, setItems] = useState<CartItem[]>(() => {
       try {
-         const savedCart = localStorage.getItem("cart");
+         const savedCart =
+            typeof window !== "undefined" ? localStorage.getItem("cart") : null;
          if (savedCart) {
-            setItems(JSON.parse(savedCart));
+            return JSON.parse(savedCart) as CartItem[];
          }
       } catch (e) {
          console.error("Failed to parse cart from localStorage", e);
       }
+      return [];
+   });
+   const [initialized, setInitialized] = useState(false);
+   const persistTimer = React.useRef<number | null>(null);
+   const lastSerialized = React.useRef<string | null>(null);
+
+   // Persist cart on changes
+   useEffect(() => {
+      // mark initialized on first mount
+      setInitialized(true);
+
+      return () => {
+         if (persistTimer.current) {
+            window.clearTimeout(persistTimer.current);
+         }
+      };
    }, []);
 
    useEffect(() => {
-      localStorage.setItem("cart", JSON.stringify(items));
+      try {
+         const serialized = JSON.stringify(items);
+         // Skip writing if nothing changed to avoid transient overwrites
+         if (lastSerialized.current === serialized) return;
+         lastSerialized.current = serialized;
+
+         // debounce writes to avoid rapid overwrites during navigation/rehydration
+         if (persistTimer.current) {
+            window.clearTimeout(persistTimer.current);
+         }
+         persistTimer.current = window.setTimeout(() => {
+            try {
+               localStorage.setItem("cart", serialized);
+            } catch (e) {
+               console.error("Failed to persist cart to localStorage", e);
+            }
+            persistTimer.current = null;
+         }, 50);
+      } catch (e) {
+         console.error("Failed to serialize cart for persistence", e);
+      }
    }, [items]);
 
    const addItem = (
@@ -131,6 +168,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({
             itemsCount,
             total: subtotal,
             subtotal,
+            initialized,
          }}
       >
          {children}

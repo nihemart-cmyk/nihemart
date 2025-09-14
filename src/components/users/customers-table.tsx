@@ -38,7 +38,8 @@ export function CustomerTable() {
    );
    const [viewCustomerModalOpened, setViewCustomerModalOpened] =
       useState<boolean>(false);
-   const { users, loading, error, fetchUsers } = useUsers();
+   const { users, loading, error, fetchUsers, updateUserRole, deleteUser } =
+      useUsers();
 
    useEffect(() => {
       fetchUsers();
@@ -60,15 +61,30 @@ export function CustomerTable() {
       email: u.email,
       phone: u.phone || "",
       location: "", // Add location if available
-      orderCount: 0, // Add order count if available
-      totalSpend: 0, // Add total spend if available
+      orderCount: u.orderCount || 0,
+      totalSpend: u.totalSpend || 0,
       status: u.role === "admin" ? "VIP" : "Active",
-      totalOrders: 0,
+      totalOrders: u.orderCount || 0,
       completedOrders: 0,
       cancelledOrders: 0,
    }));
 
-   const columns = useMemo(() => createCustomerColumns(handleViewCustomer), []);
+   const columns = useMemo(
+      () =>
+         createCustomerColumns(
+            handleViewCustomer,
+            async (customerId: string, makeAdmin?: boolean) => {
+               // Toggle role
+               const role = makeAdmin ? "admin" : "user";
+               await updateUserRole(customerId, role as any);
+            },
+            async (customerId: string) => {
+               // Soft delete user (do not remove from auth by default)
+               await deleteUser(customerId, false);
+            }
+         ),
+      [handleViewCustomer, updateUserRole, deleteUser]
+   );
 
    return (
       <>

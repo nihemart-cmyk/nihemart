@@ -42,8 +42,8 @@ export const routes = [
 ] as const;
 
 const NavBar: FC<NavBarProps> = ({}) => {
-   const { items } = useCart();
-   const { user, hasRole, signOut } = useAuth(); 
+   const { items, initialized } = useCart();
+   const { user, hasRole, signOut } = useAuth();
    const router = useRouter();
 
    const { language, setLanguage, t } = useLanguage();
@@ -157,7 +157,7 @@ const NavBar: FC<NavBarProps> = ({}) => {
                      className="relative"
                   >
                      <ShoppingCart className="h-5 w-5 text-slate-700 group-hover:text-white transition-colors duration-200" />
-                     {items.length > 0 && (
+                     {initialized && items.length > 0 && (
                         <Badge className="absolute -top-2 -right-2 h-5 w-5 rounded-full text-xs p-0 flex items-center justify-center bg-orange-400 outline-none z-10">
                            {items.length}
                         </Badge>

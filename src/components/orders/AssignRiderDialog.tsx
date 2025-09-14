@@ -4,7 +4,18 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Button } from "../ui/button";
 import { Label } from "../ui/label";
 import { Input } from "../ui/input";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import {
+   Select,
+   SelectContent,
+   SelectItem,
+   SelectTrigger,
+   SelectValue,
+} from "@/components/ui/select";
+import { useRiders, useAssignOrder } from "@/hooks/useRiders";
+import { toast } from "sonner";
+import { Loader2 } from "lucide-react";
+import { useOrders } from "@/hooks/useOrders";
 
 interface AssignRiderDialogProps {
    open: boolean;
@@ -18,15 +29,42 @@ export function AssignRiderDialog({
    orderId,
 }: AssignRiderDialogProps) {
    const [note, setNote] = useState("");
+   const [selectedRider, setSelectedRider] = useState<string | undefined>(
+      undefined
+   );
 
-   const handleAssign = () => {
-      // Placeholder: riders management not implemented yet
-      // For now just close the dialog and console log
-      console.log(
-         `Assigning order ${orderId} to rider (placeholder). Note:`,
-         note
-      );
-      onOpenChange(false);
+   const ridersQuery = useRiders();
+   const assignMutation = useAssignOrder();
+   const orders = useOrders();
+
+   useEffect(() => {
+      if (!open) {
+         setNote("");
+         setSelectedRider(undefined);
+      }
+   }, [open]);
+
+   const handleAssign = async () => {
+      if (!selectedRider) {
+         toast.error("Please select a rider to assign");
+         return;
+      }
+
+      try {
+         await assignMutation.mutateAsync({
+            orderId,
+            riderId: selectedRider,
+            notes: note,
+         });
+         toast.success("Order assigned to rider");
+         // refresh orders and riders
+         orders.invalidateOrders();
+         // close dialog
+         onOpenChange(false);
+      } catch (err: any) {
+         console.error("Failed to assign order:", err);
+         toast.error(err?.message || "Failed to assign order");
+      }
    };
 
    return (
@@ -48,8 +86,38 @@ export function AssignRiderDialog({
 
                <div>
                   <Label>Rider</Label>
-                  <div className="mt-1 text-sm text-muted-foreground">
-                     Assign to rider here (not implemented)
+                  <div className="mt-2">
+                     <Select
+                        value={selectedRider}
+                        onValueChange={(v) => setSelectedRider(v || undefined)}
+                     >
+                        <SelectTrigger>
+                           <SelectValue
+                              placeholder={
+                                 ridersQuery.isLoading
+                                    ? "Loading riders..."
+                                    : "Select a rider..."
+                              }
+                           />
+                        </SelectTrigger>
+                        <SelectContent>
+                           {ridersQuery.data && ridersQuery.data.length > 0 ? (
+                              ridersQuery.data.map((r) => (
+                                 <SelectItem
+                                    key={r.id}
+                                    value={r.id}
+                                 >
+                                    {r.full_name || r.id}
+                                    {r.phone ? ` — ${r.phone}` : ""}
+                                 </SelectItem>
+                              ))
+                           ) : (
+                              <SelectItem value="">
+                                 No riders available
+                              </SelectItem>
+                           )}
+                        </SelectContent>
+                     </Select>
                   </div>
                </div>
 
@@ -69,7 +137,23 @@ export function AssignRiderDialog({
                   >
                      Cancel
                   </Button>
-                  <Button onClick={handleAssign}>Assign</Button>
+                  <Button
+                     onClick={handleAssign}
+                     disabled={
+                        assignMutation.status === "pending" ||
+                        ridersQuery.isLoading ||
+                        !selectedRider
+                     }
+                  >
+                     {assignMutation.status === "pending" ? (
+                        <>
+                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                           Assigning...
+                        </>
+                     ) : (
+                        "Assign"
+                     )}
+                  </Button>
                </div>
             </div>
          </DialogContent>
