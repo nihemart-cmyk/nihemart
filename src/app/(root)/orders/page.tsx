@@ -70,9 +70,7 @@ const Orders = () => {
                <p className="text-muted-foreground mb-8">
                   You need to be logged in to view your orders.
                </p>
-               <Button
-                  onClick={() => router.push("/auth/login?redirect=/orders")}
-               >
+               <Button onClick={() => router.push("/signin?redirect=/orders")}>
                   Log In
                </Button>
             </div>
@@ -142,36 +140,38 @@ const Orders = () => {
    }
 
    return (
-      <div className="container mx-auto px-16 py-8">
-         <div className="flex justify-between items-center mb-8">
+      <div className="container mx-auto px-4 py-8">
+         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-8">
             <h1 className="text-3xl font-bold">{t("nav.orders")}</h1>
-            <div className="flex gap-4">
-               <div className="relative">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 w-full sm:w-auto">
+               <div className="relative w-full sm:w-auto">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                      placeholder="Search orders..."
                      value={filters.search}
                      onChange={(e) => handleSearch(e.target.value)}
-                     className="pl-9 w-64"
+                     className="pl-9 w-full sm:w-64"
                   />
                </div>
-               <Select
-                  value={filters.status}
-                  onValueChange={handleStatusFilter}
-               >
-                  <SelectTrigger className="w-40">
-                     <Filter className="h-4 w-4 mr-2" />
-                     <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                     <SelectItem value="all">All Status</SelectItem>
-                     <SelectItem value="pending">Pending</SelectItem>
-                     <SelectItem value="processing">Processing</SelectItem>
-                     <SelectItem value="shipped">Shipped</SelectItem>
-                     <SelectItem value="delivered">Delivered</SelectItem>
-                     <SelectItem value="cancelled">Cancelled</SelectItem>
-                  </SelectContent>
-               </Select>
+               <div className="w-full sm:w-auto">
+                  <Select
+                     value={filters.status}
+                     onValueChange={handleStatusFilter}
+                  >
+                     <SelectTrigger className="w-full sm:w-40">
+                        <Filter className="h-4 w-4 mr-2" />
+                        <SelectValue />
+                     </SelectTrigger>
+                     <SelectContent>
+                        <SelectItem value="all">All Status</SelectItem>
+                        <SelectItem value="pending">Pending</SelectItem>
+                        <SelectItem value="processing">Processing</SelectItem>
+                        <SelectItem value="shipped">Shipped</SelectItem>
+                        <SelectItem value="delivered">Delivered</SelectItem>
+                        <SelectItem value="cancelled">Cancelled</SelectItem>
+                     </SelectContent>
+                  </Select>
+               </div>
             </div>
          </div>
 
@@ -300,29 +300,29 @@ const Orders = () => {
 
                {/* Pagination */}
                {ordersData && ordersData.count > 10 && (
-                  <div className="flex justify-center items-center space-x-2 mt-8">
-                     <Button
-                        variant="outline"
-                        onClick={() => handlePageChange(filters.page - 1)}
-                        disabled={filters.page === 1}
-                     >
-                        Previous
-                     </Button>
-
-                     <span className="text-sm text-muted-foreground">
-                        Page {filters.page} of{" "}
-                        {Math.ceil(ordersData.count / 10)}
-                     </span>
-
-                     <Button
-                        variant="outline"
-                        onClick={() => handlePageChange(filters.page + 1)}
-                        disabled={
-                           filters.page >= Math.ceil(ordersData.count / 10)
-                        }
-                     >
-                        Next
-                     </Button>
+                  <div className="flex flex-col sm:flex-row justify-center items-center gap-2 mt-8">
+                     <div className="flex items-center gap-2">
+                        <Button
+                           variant="outline"
+                           onClick={() => handlePageChange(filters.page - 1)}
+                           disabled={filters.page === 1}
+                        >
+                           Previous
+                        </Button>
+                        <span className="text-sm text-muted-foreground">
+                           Page {filters.page} of{" "}
+                           {Math.ceil(ordersData.count / 10)}
+                        </span>
+                        <Button
+                           variant="outline"
+                           onClick={() => handlePageChange(filters.page + 1)}
+                           disabled={
+                              filters.page >= Math.ceil(ordersData.count / 10)
+                           }
+                        >
+                           Next
+                        </Button>
+                     </div>
                   </div>
                )}
             </>

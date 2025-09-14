@@ -213,7 +213,7 @@ const Checkout = () => {
 
       if (!isLoggedIn) {
          toast.error("Please log in to place an order");
-         router.push("/auth/login?redirect=/checkout");
+         router.push("/signin?redirect=/checkout");
          return;
       }
 
@@ -809,9 +809,7 @@ Total: ${total.toLocaleString()} RWF
                                  className="w-full"
                                  size="lg"
                                  onClick={() =>
-                                    router.push(
-                                       "/auth/login?redirect=/checkout"
-                                    )
+                                    router.push("/signin?redirect=/checkout")
                                  }
                               >
                                  Login to Continue

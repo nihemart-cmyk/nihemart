@@ -26,6 +26,7 @@ export type {
 
 const buildOrdersQuery = (options: OrderQueryOptions) => {
    const { filters = {}, pagination, sort } = options;
+   // Ensure we select related order_items for both single and list queries
    let query = sb.from("orders").select("*, items:order_items(*)");
 
    // Apply filters
@@ -86,7 +87,10 @@ const buildOrdersQuery = (options: OrderQueryOptions) => {
 // Fetch all orders (admin only)
 export async function fetchAllOrders(options: OrderQueryOptions = {}) {
    const query = buildOrdersQuery(options);
-   const { data, error, count } = await query.select("*", { count: "exact" });
+   const { data, error, count } = await query.select(
+      "*, items:order_items(*)",
+      { count: "exact" }
+   );
 
    if (error) {
       console.error("Error fetching orders:", error);
@@ -109,7 +113,10 @@ export async function fetchUserOrders(
    if (userId) {
       query.eq("user_id", userId);
    }
-   const { data, error, count } = await query.select("*", { count: "exact" });
+   const { data, error, count } = await query.select(
+      "*, items:order_items(*)",
+      { count: "exact" }
+   );
 
    if (error) {
       console.error("Error fetching user orders:", error);

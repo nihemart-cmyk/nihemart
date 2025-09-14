@@ -41,7 +41,7 @@ const OrderDetails = () => {
 
    // Redirect if not logged in
    if (!isLoggedIn) {
-      router.push("/auth/login?redirect=/orders/" + orderId);
+      router.push("/signin?redirect=/orders/" + orderId);
       return null;
    }
 
@@ -201,7 +201,7 @@ Please let me know if you need any additional information.
 
    return (
       <div className="container mx-auto px-4 py-8">
-         <div className="flex items-center justify-between mb-8">
+         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8 gap-4">
             <div className="flex items-center space-x-4">
                <Button
                   variant="ghost"
@@ -212,10 +212,10 @@ Please let me know if you need any additional information.
                   Back
                </Button>
                <div>
-                  <h1 className="text-3xl font-bold">
+                  <h1 className="text-2xl sm:text-3xl font-bold">
                      Order #{order.order_number}
                   </h1>
-                  <p className="text-muted-foreground">
+                  <p className="text-muted-foreground text-sm sm:text-base">
                      Placed on {formatDate(order.created_at)}
                   </p>
                </div>
@@ -242,7 +242,7 @@ Please let me know if you need any additional information.
             </div>
          </div>
 
-         <div className="grid lg:grid-cols-3 gap-8">
+         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
                {/* Order Items */}
                <Card>
@@ -258,9 +258,9 @@ Please let me know if you need any additional information.
                            {order.items.map((item) => (
                               <div
                                  key={item.id}
-                                 className="flex justify-between items-start p-4 border rounded-lg"
+                                 className="flex flex-col sm:flex-row justify-between items-start p-4 border rounded-lg"
                               >
-                                 <div className="flex-1">
+                                 <div className="flex-1 w-full">
                                     <h4 className="font-semibold">
                                        {item.product_name}
                                     </h4>
@@ -461,7 +461,7 @@ Please let me know if you need any additional information.
                         <CardTitle>Admin Controls</CardTitle>
                      </CardHeader>
                      <CardContent className="space-y-3">
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                            {order.status === "pending" && (
                               <Button
                                  size="sm"
