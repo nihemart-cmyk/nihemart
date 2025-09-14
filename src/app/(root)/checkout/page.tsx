@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useLanguage } from "@/contexts/LanguageContext";
+import type { CreateOrderRequest } from "@/types/orders";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrders } from "@/hooks/useOrders";
 import { useCart } from "@/contexts/CartContext";
@@ -84,7 +85,7 @@ const Checkout = () => {
 
          const parts = addr
             .split(",")
-            .map((p) => p.trim())
+            .map((p: string) => p.trim())
             .filter(Boolean);
          if (parts.length >= 2) {
             const possibleCity = parts[parts.length - 1];
@@ -206,7 +207,7 @@ const Checkout = () => {
       setErrors({});
 
       try {
-         const orderData = {
+         const orderData: CreateOrderRequest = {
             order: {
                user_id: user!.id,
                subtotal: subtotal,
@@ -220,8 +221,9 @@ const Checkout = () => {
                   (selectedAddress?.phone || formData.phone || "").trim() ||
                   undefined,
                delivery_address: (
-                  selectedAddress?.street ||
-                  formData.address ||
+                  selectedAddress?.street ??
+                  selectedAddress?.display_name ??
+                  formData.address ??
                   ""
                ).trim(),
                delivery_city: (
@@ -235,8 +237,10 @@ const Checkout = () => {
                // Prefer explicit product_id stored on the cart item.
                // Fallback: if `id` was generated as `${product_id}-${product_variation_id}`
                // we can recover product_id by taking the first 36 chars (UUID length).
-               const explicitProductId = (item as any).product_id;
-               let resolvedProductId = explicitProductId;
+               const explicitProductId = (item as any).product_id as
+                  | string
+                  | undefined;
+               let resolvedProductId: string | undefined = explicitProductId;
                if (!resolvedProductId && typeof item.id === "string") {
                   const idStr = item.id as string;
                   if (idStr.length === 36) {
@@ -250,12 +254,14 @@ const Checkout = () => {
                   }
                }
 
+               const product_id = resolvedProductId ?? String(item.id);
+
                return {
-                  product_id: resolvedProductId,
-                  product_variation_id: item.variation_id || null, // Ensure null instead of undefined
+                  product_id: product_id,
+                  product_variation_id: item.variation_id ?? undefined,
                   product_name: item.name,
-                  product_sku: item.sku || null, // Ensure null instead of undefined
-                  variation_name: item.variation_name || null, // Ensure null instead of undefined
+                  product_sku: item.sku ?? undefined,
+                  variation_name: item.variation_name ?? undefined,
                   price: item.price,
                   quantity: item.quantity,
                   total: item.price * item.quantity,
@@ -274,10 +280,7 @@ const Checkout = () => {
          }
 
          // Use mutate with callbacks so React Query handles async and we reliably observe network activity
-         createOrder.mutate(orderData as any, {
-            onMutate: (vars) => {
-               console.log("createOrder.onMutate", vars);
-            },
+         createOrder.mutate(orderData as CreateOrderRequest, {
             onSuccess: (createdOrder: any) => {
                console.log("createOrder.onSuccess", createdOrder);
                // Clear cart only after successful order creation (use context)
@@ -464,10 +467,11 @@ Total: ${total.toLocaleString()} RWF
                                           setFormData((prev) => ({
                                              ...prev,
                                              address:
-                                                addr.street ||
-                                                addr.display_name,
-                                             city: addr.city || prev.city,
-                                             phone: addr.phone || prev.phone,
+                                                addr.street ??
+                                                addr.display_name ??
+                                                prev.address,
+                                             city: addr.city ?? prev.city,
+                                             phone: addr.phone ?? prev.phone,
                                           }));
                                        }}
                                        onKeyDown={(e) => {
@@ -476,10 +480,11 @@ Total: ${total.toLocaleString()} RWF
                                              setFormData((prev) => ({
                                                 ...prev,
                                                 address:
-                                                   addr.street ||
-                                                   addr.display_name,
-                                                city: addr.city || prev.city,
-                                                phone: addr.phone || prev.phone,
+                                                   addr.street ??
+                                                   addr.display_name ??
+                                                   prev.address,
+                                                city: addr.city ?? prev.city,
+                                                phone: addr.phone ?? prev.phone,
                                              }));
                                           }
                                        }}

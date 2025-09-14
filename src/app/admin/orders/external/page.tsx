@@ -49,11 +49,12 @@ interface ExternalOrder {
    delivery_city: string;
    delivery_notes?: string;
    order_date: string;
-   status: "pending" | "processing" | "shipped" | "delivered" | "cancelled";
+   status: OrderStatus;
    total: number;
    source: "whatsapp" | "phone" | "other";
    items: ExternalOrderItem[];
 }
+import type { OrderStatus } from "@/types/orders";
 
 const columns: ColumnDef<ExternalOrder>[] = [
    {
