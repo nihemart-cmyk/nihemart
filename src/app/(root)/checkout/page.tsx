@@ -585,7 +585,7 @@ Total: ${total.toLocaleString()} RWF
                                  className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none"
                               />
                               <p className="mt-1 text-xs text-gray-500">
-                                 Provide specific instructions for how you'd
+                                 Provide specific instructions for how you&apos;d
                                  like your order to be selected and delivered.
                               </p>
                            </div>
