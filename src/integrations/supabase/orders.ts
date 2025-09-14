@@ -1,3 +1,26 @@
+// Reject an order item
+export async function rejectOrderItem(itemId: string, reason: string) {
+   const { data, error } = await sb
+      .from("order_items")
+      .update({ rejected: true, rejected_reason: reason })
+      .eq("id", itemId)
+      .select()
+      .single();
+   if (error) throw error;
+   return data;
+}
+
+// Un-reject an order item (clear rejected flag and reason)
+export async function unrejectOrderItem(itemId: string) {
+   const { data, error } = await sb
+      .from("order_items")
+      .update({ rejected: false, rejected_reason: null })
+      .eq("id", itemId)
+      .select()
+      .single();
+   if (error) throw error;
+   return data;
+}
 import { supabase } from "./client";
 import {
    Order,

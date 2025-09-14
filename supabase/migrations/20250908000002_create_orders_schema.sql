@@ -34,6 +34,8 @@ CREATE TABLE IF NOT EXISTS order_items (
     price DECIMAL(10,2) NOT NULL,
     quantity INTEGER NOT NULL,
     total DECIMAL(10,2) NOT NULL,
+    rejected BOOLEAN DEFAULT false,
+    rejected_reason TEXT,
     created_at TIMESTAMPTZ DEFAULT now()
 );
 

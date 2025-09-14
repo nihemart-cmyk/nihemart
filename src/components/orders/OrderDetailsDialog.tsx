@@ -3,6 +3,10 @@
 import { format } from "date-fns";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Order, OrderItem } from "@/types/orders";
+import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
+import { useState } from "react";
+import { useOrders } from "@/hooks/useOrders";
 import { ScrollArea } from "../ui/scroll-area";
 import { UserAvatarProfile } from "../user-avatar-profile";
 import { Card } from "../ui/card";
@@ -20,6 +24,9 @@ export function OrderDetailsDialog({
    onOpenChange,
    order,
 }: OrderDetailsDialogProps) {
+   const { useUnrejectOrderItem } = useOrders();
+   const unreject = useUnrejectOrderItem();
+   const [loadingItemId, setLoadingItemId] = useState<string | null>(null);
    const customerName =
       `${order.customer_first_name} ${order.customer_last_name}`.trim();
 
@@ -117,9 +124,44 @@ export function OrderDetailsDialog({
                               )}
                            >
                               <div>
-                                 <p className="font-medium">
-                                    {item.product_name}
-                                 </p>
+                                 <div className="flex items-center gap-2">
+                                    <p className="font-medium">
+                                       {item.product_name}
+                                    </p>
+                                    {item.rejected && (
+                                       <>
+                                          <Badge variant="destructive">
+                                             Rejected
+                                          </Badge>
+                                          <Button
+                                             size="sm"
+                                             variant="ghost"
+                                             onClick={async () => {
+                                                setLoadingItemId(item.id);
+                                                try {
+                                                   await unreject.mutateAsync(
+                                                      item.id
+                                                   );
+                                                   // toast shown by hook
+                                                } catch (e) {
+                                                   // handled by mutation
+                                                } finally {
+                                                   setLoadingItemId(null);
+                                                }
+                                             }}
+                                             disabled={
+                                                loadingItemId === item.id
+                                             }
+                                          >
+                                             {loadingItemId === item.id ? (
+                                                <Loader2 className="h-4 w-4 animate-spin" />
+                                             ) : (
+                                                "Undo"
+                                             )}
+                                          </Button>
+                                       </>
+                                    )}
+                                 </div>
                                  {item.variation_name && (
                                     <p className="text-sm text-muted-foreground">
                                        Variation: {item.variation_name}
@@ -128,6 +170,11 @@ export function OrderDetailsDialog({
                                  <p className="text-sm text-muted-foreground">
                                     Quantity: {item.quantity}
                                  </p>
+                                 {item.rejected_reason && (
+                                    <p className="text-xs text-muted-foreground mt-1 italic">
+                                       Reason: {item.rejected_reason}
+                                    </p>
+                                 )}
                               </div>
                               <p className="font-medium">
                                  {item.total.toLocaleString()} RWF

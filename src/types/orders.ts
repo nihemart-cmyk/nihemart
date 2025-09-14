@@ -48,6 +48,8 @@ export interface OrderItem {
    quantity: number;
    total: number;
    created_at: string;
+   rejected?: boolean;
+   rejected_reason?: string;
 }
 
 export interface OrderItemInput {

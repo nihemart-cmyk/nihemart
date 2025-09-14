@@ -6,6 +6,17 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import {
+   Dialog,
+   DialogTrigger,
+   DialogContent,
+   DialogHeader,
+   DialogFooter,
+   DialogTitle,
+   DialogDescription,
+   DialogClose,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrders } from "@/hooks/useOrders";
@@ -29,12 +40,25 @@ import { toast } from "sonner";
 const OrderDetails = () => {
    const { t } = useLanguage();
    const { user, isLoggedIn, hasRole } = useAuth();
-   const { useOrder, updateOrderStatus } = useOrders();
+   const {
+      useOrder,
+      updateOrderStatus,
+      useRejectOrderItem,
+      useUnrejectOrderItem,
+   } = useOrders();
    const router = useRouter();
    const params = useParams();
    const orderId = params?.id as string;
 
    const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+   const [rejectReason, setRejectReason] = useState("");
+   const [rejectingItemId, setRejectingItemId] = useState<string | null>(null);
+   const rejectOrderItem = useRejectOrderItem();
+   const unrejectOrderItem = useUnrejectOrderItem();
+   const [unrejectingItemId, setUnrejectingItemId] = useState<string | null>(
+      null
+   );
 
    const { data: order, isLoading, error } = useOrder(orderId);
    const isAdmin = hasRole("admin");
@@ -288,6 +312,62 @@ Please let me know if you need any additional information.
                                     <p className="font-semibold">
                                        {item.total.toLocaleString()} RWF
                                     </p>
+
+                                    <div className="mt-2 flex items-center justify-end space-x-2">
+                                       {item.rejected ? (
+                                          <>
+                                             <Badge variant="destructive">
+                                                Rejected
+                                             </Badge>
+                                             <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                onClick={async () => {
+                                                   setUnrejectingItemId(
+                                                      item.id
+                                                   );
+                                                   try {
+                                                      await unrejectOrderItem.mutateAsync(
+                                                         item.id
+                                                      );
+                                                      toast.success(
+                                                         "Rejection undone"
+                                                      );
+                                                   } catch (e) {
+                                                      // error handled by mutation
+                                                   } finally {
+                                                      setUnrejectingItemId(
+                                                         null
+                                                      );
+                                                   }
+                                                }}
+                                                disabled={
+                                                   unrejectingItemId === item.id
+                                                }
+                                             >
+                                                {unrejectingItemId ===
+                                                item.id ? (
+                                                   <Loader2 className="h-4 w-4 animate-spin" />
+                                                ) : (
+                                                   "Undo"
+                                                )}
+                                             </Button>
+                                          </>
+                                       ) : (
+                                          <>
+                                             <Button
+                                                size="sm"
+                                                variant="destructive"
+                                                onClick={() => {
+                                                   setRejectingItemId(item.id);
+                                                   setRejectDialogOpen(true);
+                                                }}
+                                             >
+                                                Reject
+                                             </Button>
+                                          </>
+                                       )}
+                                    </div>
                                  </div>
                               </div>
                            ))}
@@ -306,7 +386,23 @@ Please let me know if you need any additional information.
                      <CardTitle>Order Timeline</CardTitle>
                   </CardHeader>
                   <CardContent>
-                     <div className="space-y-4">
+                     {order.shipped_at && (
+                        <div className="flex items-center space-x-3">
+                           <div className="flex-shrink-0">
+                              <div className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center">
+                                 <Truck className="h-4 w-4 text-white" />
+                              </div>
+                           </div>
+                           <div>
+                              <p className="font-semibold">Order Shipped</p>
+                              <p className="text-sm text-muted-foreground">
+                                 {formatDate(order.shipped_at)}
+                              </p>
+                           </div>
+                        </div>
+                     )}
+
+                     {order.delivered_at && (
                         <div className="flex items-center space-x-3">
                            <div className="flex-shrink-0">
                               <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
@@ -314,65 +410,13 @@ Please let me know if you need any additional information.
                               </div>
                            </div>
                            <div>
-                              <p className="font-semibold">Order Placed</p>
+                              <p className="font-semibold">Order Delivered</p>
                               <p className="text-sm text-muted-foreground">
-                                 {formatDate(order.created_at)}
+                                 {formatDate(order.delivered_at)}
                               </p>
                            </div>
                         </div>
-
-                        {order.status !== "pending" && (
-                           <div className="flex items-center space-x-3">
-                              <div className="flex-shrink-0">
-                                 <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
-                                    <Package className="h-4 w-4 text-white" />
-                                 </div>
-                              </div>
-                              <div>
-                                 <p className="font-semibold">
-                                    Order Processing
-                                 </p>
-                                 <p className="text-sm text-muted-foreground">
-                                    Being prepared for shipping
-                                 </p>
-                              </div>
-                           </div>
-                        )}
-
-                        {order.shipped_at && (
-                           <div className="flex items-center space-x-3">
-                              <div className="flex-shrink-0">
-                                 <div className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center">
-                                    <Truck className="h-4 w-4 text-white" />
-                                 </div>
-                              </div>
-                              <div>
-                                 <p className="font-semibold">Order Shipped</p>
-                                 <p className="text-sm text-muted-foreground">
-                                    {formatDate(order.shipped_at)}
-                                 </p>
-                              </div>
-                           </div>
-                        )}
-
-                        {order.delivered_at && (
-                           <div className="flex items-center space-x-3">
-                              <div className="flex-shrink-0">
-                                 <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
-                                    <CheckCircle className="h-4 w-4 text-white" />
-                                 </div>
-                              </div>
-                              <div>
-                                 <p className="font-semibold">
-                                    Order Delivered
-                                 </p>
-                                 <p className="text-sm text-muted-foreground">
-                                    {formatDate(order.delivered_at)}
-                                 </p>
-                              </div>
-                           </div>
-                        )}
-                     </div>
+                     )}
                   </CardContent>
                </Card>
             </div>

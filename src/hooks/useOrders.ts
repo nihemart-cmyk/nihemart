@@ -7,6 +7,8 @@ import {
    fetchOrderById,
    createOrder,
    updateOrderStatus,
+   rejectOrderItem,
+   unrejectOrderItem,
    deleteOrder,
    getOrderStats,
    type Order,
@@ -174,6 +176,230 @@ export function useUpdateOrderStatus() {
    });
 }
 
+// Hook for rejecting an order item
+export function useRejectOrderItem() {
+   const queryClient = useQueryClient();
+
+   return useMutation({
+      mutationFn: ({
+         orderItemId,
+         reason,
+      }: {
+         orderItemId: string;
+         reason: string;
+      }) => rejectOrderItem(orderItemId, reason),
+
+      // Optimistic update: update cached order detail(s) and lists immediately
+      onMutate: async ({
+         orderItemId,
+         reason,
+      }: {
+         orderItemId: string;
+         reason: string;
+      }) => {
+         await queryClient.cancelQueries({ queryKey: orderKeys.details() });
+         await queryClient.cancelQueries({ queryKey: orderKeys.lists() });
+
+         // Snapshot previous data for rollback
+         const previousDetails = queryClient.getQueriesData({
+            queryKey: orderKeys.details(),
+         });
+         const previousLists = queryClient.getQueriesData({
+            queryKey: orderKeys.lists(),
+         });
+
+         // Update any cached order detail that contains this item
+         for (const [key, data] of previousDetails) {
+            try {
+               const order = data as any;
+               if (order && Array.isArray(order.items)) {
+                  const idx = order.items.findIndex(
+                     (it: any) => it.id === orderItemId
+                  );
+                  if (idx !== -1) {
+                     const updated = { ...order };
+                     updated.items = [...order.items];
+                     updated.items[idx] = {
+                        ...updated.items[idx],
+                        rejected: true,
+                        rejected_reason: reason,
+                     };
+                     queryClient.setQueryData(key, updated);
+                  }
+               }
+            } catch (e) {
+               // ignore individual update errors
+            }
+         }
+
+         // Update any cached lists (shape may be { data: Order[]; count })
+         for (const [key, data] of previousLists) {
+            try {
+               const list = data as any;
+               if (list && Array.isArray(list.data)) {
+                  const updatedList = { ...list };
+                  updatedList.data = list.data.map((order: any) => {
+                     if (!order.items) return order;
+                     const itemIdx = order.items.findIndex(
+                        (it: any) => it.id === orderItemId
+                     );
+                     if (itemIdx === -1) return order;
+                     const updatedOrder = { ...order };
+                     updatedOrder.items = [...order.items];
+                     updatedOrder.items[itemIdx] = {
+                        ...updatedOrder.items[itemIdx],
+                        rejected: true,
+                        rejected_reason: reason,
+                     };
+                     return updatedOrder;
+                  });
+                  queryClient.setQueryData(key, updatedList);
+               }
+            } catch (e) {
+               // ignore
+            }
+         }
+
+         return { previousDetails, previousLists };
+      },
+
+      onError: (err, variables, context: any) => {
+         console.error("Failed to reject order item:", err);
+         // Rollback caches
+         if (context?.previousDetails) {
+            for (const [key, data] of context.previousDetails) {
+               try {
+                  queryClient.setQueryData(key, data);
+               } catch (e) {}
+            }
+         }
+         if (context?.previousLists) {
+            for (const [key, data] of context.previousLists) {
+               try {
+                  queryClient.setQueryData(key, data);
+               } catch (e) {}
+            }
+         }
+         toast.error("Failed to reject item");
+      },
+
+      onSettled: (data: any, error: any, variables: any) => {
+         // Ensure fresh data
+         queryClient.invalidateQueries({ queryKey: orderKeys.lists() });
+         // If server returned order_id, invalidate that detail specifically
+         if (data?.order_id) {
+            queryClient.invalidateQueries({
+               queryKey: orderKeys.detail(data.order_id),
+            });
+         } else {
+            queryClient.invalidateQueries({ queryKey: orderKeys.details() });
+         }
+      },
+
+      onSuccess: (data: any) => {
+         // Keep behaviour: toast on success
+         toast.success("Item rejected");
+      },
+   });
+}
+
+// Hook for un-rejecting an order item (undo rejection)
+export function useUnrejectOrderItem() {
+   const queryClient = useQueryClient();
+
+   return useMutation({
+      mutationFn: (orderItemId: string) => unrejectOrderItem(orderItemId),
+      onMutate: async (orderItemId: string) => {
+         await queryClient.cancelQueries({ queryKey: orderKeys.details() });
+         await queryClient.cancelQueries({ queryKey: orderKeys.lists() });
+
+         const previousDetails = queryClient.getQueriesData({
+            queryKey: orderKeys.details(),
+         });
+         const previousLists = queryClient.getQueriesData({
+            queryKey: orderKeys.lists(),
+         });
+
+         // Optimistically clear rejected flag in cached data
+         for (const [key, data] of previousDetails) {
+            try {
+               const order = data as any;
+               if (order && Array.isArray(order.items)) {
+                  const idx = order.items.findIndex(
+                     (it: any) => it.id === orderItemId
+                  );
+                  if (idx !== -1) {
+                     const updated = { ...order };
+                     updated.items = [...order.items];
+                     updated.items[idx] = {
+                        ...updated.items[idx],
+                        rejected: false,
+                        rejected_reason: null,
+                     };
+                     queryClient.setQueryData(key, updated);
+                  }
+               }
+            } catch (e) {}
+         }
+
+         for (const [key, data] of previousLists) {
+            try {
+               const list = data as any;
+               if (list && Array.isArray(list.data)) {
+                  const updatedList = { ...list };
+                  updatedList.data = list.data.map((order: any) => {
+                     if (!order.items) return order;
+                     const itemIdx = order.items.findIndex(
+                        (it: any) => it.id === orderItemId
+                     );
+                     if (itemIdx === -1) return order;
+                     const updatedOrder = { ...order };
+                     updatedOrder.items = [...order.items];
+                     updatedOrder.items[itemIdx] = {
+                        ...updatedOrder.items[itemIdx],
+                        rejected: false,
+                        rejected_reason: null,
+                     };
+                     return updatedOrder;
+                  });
+                  queryClient.setQueryData(key, updatedList);
+               }
+            } catch (e) {}
+         }
+
+         return { previousDetails, previousLists };
+      },
+      onError: (err, variables, context: any) => {
+         // rollback
+         if (context?.previousDetails) {
+            for (const [key, data] of context.previousDetails) {
+               try {
+                  queryClient.setQueryData(key, data);
+               } catch (e) {}
+            }
+         }
+         if (context?.previousLists) {
+            for (const [key, data] of context.previousLists) {
+               try {
+                  queryClient.setQueryData(key, data);
+               } catch (e) {}
+            }
+         }
+         toast.error("Failed to undo rejection");
+      },
+      onSettled: (data: any) => {
+         queryClient.invalidateQueries({ queryKey: orderKeys.lists() });
+         if (data?.order_id) {
+            queryClient.invalidateQueries({
+               queryKey: orderKeys.detail(data.order_id),
+            });
+         } else {
+            queryClient.invalidateQueries({ queryKey: orderKeys.details() });
+         }
+      },
+   });
+}
+
 // Hook for deleting orders (admin only)
 export function useDeleteOrder() {
    const queryClient = useQueryClient();
@@ -211,6 +437,8 @@ export function useOrders() {
          useAllOrders(options || {}),
       useOrder: (id: string) => useOrder(id),
       useOrderStats: () => useOrderStats(),
+      useRejectOrderItem: () => useRejectOrderItem(),
+      useUnrejectOrderItem: () => useUnrejectOrderItem(),
 
       // Mutation hooks
       createOrder: useCreateOrder(),
