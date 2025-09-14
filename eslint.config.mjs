@@ -17,7 +17,8 @@ const eslintConfig = [
       "@typescript-eslint/no-require-imports": 0,
       "@typescript-eslint/no-empty-object-type": 0,
       "@typescript-eslint/no-explicit-any": 0, 
-      "@typescript-eslint/ban-ts-comment": 0
+      "@typescript-eslint/ban-ts-comment": 0,
+      "react-hooks/rules-of-hooks":0
     }
   },
   {

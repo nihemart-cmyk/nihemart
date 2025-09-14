@@ -33,6 +33,7 @@ const optionalNumber = z.preprocess(
 
 const variationSchema = z.object({
     id: z.string().optional(),
+    name: z.string().optional(),
     price: z.coerce.number().min(0, "Price must be 0 or more"),
     stock: z.coerce.number().int("Stock must be a whole number").min(0),
     sku: z.string().optional(),
@@ -104,7 +105,7 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
                 continue_selling_when_oos: false,
                 requires_shipping: true,
                 taxable: false,
-                variations: [{ price: 0, stock: 0, attributes: [{ name: "Title", value: "Default" }], imageFiles: [] }],
+                variations: [{ name: "Default", price: 0, stock: 0, attributes: [{ name: "Title", value: "Default" }], imageFiles: [] }],
             },
     });
 
@@ -183,6 +184,7 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
             };
 
             const variationsInput: ProductVariationInput[] = data.variations.map(v => ({
+                name: v.name || null,
                 price: v.price,
                 stock: v.stock,
                 sku: v.sku || null,
@@ -241,7 +243,7 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
                                     {variationFields.map((field, index) => (
                                         <VariantCard key={field.id} form={form} index={index} removeVariant={removeVariation} />
                                     ))}
-                                    <Button type="button" variant="outline" onClick={() => appendVariation({ price: 0, stock: 0, attributes: [{ name: "", value: "" }], imageFiles: [] })}>
+                                    <Button type="button" variant="outline" onClick={() => appendVariation({ name: "", price: 0, stock: 0, attributes: [{ name: "", value: "" }], imageFiles: [] })}>
                                         <Plus className="mr-2 h-4 w-4" /> Add another variant
                                     </Button>
                                 </CardContent></Card>
@@ -261,14 +263,14 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
                                     {/* @ts-ignore */}
                                     <FormField control={form.control} name="price" render={({ field }) => <FormItem><FormLabel>Base Price</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem>} />
                                     {/* @ts-ignore */}
-                                    <FormField control={form.control} name="compare_at_price" render={({ field }) => <FormItem><FormLabel>Compare-at Price</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>} />
+                                    {/* <FormField control={form.control} name="compare_at_price" render={({ field }) => <FormItem><FormLabel>Compare-at Price</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>} /> */}
                                     {/* @ts-ignore */}
-                                    <FormField control={form.control} name="taxable" render={({ field }) => <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3"><FormLabel>Charge Tax</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>} />
+                                    {/* <FormField control={form.control} name="taxable" render={({ field }) => <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3"><FormLabel>Charge Tax</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>} /> */}
                                 </CardContent></Card>
 
                                 <Card><CardHeader><CardTitle>Shipping & Inventory</CardTitle></CardHeader><CardContent className="space-y-4">
                                     {/* @ts-ignore */}
-                                    <FormField control={form.control} name="dimensions" render={({ field }) => <FormItem><FormLabel>Dimensions (e.g., 24x12x12 cm)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
+                                    {/* <FormField control={form.control} name="dimensions" render={({ field }) => <FormItem><FormLabel>Dimensions (e.g., 24x12x12 cm)</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} /> */}
                                     {/* @ts-ignore */}
                                     <FormField control={form.control} name="requires_shipping" render={({ field }) => <FormItem className="flex items-center justify-between border p-3 rounded-lg"><FormLabel>Requires Shipping</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>} />
                                     {/* @ts-ignore */}
@@ -287,12 +289,15 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
     );
 }
 
+const ATTRIBUTE_OPTIONS = ["Color", "Size", "Material", "Style", "Other"];
+
 function VariantCard({ form, index, removeVariant }: { form: any, index: number, removeVariant: (index: number) => void }) {
     const { fields, append, remove } = useFieldArray({
         control: form.control,
         name: `variations.${index}.attributes`
     });
     const [imageFiles, setImageFiles] = useState<ProductImageFile[]>([]);
+    const [customAttributeName, setCustomAttributeName] = useState('');
 
     const onDrop = useCallback((files: File[]) => {
         const newFiles = files.map(f => ({ url: URL.createObjectURL(f), file: f }));
@@ -301,7 +306,7 @@ function VariantCard({ form, index, removeVariant }: { form: any, index: number,
         form.setValue(`variations.${index}.imageFiles`, [...currentFiles, ...files]);
     }, [form, index]);
 
-    const { getRootProps, getInputProps } = useDropzone({ onDrop });
+    const { getRootProps, getInputProps } = useDropzone({ onDrop, accept: { 'image/*': [] } });
 
     const removeImg = (imgIndex: number) => {
         const currentFiles = form.getValues(`variations.${index}.imageFiles`);
@@ -310,22 +315,44 @@ function VariantCard({ form, index, removeVariant }: { form: any, index: number,
     };
 
     return (
-        <div className="p-4 border rounded-lg space-y-4 relative">
+        <div className="p-4 border rounded-lg space-y-4 relative bg-slate-50">
             <Button type="button" variant="ghost" size="icon" className="absolute top-2 right-2" onClick={() => removeVariant(index)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+            
+            {/* @ts-ignore */}
+            <FormField control={form.control} name={`variations.${index}.name`} render={({ field }) => <FormItem><Label>Variant Name</Label><FormControl><Input placeholder="e.g., Large Black Pant" {...field} /></FormControl><FormMessage /></FormItem>} />
+
             <div className="grid grid-cols-2 gap-4">
-                <FormField control={form.control} name={`variations.${index}.price`} render={({ field }) => <FormItem><Label>Variant Price</Label><FormControl><Input type="number" step="0.01" {...field} /></FormControl></FormItem>} />
-                <FormField control={form.control} name={`variations.${index}.stock`} render={({ field }) => <FormItem><Label>Stock</Label><FormControl><Input type="number" {...field} /></FormControl></FormItem>} />
+                {/* @ts-ignore */}
+                <FormField control={form.control} name={`variations.${index}.price`} render={({ field }) => <FormItem><Label>Variant Price</Label><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem>} />
+                {/* @ts-ignore */}
+                <FormField control={form.control} name={`variations.${index}.stock`} render={({ field }) => <FormItem><Label>Stock</Label><FormControl><Input type="number" {...field} /></FormControl><FormMessage /></FormItem>} />
             </div>
             <div className="grid grid-cols-2 gap-4">
-                <FormField control={form.control} name={`variations.${index}.sku`} render={({ field }) => <FormItem><Label>SKU</Label><FormControl><Input {...field} /></FormControl></FormItem>} />
-                <FormField control={form.control} name={`variations.${index}.barcode`} render={({ field }) => <FormItem><Label>Barcode</Label><FormControl><Input {...field} /></FormControl></FormItem>} />
+                {/* @ts-ignore */}
+                {/* <FormField control={form.control} name={`variations.${index}.sku`} render={({ field }) => <FormItem><Label>SKU</Label><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} /> */}
+                {/* @ts-ignore */}
+                {/* <FormField control={form.control} name={`variations.${index}.barcode`} render={({ field }) => <FormItem><Label>Barcode</Label><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} /> */}
             </div>
             <div>
                 <Label>Attributes</Label>
                 <div className="space-y-2 mt-1">
                     {fields.map((field, attrIndex) => (
                         <div key={field.id} className="flex items-center gap-2">
-                            <FormField control={form.control} name={`variations.${index}.attributes.${attrIndex}.name`} render={({ field }) => <Input placeholder="e.g., Color" {...field} />} />
+                            <FormField
+                                control={form.control}
+                                name={`variations.${index}.attributes.${attrIndex}.name`}
+                                render={({ field }) => (
+                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                        <FormControl>
+                                            <SelectTrigger><SelectValue placeholder="Attribute" /></SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent>
+                                            {ATTRIBUTE_OPTIONS.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                )}
+                            />
+                            {/* @ts-ignore */}
                             <FormField control={form.control} name={`variations.${index}.attributes.${attrIndex}.value`} render={({ field }) => <Input placeholder="e.g., Blue" {...field} />} />
                             <Button type="button" size="icon" variant="ghost" onClick={() => remove(attrIndex)}><X className="h-4 w-4" /></Button>
                         </div>

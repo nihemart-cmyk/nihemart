@@ -58,8 +58,7 @@ export function AddressDialog({
          return;
       }
 
-      let timeoutId: NodeJS.Timeout;
-      timeoutId = setTimeout(() => {
+      const timeoutId: NodeJS.Timeout = setTimeout(() => {
          memoizedSearch(debouncedSearch);
       }, 100); // Small delay to prevent race conditions
 

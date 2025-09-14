@@ -1,16 +1,17 @@
 "use client"
 import React from 'react';
 import Image from 'next/image';
-import { ChevronDown, Edit, Trash2, ChevronLeft, ChevronRight, ChevronUp, Search } from 'lucide-react';
+import { ChevronDown, Edit, Trash2, ChevronLeft, ChevronRight, ChevronUp, Search, UserStar } from 'lucide-react';
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import type { Product, Category, ProductListPageFilters, ProductStatus } from '@/integrations/supabase/products';
+import Link from 'next/link';
 
 interface ProductsTableProps {
   products: Product[];
@@ -186,6 +187,7 @@ export const ProductsTable = ({
                         <TableCell>{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(product.price || 0)}</TableCell>
                         <TableCell>
                             <div className="flex items-center space-x-2">
+                                <Link href={`/admin/products/${product?.id}/reviews`} className={cn(buttonVariants({variant: 'ghost', size: 'sm'}), "h-8 w-8 p-0")}><UserStar className="w-4 h-4 text-gray-500" /></Link>
                                 <Button onClick={() => onEdit(product.id)} variant="ghost" size="sm" className="h-8 w-8 p-0"><Edit className="w-4 h-4 text-gray-500" /></Button>
                                 <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => onDelete(product.id)}><Trash2 className="w-4 h-4 text-gray-500" /></Button>
                             </div>

@@ -368,3 +368,43 @@ export async function createProduct(
 
    return data;
 }
+
+export interface ProductReview {
+  id: string;
+  rating: number;
+  title: string | null;
+  content: string | null;
+  created_at: string;
+  author: {
+    full_name: string | null;
+  } | null;
+}
+
+export async function fetchProductWithReviews(productId: string) {
+  const { data: product, error: productError } = await sb
+    .from('products')
+    .select('id, name')
+    .eq('id', productId)
+    .single();
+  
+  if (productError) throw productError;
+
+  const { data: reviews, error: reviewsError } = await sb
+    .from('reviews')
+    .select('id, rating, title, content, created_at, author:profiles!user_id(full_name)')
+    .eq('product_id', productId)
+    .order('created_at', { ascending: false });
+
+  if (reviewsError) throw reviewsError;
+
+  return { product, reviews: reviews as ProductReview[] };
+}
+
+export async function deleteReview(reviewId: string) {
+  const { error } = await sb
+    .from('reviews')
+    .delete()
+    .eq('id', reviewId);
+  
+  if (error) throw error;
+}

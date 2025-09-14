@@ -34,8 +34,7 @@ export default function ProductClientPage({ initialData }: ProductClientPageProp
   const [user, setUser] = useState<User | null>(null);
 
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
-  const [selectedVariation, setSelectedVariation] = useState<ProductVariationDetail | null>(null);
-
+  
   const { product, variations, images, similarProducts } = data;
 
   useEffect(() => {
@@ -57,57 +56,88 @@ export default function ProductClientPage({ initialData }: ProductClientPageProp
     return Object.fromEntries(Object.entries(attributes).map(([key, valueSet]) => [key, Array.from(valueSet)]));
   }, [variations]);
 
-  useEffect(() => {
-    if (variations.length > 0) {
-      const initialOptions: Record<string, string> = {};
-      Object.keys(uniqueAttributeValues).forEach(key => {
-        initialOptions[key] = uniqueAttributeValues[key][0];
-      });
-      setSelectedOptions(initialOptions);
-    }
-  }, [variations, uniqueAttributeValues]);
-
-  useEffect(() => {
-    if (variations.length > 0 && Object.keys(selectedOptions).length > 0) {
-      const match = variations.find(variant => 
-        Object.entries(selectedOptions).every(([key, value]) => 
-          variant.attributes[key]?.split(',').map(s => s.trim()).includes(value)
-        )
-      );
-      setSelectedVariation(match || null);
-    }
+  const possibleVariants = useMemo(() => {
+    if (Object.keys(selectedOptions).length === 0) return variations;
+    return variations.filter(variant =>
+      Object.entries(selectedOptions).every(([key, value]) =>
+        variant.attributes[key]?.split(',').map(s => s.trim()).includes(value)
+      )
+    );
   }, [selectedOptions, variations]);
+  
+  const singleSelectedVariation = useMemo(() => {
+    if (possibleVariants.length === 1) {
+        const finalVariant = possibleVariants[0];
+        const userSelectionCount = Object.keys(selectedOptions).length;
+        const variantAttributeCount = Object.keys(finalVariant.attributes).length;
+        if (userSelectionCount === variantAttributeCount) {
+            return finalVariant;
+        }
+    }
+    return null;
+  }, [possibleVariants, selectedOptions]);
+
+  const availableOptions = useMemo(() => {
+    const available: Record<string, Set<string>> = {};
+    Object.keys(uniqueAttributeValues).forEach(key => {
+        available[key] = new Set();
+        const tempSelection = { ...selectedOptions };
+        delete (tempSelection as any)[key];
+        
+        const potentialVariants = variations.filter(variant =>
+            Object.entries(tempSelection).every(([k, v]) =>
+                variant.attributes[k]?.split(',').map(s => s.trim()).includes(v as string)
+            )
+        );
+        
+        potentialVariants.forEach(variant => {
+            variant.attributes[key]?.split(',').map(s => s.trim()).forEach(val => available[key].add(val));
+        });
+    });
+    return available;
+  }, [selectedOptions, variations, uniqueAttributeValues]);
 
   const displayImages = useMemo(() => {
+    const allPossibleImageIds = new Set<string>();
+    possibleVariants.forEach(v => allPossibleImageIds.add(v.id));
+
+    const variantImages = images.filter(img => img.product_variation_id && allPossibleImageIds.has(img.product_variation_id)).map(img => img.url);
+    if(variantImages.length > 0) return variantImages;
+
     const generalImages = images.filter(img => !img.product_variation_id).map(img => img.url);
-    if (selectedVariation) {
-      const variantImages = images.filter(img => img.product_variation_id === selectedVariation.id).map(img => img.url);
-      if (variantImages.length > 0) return variantImages;
-    }
     if (generalImages.length > 0) return generalImages;
+    
     return product.main_image_url ? [product.main_image_url] : ["/placeholder.svg"];
-  }, [images, selectedVariation, product.main_image_url]);
+  }, [images, possibleVariants, product.main_image_url]);
 
   useEffect(() => {
     setSelectedImageIndex(0);
   }, [displayImages]);
 
   const handleOptionSelect = (type: string, value: string) => {
-    setSelectedOptions(prev => ({ ...prev, [type]: value }));
+    setSelectedOptions(prev => {
+        const newOptions = { ...prev };
+        if (newOptions[type] === value) {
+            delete newOptions[type];
+        } else {
+            newOptions[type] = value;
+        }
+        return newOptions;
+    });
   };
   
   const handleAddToCart = () => {
-    if (!selectedVariation) {
-        toast.error("Please select a valid product combination.");
+    if (!singleSelectedVariation) {
+        toast.error("Please select a complete and valid product combination.");
         return;
     }
     const itemToAdd = {
       product_id: product.id,
       name: product.name,
-      price: selectedVariation.price ?? product.price,
+      price: singleSelectedVariation.price ?? product.price,
       image: product.main_image_url || '/placeholder.svg',
-      variant: Object.values(selectedVariation.attributes).join(' / '),
-      id: `${product.id}-${selectedVariation.id}`,
+      variant: Object.values(singleSelectedVariation.attributes).join(' / '),
+      id: `${product.id}-${singleSelectedVariation.id}`,
     };
     for (let i = 0; i < quantity; i++) {
         addItem(itemToAdd);
@@ -125,9 +155,9 @@ export default function ProductClientPage({ initialData }: ProductClientPageProp
     return { average: total / reviews.length, distribution };
   }, [reviews]);
   
-  const currentPrice = selectedVariation?.price ?? product.price;
+  const currentPrice = singleSelectedVariation?.price ?? product.price;
   const comparePrice = product.compare_at_price;
-  const inStock = (selectedVariation?.stock ?? 0) > 0;
+  const inStock = (singleSelectedVariation?.stock ?? 0) > 0;
 
   const onReviewSubmitted = (newReview: ProductReview) => {
     setReviews(prev => [newReview, ...prev]);
@@ -149,7 +179,7 @@ export default function ProductClientPage({ initialData }: ProductClientPageProp
           <div className="space-y-6">
             <div><h1 className="text-3xl font-bold text-gray-900">{product.name}</h1><p className="text-gray-600 mt-1">{product.brand || 'Generic Brand'}</p></div>
             <div className="space-y-2">
-              <div className="flex items-baseline gap-2"><span className="text-3xl font-bold text-orange-600">{currentPrice} Rwf</span>{comparePrice && <span className="text-lg text-gray-500 line-through">{comparePrice.toFixed(2)} rwf</span>}</div>
+              <div className="flex items-baseline gap-2"><span className="text-3xl font-bold text-orange-600">€{currentPrice.toFixed(2)}</span>{comparePrice && <span className="text-lg text-gray-500 line-through">€{comparePrice.toFixed(2)}</span>}</div>
               <div className="flex items-center gap-2">
                 <div className="flex items-center">{[...Array(5)].map((_, i) => <Star key={i} className={`h-4 w-4 ${i < Math.round(reviewStats.average) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`} />)}<span className="ml-1 text-sm font-medium">{reviewStats.average.toFixed(1)}</span></div>
                 <span className="text-sm text-gray-500">{reviews?.length || 0} Reviews</span>
@@ -160,19 +190,22 @@ export default function ProductClientPage({ initialData }: ProductClientPageProp
               <div key={attr} className="space-y-3">
                 <Label className="text-base font-medium capitalize">Choose a {attr}</Label>
                 <div className="flex gap-2 flex-wrap">
-                  {values.map(value => (
-                    <button key={value} onClick={() => handleOptionSelect(attr, value)} className={cn("px-4 py-2 rounded-lg border text-sm font-medium", selectedOptions[attr] === value ? "border-orange-500 bg-orange-50 text-orange-600" : "border-gray-300")}>
-                      {value}
-                    </button>
-                  ))}
+                  {values.map(value => {
+                    const isSelected = selectedOptions[attr] === value;
+                    const isDisabled = !availableOptions[attr]?.has(value) && !isSelected;
+                    return (
+                        <button key={value} onClick={() => handleOptionSelect(attr, value)} disabled={isDisabled} className={cn("px-4 py-2 rounded-lg border text-sm font-medium", isSelected ? "border-orange-500 bg-orange-50 text-orange-600" : "border-gray-300", isDisabled && "opacity-50 cursor-not-allowed bg-gray-100 text-gray-400")}>
+                        {value}
+                        </button>
+                    )})}
                 </div>
               </div>
             ))}
             
             <div className="flex items-center gap-4">
               <div className="flex items-center border rounded-lg"><Button variant="ghost" size="icon" onClick={() => setQuantity(q => Math.max(1, q - 1))}><Minus className="h-4 w-4" /></Button><span className="px-4 py-2 min-w-[3rem] text-center">{quantity}</span><Button variant="ghost" size="icon" onClick={() => setQuantity(q => q + 1)}><Plus className="h-4 w-4" /></Button></div>
-              <Button onClick={handleAddToCart} disabled={!selectedVariation || !inStock} className="flex-1 h-12 text-base font-medium bg-gradient-to-r from-orange-500 to-orange-600 text-white disabled:opacity-50">
-                {!selectedVariation ? "Unavailable" : !inStock ? "Out of Stock" : "Add To Cart"}
+              <Button onClick={handleAddToCart} disabled={!singleSelectedVariation || !inStock} className="flex-1 h-12 text-base font-medium bg-gradient-to-r from-orange-500 to-orange-600 text-white disabled:opacity-50">
+                {!singleSelectedVariation ? "Select Options" : !inStock ? "Out of Stock" : "Add To Cart"}
               </Button>
             </div>
             <div className="space-y-3 pt-4 border-t"><div className="flex items-center gap-3"><Truck className="h-5 w-5 text-green-600" /><div><p className="font-medium text-green-600">Free Delivery</p><p className="text-sm text-gray-600">Enter your Postal code for Delivery Availability</p></div></div><div className="flex items-center gap-3"><RotateCcw className="h-5 w-5 text-orange-600" /><div><p className="font-medium text-orange-600">Return Delivery</p><p className="text-sm text-gray-600">Free 30 days Delivery Return. Details</p></div></div></div>
