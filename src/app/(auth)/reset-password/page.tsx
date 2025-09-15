@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { FC } from "react";
+import React, { FC, Suspense } from "react";
 import logo from "@/assets/logo.png";
 import ResetPasswordForm from "@/components/auth/admin/ResetPasswordForm";
 
@@ -31,7 +31,13 @@ const page: FC = ({}) => {
                      className="mt-5 sm:mt-10 max-w-[150px] sm:max-w-[200px] object-contain z-20"
                   />
                </div>
-               <ResetPasswordForm />
+               <Suspense
+                  fallback={
+                     <div className="py-6 text-center">Loading form...</div>
+                  }
+               >
+                  <ResetPasswordForm />
+               </Suspense>
             </div>
          </div>
 
