@@ -69,7 +69,7 @@ export async function updateSession(request: NextRequest) {
 
       const metaRole = (user as any)?.user_metadata?.role as string | undefined;
 
-      let isAdmin =
+      const isAdmin =
          roles?.some((r: any) => r.role === "admin") || metaRole === "admin";
       let isRider =
          roles?.some((r: any) => r.role === "rider") || metaRole === "rider";
@@ -127,7 +127,7 @@ export async function updateSession(request: NextRequest) {
          .eq("user_id", user.id);
 
       const metaRole = (user as any)?.user_metadata?.role as string | undefined;
-      let isRider =
+      const isRider =
          roles?.some((r: any) => r.role === "rider") || metaRole === "rider";
 
       // Fallback: check riders table to allow rider users access if they have a riders row

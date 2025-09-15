@@ -305,7 +305,7 @@ export async function fetchAllProductsForExport({
    filters = {},
    sort = { column: "created_at", direction: "desc" },
 }: Omit<ProductQueryOptions, "pagination">) {
-   let query = buildProductQuery(filters);
+   const query = buildProductQuery(filters);
    const { data, error } = await query
       .select(`*, category:categories(id, name)`)
       .order(sort.column, { ascending: sort.direction === "asc" })
