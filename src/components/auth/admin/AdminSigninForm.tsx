@@ -193,7 +193,7 @@ const AdminSigninForm: FC<AdminSigninFormProps> = ({}) => {
                         )}
                      />
                      <Link
-                        href="#"
+                        href="/forgot-password"
                         className="text-sm text-blue-500 hover:underline"
                      >
                         Forgot Password?
