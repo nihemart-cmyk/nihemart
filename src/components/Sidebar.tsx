@@ -127,11 +127,6 @@ const navItems: NavItem[] = [
       icon: Icons.sidebar.riders,
       subLinks: [
          { id: "7-1", title: "Rider Management", href: "/admin/riders" },
-         {
-            id: "7-2",
-            title: "Assign Orders to Riders",
-            href: "/admin/riders/manage",
-         },
          { id: "7-3", title: "Add New Rider", href: "/admin/riders/new" },
       ],
    },

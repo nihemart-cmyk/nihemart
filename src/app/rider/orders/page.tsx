@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { DataTable } from "@/components/data-table/data-table";
@@ -11,11 +13,19 @@ import {
    getPaginationRowModel,
 } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+   DropdownMenu,
+   DropdownMenuTrigger,
+   DropdownMenuContent,
+   DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/useAuth";
 import { fetchRiderByUserId } from "@/integrations/supabase/riders";
 import { useRiderAssignments, useRespondToAssignment } from "@/hooks/useRiders";
 import { fetchOrderById } from "@/integrations/supabase/orders";
 import { OrderDetailsDialog } from "@/components/orders/OrderDetailsDialog";
+import { MoreHorizontal } from "lucide-react";
 
 const Page = () => {
    const { user, isLoggedIn } = useAuth();
@@ -131,6 +141,25 @@ const Page = () => {
    const columns = useMemo(() => {
       const columnHelper = createColumnHelper<any>();
       return [
+         // selection column
+         {
+            id: "select",
+            header: ({ table }: any) => (
+               <Checkbox
+                  checked={table.getIsAllPageRowsSelected()}
+                  onCheckedChange={(v: any) =>
+                     table.toggleAllPageRowsSelected(!!v)
+                  }
+               />
+            ),
+            cell: ({ row }: any) => (
+               <Checkbox
+                  checked={row.getIsSelected()}
+                  onCheckedChange={(v: any) => row.toggleSelected(!!v)}
+               />
+            ),
+            enableSorting: false,
+         },
          columnHelper.accessor("orderNumber", {
             header: "Order",
             cell: (info) => (
@@ -183,7 +212,7 @@ const Page = () => {
                   return (
                      <Button
                         onClick={() => handleRespond(a.id, "completed")}
-                        className="bg-blue-600 text-white"
+                        className="bg-orange-600 text-white"
                      >
                         Mark Delivered
                      </Button>
@@ -201,44 +230,57 @@ const Page = () => {
          }),
          columnHelper.display({
             id: "actions",
-            header: "Actions",
+            header: () => null,
             cell: (info) => {
                const row = info.row.original;
                const a = row.assignment;
                const order = row.order;
                return (
-                  <div className="flex items-center justify-end gap-2">
-                     <Button
-                        variant={"ghost"}
-                        onClick={async () => {
-                           let o = order || orderMap[a.order_id];
-                           if (!o) {
-                              try {
-                                 o = await fetchOrderById(a.order_id);
-                                 if (o)
-                                    setOrderMap((p) => ({
-                                       ...p,
-                                       [a.order_id]: o,
-                                    }));
-                              } catch (e) {}
-                           }
-                           if (o) setViewOrder(o);
-                        }}
-                     >
-                        View
-                     </Button>
-                     <Button
-                        variant={"ghost"}
-                        onClick={() => {
-                           if (
-                              typeof navigator !== "undefined" &&
-                              navigator.clipboard
-                           )
-                              navigator.clipboard.writeText(a.order_id || "");
-                        }}
-                     >
-                        Copy ID
-                     </Button>
+                  <div className="flex items-center justify-end">
+                     <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                           <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                           >
+                              <MoreHorizontal className="h-4 w-4" />
+                           </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                           <DropdownMenuItem
+                              onClick={async () => {
+                                 let o = order || orderMap[a.order_id];
+                                 if (!o) {
+                                    try {
+                                       o = await fetchOrderById(a.order_id);
+                                       if (o)
+                                          setOrderMap((p) => ({
+                                             ...p,
+                                             [a.order_id]: o,
+                                          }));
+                                    } catch (e) {}
+                                 }
+                                 if (o) setViewOrder(o);
+                              }}
+                           >
+                              View
+                           </DropdownMenuItem>
+                           <DropdownMenuItem
+                              onClick={() => {
+                                 if (
+                                    typeof navigator !== "undefined" &&
+                                    navigator.clipboard
+                                 )
+                                    navigator.clipboard.writeText(
+                                       a.order_id || ""
+                                    );
+                              }}
+                           >
+                              Copy ID
+                           </DropdownMenuItem>
+                        </DropdownMenuContent>
+                     </DropdownMenu>
                   </div>
                );
             },
@@ -300,60 +342,72 @@ const Page = () => {
       );
 
    return (
-      <div className="p-5">
-         <Tabs defaultValue="orders">
-            <TabsList>
-               <TabsTrigger value="orders">Orders</TabsTrigger>
-               <TabsTrigger value="statistics">Statistics</TabsTrigger>
-               <TabsTrigger value="settings">Settings</TabsTrigger>
-            </TabsList>
+      <ScrollArea className="h-[calc(100vh-5rem)]">
+         <div className="p-6 w-full mx-auto">
+            <div className="mb-4">
+               <Link
+                  href="/rider"
+                  className="text-orange-500"
+               >
+                  ← Back
+               </Link>
+            </div>
+            <Tabs defaultValue="orders">
+               <TabsList>
+                  <TabsTrigger value="orders">Orders</TabsTrigger>
+                  <TabsTrigger value="statistics">Statistics</TabsTrigger>
+                  <TabsTrigger value="settings">Settings</TabsTrigger>
+               </TabsList>
 
-            <TabsContent value="orders">
-               <div className="p-5 rounded-2xl bg-white">
-                  <div className="flex items-center justify-between mb-4">
-                     <div>
-                        <h3 className="text-lg font-bold">Assigned Orders</h3>
-                        <p className="text-sm text-text-secondary">
-                           Your current assignments and actions.
-                        </p>
+               <TabsContent value="orders">
+                  <div className="p-5 rounded-2xl bg-white">
+                     <div className="flex items-center justify-between mb-4">
+                        <div>
+                           <h3 className="text-lg font-bold">
+                              Assigned Orders
+                           </h3>
+                           <p className="text-sm text-text-secondary">
+                              Your current assignments and actions.
+                           </p>
+                        </div>
                      </div>
-                  </div>
 
-                  <div className="w-full">
-                     {isLoading ? (
-                        <div className="flex justify-center items-center py-12">
-                           <span>Loading assignments...</span>
-                        </div>
-                     ) : (
-                        <div className="space-y-3">
-                           <div className="flex items-center justify-between">
-                              <Input
-                                 placeholder="Search order, location, status..."
-                                 value={search}
-                                 onChange={(e) => setSearch(e.target.value)}
-                                 className="max-w-sm"
-                              />
+                     <div className="w-full">
+                        {isLoading ? (
+                           <div className="flex justify-center items-center py-12">
+                              <span>Loading assignments...</span>
                            </div>
-                           <DataTable table={table as any} />
-                        </div>
+                        ) : (
+                           <div className="space-y-3">
+                              <div className="flex items-center justify-between">
+                                 <Input
+                                    placeholder="Search order, location, status..."
+                                    value={search}
+                                    onChange={(e) => setSearch(e.target.value)}
+                                    className="max-w-sm"
+                                 />
+                              </div>
+                              <DataTable table={table as any} />
+                           </div>
+                        )}
+                     </div>
+                     {viewOrder && (
+                        <OrderDetailsDialog
+                           open={!!viewOrder}
+                           onOpenChange={(open) => {
+                              if (!open) setViewOrder(null);
+                           }}
+                           order={viewOrder}
+                        />
                      )}
                   </div>
-                  {viewOrder && (
-                     <OrderDetailsDialog
-                        open={!!viewOrder}
-                        onOpenChange={(open) => {
-                           if (!open) setViewOrder(null);
-                        }}
-                        order={viewOrder}
-                     />
-                  )}
-               </div>
-            </TabsContent>
+               </TabsContent>
 
-            <TabsContent value="statistics">Coming soon.</TabsContent>
-            <TabsContent value="settings">Coming soon.</TabsContent>
-         </Tabs>
-      </div>
+               <TabsContent value="statistics">Coming soon.</TabsContent>
+               <TabsContent value="settings">Coming soon.</TabsContent>
+            </Tabs>
+         </div>
+      </ScrollArea>
    );
 };
 

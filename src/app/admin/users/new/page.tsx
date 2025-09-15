@@ -113,7 +113,7 @@ export default function CreateUserPage() {
                      <Button
                         type="submit"
                         disabled={loading}
-                        className="bg-blue-600 hover:bg-blue-700"
+                        className="bg-orange-600 hover:bg-orange-700"
                      >
                         {loading ? (
                            <>
@@ -130,7 +130,7 @@ export default function CreateUserPage() {
                   </div>
                </div>
 
-               <div className="max-w-2xl mx-auto space-y-6">
+               <div className="w-full mx-auto space-y-6">
                   {/* Success/Error Messages */}
                   {message && (
                      <Alert className="border-green-200 bg-green-50">

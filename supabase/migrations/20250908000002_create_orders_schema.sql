@@ -62,22 +62,22 @@ ALTER TABLE order_items ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Allow users to read own orders" ON orders
     FOR SELECT
     TO authenticated
-    USING (auth.uid() = user_id OR (SELECT is_admin FROM user_roles WHERE user_id = auth.uid()));
+    USING (auth.uid() = user_id OR public.has_role(auth.uid(), 'admin'));
 
 CREATE POLICY "Allow users to insert own orders" ON orders
     FOR INSERT
     TO authenticated
-    WITH CHECK (auth.uid() = user_id OR (SELECT is_admin FROM user_roles WHERE user_id = auth.uid()));
+    WITH CHECK (auth.uid() = user_id OR public.has_role(auth.uid(), 'admin'));
 
 CREATE POLICY "Allow users to update own orders" ON orders
     FOR UPDATE
     TO authenticated
-    USING (auth.uid() = user_id OR (SELECT is_admin FROM user_roles WHERE user_id = auth.uid()));
+    USING (auth.uid() = user_id OR public.has_role(auth.uid(), 'admin'));
 
 CREATE POLICY "Allow users to delete own orders" ON orders
     FOR DELETE
     TO authenticated
-    USING (auth.uid() = user_id OR (SELECT is_admin FROM user_roles WHERE user_id = auth.uid()));
+    USING (auth.uid() = user_id OR public.has_role(auth.uid(), 'admin'));
 
 -- Policies for order items
 CREATE POLICY "Allow users to read own order items" ON order_items
@@ -85,7 +85,7 @@ CREATE POLICY "Allow users to read own order items" ON order_items
     TO authenticated
     USING (EXISTS (
         SELECT 1 FROM orders WHERE orders.id = order_items.order_id 
-        AND (orders.user_id = auth.uid() OR (SELECT is_admin FROM user_roles WHERE user_id = auth.uid()))
+        AND (orders.user_id = auth.uid() OR public.has_role(auth.uid(), 'admin'))
     ));
 
 CREATE POLICY "Allow users to insert own order items" ON order_items
@@ -93,7 +93,7 @@ CREATE POLICY "Allow users to insert own order items" ON order_items
     TO authenticated
     WITH CHECK (EXISTS (
         SELECT 1 FROM orders WHERE orders.id = order_items.order_id 
-        AND (orders.user_id = auth.uid() OR (SELECT is_admin FROM user_roles WHERE user_id = auth.uid()))
+        AND (orders.user_id = auth.uid() OR public.has_role(auth.uid(), 'admin'))
     ));
 
 CREATE POLICY "Allow users to update own order items" ON order_items
@@ -101,7 +101,7 @@ CREATE POLICY "Allow users to update own order items" ON order_items
     TO authenticated
     USING (EXISTS (
         SELECT 1 FROM orders WHERE orders.id = order_items.order_id 
-        AND (orders.user_id = auth.uid() OR (SELECT is_admin FROM user_roles WHERE user_id = auth.uid()))
+        AND (orders.user_id = auth.uid() OR public.has_role(auth.uid(), 'admin'))
     ));
 
 CREATE POLICY "Allow users to delete own order items" ON order_items
@@ -109,7 +109,7 @@ CREATE POLICY "Allow users to delete own order items" ON order_items
     TO authenticated
     USING (EXISTS (
         SELECT 1 FROM orders WHERE orders.id = order_items.order_id 
-        AND (orders.user_id = auth.uid() OR (SELECT is_admin FROM user_roles WHERE user_id = auth.uid()))
+        AND (orders.user_id = auth.uid() OR public.has_role(auth.uid(), 'admin'))
     ));
 
 -- Function to get order stats

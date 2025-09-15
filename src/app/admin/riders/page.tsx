@@ -6,6 +6,7 @@ import useRiders, {
    useAssignOrder,
    useRiderAssignments,
 } from "@/hooks/useRiders";
+import { useEffect } from "react";
 import { toast } from "sonner";
 import dynamic from "next/dynamic";
 import { useState } from "react";
@@ -17,6 +18,7 @@ import {
 import { DataTable } from "@/components/data-table/data-table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
    DropdownMenu,
    DropdownMenuContent,
@@ -28,6 +30,7 @@ import {
 import { UserAvatarProfile } from "@/components/user-avatar-profile";
 import { Badge } from "@/components/ui/badge";
 import { MoreHorizontal } from "lucide-react";
+import { PlusCircle, TrendingUp, TrendingDown } from "lucide-react";
 
 const AssignOrderToRiderDialog = dynamic(
    () => import("@/components/riders/AssignOrderToRiderDialog")
@@ -56,6 +59,24 @@ const RidersPage = () => {
    const vehicles = Array.from(
       new Set(riders.map((r: any) => r.vehicle).filter(Boolean))
    ).length;
+   const [topAmount, setTopAmount] = useState<number | null>(null);
+
+   useEffect(() => {
+      let mounted = true;
+      fetch("/api/admin/riders/top-amount")
+         .then((r) => r.json())
+         .then((d) => {
+            if (!mounted) return;
+            setTopAmount(d?.topAmount || 0);
+         })
+         .catch(() => {
+            if (!mounted) return;
+            setTopAmount(null);
+         });
+      return () => {
+         mounted = false;
+      };
+   }, []);
 
    // Helper components and table columns must be defined in component scope (not inside JSX)
    const LatestAssignment = ({ row }: any) => {
@@ -188,33 +209,203 @@ const RidersPage = () => {
 
    return (
       <div className="p-6">
-         <div className="flex items-center justify-between mb-6">
-            <h1 className="text-2xl font-bold">Riders</h1>
-            <div className="flex gap-3">
-               <Link
-                  href="/admin/riders/new"
-                  className="px-4 py-2 bg-blue-600 text-white rounded"
-               >
-                  New Rider
+         {/* Header styled like OrdersMetrics */}
+         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-7 sm:gap-2 mb-6">
+            <div className="flex flex-col">
+               <h1 className="text-2xl font-bold text-[#023337]">Rider List</h1>
+               <p className="text-zinc-500 sm:hidden">
+                  Track riders list across your store.
+               </p>
+            </div>
+            <div className="flex items-center gap-3">
+               <Link href="/admin/riders/new">
+                  <Button className="bg-orange-500 hover:bg-orange-600 text-white">
+                     <PlusCircle className="h-4 w-4 mr-2" />
+                     Add Rider
+                  </Button>
+               </Link>
+               <Link href="/admin/riders/import">
+                  <Button variant="outline">Import Riders</Button>
                </Link>
             </div>
          </div>
 
-         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-            <div className="p-4 border rounded-lg">
-               <div className="text-sm text-muted-foreground">Total Riders</div>
-               <div className="text-2xl font-bold">{totalRiders}</div>
-            </div>
-            <div className="p-4 border rounded-lg">
-               <div className="text-sm text-muted-foreground">
-                  Active Riders
-               </div>
-               <div className="text-2xl font-bold">{activeRiders}</div>
-            </div>
-            <div className="p-4 border rounded-lg">
-               <div className="text-sm text-muted-foreground">Vehicles</div>
-               <div className="text-2xl font-bold">{vehicles}</div>
-            </div>
+         {/* Top amount card + Metrics Cards styled like OrdersMetrics */}
+         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6 mb-6">
+            <Card className="relative">
+               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <h3 className="text-lg text-[#23272E] font-semibold">
+                     Top Amount
+                  </h3>
+                  <div>
+                     <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                           <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                           >
+                              <span className="sr-only">Open menu</span>
+                              <MoreHorizontal className="h-4 w-4" />
+                           </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                           <DropdownMenuItem
+                              onClick={() => refetch && refetch()}
+                           >
+                              Refresh
+                           </DropdownMenuItem>
+                        </DropdownMenuContent>
+                     </DropdownMenu>
+                  </div>
+               </CardHeader>
+               <CardContent>
+                  <div className="space-y-2 flex items-end gap-2">
+                     <div className="text-3xl font-bold text-[#023337]">
+                        {topAmount !== null
+                           ? `${topAmount.toLocaleString()} RWF`
+                           : "—"}
+                     </div>
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-2">
+                     All time
+                  </div>
+               </CardContent>
+            </Card>
+            <Card className="relative">
+               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <h3 className="text-lg text-[#23272E] font-semibold">
+                     Total Riders
+                  </h3>
+                  <div>
+                     <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                           <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                           >
+                              <span className="sr-only">Open menu</span>
+                              <MoreHorizontal className="h-4 w-4" />
+                           </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                           <DropdownMenuItem
+                              onClick={() => refetch && refetch()}
+                           >
+                              Refresh
+                           </DropdownMenuItem>
+                        </DropdownMenuContent>
+                     </DropdownMenu>
+                  </div>
+               </CardHeader>
+               <CardContent>
+                  <div className="space-y-2 flex items-end gap-2">
+                     <div className="text-3xl font-bold text-[#023337]">
+                        {totalRiders}
+                     </div>
+                     <div className="flex items-center gap-2 text-sm">
+                        <div className="flex items-center gap-1 text-green-600">
+                           <TrendingUp className="h-3 w-3" />
+                           <span>+0%</span>
+                        </div>
+                     </div>
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-2">
+                     Last 7 days
+                  </div>
+               </CardContent>
+            </Card>
+
+            <Card className="relative">
+               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <h3 className="text-lg text-[#23272E] font-semibold">
+                     Active Riders
+                  </h3>
+                  <div>
+                     <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                           <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                           >
+                              <span className="sr-only">Open menu</span>
+                              <MoreHorizontal className="h-4 w-4" />
+                           </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                           <DropdownMenuItem
+                              onClick={() => refetch && refetch()}
+                           >
+                              Refresh
+                           </DropdownMenuItem>
+                        </DropdownMenuContent>
+                     </DropdownMenu>
+                  </div>
+               </CardHeader>
+               <CardContent>
+                  <div className="space-y-2 flex items-end gap-2">
+                     <div className="text-3xl font-bold text-[#023337]">
+                        {activeRiders}
+                     </div>
+                     <div className="flex items-center gap-2 text-sm">
+                        <div className="flex items-center gap-1 text-green-600">
+                           <TrendingUp className="h-3 w-3" />
+                           <span>+0%</span>
+                        </div>
+                     </div>
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-2">
+                     Last 7 days
+                  </div>
+               </CardContent>
+            </Card>
+
+            <Card className="relative">
+               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <h3 className="text-lg text-[#23272E] font-semibold">
+                     Vehicles
+                  </h3>
+                  <div>
+                     <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                           <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                           >
+                              <span className="sr-only">Open menu</span>
+                              <MoreHorizontal className="h-4 w-4" />
+                           </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                           <DropdownMenuItem
+                              onClick={() => refetch && refetch()}
+                           >
+                              Refresh
+                           </DropdownMenuItem>
+                        </DropdownMenuContent>
+                     </DropdownMenu>
+                  </div>
+               </CardHeader>
+               <CardContent>
+                  <div className="space-y-2 flex items-end gap-2">
+                     <div className="text-3xl font-bold text-[#023337]">
+                        {vehicles}
+                     </div>
+                     <div className="flex items-center gap-2 text-sm">
+                        <div className="flex items-center gap-1 text-red-600">
+                           <TrendingDown className="h-3 w-3" />
+                           <span>0%</span>
+                        </div>
+                     </div>
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-2">
+                     Last 7 days
+                  </div>
+               </CardContent>
+            </Card>
          </div>
 
          <div className="p-5 rounded-2xl bg-white mt-6">
@@ -230,8 +421,8 @@ const RidersPage = () => {
                </div>
                <div className="flex items-center gap-3">
                   <Link href="/admin/riders/new">
-                     <Button className="bg-blue-600 text-white">
-                        New Rider
+                     <Button className="bg-orange-600 text-white">
+                        Export
                      </Button>
                   </Link>
                </div>

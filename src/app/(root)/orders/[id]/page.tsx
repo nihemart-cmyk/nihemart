@@ -17,6 +17,7 @@ import {
    DialogClose,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrders } from "@/hooks/useOrders";
@@ -54,6 +55,7 @@ const OrderDetails = () => {
    const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
    const [rejectReason, setRejectReason] = useState("");
    const [rejectingItemId, setRejectingItemId] = useState<string | null>(null);
+   const [isRejecting, setIsRejecting] = useState(false);
    const rejectOrderItem = useRejectOrderItem();
    const unrejectOrderItem = useUnrejectOrderItem();
    const [unrejectingItemId, setUnrejectingItemId] = useState<string | null>(
@@ -575,6 +577,75 @@ Please let me know if you need any additional information.
                )}
             </div>
          </div>
+
+         {/* Reject Reason Dialog */}
+         <Dialog
+            open={rejectDialogOpen}
+            onOpenChange={(v: boolean) => setRejectDialogOpen(v)}
+         >
+            <DialogContent>
+               <DialogHeader>
+                  <DialogTitle>Reject Item</DialogTitle>
+                  <DialogDescription>
+                     Provide a reason for rejecting this item. This will be sent
+                     to the admin.
+                  </DialogDescription>
+               </DialogHeader>
+
+               <div className="mt-2">
+                  <Textarea
+                     value={rejectReason}
+                     onChange={(e) => setRejectReason(e.target.value)}
+                     placeholder="Enter rejection reason"
+                     className="w-full"
+                  />
+               </div>
+
+               <DialogFooter>
+                  <div className="flex justify-end space-x-2">
+                     <Button
+                        variant="ghost"
+                        onClick={() => {
+                           setRejectDialogOpen(false);
+                           setRejectReason("");
+                           setRejectingItemId(null);
+                        }}
+                        disabled={isRejecting}
+                     >
+                        Cancel
+                     </Button>
+                     <Button
+                        variant="destructive"
+                        onClick={async () => {
+                           if (!rejectingItemId) return;
+                           setIsRejecting(true);
+                           try {
+                              await rejectOrderItem.mutateAsync({
+                                 orderItemId: rejectingItemId,
+                                 reason: rejectReason,
+                              });
+                              toast.success("Item rejected");
+                              setRejectDialogOpen(false);
+                              setRejectReason("");
+                              setRejectingItemId(null);
+                           } catch (e) {
+                              // mutation handles toast on error
+                           } finally {
+                              setIsRejecting(false);
+                           }
+                        }}
+                        disabled={isRejecting || !rejectReason}
+                     >
+                        {isRejecting ? (
+                           <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                           "Confirm"
+                        )}
+                     </Button>
+                  </div>
+               </DialogFooter>
+            </DialogContent>
+         </Dialog>
       </div>
    );
 };

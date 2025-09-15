@@ -9,10 +9,14 @@ type AuthState = {
    session: Session | null;
    roles: Set<AppRole>;
    loading: boolean;
+   isFetchingRoles?: boolean;
+   lastFetchedRolesUserId?: string | null;
    setUser: (user: User | null) => void;
    setSession: (session: Session | null) => void;
    setRoles: (roles: Set<AppRole>) => void;
    setLoading: (loading: boolean) => void;
+   setIsFetchingRoles?: (v: boolean) => void;
+   setLastFetchedRolesUserId?: (id: string | null) => void;
    fetchRoles: (userId: string) => Promise<void>;
    signIn: (
       email: string,
@@ -34,11 +38,37 @@ export const useAuthStore = create<AuthState>((set, get) => ({
    session: null,
    roles: new Set(),
    loading: true,
+   isFetchingRoles: false,
+   lastFetchedRolesUserId: null,
    setUser: (user) => set({ user }),
    setSession: (session) => set({ session }),
    setRoles: (roles) => set({ roles }),
    setLoading: (loading) => set({ loading }),
+   setIsFetchingRoles: (v) => set({ isFetchingRoles: v }),
+   setLastFetchedRolesUserId: (id) => set({ lastFetchedRolesUserId: id }),
    fetchRoles: async (userId: string) => {
+      // Guard: no userId
+      if (!userId) {
+         set({ roles: new Set(), lastFetchedRolesUserId: null });
+         return;
+      }
+
+      // If we've already fetched roles for this user and there's an existing set, skip
+      const lastId = get().lastFetchedRolesUserId;
+      const isFetching = get().isFetchingRoles;
+      if (
+         lastId === userId &&
+         !isFetching &&
+         get().roles &&
+         get().roles.size > 0
+      ) {
+         return;
+      }
+
+      // Prevent concurrent fetches
+      if (isFetching) return;
+
+      set({ isFetchingRoles: true });
       try {
          const { data, error } = await supabase
             .from("user_roles")
@@ -48,13 +78,35 @@ export const useAuthStore = create<AuthState>((set, get) => ({
          if (!error && data) {
             const r = new Set<AppRole>();
             data.forEach((row: any) => r.add(row.role as AppRole));
-            set({ roles: r });
+            set({ roles: r, lastFetchedRolesUserId: userId });
          } else {
-            set({ roles: new Set() });
+            // No explicit user_roles found. As a fallback, check if a riders
+            // row exists for this user and treat them as a rider if so.
+            try {
+               const sb: any = supabase as any;
+               const { data: riderRow } = await sb
+                  .from("riders")
+                  .select("id")
+                  .eq("user_id", userId)
+                  .maybeSingle();
+               if (riderRow && (riderRow as any).id) {
+                  set({
+                     roles: new Set<AppRole>(["rider"]),
+                     lastFetchedRolesUserId: userId,
+                  });
+               } else {
+                  set({ roles: new Set(), lastFetchedRolesUserId: userId });
+               }
+            } catch (err) {
+               console.error("Error checking riders fallback:", err);
+               set({ roles: new Set(), lastFetchedRolesUserId: userId });
+            }
          }
       } catch (error) {
          console.error("Error fetching roles:", error);
-         set({ roles: new Set() });
+         set({ roles: new Set(), lastFetchedRolesUserId: userId });
+      } finally {
+         set({ isFetchingRoles: false });
       }
    },
    signIn: async (email, password) => {
@@ -69,11 +121,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
          }
 
          if (data.user) {
+            // Fetch roles (deduped inside fetchRoles) then update state
             await get().fetchRoles(data.user.id);
-            set({
-               user: data.user,
-               session: data.session,
-            });
+            set({ user: data.user, session: data.session });
          }
 
          return { error: null };
@@ -124,7 +174,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
          } = await supabase.auth.getSession();
 
          if (session?.user) {
+            // Set basic session/user first
             set({ user: session.user, session });
+            // Fetch roles (this is guarded and will be a no-op if another fetch is in-flight)
             await get().fetchRoles(session.user.id);
          } else {
             set({ user: null, session: null, roles: new Set() });

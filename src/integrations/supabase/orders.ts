@@ -1,24 +1,69 @@
 // Reject an order item
 export async function rejectOrderItem(itemId: string, reason: string) {
+   // First, try to fetch the item to give a clearer error if it doesn't exist or is not readable
+   const { data: existing, error: fetchError } = await sb
+      .from("order_items")
+      .select("id, order_id")
+      .eq("id", itemId)
+      .maybeSingle();
+
+   if (fetchError) {
+      // If the select fails due to RLS, surface the error
+      throw fetchError;
+   }
+
+   if (!existing) {
+      throw new Error(
+         "Order item not found or you don't have permission to access it."
+      );
+   }
+
    const { data, error } = await sb
       .from("order_items")
       .update({ rejected: true, rejected_reason: reason })
       .eq("id", itemId)
       .select()
-      .single();
-   if (error) throw error;
+      .maybeSingle();
+
+   if (error) {
+      throw error;
+   }
+
+   if (!data) {
+      throw new Error(
+         "Failed to update the order item. Check permissions or try again."
+      );
+   }
+
    return data;
 }
 
 // Un-reject an order item (clear rejected flag and reason)
 export async function unrejectOrderItem(itemId: string) {
+   const { data: existing, error: fetchError } = await sb
+      .from("order_items")
+      .select("id, order_id")
+      .eq("id", itemId)
+      .maybeSingle();
+
+   if (fetchError) throw fetchError;
+   if (!existing)
+      throw new Error(
+         "Order item not found or you don't have permission to access it."
+      );
+
    const { data, error } = await sb
       .from("order_items")
       .update({ rejected: false, rejected_reason: null })
       .eq("id", itemId)
       .select()
-      .single();
+      .maybeSingle();
+
    if (error) throw error;
+   if (!data)
+      throw new Error(
+         "Failed to update the order item. Check permissions or try again."
+      );
    return data;
 }
 import { supabase } from "./client";

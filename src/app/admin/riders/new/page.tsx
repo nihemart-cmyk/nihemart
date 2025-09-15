@@ -3,6 +3,13 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import {
+   Select,
+   SelectTrigger,
+   SelectValue,
+   SelectContent,
+   SelectItem,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -83,11 +90,11 @@ const NewRiderPage = () => {
 
    return (
       <ScrollArea className="h-[calc(100vh-5rem)]">
-         <div className="p-6 max-w-2xl mx-auto">
+         <div className="p-6 w-full mx-auto">
             <div className="mb-4">
                <Link
                   href="/admin/riders"
-                  className="text-blue-500"
+                  className="text-orange-500"
                >
                   ← Back to riders
                </Link>
@@ -191,12 +198,28 @@ const NewRiderPage = () => {
 
                         <div>
                            <Label>Vehicle</Label>
-                           <Input
+                           <Select
                               value={vehicle}
-                              onChange={(e) => setVehicle(e.target.value)}
-                              placeholder="Bike / Car / etc"
-                              disabled={loading}
-                           />
+                              onValueChange={(val) => setVehicle(val)}
+                           >
+                              <SelectTrigger
+                                 className="w-full"
+                                 disabled={loading}
+                              >
+                                 <SelectValue placeholder="Bike / Car / etc" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                 <SelectItem value="Bike">Bike</SelectItem>
+                                 <SelectItem value="Car">Car</SelectItem>
+                                 <SelectItem value="Motorbike">
+                                    Motorbike
+                                 </SelectItem>
+                                 <SelectItem value="Bicycle">
+                                    Bicycle
+                                 </SelectItem>
+                                 <SelectItem value="Other">Other</SelectItem>
+                              </SelectContent>
+                           </Select>
                         </div>
                      </CardContent>
                   </Card>
@@ -213,7 +236,7 @@ const NewRiderPage = () => {
                      <Button
                         type="submit"
                         disabled={loading}
-                        className="bg-blue-600 hover:bg-blue-700"
+                        className="bg-orange-600 hover:bg-orange-700"
                      >
                         {loading ? (
                            <>

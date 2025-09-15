@@ -6,6 +6,13 @@ import { fetchRiderByUserId } from "@/integrations/supabase/riders";
 import { useUpdateRider } from "@/hooks/useRiders";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+   Select,
+   SelectTrigger,
+   SelectValue,
+   SelectContent,
+   SelectItem,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -71,7 +78,7 @@ export default function RiderSettingsPage() {
    return (
       <div className="p-6">
          <h2 className="text-xl font-semibold mb-4">Rider Settings</h2>
-         <div className="max-w-2xl">
+         <div className="w-full">
             <Card>
                <CardHeader>
                   <CardTitle>Your Profile</CardTitle>
@@ -93,11 +100,22 @@ export default function RiderSettingsPage() {
                   </div>
                   <div>
                      <Label>Vehicle</Label>
-                     <Input
+                     <Select
                         value={vehicle}
-                        onChange={(e) => setVehicle(e.target.value)}
-                        placeholder="e.g. Motorcycle - Yamaha"
-                     />
+                        onValueChange={(v) => setVehicle(v)}
+                     >
+                        <SelectTrigger className="w-full">
+                           <SelectValue placeholder="Select vehicle" />
+                        </SelectTrigger>
+                        <SelectContent>
+                           <SelectItem value="Bike">Bike</SelectItem>
+                           <SelectItem value="Car">Car</SelectItem>
+                           <SelectItem value="Motorbike">Motorbike</SelectItem>
+                           <SelectItem value="Bicycle">Bicycle</SelectItem>
+                           <SelectItem value="Van">Van</SelectItem>
+                           <SelectItem value="Other">Other</SelectItem>
+                        </SelectContent>
+                     </Select>
                   </div>
                   <div className="flex items-center justify-between">
                      <div>
@@ -134,7 +152,7 @@ export default function RiderSettingsPage() {
                      <Button
                         onClick={handleSave}
                         disabled={saving}
-                        className="bg-blue-600"
+                        className="bg-orange-600"
                      >
                         {saving ? "Saving..." : "Save settings"}
                      </Button>

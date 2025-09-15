@@ -69,10 +69,26 @@ export async function updateSession(request: NextRequest) {
 
       const metaRole = (user as any)?.user_metadata?.role as string | undefined;
 
-      const isAdmin =
+      let isAdmin =
          roles?.some((r: any) => r.role === "admin") || metaRole === "admin";
-      const isRider =
+      let isRider =
          roles?.some((r: any) => r.role === "rider") || metaRole === "rider";
+
+      // Fallback: if no explicit role found, check if a rider row exists for this user
+      // This helps newly-created rider accounts (admin-created) which may not have
+      // a user_roles row yet but do have a riders record.
+      if (!isRider) {
+         try {
+            const { data: riderRow } = await supabase
+               .from("riders")
+               .select("id")
+               .eq("user_id", user.id)
+               .maybeSingle();
+            if (riderRow && (riderRow as any).id) isRider = true;
+         } catch (e) {
+            // ignore errors and assume not a rider
+         }
+      }
 
       if (isAdmin) {
          url.pathname = "/admin";
@@ -111,13 +127,27 @@ export async function updateSession(request: NextRequest) {
          .eq("user_id", user.id);
 
       const metaRole = (user as any)?.user_metadata?.role as string | undefined;
-      const isRider =
+      let isRider =
          roles?.some((r: any) => r.role === "rider") || metaRole === "rider";
 
+      // Fallback: check riders table to allow rider users access if they have a riders row
       if (!isRider) {
          const url = request.nextUrl.clone();
-         url.pathname = "/";
-         return NextResponse.redirect(url);
+         try {
+            const { data: riderRow } = await supabase
+               .from("riders")
+               .select("id")
+               .eq("user_id", user.id)
+               .maybeSingle();
+            if (!riderRow || !(riderRow as any).id) {
+               url.pathname = "/";
+               return NextResponse.redirect(url);
+            }
+            // else: riderRow exists, allow through
+         } catch (e) {
+            url.pathname = "/";
+            return NextResponse.redirect(url);
+         }
       }
    }
 

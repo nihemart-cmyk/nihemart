@@ -203,64 +203,69 @@ const Dashboard = () => {
    if (!isLoggedIn) return <div className="p-6">Please sign in.</div>;
 
    return (
-      <div className="min-h-screen">
+      <div className="min-h-screen bg-slate-50">
          <ScrollArea className="h-[calc(100vh-2rem)]">
-            {/* TOP */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 m-5">
-               <StatsCard
-                  title="Active"
-                  value={rider?.active ? "Yes" : "No"}
-                  change={"0"}
-                  icon={Users}
-                  iconColor="bg-orange-500"
-               />
-               <StatsCard
-                  title="Total Deliveries"
-                  value={`${totalDeliveries}`}
-                  change={"0"}
-                  icon={Box}
-                  iconColor="bg-blue-500"
-               />
-               <StatsCard
-                  title="Delivered"
-                  value={`${delivered}`}
-                  change={"0"}
-                  icon={Timer}
-                  iconColor="bg-green-500"
-               />
-            </div>
-            {/* BOTTOM */}
-            <div className="flex flex-col md:flex-row gap-2 md:gap-1 m-5 items-center">
-               {/* LEFT */}
-               <div className="grid grid-cols-1 gap-4 md:gap-6 m-5 lg:w-[40%] w-full">
-                  <h1 className="font-bold">Your Profile</h1>
-                  <ActiveRiderCard
-                     id={rider?.id || "-"}
-                     name={rider?.full_name || user?.email || "Rider"}
-                     location={rider?.city || "-"}
-                     deliveries={`${totalDeliveries}`}
-                     rating={"4.8"}
-                     status={rider?.active ? "Active" : "Unavailable"}
+            <div className="container mx-auto p-4">
+               {/* TOP */}
+               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+                  <StatsCard
+                     title="Active"
+                     value={rider?.active ? "Yes" : "No"}
+                     change={"0"}
+                     icon={Users}
+                     iconColor="bg-orange-500"
+                  />
+                  <StatsCard
+                     title="Total Deliveries"
+                     value={`${totalDeliveries}`}
+                     change={"0"}
+                     icon={Box}
+                     iconColor="bg-blue-500"
+                  />
+                  <StatsCard
+                     title="Delivered"
+                     value={`${delivered}`}
+                     change={"0"}
+                     icon={Timer}
+                     iconColor="bg-green-500"
                   />
                </div>
-               {/* RIGHT */}
-               <div className="w-full">
-                  <div>
-                     <RiderAnalytics />
+
+               {/* BOTTOM */}
+               <div className="flex flex-col lg:flex-row gap-6 mt-6">
+                  {/* LEFT */}
+                  <div className="w-full lg:w-2/5 space-y-4">
+                     <h1 className="font-bold">Your Profile</h1>
+                     <ActiveRiderCard
+                        id={rider?.id || "-"}
+                        name={rider?.full_name || user?.email || "Rider"}
+                        location={rider?.city || "-"}
+                        deliveries={`${totalDeliveries}`}
+                        rating={"4.8"}
+                        status={rider?.active ? "Active" : "Unavailable"}
+                     />
                   </div>
-                  <div className="bg-white rounded-2xl border shadow-sm p-4 mt-5">
-                     <h1>Recent Deliveries</h1>
-                     {recent.map((r: any) => (
-                        <RecentDelivery
-                           key={r.id}
-                           id={r.id}
-                           name={r.name}
-                           location={r.location}
-                           amount={`${r.amount}`}
-                           time={r.time}
-                           status={r.status}
-                        />
-                     ))}
+                  {/* RIGHT */}
+                  <div className="w-full lg:w-3/5 space-y-4">
+                     <RiderAnalytics />
+                     <div className="bg-white rounded-2xl border shadow-sm p-4">
+                        <h1 className="font-semibold mb-3">
+                           Recent Deliveries
+                        </h1>
+                        <div className="space-y-3">
+                           {recent.map((r: any) => (
+                              <RecentDelivery
+                                 key={r.id}
+                                 id={r.id}
+                                 name={r.name}
+                                 location={r.location}
+                                 amount={`${r.amount}`}
+                                 time={r.time}
+                                 status={r.status}
+                              />
+                           ))}
+                        </div>
+                     </div>
                   </div>
                </div>
             </div>

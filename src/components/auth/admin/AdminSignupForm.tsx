@@ -41,8 +41,8 @@ const AdminSignupForm: FC<AdminSignupFormProps> = ({}) => {
          options: {
             redirectTo:
                typeof window !== "undefined"
-                  ? `${window.location.origin}/`
-                  : "/",
+                  ? `${window.location.origin}/signin`
+                  : "/signin",
          },
       });
       setGoogleLoading(false);

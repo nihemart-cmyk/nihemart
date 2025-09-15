@@ -280,7 +280,12 @@ export function useRejectOrderItem() {
                } catch (e) {}
             }
          }
-         toast.error("Failed to reject item");
+         // Try to show a helpful message from the backend when available
+         const message =
+            err?.message ||
+            (err && err.error && err.error.message) ||
+            "Failed to reject item";
+         toast.error(message);
       },
 
       onSettled: (data: any, error: any, variables: any) => {

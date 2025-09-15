@@ -34,6 +34,7 @@ export default function OrdersMetrics() {
       isLoading,
       isError,
       error,
+      refetch,
    } = useAllOrders();
 
    // Calculate metrics from actual orders data
@@ -212,7 +213,7 @@ export default function OrdersMetrics() {
          </div>
 
          {/* Metrics Cards */}
-         <div className="grid grid-cols-1 min-[500px]:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-6">
+         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
             {isLoading
                ? // Loading skeleton
                  Array.from({ length: 4 }).map((_, index) => (
@@ -253,11 +254,11 @@ export default function OrdersMetrics() {
                                 </Button>
                              </DropdownMenuTrigger>
                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem>
-                                   View Details
+                                <DropdownMenuItem
+                                   onClick={() => refetch && refetch()}
+                                >
+                                   Refresh
                                 </DropdownMenuItem>
-                                <DropdownMenuItem>Export Data</DropdownMenuItem>
-                                <DropdownMenuItem>Refresh</DropdownMenuItem>
                              </DropdownMenuContent>
                           </DropdownMenu>
                        </CardHeader>

@@ -14,17 +14,26 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       const {
          data: { subscription },
       } = supabase.auth.onAuthStateChange(async (event, session) => {
+         // Update session and user immediately
          setSession(session);
          setUser(session?.user ?? null);
 
+         // Only fetch roles when we have a user
          if (session?.user) {
+            // fetchRoles is guarded internally to dedupe concurrent calls
             await fetchRoles(session.user.id);
          } else {
             setRoles(new Set());
          }
       });
 
-      return () => subscription.unsubscribe();
+      return () => {
+         try {
+            subscription?.unsubscribe();
+         } catch (e) {
+            // ignore unsubscribe errors
+         }
+      };
    }, [initialize, setUser, setSession, fetchRoles, setRoles]);
 
    return <>{children}</>;
