@@ -1,3 +1,5 @@
+// components/nav-bar.tsx
+
 "use client";
 
 import Image from "next/image";
@@ -8,10 +10,8 @@ import { cn } from "@/lib/utils";
 import {
    Globe,
    Menu,
-   Search,
    ShoppingCart,
    User,
-   UserRound,
    LogOut,
 } from "lucide-react";
 import { Button } from "../ui/button";
@@ -25,15 +25,13 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { useLanguage, Language } from "@/contexts/LanguageContext";
 import { Badge } from "../ui/badge";
-import { Input } from "../ui/input";
-import { redirect } from "next/navigation";
 import { useCart } from "@/contexts/CartContext";
-import { useAuth } from "@/hooks/useAuth"; // <-- update this import
+import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
+import { SearchPopover } from "../search-popover";
 
 interface NavBarProps {}
 
-// Use translation keys for route names
 export const routes = [
    { name: "nav.home", url: "/" },
    { name: "nav.products", url: "/products" },
@@ -42,22 +40,14 @@ export const routes = [
 ] as const;
 
 const NavBar: FC<NavBarProps> = ({}) => {
-   const { items, initialized } = useCart();
+   const { items, itemsCount } = useCart();
    const { user, hasRole, signOut } = useAuth();
    const router = useRouter();
 
    const { language, setLanguage, t } = useLanguage();
-   const [searchQuery, setSearchQuery] = useState("");
-
+   
    const handleLanguageChange = (lang: Language) => {
       setLanguage(lang);
-   };
-
-   const handleSearch = (e: React.FormEvent) => {
-      e.preventDefault();
-      if (searchQuery.trim()) {
-         redirect(`/products?search=${encodeURIComponent(searchQuery)}`);
-      }
    };
 
    const handleLogout = async () => {
@@ -76,19 +66,20 @@ const NavBar: FC<NavBarProps> = ({}) => {
             size={"lg"}
             className="w-full flex items-center justify-between py-6"
          >
-            <Image
-               src={logo}
-               alt="ilead logo"
-               priority
-               height={50}
-               width={200}
-               className="w-32 sm:w-40 object-contain"
-            />
+            <Link href="/">
+               <Image
+                  src={logo}
+                  alt="ilead logo"
+                  priority
+                  height={50}
+                  width={200}
+                  className="w-32 sm:w-40 object-contain"
+               />
+            </Link>
 
-            {/* Desktop navigation */}
             <div className="hidden lg:flex items-center gap-4">
                {routes.map(({ url, name }, i) => (
-                  <a
+                  <Link
                      key={i}
                      href={url}
                      className={cn(
@@ -96,26 +87,13 @@ const NavBar: FC<NavBarProps> = ({}) => {
                      )}
                   >
                      {t(name)}
-                  </a>
+                  </Link>
                ))}
             </div>
-            <form
-               onSubmit={handleSearch}
-               className="hidden md:flex items-center flex-1 max-w-xs md:max-w-sm mx-2 md:mx-6"
-            >
-               <div className="relative w-full">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                  <Input
-                     type="search"
-                     placeholder={t("products.search")}
-                     value={searchQuery}
-                     onChange={(e) => setSearchQuery(e.target.value)}
-                     className="pl-10 text-xs sm:text-sm py-2"
-                     aria-label={t("products.search")}
-                  />
-               </div>
-            </form>
-            {/* Right side controls */}
+            
+            {/* Replace the old form with the new SearchPopover component */}
+            <SearchPopover />
+
             <div className="flex items-center md:gap-2 gap-1">
                <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -157,9 +135,9 @@ const NavBar: FC<NavBarProps> = ({}) => {
                      className="relative"
                   >
                      <ShoppingCart className="h-5 w-5 text-slate-700 group-hover:text-white transition-colors duration-200" />
-                     {initialized && items.length > 0 && (
+                     {itemsCount > 0 && (
                         <Badge className="absolute -top-2 -right-2 h-5 w-5 rounded-full text-xs p-0 flex items-center justify-center bg-orange-400 outline-none z-10">
-                           {items.length}
+                           {itemsCount}
                         </Badge>
                      )}
                   </Link>
@@ -178,7 +156,7 @@ const NavBar: FC<NavBarProps> = ({}) => {
                      align="end"
                      className="z-[9999]"
                   >
-                     {!user && (
+                     {!user ? (
                         <>
                            <DropdownMenuItem asChild>
                               <Link href={"/signin"}>{t("nav.login")}</Link>
@@ -187,8 +165,7 @@ const NavBar: FC<NavBarProps> = ({}) => {
                               <Link href={"/signup"}>{t("nav.register")}</Link>
                            </DropdownMenuItem>
                         </>
-                     )}
-                     {user && (
+                     ) : (
                         <>
                            <DropdownMenuItem asChild>
                               <Link href={"/profile"}>{t("nav.profile")}</Link>
@@ -209,7 +186,6 @@ const NavBar: FC<NavBarProps> = ({}) => {
                      )}
                   </DropdownMenuContent>
                </DropdownMenu>
-               {/* Mobile menu */}
                <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                      <Button className="relative px-2 lg:hidden bg-brand-blue hover:bg-brand-blue/90 ml-1">

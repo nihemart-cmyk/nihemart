@@ -7,6 +7,7 @@ export interface StoreProduct {
   id: string;
   name: string;
   price: number;
+  short_description: string | null;
   main_image_url: string | null;
   average_rating: number | null;
   review_count: number | null;
@@ -15,11 +16,13 @@ export interface StoreProduct {
 }
 export interface StoreCategory { id: string; name: string; products_count: number; }
 export interface StoreSubcategory { id: string; name: string; products_count: number; }
-export interface StoreFilters { categories?: string[]; subcategories?: string[]; priceRange?: [number, number]; rating?: number; }
+export interface StoreFilters { categories?: string[]; subcategories?: string[]; 
+  // priceRange?: [number, number];
+   rating?: number; }
 export interface StoreQueryOptions { search?: string; filters?: StoreFilters; sort?: { column: string; direction: 'asc' | 'desc'; }; pagination: { page: number; limit: number; }; }
 
 // --- TYPES FOR PRODUCT DETAIL PAGE ---
-export interface ProductDetail extends StoreProduct { description: string | null; compare_at_price: number | null; }
+export interface ProductDetail extends StoreProduct { description: string | null; compare_at_price: number | null; stock?: number | null | undefined }
 export interface ProductVariationDetail { id: string; name: string | null; price: number | null; stock: number; attributes: Record<string, string>; }
 export interface ProductImageDetail { id: string; url: string; product_variation_id: string | null; }
 export interface ProductReview { id: string; rating: number; title: string | null; content: string | null; created_at: string; author: { full_name: string | null; } | null; }
@@ -33,7 +36,7 @@ const buildStoreQuery = ({ search = '', filters = {} }: Pick<StoreQueryOptions, 
   if (search.trim()) { query = query.or(`name.ilike.%${search.trim()}%,brand.ilike.%${search.trim()}%`); }
   if (filters.categories && filters.categories.length > 0) { query = query.in('category_id', filters.categories); }
   if (filters.subcategories && filters.subcategories.length > 0) { query = query.in('subcategory_id', filters.subcategories); }
-  if (filters.priceRange) { query = query.gte('price', filters.priceRange[0]).lte('price', filters.priceRange[1]); }
+  // if (filters.priceRange) { query = query.gte('price', filters.priceRange[0]).lte('price', filters.priceRange[1]); }
   if (filters.rating) { query = query.gte('average_rating', filters.rating); }
   return query;
 };
@@ -91,17 +94,47 @@ export async function fetchStoreCategories(): Promise<StoreCategorySimple[]> {
   return data || [];
 }
 export async function fetchProductsUnder15k(categoryId?: string): Promise<StoreProduct[]> {
-    let query = sb.from('products').select('id, name, price, main_image_url, average_rating, brand, category:categories(id, name)').eq('status', 'active').lte('price', 15000).order('created_at', { ascending: false }).limit(12);
+    let query = sb.from('products').select('id, name, price, main_image_url, short_description, average_rating, brand, category:categories(id, name)').eq('status', 'active').lte('price', 15000).order('created_at', { ascending: false }).limit(12);
     if (categoryId && categoryId !== 'all') { query = query.eq('category_id', categoryId); }
     const { data, error } = await query;
     if (error) throw error;
     return data as StoreProduct[];
 }
 export async function fetchLandingPageProducts({ categoryId, featured, limit }: { categoryId?: string, featured?: boolean, limit: number }): Promise<StoreProduct[]> {
-    let query = sb.from('products').select('id, name, price, main_image_url, average_rating, brand, category:categories(id, name)').eq('status', 'active').order('created_at', { ascending: false }).limit(limit);
+    let query = sb.from('products').select('id, name, price, short_description, main_image_url, average_rating, brand, category:categories(id, name)').eq('status', 'active').order('created_at', { ascending: false }).limit(limit);
     if (featured !== undefined) { query = query.eq('featured', featured); }
     if (categoryId && categoryId !== 'all') { query = query.eq('category_id', categoryId); }
     const { data, error } = await query;
     if (error) throw error;
     return data as StoreProduct[];
+}
+
+
+
+
+// Navbar search
+export interface SearchResult {
+    id: string;
+    name: string;
+    main_image_url: string | null;
+    short_description: string | null;
+}
+
+export async function searchProductsByName(query: string): Promise<SearchResult[]> {
+    if (!query.trim() || query.trim().length < 2) {
+        return [];
+    }
+
+    const { data, error } = await sb
+        .from('products')
+        .select('id, name, main_image_url, short_description')
+        .eq('status', 'active')
+        .ilike('name', `%${query.trim()}%`)
+        .limit(5); // Limit results to 5 for the popover
+
+    if (error) {
+        console.error("Error searching products:", error);
+        return [];
+    }
+    return data as SearchResult[];
 }

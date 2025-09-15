@@ -57,8 +57,7 @@ export interface ProductVariation {
    images?: ProductImage[];
 }
 
-export interface ProductVariationInput
-   extends Omit<ProductVariation, "images"> {
+export interface ProductVariationInput extends Omit<ProductVariation, "images"> {
    imageFiles?: File[];
 }
 
@@ -257,7 +256,7 @@ export async function fetchProductForEdit(id: string) {
 
 // RESTORED FUNCTIONS
 const buildProductQuery = (filters: ProductListPageFilters = {}) => {
-   let query = sb.from("products").select(`*, category:categories(id, name)`);
+   let query = sb.from("products");
    if (filters.search && filters.search.trim()) {
       const term = `%${filters.search.trim()}%`;
       query = query.or(
@@ -278,30 +277,39 @@ export async function fetchProductsPage({
    pagination = { page: 1, limit: 10 },
    sort = { column: "created_at", direction: "desc" },
 }: ProductQueryOptions) {
-   const query = buildProductQuery(filters);
-   const { count, error: countError } = await query.select("*", {
-      count: "exact",
-      head: true,
-   });
+   let query = sb.from("products");
+   if (filters.search && filters.search.trim()) {
+      const term = `%${filters.search.trim()}%`;
+      query = query.or(`name.ilike.${term},brand.ilike.${term},sku.ilike.${term}`);
+   }
+   if (filters.category && filters.category !== "all") {
+      query = query.eq("category_id", filters.category);
+   }
+   if (filters.status && filters.status !== "all") {
+      query = query.eq("status", filters.status);
+   }
+   const { count, error: countError } = await query.select('id', { count: 'exact', head: true });
    if (countError) throw countError;
    const from = (pagination.page - 1) * pagination.limit;
    const to = from + pagination.limit - 1;
-   const dataQuery = buildProductQuery(filters)
+   const { data, error } = await query
+      .select(`*, category:categories(id, name)`)
       .order(sort.column, { ascending: sort.direction === "asc" })
       .range(from, to);
-   const { data, error } = await dataQuery;
    if (error) throw error;
    return { data: data as Product[], count: count ?? 0 };
 }
+
 
 export async function fetchAllProductsForExport({
    filters = {},
    sort = { column: "created_at", direction: "desc" },
 }: Omit<ProductQueryOptions, "pagination">) {
-   const query = buildProductQuery(filters)
+   let query = buildProductQuery(filters);
+   const { data, error } = await query
+      .select(`*, category:categories(id, name)`)
       .order(sort.column, { ascending: sort.direction === "asc" })
       .limit(5000);
-   const { data, error } = await query;
    if (error) throw error;
    return data as Product[];
 }

@@ -1,6 +1,7 @@
 "use client"
 import React from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { ChevronDown, Edit, Trash2, ChevronLeft, ChevronRight, ChevronUp, Search, UserStar } from 'lucide-react';
 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -11,7 +12,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import type { Product, Category, ProductListPageFilters, ProductStatus } from '@/integrations/supabase/products';
-import Link from 'next/link';
 
 interface ProductsTableProps {
   products: Product[];
@@ -65,14 +65,12 @@ export const ProductsTable = ({
     { key: 'status', label: 'Status', sortable: true, minWidth: '130px' },
     { key: 'stock', label: 'Stock', sortable: true, minWidth: '120px' },
     { key: 'price', label: 'Price', sortable: true, minWidth: '120px' },
-    { key: 'actions', label: 'Actions', sortable: false, minWidth: '100px' },
+    { key: 'actions', label: 'Actions', sortable: false, minWidth: '120px' },
   ];
   
   const renderPagination = () => {
     if (totalPages <= 1) return null;
     const pages = [];
-    // Logic for creating pagination links (e.g., 1, 2, ..., 5, 6, 7, ..., 12)
-    // Simplified for now to show all pages for smaller counts
     if (totalPages <= 7) {
         for (let i = 1; i <= totalPages; i++) {
             pages.push(i);
@@ -187,7 +185,7 @@ export const ProductsTable = ({
                         <TableCell>{new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(product.price || 0)}</TableCell>
                         <TableCell>
                             <div className="flex items-center space-x-2">
-                                <Link href={`/admin/products/${product?.id}/reviews`} className={cn(buttonVariants({variant: 'ghost', size: 'sm'}), "h-8 w-8 p-0")}><UserStar className="w-4 h-4 text-gray-500" /></Link>
+                                <Link href={`/admin/products/${product.id}/reviews`} className={cn(buttonVariants({variant: 'ghost', size: 'sm'}), "h-8 w-8 p-0")}><UserStar className="w-4 h-4 text-gray-500" /></Link>
                                 <Button onClick={() => onEdit(product.id)} variant="ghost" size="sm" className="h-8 w-8 p-0"><Edit className="w-4 h-4 text-gray-500" /></Button>
                                 <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => onDelete(product.id)}><Trash2 className="w-4 h-4 text-gray-500" /></Button>
                             </div>

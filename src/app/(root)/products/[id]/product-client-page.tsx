@@ -19,12 +19,14 @@ import { supabase } from "@/integrations/supabase/client"
 import type { User } from "@supabase/supabase-js"
 import { toast } from "sonner"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 
 interface ProductClientPageProps {
   initialData: ProductPageData;
 }
 
 export default function ProductClientPage({ initialData }: ProductClientPageProps) {
+  const router = useRouter()
   const { addItem } = useCart();
   const [data] = useState<ProductPageData>(initialData);
 
@@ -127,18 +129,21 @@ export default function ProductClientPage({ initialData }: ProductClientPageProp
   };
   
   const handleAddToCart = () => {
-    if (!singleSelectedVariation) {
+    const hasVariants = variations.length > 0;
+    if (hasVariants && !singleSelectedVariation) {
         toast.error("Please select a complete and valid product combination.");
         return;
     }
+
     const itemToAdd = {
       product_id: product.id,
       name: product.name,
-      price: singleSelectedVariation.price ?? product.price,
+      price: singleSelectedVariation?.price ?? product.price,
       image: product.main_image_url || '/placeholder.svg',
-      variant: Object.values(singleSelectedVariation.attributes).join(' / '),
-      id: `${product.id}-${singleSelectedVariation.id}`,
+      variant: singleSelectedVariation ? Object.values(singleSelectedVariation.attributes).join(' / ') : undefined,
+      id: singleSelectedVariation ? `${product.id}-${singleSelectedVariation.id}` : product.id,
     };
+
     for (let i = 0; i < quantity; i++) {
         addItem(itemToAdd);
     }
@@ -157,7 +162,11 @@ export default function ProductClientPage({ initialData }: ProductClientPageProp
   
   const currentPrice = singleSelectedVariation?.price ?? product.price;
   const comparePrice = product.compare_at_price;
-  const inStock = (singleSelectedVariation?.stock ?? 0) > 0;
+  const inStock = variations.length > 0 
+    ? (singleSelectedVariation?.stock ?? 0) > 0 
+    : (product.stock ?? 0) > 0;
+
+  const isAddToCartDisabled = (variations.length > 0 && !singleSelectedVariation) || !inStock;
 
   const onReviewSubmitted = (newReview: ProductReview) => {
     setReviews(prev => [newReview, ...prev]);
@@ -204,8 +213,8 @@ export default function ProductClientPage({ initialData }: ProductClientPageProp
             
             <div className="flex items-center gap-4">
               <div className="flex items-center border rounded-lg"><Button variant="ghost" size="icon" onClick={() => setQuantity(q => Math.max(1, q - 1))}><Minus className="h-4 w-4" /></Button><span className="px-4 py-2 min-w-[3rem] text-center">{quantity}</span><Button variant="ghost" size="icon" onClick={() => setQuantity(q => q + 1)}><Plus className="h-4 w-4" /></Button></div>
-              <Button onClick={handleAddToCart} disabled={!singleSelectedVariation || !inStock} className="flex-1 h-12 text-base font-medium bg-gradient-to-r from-orange-500 to-orange-600 text-white disabled:opacity-50">
-                {!singleSelectedVariation ? "Select Options" : !inStock ? "Out of Stock" : "Add To Cart"}
+              <Button onClick={handleAddToCart} disabled={isAddToCartDisabled} className="flex-1 h-12 text-base font-medium bg-gradient-to-r from-orange-500 to-orange-600 text-white disabled:opacity-50">
+                {variations.length > 0 && !singleSelectedVariation ? "Select Options" : !inStock ? "Out of Stock" : "Add To Cart"}
               </Button>
             </div>
             <div className="space-y-3 pt-4 border-t"><div className="flex items-center gap-3"><Truck className="h-5 w-5 text-green-600" /><div><p className="font-medium text-green-600">Free Delivery</p><p className="text-sm text-gray-600">Enter your Postal code for Delivery Availability</p></div></div><div className="flex items-center gap-3"><RotateCcw className="h-5 w-5 text-orange-600" /><div><p className="font-medium text-orange-600">Return Delivery</p><p className="text-sm text-gray-600">Free 30 days Delivery Return. Details</p></div></div></div>
@@ -233,7 +242,7 @@ export default function ProductClientPage({ initialData }: ProductClientPageProp
           </Tabs>
         </div>
 
-        {similarProducts && similarProducts.length > 0 && <div className="mt-16"><h2 className="text-2xl font-bold mb-8">Similar Items You Might Also Like</h2><div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">{similarProducts.map(p => <Card key={p.id} className="group cursor-pointer"><CardContent className="p-4"><div className="relative aspect-square mb-3 bg-gray-100 rounded-lg overflow-hidden"><Image src={p.main_image_url || "/placeholder.svg"} alt={p.name} fill className="object-cover group-hover:scale-105 transition-transform" /><Button variant="ghost" size="icon" className="absolute top-2 right-2 bg-white/80"><Heart className="h-4 w-4" /></Button></div><h3 className="font-medium text-sm mb-1 truncate">{p.name}</h3><div className="flex items-center gap-1 mb-2">{[...Array(5)].map((_, i) => <Star key={i} className={`h-3 w-3 ${i < Math.floor(p.average_rating || 0) ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`} />)}</div><p className="font-bold text-orange-600">€{p.price.toFixed(2)}</p></CardContent></Card>)}</div></div>}
+        {similarProducts && similarProducts.length > 0 && <div className="mt-16"><h2 className="text-2xl font-bold mb-8">Similar Items You Might Also Like</h2><div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">{similarProducts.map(p => <Card key={p.id} className="group cursor-pointer" onClick={() => router.push(`/products/${p.id}`)}><CardContent className="p-4"><div className="relative aspect-square mb-3 bg-gray-100 rounded-lg overflow-hidden"><Image src={p.main_image_url || "/placeholder.svg"} alt={p.name} fill className="object-cover group-hover:scale-105 transition-transform" /><Button variant="ghost" size="icon" className="absolute top-2 right-2 bg-white/80"><Heart className="h-4 w-4" /></Button></div><h3 className="font-medium text-sm mb-1 truncate">{p.name}</h3><div className="flex items-center gap-1 mb-2">{[...Array(5)].map((_, i) => <Star key={i} className={`h-3 w-3 ${i < Math.floor(p.average_rating || 0) ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`} />)}</div><p className="font-bold text-orange-600">€{p.price.toFixed(2)}</p></CardContent></Card>)}</div></div>}
       </div>
     </div>
   );

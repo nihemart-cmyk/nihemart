@@ -3,11 +3,10 @@
 import { useState, useEffect, useCallback, Suspense } from "react"
 import { useRouter } from "next/navigation"
 import { useQueryStates } from 'nuqs'
-import { parseAsInteger, parseAsString, parseAsArrayOf, parseAsJson } from 'nuqs'
+import { parseAsInteger, parseAsString, parseAsArrayOf } from 'nuqs'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Slider } from "@/components/ui/slider"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
@@ -37,13 +36,11 @@ function ProductListingComponent() {
     sort: parseAsString.withDefault('created_at.desc'),
     categories: parseAsArrayOf(parseAsString).withDefault([]),
     subcategories: parseAsArrayOf(parseAsString).withDefault([]),
-    price: parseAsJson<[number, number]>(value => value as [number, number]).withDefault([0, 5000]),
   });
 
   const debouncedSearchTerm = useDebounce(filters.q, 500);
-  const debouncedPriceRange = useDebounce(filters.price, 500);
   
-  const [expandedSections, setExpandedSections] = useState({ category: true, subcategory: true, price: true });
+  const [expandedSections, setExpandedSections] = useState({ category: true, subcategory: true });
   const [isFilterOpen, setIsFilterOpen] = useState(false);
 
   const fetchProducts = useCallback(async () => {
@@ -55,7 +52,6 @@ function ProductListingComponent() {
         filters: {
           categories: filters.categories,
           subcategories: filters.subcategories,
-          priceRange: debouncedPriceRange,
         },
         sort: { column: sortColumn, direction: sortDirection as 'asc' | 'desc' },
         pagination: { page: filters.page, limit: PAGE_LIMIT }
@@ -67,7 +63,7 @@ function ProductListingComponent() {
     } finally {
       setLoading(false);
     }
-  }, [filters.page, filters.sort, filters.categories, filters.subcategories, debouncedPriceRange, debouncedSearchTerm]);
+  }, [filters.page, filters.sort, filters.categories, filters.subcategories, debouncedSearchTerm]);
 
   useEffect(() => {
     fetchProducts();
@@ -103,7 +99,6 @@ function ProductListingComponent() {
       q: '',
       categories: [],
       subcategories: [],
-      price: [0, 5000],
       page: 1,
     });
   };
@@ -153,11 +148,6 @@ function ProductListingComponent() {
       <div>
         <button onClick={() => toggleSection("subcategory")} disabled={filters.categories.length === 0} className="flex items-center justify-between w-full mb-3 disabled:opacity-50"><h3 className="font-medium">Subcategory</h3>{expandedSections.subcategory ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</button>
         {expandedSections.subcategory && filters.categories.length > 0 && <div className="space-y-2">{subcategories.map(sc => <div key={sc.id} className="flex items-center justify-between"><div className="flex items-center space-x-2"><Checkbox id={sc.id} checked={filters.subcategories.includes(sc.id)} onCheckedChange={(checked) => handleSubcategoryToggle(sc.id, !!checked)} /><label htmlFor={sc.id} className="text-sm cursor-pointer">{sc.name}</label></div><span className="text-xs text-gray-500">({sc.products_count})</span></div>)}</div>}
-      </div>
-
-      <div>
-        <button onClick={() => toggleSection("price")} className="flex items-center justify-between w-full mb-3"><h3 className="font-medium">Price</h3>{expandedSections.price ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</button>
-        {expandedSections.price && <div className="space-y-4"><Slider value={filters.price} onValueChange={(value) => setFilters({ price: value as [number, number] })} max={5000} step={10} className="w-full" /><div className="flex justify-between text-sm text-gray-600"><span>${filters.price[0]}</span><span>${filters.price[1]}</span></div></div>}
       </div>
     </div>
   );

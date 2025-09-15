@@ -11,7 +11,7 @@ import { useMediaQuery } from '@/hooks/user-media-query'
 import { fetchLandingPageProducts } from '@/integrations/supabase/store'
 import type { StoreProduct, StoreCategorySimple } from '@/integrations/supabase/store'
 
-interface MoreProductsProps {}
+interface MoreProductsProps { }
 
 const services = [
     { label: "Customer service", Icon: Icons.landingPage.headSets },
@@ -33,6 +33,7 @@ const ProductCard = ({ product }: { product: StoreProduct }) => (
                 <div className="flex items-center justify-between text-white">
                     <p className='font-semibold truncate'>{product.name}</p> <span className='font-mono text-base'>RWF {product.price.toLocaleString()}</span>
                 </div>
+                <p className='text-sm truncate text-white'>{product?.short_description}</p>
             </div>
         </div>
         <div className="z-20 absolute inset-0 transition-opacity duration-300 opacity-0 group-hover:opacity-100 bg-black/40 flex items-center justify-center">
@@ -86,7 +87,7 @@ const MoreProducts: FC<MoreProductsProps> = ({ }) => {
         });
         return Array.from(categoryMap.values());
     }, [allFeatured]);
-    
+
     const filteredFeaturedProducts = useMemo(() => {
         if (selectedCategoryId === 'all') {
             return allFeatured;
@@ -102,7 +103,7 @@ const MoreProducts: FC<MoreProductsProps> = ({ }) => {
                 {categories.map((cat) => <Button size={ButtonSize} className='rounded-full' key={cat.id} variant={selectedCategoryId === cat.id ? "default" : "secondary"} onClick={() => setSelectedCategoryId(cat.id)}>{cat.name}</Button>)}
             </div>
 
-            {loading ? <ProductGridSkeleton count={12} /> : 
+            {loading ? <ProductGridSkeleton count={12} /> :
                 <div className="grid grid-cols-1 min-[500px]:grid-cols-2 min-[1000px]:grid-cols-3 xl:grid-cols-4 gap-5">
                     {filteredFeaturedProducts.length > 0 ? (
                         filteredFeaturedProducts.map((product) => <ProductCard key={product.id} product={product} />)
@@ -115,8 +116,8 @@ const MoreProducts: FC<MoreProductsProps> = ({ }) => {
             <MarqueeBanner />
 
             <h3 className='text-4xl font-bold text-neutral-900 mb-8'>New arrivals</h3>
-            
-            {loading ? <ProductGridSkeleton count={8} /> : 
+
+            {loading ? <ProductGridSkeleton count={8} /> :
                 <div className="grid grid-cols-1 min-[500px]:grid-cols-2 min-[1000px]:grid-cols-3 xl:grid-cols-4 gap-5">
                     {latestProducts.map((product) => <ProductCard key={product.id} product={product} />)}
                 </div>

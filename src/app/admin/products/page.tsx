@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Plus, Download, Upload, Loader2 } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter } from "next/navigation"; // Import useRouter
 import * as XLSX from 'xlsx';
 
 import { Button } from "@/components/ui/button";
@@ -71,6 +71,7 @@ export default function ProductsPage() {
     loadCategoriesData();
   }, []);
 
+  // Correctly define the handleEditProduct function
   const handleEditProduct = (id: string) => {
     router.push(`/admin/products/${id}/edit`);
   };

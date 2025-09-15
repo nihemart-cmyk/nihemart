@@ -8,7 +8,7 @@ import { SubmitHandler, useForm, useFieldArray, useWatch } from "react-hook-form
 import { useQuill } from "react-quilljs";
 import * as z from "zod";
 import { toast } from "sonner";
-import { Plus, Upload, X, Trash2 } from "lucide-react";
+import { Plus, Upload, X, Trash2, Wand2 } from "lucide-react";
 import Image from "next/image";
 import { useDropzone } from "react-dropzone";
 
@@ -25,9 +25,10 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { createProductWithImages, updateProductWithImages, fetchCategoriesWithSubcategories } from "@/integrations/supabase/products";
 import type { ProductBase, ProductVariationInput, CategoryWithSubcategories, Subcategory, Product, ProductImage } from "@/integrations/supabase/products";
+import { VariantGeneratorDialog } from "@/components/admin/variant-generator-dialog";
 
 const optionalNumber = z.preprocess(
-    (val) => (val === "" ? undefined : val),
+    (val) => (val === "" || val === null ? undefined : val),
     z.coerce.number().optional()
 );
 
@@ -40,6 +41,7 @@ const variationSchema = z.object({
     barcode: z.string().optional(),
     attributes: z.array(z.object({ name: z.string().min(1, "Attribute name is required"), value: z.string().min(1, "Attribute value is required") })),
     imageFiles: z.custom<File[]>().optional(),
+    existingImages: z.custom<ProductImage[]>().optional(),
 });
 
 const productSchema = z.object({
@@ -61,7 +63,7 @@ const productSchema = z.object({
 });
 
 type ProductFormData = z.infer<typeof productSchema>;
-interface ProductImageFile { url: string; file: File; }
+interface DisplayImage { url: string; file?: File; isExisting?: boolean; }
 interface QuillToolbar { addHandler: (name: string, handler: () => void) => void; }
 
 const uploadFileToBucket = async (file: File, bucket: string): Promise<string> => {
@@ -76,9 +78,10 @@ const uploadFileToBucket = async (file: File, bucket: string): Promise<string> =
 export default function AddEditProductForm({ initialData }: { initialData?: { product: Product; mainImages: ProductImage[]; variations: any[] } }) {
     const isEditMode = !!initialData;
     const router = useRouter();
-    const [mainImages, setMainImages] = useState<ProductImageFile[]>([]);
+    const [mainImages, setMainImages] = useState<DisplayImage[]>([]);
     const [categories, setCategories] = useState<CategoryWithSubcategories[]>([]);
     const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
+    const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
     const { quill, quillRef } = useQuill({ theme: "snow" });
 
     const form = useForm({
@@ -89,10 +92,17 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
                 ...initialData.product,
                 price: initialData.product.price ?? 0,
                 compare_at_price: initialData.product.compare_at_price ?? undefined,
+                short_description: initialData.product.short_description ?? '',
+                subcategory_id: initialData.product.subcategory_id ?? '',
+                dimensions: initialData.product.dimensions ?? '',
                 variations: initialData.variations.map(v => ({
                     ...v,
+                    name: v.name ?? '',
+                    sku: v.sku ?? '',
+                    barcode: v.barcode ?? '',
                     attributes: Object.entries(v.attributes).map(([name, value]) => ({ name: name as string, value: value as string })),
                     imageFiles: [],
+                    existingImages: v.images || [],
                 })),
             }
             : {
@@ -108,8 +118,15 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
                 variations: [{ name: "Default", price: 0, stock: 0, attributes: [{ name: "Title", value: "Default" }], imageFiles: [] }],
             },
     });
+    
+    useEffect(() => {
+        if(isEditMode && initialData.mainImages) {
+            setMainImages(initialData.mainImages.map(img => ({ url: img.url, isExisting: true })));
+        }
+    }, [isEditMode, initialData]);
 
-    const { fields: variationFields, append: appendVariation, remove: removeVariation } = useFieldArray({
+
+    const { fields: variationFields, append: appendVariation, remove: removeVariation, replace: replaceVariations } = useFieldArray({
         control: form.control,
         name: "variations",
     });
@@ -194,9 +211,9 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
             }));
 
             if (isEditMode) {
-                await updateProductWithImages(initialData.product.id, productBaseData, mainImages.map(i => i.file), variationsInput);
+                await updateProductWithImages(initialData.product.id, productBaseData, mainImages.filter(i => i.file).map(i => i.file!), variationsInput);
             } else {
-                await createProductWithImages(productBaseData, mainImages.map(i => i.file), variationsInput);
+                await createProductWithImages(productBaseData, mainImages.map(i => i.file!), variationsInput);
             }
 
             toast.success(`Product ${isEditMode ? 'updated' : 'created'} successfully!`, { id: toastId });
@@ -212,6 +229,7 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
     const { getRootProps: getMainRootProps, getInputProps: getMainInputProps } = useDropzone({ onDrop: onDropMain, accept: { 'image/*': [] } });
 
     return (
+        <>
         <ScrollArea className="h-[calc(100vh-5rem)]">
             <div className="p-6">
                 <Form {...form}>
@@ -239,14 +257,23 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
                                     <div className="flex flex-wrap gap-2 mt-4">{mainImages.map((img, i) => <div key={i} className="relative w-20 h-20"><Image src={img.url} alt="" fill className="object-cover rounded-md" /><Button type="button" size="icon" variant="destructive" className="absolute -top-2 -right-2 h-5 w-5" onClick={() => setMainImages(p => p.filter((_, idx) => idx !== i))}><X className="h-3 w-3" /></Button></div>)}</div>
                                 </CardContent></Card>
 
-                                <Card><CardHeader><CardTitle>Variants</CardTitle></CardHeader><CardContent className="space-y-4">
-                                    {variationFields.map((field, index) => (
-                                        <VariantCard key={field.id} form={form} index={index} removeVariant={removeVariation} />
-                                    ))}
-                                    <Button type="button" variant="outline" onClick={() => appendVariation({ name: "", price: 0, stock: 0, attributes: [{ name: "", value: "" }], imageFiles: [] })}>
-                                        <Plus className="mr-2 h-4 w-4" /> Add another variant
-                                    </Button>
-                                </CardContent></Card>
+                                <Card>
+                                    <CardHeader className="flex flex-row items-center justify-between">
+                                        <CardTitle>Variants</CardTitle>
+                                        <Button type="button" variant="outline" size="sm" onClick={() => setIsGeneratorOpen(true)}>
+                                            <Wand2 className="mr-2 h-4 w-4" />
+                                            Generate Combinations
+                                        </Button>
+                                    </CardHeader>
+                                    <CardContent className="space-y-4">
+                                        {variationFields.map((field, index) => (
+                                            <VariantCard key={field.id} form={form} index={index} removeVariant={removeVariation} isEditMode={isEditMode} />
+                                        ))}
+                                        <Button type="button" variant="outline" onClick={() => appendVariation({ name: "", price: 0, stock: 0, attributes: [{ name: "", value: "" }], imageFiles: [] })}>
+                                            <Plus className="mr-2 h-4 w-4" /> Add another variant
+                                        </Button>
+                                    </CardContent>
+                                </Card>
                             </div>
 
                             <div className="space-y-6">
@@ -286,21 +313,38 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
                 </Form>
             </div>
         </ScrollArea>
+        <VariantGeneratorDialog
+            isOpen={isGeneratorOpen}
+            onClose={() => setIsGeneratorOpen(false)}
+            onGenerate={(generatedVariants) => {
+                replaceVariations(generatedVariants);
+            }}
+        />
+        </>
     );
 }
 
-const ATTRIBUTE_OPTIONS = ["Color", "Size", "Material", "Style", "Other"];
+const ATTRIBUTE_OPTIONS = ["Color", "Size", "Material", "Style", "Custom"];
 
-function VariantCard({ form, index, removeVariant }: { form: any, index: number, removeVariant: (index: number) => void }) {
+function VariantCard({ form, index, removeVariant, isEditMode }: { form: any, index: number, removeVariant: (index: number) => void, isEditMode: boolean }) {
     const { fields, append, remove } = useFieldArray({
         control: form.control,
         name: `variations.${index}.attributes`
     });
-    const [imageFiles, setImageFiles] = useState<ProductImageFile[]>([]);
-    const [customAttributeName, setCustomAttributeName] = useState('');
+    
+    const [imageFiles, setImageFiles] = useState<DisplayImage[]>([]);
+    
+    useEffect(() => {
+        if(isEditMode) {
+            const existingImages = form.getValues(`variations.${index}.existingImages`);
+            if (existingImages) {
+                setImageFiles(existingImages.map((img: ProductImage) => ({ url: img.url, isExisting: true })));
+            }
+        }
+    }, [isEditMode, form, index]);
 
     const onDrop = useCallback((files: File[]) => {
-        const newFiles = files.map(f => ({ url: URL.createObjectURL(f), file: f }));
+        const newFiles = files.map(f => ({ url: URL.createObjectURL(f), file: f, isExisting: false }));
         setImageFiles(p => [...p, ...newFiles]);
         const currentFiles = form.getValues(`variations.${index}.imageFiles`) || [];
         form.setValue(`variations.${index}.imageFiles`, [...currentFiles, ...files]);
@@ -309,9 +353,12 @@ function VariantCard({ form, index, removeVariant }: { form: any, index: number,
     const { getRootProps, getInputProps } = useDropzone({ onDrop, accept: { 'image/*': [] } });
 
     const removeImg = (imgIndex: number) => {
-        const currentFiles = form.getValues(`variations.${index}.imageFiles`);
-        form.setValue(`variations.${index}.imageFiles`, currentFiles.filter((_: any, i: number) => i !== imgIndex));
-        setImageFiles(p => p.filter((_: any, i: number) => i !== imgIndex));
+        const imageToRemove = imageFiles[imgIndex];
+        if (!imageToRemove.isExisting) {
+            const currentFiles = form.getValues(`variations.${index}.imageFiles`);
+            form.setValue(`variations.${index}.imageFiles`, currentFiles.filter((file: File) => file.name !== imageToRemove.file?.name));
+        }
+        setImageFiles(p => p.filter((_, i: number) => i !== imgIndex));
     };
 
     return (
@@ -319,7 +366,7 @@ function VariantCard({ form, index, removeVariant }: { form: any, index: number,
             <Button type="button" variant="ghost" size="icon" className="absolute top-2 right-2" onClick={() => removeVariant(index)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
             
             {/* @ts-ignore */}
-            <FormField control={form.control} name={`variations.${index}.name`} render={({ field }) => <FormItem><Label>Variant Name</Label><FormControl><Input placeholder="e.g., Large Black Pant" {...field} /></FormControl><FormMessage /></FormItem>} />
+            <FormField control={form.control} name={`variations.${index}.name`} render={({ field }) => <FormItem><Label>Variant Name (e.g., Large Black Pant)</Label><FormControl><Input placeholder="Auto-generates if empty" {...field} /></FormControl><FormMessage /></FormItem>} />
 
             <div className="grid grid-cols-2 gap-4">
                 {/* @ts-ignore */}
@@ -336,27 +383,34 @@ function VariantCard({ form, index, removeVariant }: { form: any, index: number,
             <div>
                 <Label>Attributes</Label>
                 <div className="space-y-2 mt-1">
-                    {fields.map((field, attrIndex) => (
+                    {fields.map((field, attrIndex) => {
+                        const attributeName = form.watch(`variations.${index}.attributes.${attrIndex}.name`);
+                        return (
                         <div key={field.id} className="flex items-center gap-2">
-                            <FormField
-                                control={form.control}
-                                name={`variations.${index}.attributes.${attrIndex}.name`}
-                                render={({ field }) => (
-                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                        <FormControl>
-                                            <SelectTrigger><SelectValue placeholder="Attribute" /></SelectTrigger>
-                                        </FormControl>
-                                        <SelectContent>
-                                            {ATTRIBUTE_OPTIONS.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
-                                        </SelectContent>
-                                    </Select>
+                            <div className="grid grid-cols-2 gap-2 flex-1">
+                                {attributeName === 'Custom' ? (
+                                    // @ts-ignore
+                                    <FormField control={form.control} name={`variations.${index}.attributes.${attrIndex}.name`} render={({ field }) => <Input placeholder="Custom Name..." {...field} />} />
+                                ) : (
+                                    <FormField
+                                        control={form.control}
+                                        name={`variations.${index}.attributes.${attrIndex}.name`}
+                                        render={({ field }) => (
+                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                <FormControl><SelectTrigger><SelectValue placeholder="Attribute" /></SelectTrigger></FormControl>
+                                                <SelectContent>
+                                                    {ATTRIBUTE_OPTIONS.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
+                                                </SelectContent>
+                                            </Select>
+                                        )}
+                                    />
                                 )}
-                            />
-                            {/* @ts-ignore */}
-                            <FormField control={form.control} name={`variations.${index}.attributes.${attrIndex}.value`} render={({ field }) => <Input placeholder="e.g., Blue" {...field} />} />
+                                {/* @ts-ignore */}
+                                <FormField control={form.control} name={`variations.${index}.attributes.${attrIndex}.value`} render={({ field }) => <Input placeholder="Value (e.g., Blue)" {...field} />} />
+                            </div>
                             <Button type="button" size="icon" variant="ghost" onClick={() => remove(attrIndex)}><X className="h-4 w-4" /></Button>
                         </div>
-                    ))}
+                    )})}
                     <Button type="button" size="sm" variant="outline" onClick={() => append({ name: "", value: "" })}>Add Attribute</Button>
                 </div>
             </div>

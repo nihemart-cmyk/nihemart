@@ -16,7 +16,7 @@ import { fetchProductsUnder15k, fetchStoreCategories } from "@/integrations/supa
 import type { StoreProduct, StoreCategorySimple } from "@/integrations/supabase/store"
 import Link from "next/link"
 
-interface FeaturedProductsProps {}
+interface FeaturedProductsProps { }
 
 const promos = ["5% ON NEW PRODUCTS", "5% ON NEW PRODUCTS", "5% ON NEW PRODUCTS", "5% ON NEW PRODUCTS"]
 
@@ -31,21 +31,21 @@ const FeaturedProducts: FC<FeaturedProductsProps> = ({ }) => {
 
   useEffect(() => {
     const loadInitialData = async () => {
-        setLoading(true);
-        setLoadingFilters(true);
-        try {
-            const [cats, prods] = await Promise.all([
-                fetchStoreCategories(),
-                fetchProductsUnder15k()
-            ]);
-            setCategories(cats);
-            setProducts(prods);
-        } catch (error) {
-            console.error("Failed to load featured products data:", error);
-        } finally {
-            setLoading(false);
-            setLoadingFilters(false);
-        }
+      setLoading(true);
+      setLoadingFilters(true);
+      try {
+        const [cats, prods] = await Promise.all([
+          fetchStoreCategories(),
+          fetchProductsUnder15k()
+        ]);
+        setCategories(cats);
+        setProducts(prods);
+      } catch (error) {
+        console.error("Failed to load featured products data:", error);
+      } finally {
+        setLoading(false);
+        setLoadingFilters(false);
+      }
     };
     loadInitialData();
   }, []);
@@ -55,17 +55,17 @@ const FeaturedProducts: FC<FeaturedProductsProps> = ({ }) => {
     if (loadingFilters) return;
 
     const loadFilteredProducts = async () => {
-        setLoading(true);
-        try {
-            const prods = await fetchProductsUnder15k(selectedCategoryId === 'all' ? undefined : selectedCategoryId);
-            setProducts(prods);
-        } catch (error) {
-            console.error("Failed to filter products:", error);
-        } finally {
-            setLoading(false);
-        }
+      setLoading(true);
+      try {
+        const prods = await fetchProductsUnder15k(selectedCategoryId === 'all' ? undefined : selectedCategoryId);
+        setProducts(prods);
+      } catch (error) {
+        console.error("Failed to filter products:", error);
+      } finally {
+        setLoading(false);
+      }
     };
-    
+
     loadFilteredProducts();
 
   }, [selectedCategoryId, loadingFilters]);
@@ -74,7 +74,7 @@ const FeaturedProducts: FC<FeaturedProductsProps> = ({ }) => {
   return <MaxWidthWrapper size={'lg'} className='my-20'>
     <h3 className='text-4xl font-bold text-neutral-900 mb-5'>Products under <span className='text-brand-orange'>RWF 15,000</span></h3>
     <div className="flex items-center flex-wrap gap-3 mb-8">
-        <Button size={BUTTON_SIZE} className='rounded-full' variant={selectedCategoryId === 'all' ? "default" : "secondary"} onClick={() => setSelectedCategoryId('all')}>All</Button>
+      <Button size={BUTTON_SIZE} className='rounded-full' variant={selectedCategoryId === 'all' ? "default" : "secondary"} onClick={() => setSelectedCategoryId('all')}>All</Button>
       {categories.map((cat) => <Button size={BUTTON_SIZE} className='rounded-full' key={cat.id} variant={selectedCategoryId === cat.id ? "default" : "secondary"} onClick={() => setSelectedCategoryId(cat.id)}>{cat.name}</Button>)}
     </div>
 
@@ -84,40 +84,41 @@ const FeaturedProducts: FC<FeaturedProductsProps> = ({ }) => {
     >
       <CarouselContent>
         {loading ? (
-            Array.from({ length: 4 }).map((_, index) => (
-                <CarouselItem key={index} className="sm:basis-1/2 lg:basis-1/3 xl:basis-1/4">
-                    <div className='shrink-0 group aspect-[9/12] bg-gray-200 rounded-2xl animate-pulse' />
-                </CarouselItem>
-            ))
+          Array.from({ length: 4 }).map((_, index) => (
+            <CarouselItem key={index} className="sm:basis-1/2 lg:basis-1/3 xl:basis-1/4">
+              <div className='shrink-0 group aspect-[9/12] bg-gray-200 rounded-2xl animate-pulse' />
+            </CarouselItem>
+          ))
         ) : products.length > 0 ? (
-            products.map((product) => (
-                <CarouselItem key={product.id} className="sm:basis-1/2 lg:basis-1/3 xl:basis-1/4">
-                    <div className='shrink-0 group aspect-[9/12] bg-blue-100 rounded-2xl overflow-hidden relative'>
-                    <Image src={product.main_image_url || '/placeholder.svg'} alt={product.name} fill className='absolute object-cover z-0 group-hover:scale-105 transition-transform' />
-                    <div className="relative w-full z-10 text-lg h-full flex flex-col justify-between px-3 py-4 bg-gradient-to-t from-black/60 to-transparent">
-                        <div className="w-full flex items-center justify-between">
-                        <p className="px-4 py-1 text-white bg-red-500 rounded-full text-sm">Hot</p>
-                        {(product?.average_rating || null) && <p className="px-2 py-1 bg-white rounded-full flex items-center gap-1"><Star fill='#eab308' size={14} className='text-warning' /> <span className='font-mono text-sm'>{product?.average_rating?.toFixed(1)}</span></p>}
-                        </div>
-                        <div>
-                        <h4 className='font-light text-white'>{product.brand || 'New Arrival'}</h4>
-                        <div className="flex items-center justify-between text-white">
-                            <p className='font-semibold truncate'>{product.name}</p> <span className='font-mono text-base'>RWF {product.price.toLocaleString()}</span>
-                        </div>
-                        </div>
+          products.map((product) => (
+            <CarouselItem key={product.id} className="sm:basis-1/2 lg:basis-1/3 xl:basis-1/4">
+              <div className='shrink-0 group aspect-[9/12] bg-blue-100 rounded-2xl overflow-hidden relative'>
+                <Image src={product.main_image_url || '/placeholder.svg'} alt={product.name} fill className='absolute object-cover z-0 group-hover:scale-105 transition-transform' />
+                <div className="relative w-full z-10 text-lg h-full flex flex-col justify-between px-3 py-4 bg-gradient-to-t from-black/60 to-transparent">
+                  <div className="w-full flex items-center justify-between">
+                    <p className="px-4 py-1 text-white bg-red-500 rounded-full text-sm">Hot</p>
+                    {(product?.average_rating || null) && <p className="px-2 py-1 bg-white rounded-full flex items-center gap-1"><Star fill='#eab308' size={14} className='text-warning' /> <span className='font-mono text-sm'>{product?.average_rating?.toFixed(1)}</span></p>}
+                  </div>
+                  <div>
+                    <h4 className='font-light text-white'>{product.brand || 'New Arrival'}</h4>
+                    <div className="flex items-center justify-between text-white">
+                      <p className='font-semibold truncate'>{product.name}</p> <span className='font-mono text-base'>RWF {product.price.toLocaleString()}</span>
                     </div>
-                    <div className="z-20 absolute inset-0 transition-opacity duration-300 opacity-0 group-hover:opacity-100 bg-black/40 flex items-center justify-center">
-                        <Link href={`/products/${product.id}`}>
-                            <Button variant={'secondary'} className='hover:bg-white rounded-full h-14 w-14 p-1'><Eye /></Button>
-                        </Link>
-                    </div>
-                    </div>
-                </CarouselItem>
-            ))
+                    <p className='text-sm truncate text-white'>{product?.short_description}</p>
+                  </div>
+                </div>
+                <div className="z-20 absolute inset-0 transition-opacity duration-300 opacity-0 group-hover:opacity-100 bg-black/40 flex items-center justify-center">
+                  <Link href={`/products/${product.id}`}>
+                    <Button variant={'secondary'} className='hover:bg-white rounded-full h-14 w-14 p-1'><Eye /></Button>
+                  </Link>
+                </div>
+              </div>
+            </CarouselItem>
+          ))
         ) : (
-            <div className="w-full text-center py-10 col-span-full">
-                <p>No products found in this category.</p>
-            </div>
+          <div className="w-full text-center py-10 col-span-full">
+            <p>No products found in this category.</p>
+          </div>
         )}
       </CarouselContent>
       <CarouselPrevious Icon={ChevronLeft} className='-top-7 sm:-top-12 right-10 left-auto' />
