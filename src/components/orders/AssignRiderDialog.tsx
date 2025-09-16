@@ -63,7 +63,12 @@ export function AssignRiderDialog({
          onOpenChange(false);
       } catch (err: any) {
          console.error("Failed to assign order:", err);
-         toast.error(err?.message || "Failed to assign order");
+         const msg =
+            (err && err.error && (err.error.message || err.error)) ||
+            err?.message ||
+            (typeof err === "string" ? err : null) ||
+            "Failed to assign order";
+         toast.error(String(msg));
       }
    };
 

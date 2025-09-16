@@ -34,8 +34,21 @@ export default async function handler(
       return res.status(200).json({ assignment });
    } catch (err: any) {
       console.error("assign-order failed", err);
+      if (err && err.code === "ORDER_NOT_FOUND")
+         return res
+            .status(404)
+            .json({ error: { code: err.code, message: err.message } });
+      if (err && err.code === "ORDER_NOT_PENDING")
+         return res
+            .status(409)
+            .json({ error: { code: err.code, message: err.message } });
       return res
          .status(500)
-         .json({ error: err.message || "Failed to assign order" });
+         .json({
+            error: {
+               code: err.code || "INTERNAL_ERROR",
+               message: err.message || "Failed to assign order",
+            },
+         });
    }
 }

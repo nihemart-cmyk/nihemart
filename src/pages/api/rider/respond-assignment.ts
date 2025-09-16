@@ -36,8 +36,20 @@ export default async function handler(
       return res.status(200).json({ assignment: resp });
    } catch (err: any) {
       console.error("respond-assignment failed", err);
+      // Map common custom errors to proper HTTP statuses
+      if (err && err.code === "ASSIGNMENT_NOT_FOUND") {
+         return res
+            .status(404)
+            .json({ error: { code: err.code, message: err.message } });
+      }
+
       return res
          .status(500)
-         .json({ error: err.message || "Failed to respond to assignment" });
+         .json({
+            error: {
+               code: err.code || "INTERNAL_ERROR",
+               message: err.message || "Failed to respond to assignment",
+            },
+         });
    }
 }

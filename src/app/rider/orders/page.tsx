@@ -21,6 +21,7 @@ import {
    DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/hooks/useAuth";
+import { toast } from "sonner";
 import { fetchRiderByUserId } from "@/integrations/supabase/riders";
 import { useRiderAssignments, useRespondToAssignment } from "@/hooks/useRiders";
 import { fetchOrderById } from "@/integrations/supabase/orders";
@@ -65,9 +66,18 @@ const Page = () => {
    ) => {
       try {
          await respond.mutateAsync({ assignmentId, status });
+         // Provide a nice toast for success
+         if (status === "accepted") toast.success("Assignment accepted");
+         else if (status === "rejected") toast.success("Assignment rejected");
+         else if (status === "completed") toast.success("Marked as delivered");
       } catch (err: any) {
          console.error(err);
-         alert(err?.message || "Failed to respond");
+         const msg =
+            (err && err.error && (err.error.message || err.error)) ||
+            err?.message ||
+            (typeof err === "string" ? err : null) ||
+            "Failed to respond to assignment";
+         toast.error(String(msg));
       }
    };
 

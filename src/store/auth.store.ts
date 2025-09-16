@@ -75,13 +75,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             .select("role")
             .eq("user_id", userId);
 
-         if (!error && data) {
+         // If query succeeded and returned roles, use them. If it returned
+         // an empty array (no rows) we should still run the riders fallback
+         // because some rider users are only represented in the `riders`
+         // table and don't have an explicit user_roles row.
+         if (!error && Array.isArray(data) && data.length > 0) {
             const r = new Set<AppRole>();
             data.forEach((row: any) => r.add(row.role as AppRole));
             set({ roles: r, lastFetchedRolesUserId: userId });
          } else {
-            // No explicit user_roles found. As a fallback, check if a riders
-            // row exists for this user and treat them as a rider if so.
+            // No explicit user_roles found or empty result. As a fallback,
+            // check if a riders row exists for this user and treat them as
+            // a rider if so.
             try {
                const sb: any = supabase as any;
                const { data: riderRow } = await sb

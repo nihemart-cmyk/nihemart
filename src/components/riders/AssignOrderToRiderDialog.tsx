@@ -62,7 +62,12 @@ export default function AssignOrderToRiderDialog({
          onAssigned?.();
       } catch (err: any) {
          console.error(err);
-         toast.error(err?.message || "Failed to assign order");
+         const msg =
+            (err && err.error && (err.error.message || err.error)) ||
+            err?.message ||
+            (typeof err === "string" ? err : null) ||
+            "Failed to assign order";
+         toast.error(String(msg));
       }
    };
 

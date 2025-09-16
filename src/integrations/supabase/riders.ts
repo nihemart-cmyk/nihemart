@@ -1,6 +1,26 @@
-import { supabase } from "./client";
+import { supabase as browserSupabase } from "./client";
+import { createClient as createServerClient } from "@supabase/supabase-js";
+import { syncUserRole } from "@/utils/syncUserRole";
 
-const sb = supabase as any;
+// Use service role client on the server (API routes) so server-side operations
+// are performed with elevated privileges (avoids RLS preventing reads/writes).
+const sb = ((): any => {
+   try {
+      if (
+         typeof window === "undefined" &&
+         process.env.SUPABASE_SERVICE_ROLE_KEY &&
+         process.env.NEXT_PUBLIC_SUPABASE_URL
+      ) {
+         return createServerClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL,
+            process.env.SUPABASE_SERVICE_ROLE_KEY
+         );
+      }
+   } catch (err) {
+      // fall through to browser client
+   }
+   return browserSupabase as any;
+})();
 
 export interface Rider {
    id: string;
@@ -20,6 +40,31 @@ export async function createRider(payload: Partial<Rider>) {
       .select()
       .single();
    if (error) throw error;
+   // Ensure that if a rider is tied to an auth user we also create/ensure a
+   // corresponding row in `user_roles` and sync the auth user metadata. This
+   // ensures the client-side role detection (and redirects) will recognize
+   // rider users even if no explicit user_roles row was created elsewhere.
+   try {
+      const userId = (data as any)?.user_id as string | undefined;
+      if (userId) {
+         // Upsert the user_roles mapping
+         await sb
+            .from("user_roles")
+            .upsert([{ user_id: userId, role: "rider" }], {
+               onConflict: "user_id",
+            });
+
+         // Sync the role into auth user metadata (best-effort)
+         try {
+            await syncUserRole(userId);
+         } catch (err) {
+            console.error("syncUserRole failed:", err);
+         }
+      }
+   } catch (err) {
+      console.error("Error ensuring user_roles for rider:", err);
+   }
+
    return data as Rider;
 }
 
@@ -36,15 +81,41 @@ export async function assignOrderToRider(
    riderId: string,
    notes?: string
 ) {
-   const { data, error } = await sb
-      .from("order_assignments")
-      .insert([{ order_id: orderId, rider_id: riderId, notes }])
-      .select()
-      .single();
-   if (error) throw error;
-   // Optionally update order status to 'assigned'
-   await sb.from("orders").update({ status: "assigned" }).eq("id", orderId);
-   return data as any;
+   // Ensure the order is pending before assigning
+   try {
+      const { data: order, error: orderErr } = await sb
+         .from("orders")
+         .select("id, status")
+         .eq("id", orderId)
+         .maybeSingle();
+      if (orderErr) throw orderErr;
+      if (!order) {
+         const e: any = new Error("Order not found");
+         e.code = "ORDER_NOT_FOUND";
+         throw e;
+      }
+      if (order.status !== "pending") {
+         const e: any = new Error("Only pending orders can be assigned");
+         e.code = "ORDER_NOT_PENDING";
+         throw e;
+      }
+
+      const { data, error } = await sb
+         .from("order_assignments")
+         .insert([{ order_id: orderId, rider_id: riderId, notes }])
+         .select()
+         .single();
+      if (error) {
+         throw new Error(error.message || JSON.stringify(error));
+      }
+
+      // Update order status to 'assigned'
+      await sb.from("orders").update({ status: "assigned" }).eq("id", orderId);
+      return data as any;
+   } catch (err) {
+      // rethrow for caller to handle
+      throw err;
+   }
 }
 
 export async function respondToAssignment(
@@ -61,8 +132,18 @@ export async function respondToAssignment(
       .update(updates)
       .eq("id", assignmentId)
       .select()
-      .single();
+      .maybeSingle();
+
+   // Handle database-level errors
    if (error) throw error;
+
+   // If no row was updated, return a clearer error instead of the PostgREST
+   // 'Cannot coerce the result to a single JSON object' message.
+   if (!data) {
+      const err: any = new Error("Assignment not found or already updated");
+      err.code = "ASSIGNMENT_NOT_FOUND";
+      throw err;
+   }
 
    // If accepted/ completed update orders table status accordingly
    if (status === "accepted") {

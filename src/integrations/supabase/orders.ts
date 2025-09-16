@@ -66,7 +66,8 @@ export async function unrejectOrderItem(itemId: string) {
       );
    return data;
 }
-import { supabase } from "./client";
+import { supabase as browserSupabase } from "./client";
+import { createClient as createServerClient } from "@supabase/supabase-js";
 import {
    Order,
    OrderBase,
@@ -78,7 +79,23 @@ import {
    CreateOrderRequest,
 } from "@/types/orders";
 
-const sb = supabase as any;
+const sb = ((): any => {
+   try {
+      if (
+         typeof window === "undefined" &&
+         process.env.SUPABASE_SERVICE_ROLE_KEY &&
+         process.env.NEXT_PUBLIC_SUPABASE_URL
+      ) {
+         return createServerClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL,
+            process.env.SUPABASE_SERVICE_ROLE_KEY
+         );
+      }
+   } catch (err) {
+      // fall back to browser client
+   }
+   return browserSupabase as any;
+})();
 
 // Re-export types from @/types/orders to maintain backward compatibility
 export type {
