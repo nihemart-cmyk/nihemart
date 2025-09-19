@@ -20,7 +20,6 @@ interface VariantGeneratorDialogProps {
   onGenerate: (variants: any[]) => void;
 }
 
-const ATTRIBUTE_OPTIONS = ["Color", "Size", "Material", "Style"]; // Custom is handled separately
 
 const generateCombinations = (options: Option[]) => {
     if (!options || options.length === 0) return [];
@@ -96,16 +95,7 @@ export const VariantGeneratorDialog = ({ isOpen, onClose, onGenerate }: VariantG
                         <div key={index} className="flex items-end gap-2">
                             <div className="grid w-full items-center gap-1.5">
                                 <Label htmlFor={`option-name-${index}`}>Option Name</Label>
-                                <Select value={option.name} onValueChange={(value) => handleOptionChange(index, 'name', value)}>
-                                    <SelectTrigger id={`option-name-${index}`}>
-                                        <SelectValue placeholder="Select attribute..." />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {ATTRIBUTE_OPTIONS.map(opt => (
-                                            <SelectItem key={opt} value={opt}>{opt}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                <Input id={`option-name-${index}`} placeholder="Attribute Name (e.g., Color)" value={option.name} onChange={e => handleOptionChange(index, 'name', e.target.value)} />
                             </div>
                             <div className="grid w-full items-center gap-1.5">
                                 <Label htmlFor={`option-values-${index}`}>Values (comma-separated)</Label>

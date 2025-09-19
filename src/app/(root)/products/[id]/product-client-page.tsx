@@ -100,21 +100,29 @@ export default function ProductClientPage({ initialData }: ProductClientPageProp
   }, [selectedOptions, variations, uniqueAttributeValues]);
 
   const displayImages = useMemo(() => {
-    const allPossibleImageIds = new Set<string>();
-    possibleVariants.forEach(v => allPossibleImageIds.add(v.id));
-
-    const variantImages = images.filter(img => img.product_variation_id && allPossibleImageIds.has(img.product_variation_id)).map(img => img.url);
-    if(variantImages.length > 0) return variantImages;
-
-    const generalImages = images.filter(img => !img.product_variation_id).map(img => img.url);
-    if (generalImages.length > 0) return generalImages;
-    
+    const allImages = [
+      ...images.filter(img => !img.product_variation_id).map(img => img.url),
+      ...images.filter(img => img.product_variation_id).map(img => img.url),
+    ];
+    if (allImages.length > 0) return allImages;
     return product.main_image_url ? [product.main_image_url] : ["/placeholder.svg"];
-  }, [images, possibleVariants, product.main_image_url]);
+  }, [images, product.main_image_url]);
 
   useEffect(() => {
     setSelectedImageIndex(0);
   }, [displayImages]);
+
+  useEffect(() => {
+    if (singleSelectedVariation) {
+      const variantImageIndex = displayImages.findIndex(imgUrl => {
+        const imageObj = images.find(img => img.url === imgUrl && img.product_variation_id === singleSelectedVariation.id);
+        return imageObj !== undefined;
+      });
+      if (variantImageIndex !== -1) {
+        setSelectedImageIndex(variantImageIndex);
+      }
+    }
+  }, [singleSelectedVariation, displayImages, images]);
 
   const handleOptionSelect = (type: string, value: string) => {
     setSelectedOptions(prev => {
@@ -178,7 +186,7 @@ export default function ProductClientPage({ initialData }: ProductClientPageProp
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
           <div className="space-y-4">
             <div className="relative aspect-square bg-white rounded-lg overflow-hidden">
-              <Image src={displayImages[selectedImageIndex] || "/placeholder.svg"} alt={product.name} fill className="object-contain p-4" />
+              <Image src={displayImages[selectedImageIndex] || "/placeholder.svg"} alt={product.name} fill className="object-cover p-4" />
               <Button variant="ghost" size="icon" className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/80" onClick={() => setSelectedImageIndex(p => (p - 1 + displayImages.length) % displayImages.length)}><ChevronLeft className="h-4 w-4" /></Button>
               <Button variant="ghost" size="icon" className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/80" onClick={() => setSelectedImageIndex(p => (p + 1) % displayImages.length)}><ChevronRight className="h-4 w-4" /></Button>
             </div>
