@@ -101,15 +101,16 @@ const uploadFile = async (file: File, bucket: string): Promise<string> => {
 };
 
 export async function createProductWithImages(
-   productData: ProductBase,
-   mainImageFiles: File[],
-   variationsData: ProductVariationInput[]
-) {
+    productData: ProductBase,
+    mainImageFiles: File[],
+    variationsData: ProductVariationInput[],
+    selectedMainImageIndex: number = 0
+ ) {
    const mainImageUrls = await Promise.all(
       mainImageFiles.map((file) => uploadFile(file, "product-images"))
    );
    if (mainImageUrls.length > 0) {
-      productData.main_image_url = mainImageUrls[0];
+      productData.main_image_url = mainImageUrls[selectedMainImageIndex] || mainImageUrls[0];
    }
 
    const { data: createdProduct, error: productError } = await sb
@@ -124,7 +125,7 @@ export async function createProductWithImages(
          product_id: createdProduct.id,
          url,
          position: index,
-         is_primary: index === 0,
+         is_primary: index === selectedMainImageIndex,
       }));
       const { error: mainImagesError } = await sb
          .from("product_images")
@@ -161,11 +162,12 @@ export async function createProductWithImages(
 }
 
 export async function updateProductWithImages(
-   productId: string,
-   productData: Partial<ProductBase>,
-   mainImageFiles: File[],
-   variationsData: ProductVariationInput[]
-) {
+    productId: string,
+    productData: Partial<ProductBase>,
+    mainImages: { url: string; file?: File; isExisting?: boolean }[],
+    variationsData: ProductVariationInput[],
+    selectedMainImageIndex: number = 0
+ ) {
    await sb.from("product_variations").delete().eq("product_id", productId);
    await sb
       .from("product_images")
@@ -173,11 +175,38 @@ export async function updateProductWithImages(
       .eq("product_id", productId)
       .is("product_variation_id", null);
 
-   const mainImageUrls = await Promise.all(
-      mainImageFiles.map((file) => uploadFile(file, "product-images"))
+   // Separate existing and new images
+   const existingImages = mainImages.filter(img => img.isExisting);
+   const newFiles = mainImages.filter(img => img.file).map(img => img.file!);
+
+   // Upload new files
+   const newImageUrls = await Promise.all(
+      newFiles.map((file) => uploadFile(file, "product-images"))
    );
-   if (mainImageUrls.length > 0 && !productData.main_image_url) {
-      productData.main_image_url = mainImageUrls[0];
+
+   // Update is_primary for existing images
+   for (let i = 0; i < existingImages.length; i++) {
+      const img = existingImages[i];
+      const shouldBePrimary = i === selectedMainImageIndex;
+      if (img.isExisting) {
+         await sb
+            .from("product_images")
+            .update({ is_primary: shouldBePrimary })
+            .eq("url", img.url)
+            .eq("product_id", productId);
+      }
+   }
+
+   // Set main_image_url based on selected image
+   if (mainImages.length > 0) {
+      const selectedImage = mainImages[selectedMainImageIndex];
+      if (selectedImage) {
+         if (selectedImage.isExisting) {
+            productData.main_image_url = selectedImage.url;
+         } else if (newImageUrls[selectedMainImageIndex - existingImages.length]) {
+            productData.main_image_url = newImageUrls[selectedMainImageIndex - existingImages.length];
+         }
+      }
    }
 
    const { data: updatedProduct, error: productError } = await sb
@@ -188,12 +217,13 @@ export async function updateProductWithImages(
       .single();
    if (productError) throw productError;
 
-   if (mainImageUrls.length > 0) {
-      const imagesToInsert = mainImageUrls.map((url, i) => ({
+   // Insert new images
+   if (newImageUrls.length > 0) {
+      const imagesToInsert = newImageUrls.map((url, i) => ({
          product_id: productId,
          url,
-         position: i,
-         is_primary: i === 0,
+         position: existingImages.length + i,
+         is_primary: (existingImages.length + i) === selectedMainImageIndex,
       }));
       await sb.from("product_images").insert(imagesToInsert);
    }

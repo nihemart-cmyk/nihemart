@@ -79,6 +79,7 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
     const isEditMode = !!initialData;
     const router = useRouter();
     const [mainImages, setMainImages] = useState<DisplayImage[]>([]);
+    const [selectedMainImageIndex, setSelectedMainImageIndex] = useState(0);
     const [categories, setCategories] = useState<CategoryWithSubcategories[]>([]);
     const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
     const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
@@ -122,6 +123,10 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
     useEffect(() => {
         if(isEditMode && initialData.mainImages) {
             setMainImages(initialData.mainImages.map(img => ({ url: img.url, isExisting: true })));
+            const primaryIndex = initialData.mainImages.findIndex(img => img.is_primary);
+            if (primaryIndex !== -1) {
+                setSelectedMainImageIndex(primaryIndex);
+            }
         }
     }, [isEditMode, initialData]);
 
@@ -211,10 +216,10 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
             }));
 
             if (isEditMode) {
-                await updateProductWithImages(initialData.product.id, productBaseData, mainImages.filter(i => i.file).map(i => i.file!), variationsInput);
-            } else {
-                await createProductWithImages(productBaseData, mainImages.map(i => i.file!), variationsInput);
-            }
+                 await updateProductWithImages(initialData.product.id, productBaseData, mainImages, variationsInput, selectedMainImageIndex);
+             } else {
+                 await createProductWithImages(productBaseData, mainImages.map(i => i.file!), variationsInput, selectedMainImageIndex);
+             }
 
             toast.success(`Product ${isEditMode ? 'updated' : 'created'} successfully!`, { id: toastId });
             router.push('/admin/products');
@@ -225,7 +230,16 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
         }
     };
 
-    const onDropMain = useCallback((files: File[]) => { setMainImages(p => [...p, ...files.map(f => ({ url: URL.createObjectURL(f), file: f }))]); }, []);
+    const onDropMain = useCallback((files: File[]) => {
+        setMainImages(p => {
+            const newImages = [...p, ...files.map(f => ({ url: URL.createObjectURL(f), file: f }))];
+            // If this is the first image being added, set it as main
+            if (p.length === 0 && newImages.length > 0) {
+                setSelectedMainImageIndex(0);
+            }
+            return newImages;
+        });
+    }, []);
     const { getRootProps: getMainRootProps, getInputProps: getMainInputProps } = useDropzone({ onDrop: onDropMain, accept: { 'image/*': [] } });
 
     return (
@@ -254,7 +268,38 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
 
                                 <Card><CardHeader><CardTitle>Media</CardTitle></CardHeader><CardContent>
                                     <div {...getMainRootProps()} className="flex h-40 w-full items-center justify-center rounded-md border-2 border-dashed"><input {...getMainInputProps()} /><div className="text-center"><Upload className="h-8 w-8 mx-auto" /><p>Drop main images here, or click to select</p></div></div>
-                                    <div className="flex flex-wrap gap-2 mt-4">{mainImages.map((img, i) => <div key={i} className="relative w-20 h-20"><Image src={img.url} alt="" fill className="object-cover rounded-md" /><Button type="button" size="icon" variant="destructive" className="absolute -top-2 -right-2 h-5 w-5" onClick={() => setMainImages(p => p.filter((_, idx) => idx !== i))}><X className="h-3 w-3" /></Button></div>)}</div>
+                                    <div className="flex flex-wrap gap-2 mt-4">
+                                        {mainImages.map((img, i) => (
+                                            <div
+                                                key={i}
+                                                className={`relative w-20 h-20 cursor-pointer rounded-md ${selectedMainImageIndex === i ? 'ring-2 ring-orange-500' : ''}`}
+                                                onClick={() => setSelectedMainImageIndex(i)}
+                                            >
+                                                <Image src={img?.url} alt="" fill className="object-cover rounded-md" />
+                                                <Button
+                                                    type="button"
+                                                    size="icon"
+                                                    variant="destructive"
+                                                    className="absolute -top-2 -right-2 h-5 w-5"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setMainImages(p => {
+                                                            const newImages = p.filter((_, idx) => idx !== i);
+                                                            // If we're removing the main image, select the first remaining image
+                                                            if (selectedMainImageIndex === i && newImages.length > 0) {
+                                                                setSelectedMainImageIndex(0);
+                                                            } else if (selectedMainImageIndex > i && selectedMainImageIndex > 0) {
+                                                                setSelectedMainImageIndex(selectedMainImageIndex - 1);
+                                                            }
+                                                            return newImages;
+                                                        });
+                                                    }}
+                                                >
+                                                    <X className="h-3 w-3" />
+                                                </Button>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </CardContent></Card>
 
                                 <Card>
