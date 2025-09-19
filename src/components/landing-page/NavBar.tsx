@@ -1,19 +1,11 @@
-// components/nav-bar.tsx
-
 "use client";
 
 import Image from "next/image";
-import { FC, useState } from "react";
+import { FC, useState, useEffect } from "react";
 import logo from "@/assets/logo.png";
 import MaxWidthWrapper from "../MaxWidthWrapper";
 import { cn } from "@/lib/utils";
-import {
-   Globe,
-   Menu,
-   ShoppingCart,
-   User,
-   LogOut,
-} from "lucide-react";
+import { Globe, Menu, ShoppingCart, User, LogOut } from "lucide-react";
 import { Button } from "../ui/button";
 import {
    DropdownMenu,
@@ -40,12 +32,80 @@ export const routes = [
 ] as const;
 
 const NavBar: FC<NavBarProps> = ({}) => {
-   const { items, itemsCount } = useCart();
+   const cart = useCart();
+   const { items, itemsCount, initialized } = cart;
+   const [mounted, setMounted] = useState(false);
+   // local badge state to avoid transient staleness; kept in sync with context and localStorage
+   const [badgeCount, setBadgeCount] = useState<number>(() => itemsCount || 0);
+
+   // mark client mount to avoid SSR/CSR mismatches for dynamic localStorage-backed values
+   useEffect(() => {
+      setMounted(true);
+   }, []);
+
+   // keep badgeCount in sync with cart context changes
+   useEffect(() => {
+      setBadgeCount(itemsCount || 0);
+   }, [itemsCount]);
+
+   // If the CartProvider hasn't initialized yet or itemsCount is 0, try to read from localStorage on mount
+   useEffect(() => {
+      try {
+         if ((itemsCount === 0 && !initialized) || itemsCount === 0) {
+            const raw = localStorage.getItem("cart");
+            if (raw) {
+               const parsed = JSON.parse(raw) as Array<any>;
+               const total = parsed.reduce(
+                  (s, it) => s + (it.quantity || 0),
+                  0
+               );
+               if (total && total !== badgeCount) setBadgeCount(total);
+            }
+         }
+      } catch (err) {
+         // ignore
+      }
+   }, [initialized]);
+
+   // listen for storage events (other tabs or manual localStorage writes)
+   useEffect(() => {
+      const onStorage = (e: StorageEvent) => {
+         if (e.key === "cart") {
+            try {
+               const val = e.newValue;
+               if (!val) {
+                  setBadgeCount(0);
+                  return;
+               }
+               const parsed = JSON.parse(val) as Array<any>;
+               const total = parsed.reduce(
+                  (s, it) => s + (it.quantity || 0),
+                  0
+               );
+               setBadgeCount(total);
+            } catch (err) {
+               // ignore
+            }
+         }
+      };
+
+      window.addEventListener("storage", onStorage);
+      const onCustom = (e: any) => {
+         try {
+            const c = e?.detail?.count;
+            if (typeof c === "number") setBadgeCount(c);
+         } catch (err) {
+            // ignore
+         }
+      };
+      window.addEventListener("cart:updated", onCustom as EventListener);
+      return () => window.removeEventListener("storage", onStorage);
+   }, []);
    const { user, hasRole, signOut } = useAuth();
    const router = useRouter();
 
    const { language, setLanguage, t } = useLanguage();
-   
+
    const handleLanguageChange = (lang: Language) => {
       setLanguage(lang);
    };
@@ -90,7 +150,7 @@ const NavBar: FC<NavBarProps> = ({}) => {
                   </Link>
                ))}
             </div>
-            
+
             {/* Replace the old form with the new SearchPopover component */}
             <SearchPopover />
 
@@ -135,11 +195,19 @@ const NavBar: FC<NavBarProps> = ({}) => {
                      className="relative"
                   >
                      <ShoppingCart className="h-5 w-5 text-slate-700 group-hover:text-white transition-colors duration-200" />
-                     {itemsCount > 0 && (
-                        <Badge className="absolute -top-2 -right-2 h-5 w-5 rounded-full text-xs p-0 flex items-center justify-center bg-orange-400 outline-none z-10">
-                           {itemsCount}
-                        </Badge>
-                     )}
+                     {/* Always render the Badge node so server and client DOM shape match.
+                         Populate the visible count only after client mount to avoid hydration errors. */}
+                     <Badge
+                        className={`absolute -top-2 -right-2 h-5 w-5 rounded-full text-xs p-0 flex items-center justify-center bg-orange-400 outline-none z-10 ${
+                           !mounted || badgeCount === 0
+                              ? "opacity-0 pointer-events-none"
+                              : "opacity-100"
+                        }`}
+                     >
+                        <span suppressHydrationWarning>
+                           {mounted && badgeCount > 0 ? badgeCount : ""}
+                        </span>
+                     </Badge>
                   </Link>
                </Button>
                <DropdownMenu>

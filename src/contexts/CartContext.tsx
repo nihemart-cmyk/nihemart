@@ -81,6 +81,20 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({
          persistTimer.current = window.setTimeout(() => {
             try {
                localStorage.setItem("cart", serialized);
+               try {
+                  // dispatch an event so other parts of the app (even in different layouts) can react immediately
+                  const total = items.reduce(
+                     (s, it) => s + (it.quantity || 0),
+                     0
+                  );
+                  window.dispatchEvent(
+                     new CustomEvent("cart:updated", {
+                        detail: { count: total },
+                     })
+                  );
+               } catch (e) {
+                  // ignore
+               }
             } catch (e) {
                console.error("Failed to persist cart to localStorage", e);
             }
