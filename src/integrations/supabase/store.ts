@@ -21,18 +21,7 @@ export interface StoreFilters {
   subcategories?: string[];
   rating?: number;
 }
-export interface StoreQueryOptions {
-  search?: string;
-  filters?: StoreFilters;
-  sort?: {
-    column: string;
-    direction: 'asc' | 'desc';
-  };
-  pagination: {
-    page: number;
-    limit: number;
-  };
-}
+export interface StoreQueryOptions { search?: string; filters?: StoreFilters; sort?: { column: string; direction: 'asc' | 'desc'; }; pagination: { page: number; limit: number; }; }
 
 // --- TYPES FOR PRODUCT DETAIL PAGE ---
 export interface ProductDetail extends StoreProduct {
@@ -47,40 +36,44 @@ export interface ProductPageData { product: ProductDetail; variations: ProductVa
 export interface ReviewBase { product_id: string; user_id: string; rating: number; title?: string; content?: string; }
 export interface StoreCategorySimple { id: string; name: string; }
 
-
 // --- DATA FETCHING FUNCTIONS ---
 
-const buildBaseStoreQuery = ({ search = '', filters = {} }: Pick<StoreQueryOptions, 'search' | 'filters'>) => {
-  let query = sb.from('products');
+const applyStoreFilters = (query: any, { search = '', filters = {} }: Pick<StoreQueryOptions, 'search' | 'filters'>) => {
+  let q = query.in('status', ['active', 'out_of_stock']);
 
   if (search.trim()) {
-    query = query.or(`name.ilike.%${search.trim()}%,brand.ilike.%${search.trim()}%`);
+    q = q.or(`name.ilike.%${search.trim()}%,brand.ilike.%${search.trim()}%`);
   }
   if (filters.categories && filters.categories.length > 0) {
-    query = query.in('category_id', filters.categories);
+    q = q.in('category_id', filters.categories);
   }
   if (filters.subcategories && filters.subcategories.length > 0) {
-    query = query.in('subcategory_id', filters.subcategories);
+    q = q.in('subcategory_id', filters.subcategories);
   }
   if (filters.rating) {
-    query = query.gte('average_rating', filters.rating);
+    q = q.gte('average_rating', filters.rating);
   }
-  return query;
+  return q;
 };
 
 export async function fetchStoreProducts(options: StoreQueryOptions) {
-  const baseQuery = buildBaseStoreQuery(options);
+  // Start the query chain with a select
+  let countQuery = sb.from('products').select('id', { count: 'exact', head: true });
+  // Apply all filters
+  countQuery = applyStoreFilters(countQuery, options);
   
-  // Perform a clean, separate query just for the count
-  const { count, error: countError } = await baseQuery.select('id', { count: 'exact', head: true });
+  const { count, error: countError } = await countQuery;
   if (countError) throw countError;
 
   const from = (options.pagination.page - 1) * options.pagination.limit;
   const to = from + options.pagination.limit - 1;
 
-  // Now perform the full data query with the join
-  const { data, error } = await buildBaseStoreQuery(options)
-    .select('id, name, price, short_description, main_image_url, average_rating, review_count, brand, category:categories(id, name)')
+  // Start the data query chain with a select
+  let dataQuery = sb.from('products').select('id, name, price, short_description, main_image_url, average_rating, review_count, brand, category:categories(id, name)');
+  // Apply all filters again
+  dataQuery = applyStoreFilters(dataQuery, options);
+    
+  const { data, error } = await dataQuery
     .order(options.sort?.column || 'created_at', { ascending: options.sort?.direction === 'asc' })
     .range(from, to);
     
@@ -99,8 +92,8 @@ export async function fetchStoreSubcategories(categoryIds: string[] = []) {
   return { subcategories: data as StoreSubcategory[] };
 }
 export async function fetchStoreProductById(id: string): Promise<ProductPageData | null> {
-  const { data: product, error } = await sb.from('products').select(`id, name, description, stock, price, compare_at_price, main_image_url, average_rating, review_count, brand, category:categories(id, name)`).eq('id', id).maybeSingle();
-  if (error || !product) { console.error('Error fetching product or product not found:', error); return null; }
+  const { data: product, error } = await sb.from('products').select(`id, name, description, stock, price, compare_at_price, main_image_url, average_rating, review_count, brand, category:categories(id, name)`).eq('id', id).in('status', ['active', 'out_of_stock']).maybeSingle();
+  if (error || !product) { return null; }
   const [variationsRes, imagesRes, reviewsRes] = await Promise.all([
     sb.from('product_variations').select('id, name, price, stock, attributes').eq('product_id', id),
     sb.from('product_images').select('id, url, product_variation_id').eq('product_id', id),
@@ -112,7 +105,7 @@ export async function fetchStoreProductById(id: string): Promise<ProductPageData
   const categoryId = product.category?.id;
   let similarProducts: StoreProduct[] = [];
   if (categoryId) {
-    const { data: similarData } = await sb.from('products').select('id, name, price, main_image_url, short_description, average_rating, category:categories(id, name)').eq('category_id', categoryId).eq('status', 'active').neq('id', id).limit(6);
+    const { data: similarData } = await sb.from('products').select('id, name, price, main_image_url, short_description, average_rating, category:categories(id, name)').eq('category_id', categoryId).in('status', ['active', 'out_of_stock']).neq('id', id).limit(6);
     similarProducts = similarData || [];
   }
   return { product: product as ProductDetail, variations: (variationsRes.data || []) as ProductVariationDetail[], images: (imagesRes.data || []) as ProductImageDetail[], reviews: (reviewsRes.data || []) as ProductReview[], similarProducts, };
@@ -131,42 +124,24 @@ export async function fetchStoreCategories(): Promise<StoreCategorySimple[]> {
   return data || [];
 }
 export async function fetchProductsUnder15k(categoryId?: string): Promise<StoreProduct[]> {
-    let query = sb.from('products').select('id, name, price, main_image_url, short_description, average_rating, brand, category:categories(id, name)').eq('status', 'active').lte('price', 15000).order('created_at', { ascending: false }).limit(12);
+    let query = sb.from('products').select('id, name, price, main_image_url, short_description, average_rating, brand, category:categories(id, name)').in('status', ['active', 'out_of_stock']).lte('price', 15000).order('created_at', { ascending: false }).limit(12);
     if (categoryId && categoryId !== 'all') { query = query.eq('category_id', categoryId); }
     const { data, error } = await query;
     if (error) throw error;
     return data as StoreProduct[];
 }
 export async function fetchLandingPageProducts({ categoryId, featured, limit }: { categoryId?: string, featured?: boolean, limit: number }): Promise<StoreProduct[]> {
-    let query = sb.from('products').select('id, name, price, short_description, main_image_url, average_rating, brand, category:categories(id, name)').eq('status', 'active').order('created_at', { ascending: false }).limit(limit);
+    let query = sb.from('products').select('id, name, price, short_description, main_image_url, average_rating, brand, category:categories(id, name)').in('status', ['active', 'out_of_stock']).order('created_at', { ascending: false }).limit(limit);
     if (featured !== undefined) { query = query.eq('featured', featured); }
     if (categoryId && categoryId !== 'all') { query = query.eq('category_id', categoryId); }
     const { data, error } = await query;
     if (error) throw error;
     return data as StoreProduct[];
 }
-
-// Navbar search
-export interface SearchResult {
-    id: string;
-    name: string;
-    main_image_url: string | null;
-    short_description: string | null;
-}
-
+export interface SearchResult { id: string; name: string; main_image_url: string | null; short_description: string | null; }
 export async function searchProductsByName(query: string): Promise<SearchResult[]> {
-    if (!query.trim() || query.trim().length < 2) {
-        return [];
-    }
-    const { data, error } = await sb
-        .from('products')
-        .select('id, name, main_image_url, short_description')
-        .eq('status', 'active')
-        .ilike('name', `%${query.trim()}%`)
-        .limit(5);
-    if (error) {
-        console.error("Error searching products:", error);
-        return [];
-    }
+    if (!query.trim() || query.trim().length < 2) { return []; }
+    const { data, error } = await sb.from('products').select('id, name, main_image_url, short_description').in('status', ['active', 'out_of_stock']).ilike('name', `%${query.trim()}%`).limit(5);
+    if (error) { console.error("Error searching products:", error); return []; }
     return data as SearchResult[];
 }

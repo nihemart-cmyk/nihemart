@@ -26,6 +26,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { createProductWithImages, updateProductWithImages, fetchCategoriesWithSubcategories } from "@/integrations/supabase/products";
 import type { ProductBase, ProductVariationInput, CategoryWithSubcategories, Subcategory, Product, ProductImage } from "@/integrations/supabase/products";
 import { VariantGeneratorDialog } from "@/components/admin/variant-generator-dialog";
+import { getProductErrorMessage } from "./admin-products-utils";
 
 const optionalNumber = z.preprocess(
     (val) => (val === "" || val === null ? undefined : val),
@@ -51,8 +52,10 @@ const productSchema = z.object({
     category_id: z.string().min(1, "Category is required"),
     subcategory_id: z.string().optional(),
     price: z.coerce.number().min(0, "Base price is required"),
+    cost_price: z.coerce.number().min(0, "Cost price is required").optional(),
     compare_at_price: optionalNumber,
     status: z.enum(["draft", "active", "out_of_stock"]),
+    sku: z.string().optional(),
     featured: z.boolean().default(false),
     track_quantity: z.boolean().default(true),
     continue_selling_when_oos: z.boolean().default(false),
@@ -92,6 +95,8 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
             ? {
                 ...initialData.product,
                 price: initialData.product.price ?? 0,
+                cost_price: initialData.product.cost_price ?? 0,
+                sku: initialData.product.sku ?? undefined,
                 compare_at_price: initialData.product.compare_at_price ?? undefined,
                 short_description: initialData.product.short_description ?? '',
                 subcategory_id: initialData.product.subcategory_id ?? '',
@@ -110,6 +115,7 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
                 name: "",
                 status: "draft",
                 price: 0,
+                cost_price: 0,
                 compare_at_price: undefined,
                 featured: false,
                 track_quantity: true,
@@ -189,9 +195,11 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
         try {
             const productBaseData: ProductBase = {
                 name: data.name,
+                sku: data.sku || undefined,
                 description: data.description,
                 short_description: data.short_description,
                 price: data.price,
+                cost_price: data.cost_price,
                 compare_at_price: data.compare_at_price ?? null,
                 category_id: data.category_id,
                 subcategory_id: data.subcategory_id || null,
@@ -205,6 +213,7 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
                 stock: data.variations.reduce((sum, v) => sum + Number(v.stock), 0),
             };
 
+            console.log({productBaseData})
             const variationsInput: ProductVariationInput[] = data.variations.map(v => ({
                 name: v.name || null,
                 price: v.price,
@@ -224,9 +233,10 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
             toast.success(`Product ${isEditMode ? 'updated' : 'created'} successfully!`, { id: toastId });
             router.push('/admin/products');
             router.refresh();
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
-            toast.error(`Failed to ${isEditMode ? 'update' : 'create'} product.`, { id: toastId });
+            const errorMessage = getProductErrorMessage(error, isEditMode);
+            toast.error(errorMessage, { id: toastId });
         }
     };
 
@@ -261,6 +271,8 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
                                 <Card><CardHeader><CardTitle>General Information</CardTitle></CardHeader><CardContent className="space-y-4">
                                     {/* @ts-ignore */}
                                     <FormField control={form.control} name="name" render={({ field }) => <FormItem><FormLabel>Product Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
+                                    {/* @ts-ignore */}
+                                    <FormField control={form.control} name="sku" render={({ field }) => <FormItem><FormLabel>Product Sku</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
                                     {/* @ts-ignore */}
                                     <FormField control={form.control} name="short_description" render={({ field }) => <FormItem><FormLabel>Short Description</FormLabel><FormControl><Textarea {...field} /></FormControl><FormMessage /></FormItem>} />
                                     <FormItem><FormLabel>Full Description</FormLabel><div className="border rounded-md"><div ref={quillRef} className="min-h-[200px] bg-white" /></div></FormItem>
@@ -335,8 +347,9 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
                                     {/* @ts-ignore */}
                                     <FormField control={form.control} name="price" render={({ field }) => <FormItem><FormLabel>Base Price</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem>} />
                                     {/* @ts-ignore */}
-                                    <FormField control={form.control} name="compare_at_price" render={({ field }) => <FormItem><FormLabel>Compare-at Price</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>} />
+                                    <FormField control={form.control} name="cost_price" render={({ field }) => <FormItem><FormLabel>Cost Price</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>} />
                                     {/* @ts-ignore */}
+                                    <FormField control={form.control} name="compare_at_price" render={({ field }) => <FormItem><FormLabel>Compare-at Price</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>} />
                                     {/* <FormField control={form.control} name="taxable" render={({ field }) => <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3"><FormLabel>Charge Tax</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>} /> */}
                                 </CardContent></Card>
 

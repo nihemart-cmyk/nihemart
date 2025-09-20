@@ -284,7 +284,6 @@ export async function fetchProductForEdit(id: string) {
    return { product, mainImages, variations: variationsWithImages };
 }
 
-// RESTORED FUNCTIONS
 const buildProductQuery = (filters: ProductListPageFilters = {}) => {
    let query = sb.from("products");
    if (filters.search && filters.search.trim()) {
