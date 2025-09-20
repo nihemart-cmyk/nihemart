@@ -44,13 +44,36 @@ export default async function handler(
          }
          createdUserId = data.user?.id || createdUserId;
 
-         // Upsert role
-         const { error: roleErr } = await supabase
-            .from("user_roles")
-            .upsert([{ user_id: createdUserId, role: "rider" }], {
-               onConflict: "user_id",
-            });
-         if (roleErr) console.error("Failed to upsert rider role", roleErr);
+         // Upsert role immediately for the created user
+         try {
+            const { error: roleErr } = await supabase
+               .from("user_roles")
+               .upsert([{ user_id: createdUserId, role: "rider" }], {
+                  // DB has unique(user_id, role) so target the composite columns
+                  onConflict: "user_id,role",
+               });
+            if (roleErr) console.error("Failed to upsert rider role", roleErr);
+         } catch (e) {
+            console.error("Error upserting rider role:", e);
+         }
+      }
+
+      // If a user_id was provided (or created above) ensure a user_roles mapping
+      // exists for immediate client-side role detection. This helps the middleware
+      // redirect logic run right after sign-in.
+      if (createdUserId) {
+         try {
+            await supabase
+               .from("user_roles")
+               .upsert([{ user_id: createdUserId, role: "rider" }], {
+                  onConflict: "user_id,role",
+               });
+         } catch (e) {
+            console.error(
+               "Failed to upsert user_roles for provided user_id:",
+               e
+            );
+         }
       }
 
       const rider = await createRider({
@@ -59,7 +82,21 @@ export default async function handler(
          vehicle,
          user_id: createdUserId,
       });
-      return res.status(200).json({ rider });
+
+      // For debugging: return any user_roles rows for the createdUserId so callers
+      // can see whether the upsert actually created the mapping.
+      let roles = null;
+      try {
+         const { data: rdata, error: rerr } = await supabase
+            .from("user_roles")
+            .select("*")
+            .eq("user_id", createdUserId);
+         if (!rerr) roles = rdata;
+      } catch (e) {
+         // ignore
+      }
+
+      return res.status(200).json({ rider, roles });
    } catch (err: any) {
       console.error("create-rider failed", err);
       return res
