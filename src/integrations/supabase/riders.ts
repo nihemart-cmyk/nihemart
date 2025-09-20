@@ -51,7 +51,8 @@ export async function createRider(payload: Partial<Rider>) {
          await sb
             .from("user_roles")
             .upsert([{ user_id: userId, role: "rider" }], {
-               onConflict: "user_id",
+               // match DB unique(user_id, role)
+               onConflict: "user_id,role",
             });
 
          // Sync the role into auth user metadata (best-effort)

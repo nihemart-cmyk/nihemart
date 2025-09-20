@@ -36,7 +36,7 @@ export default async function handler(
    try {
       const { error } = await supabase
          .from("user_roles")
-         .upsert([{ user_id: userId, role }], { onConflict: "user_id" });
+         .upsert([{ user_id: userId, role }], { onConflict: "user_id,role" });
       if (error) throw error;
       res.status(200).json({ success: true });
    } catch (err: any) {

@@ -55,12 +55,34 @@ export default async function handler(
             }
             createdUserId = data.user?.id || null;
 
-            // upsert role
-            await supabase
-               .from("user_roles")
-               .upsert([{ user_id: createdUserId, role: "rider" }], {
-                  onConflict: "user_id",
-               });
+            // upsert role immediately
+            try {
+               await supabase
+                  .from("user_roles")
+                  .upsert([{ user_id: createdUserId, role: "rider" }], {
+                     onConflict: "user_id,role",
+                  });
+            } catch (e) {
+               console.error("Failed to upsert role for imported rider:", e);
+            }
+         }
+
+         // If the row already contains a user id, ensure the user_roles mapping
+         // exists so client-side redirects work immediately after sign-in.
+         if (!createdUserId && (r.user_id || r.userId)) {
+            createdUserId = r.user_id || r.userId;
+            try {
+               await supabase
+                  .from("user_roles")
+                  .upsert([{ user_id: createdUserId, role: "rider" }], {
+                     onConflict: "user_id,role",
+                  });
+            } catch (e) {
+               console.error(
+                  "Failed to upsert role for provided user_id in import:",
+                  e
+               );
+            }
          }
 
          // Use existing integration to create rider record

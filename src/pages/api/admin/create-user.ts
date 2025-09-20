@@ -70,7 +70,7 @@ export default async function handler(
          const { error: roleErr } = await supabase
             .from("user_roles")
             .upsert([{ user_id: userId, role }], {
-               onConflict: "user_id",
+               onConflict: "user_id,role",
             });
          if (roleErr) {
             console.error("Failed to upsert role for new user:", roleErr);
