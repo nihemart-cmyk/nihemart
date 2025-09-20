@@ -185,19 +185,20 @@ function ProductListingComponent() {
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
                 {loading ? Array.from({ length: PAGE_LIMIT }).map((_, i) => <Card key={i} className="animate-pulse bg-gray-200 h-96"></Card>) : products.map((product) => (
-                  <Card key={product.id} onClick={() => router.push(`/products/${product.id}`)} className="group hover:shadow-xl transition-all duration-300 hover:-translate-y-1 bg-white border-0 shadow-md cursor-pointer">
+                  <Card key={product.id} onClick={() => router.push(`/products/${product?.id}`)} className="group hover:shadow-xl transition-all duration-300 hover:-translate-y-1 bg-white border-0 shadow-md cursor-pointer">
                     <CardContent className="p-5">
                       <div className="relative mb-4">
                         <div className="bg-gradient-to-br from-slate-100 to-slate-200 rounded-xl p-4 aspect-square">
-                          <Image src={product.main_image_url || "/placeholder.svg"} alt={product.name} fill className="object-contain rounded-lg p-4" />
+                          <Image src={product?.main_image_url || "/placeholder.svg"} alt={product?.name} fill className="object-cover rounded-lg p-4" />
                         </div>
                         <button onClick={(e) => { e.stopPropagation() }} className="absolute top-2 right-2 p-2 rounded-full bg-white/90 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-110"><Heart className="h-4 w-4 text-gray-400 hover:text-red-400" /></button>
                       </div>
-                      <div className="space-y-3">
-                        <h3 className="font-semibold text-gray-900 text-lg truncate">{product.name}</h3>
-                        <p className="text-sm text-gray-500">{product.brand || 'Generic'}</p>
-                        <div className="flex items-center space-x-1">{renderStars(product.average_rating)}<span className="text-sm text-gray-500 ml-2">({product.review_count || 0})</span></div>
-                        <p className="text-xl font-bold text-gray-900">€{product.price.toFixed(2)}</p>
+                      <div className="space-y-2">
+                        <h3 className="font-semibold text-gray-900 text-lg truncate">{product?.name}</h3>
+                        <p className="text-sm text-gray-900">{product?.short_description || 'Generic'}</p>
+                        <p className="text-sm text-gray-500">{product?.brand || 'Generic'}</p>
+                        <div className="flex items-center space-x-1">{renderStars(product?.average_rating)}<span className="text-sm text-gray-500 ml-2">({product?.review_count || 0})</span></div>
+                        <p className="text-xl font-bold text-gray-900">€{product?.price.toFixed(2)}</p>
                         <div className="flex space-x-2 pt-3">
                           <Button onClick={(e) => handleAddToCart(e, product)} className="flex-1 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-md hover:shadow-lg transition-all duration-200">Add To Cart</Button>
                         </div>

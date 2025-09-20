@@ -79,6 +79,7 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
     const isEditMode = !!initialData;
     const router = useRouter();
     const [mainImages, setMainImages] = useState<DisplayImage[]>([]);
+    const [selectedMainImageIndex, setSelectedMainImageIndex] = useState(0);
     const [categories, setCategories] = useState<CategoryWithSubcategories[]>([]);
     const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
     const [isGeneratorOpen, setIsGeneratorOpen] = useState(false);
@@ -122,6 +123,10 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
     useEffect(() => {
         if(isEditMode && initialData.mainImages) {
             setMainImages(initialData.mainImages.map(img => ({ url: img.url, isExisting: true })));
+            const primaryIndex = initialData.mainImages.findIndex(img => img.is_primary);
+            if (primaryIndex !== -1) {
+                setSelectedMainImageIndex(primaryIndex);
+            }
         }
     }, [isEditMode, initialData]);
 
@@ -211,10 +216,10 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
             }));
 
             if (isEditMode) {
-                await updateProductWithImages(initialData.product.id, productBaseData, mainImages.filter(i => i.file).map(i => i.file!), variationsInput);
-            } else {
-                await createProductWithImages(productBaseData, mainImages.map(i => i.file!), variationsInput);
-            }
+                 await updateProductWithImages(initialData.product.id, productBaseData, mainImages, variationsInput, selectedMainImageIndex);
+             } else {
+                 await createProductWithImages(productBaseData, mainImages.map(i => i.file!), variationsInput, selectedMainImageIndex);
+             }
 
             toast.success(`Product ${isEditMode ? 'updated' : 'created'} successfully!`, { id: toastId });
             router.push('/admin/products');
@@ -225,7 +230,16 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
         }
     };
 
-    const onDropMain = useCallback((files: File[]) => { setMainImages(p => [...p, ...files.map(f => ({ url: URL.createObjectURL(f), file: f }))]); }, []);
+    const onDropMain = useCallback((files: File[]) => {
+        setMainImages(p => {
+            const newImages = [...p, ...files.map(f => ({ url: URL.createObjectURL(f), file: f }))];
+            // If this is the first image being added, set it as main
+            if (p.length === 0 && newImages.length > 0) {
+                setSelectedMainImageIndex(0);
+            }
+            return newImages;
+        });
+    }, []);
     const { getRootProps: getMainRootProps, getInputProps: getMainInputProps } = useDropzone({ onDrop: onDropMain, accept: { 'image/*': [] } });
 
     return (
@@ -254,7 +268,38 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
 
                                 <Card><CardHeader><CardTitle>Media</CardTitle></CardHeader><CardContent>
                                     <div {...getMainRootProps()} className="flex h-40 w-full items-center justify-center rounded-md border-2 border-dashed"><input {...getMainInputProps()} /><div className="text-center"><Upload className="h-8 w-8 mx-auto" /><p>Drop main images here, or click to select</p></div></div>
-                                    <div className="flex flex-wrap gap-2 mt-4">{mainImages.map((img, i) => <div key={i} className="relative w-20 h-20"><Image src={img.url} alt="" fill className="object-cover rounded-md" /><Button type="button" size="icon" variant="destructive" className="absolute -top-2 -right-2 h-5 w-5" onClick={() => setMainImages(p => p.filter((_, idx) => idx !== i))}><X className="h-3 w-3" /></Button></div>)}</div>
+                                    <div className="flex flex-wrap gap-2 mt-4">
+                                        {mainImages.map((img, i) => (
+                                            <div
+                                                key={i}
+                                                className={`relative w-20 h-20 cursor-pointer rounded-md ${selectedMainImageIndex === i ? 'ring-2 ring-orange-500' : ''}`}
+                                                onClick={() => setSelectedMainImageIndex(i)}
+                                            >
+                                                <Image src={img?.url} alt="" fill className="object-cover rounded-md" />
+                                                <Button
+                                                    type="button"
+                                                    size="icon"
+                                                    variant="destructive"
+                                                    className="absolute -top-2 -right-2 h-5 w-5"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setMainImages(p => {
+                                                            const newImages = p.filter((_, idx) => idx !== i);
+                                                            // If we're removing the main image, select the first remaining image
+                                                            if (selectedMainImageIndex === i && newImages.length > 0) {
+                                                                setSelectedMainImageIndex(0);
+                                                            } else if (selectedMainImageIndex > i && selectedMainImageIndex > 0) {
+                                                                setSelectedMainImageIndex(selectedMainImageIndex - 1);
+                                                            }
+                                                            return newImages;
+                                                        });
+                                                    }}
+                                                >
+                                                    <X className="h-3 w-3" />
+                                                </Button>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </CardContent></Card>
 
                                 <Card>
@@ -290,7 +335,7 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
                                     {/* @ts-ignore */}
                                     <FormField control={form.control} name="price" render={({ field }) => <FormItem><FormLabel>Base Price</FormLabel><FormControl><Input type="number" step="0.01" {...field} /></FormControl><FormMessage /></FormItem>} />
                                     {/* @ts-ignore */}
-                                    {/* <FormField control={form.control} name="compare_at_price" render={({ field }) => <FormItem><FormLabel>Compare-at Price</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>} /> */}
+                                    <FormField control={form.control} name="compare_at_price" render={({ field }) => <FormItem><FormLabel>Compare-at Price</FormLabel><FormControl><Input type="number" step="0.01" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem>} />
                                     {/* @ts-ignore */}
                                     {/* <FormField control={form.control} name="taxable" render={({ field }) => <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3"><FormLabel>Charge Tax</FormLabel><FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl></FormItem>} /> */}
                                 </CardContent></Card>
@@ -324,7 +369,6 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
     );
 }
 
-const ATTRIBUTE_OPTIONS = ["Color", "Size", "Material", "Style", "Custom"];
 
 function VariantCard({ form, index, removeVariant, isEditMode }: { form: any, index: number, removeVariant: (index: number) => void, isEditMode: boolean }) {
     const { fields, append, remove } = useFieldArray({
@@ -376,9 +420,9 @@ function VariantCard({ form, index, removeVariant, isEditMode }: { form: any, in
             </div>
             <div className="grid grid-cols-2 gap-4">
                 {/* @ts-ignore */}
-                {/* <FormField control={form.control} name={`variations.${index}.sku`} render={({ field }) => <FormItem><Label>SKU</Label><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} /> */}
+                <FormField control={form.control} name={`variations.${index}.sku`} render={({ field }) => <FormItem><Label>SKU</Label><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
                 {/* @ts-ignore */}
-                {/* <FormField control={form.control} name={`variations.${index}.barcode`} render={({ field }) => <FormItem><Label>Barcode</Label><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} /> */}
+                <FormField control={form.control} name={`variations.${index}.barcode`} render={({ field }) => <FormItem><Label>Barcode</Label><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
             </div>
             <div>
                 <Label>Attributes</Label>
@@ -388,23 +432,8 @@ function VariantCard({ form, index, removeVariant, isEditMode }: { form: any, in
                         return (
                         <div key={field.id} className="flex items-center gap-2">
                             <div className="grid grid-cols-2 gap-2 flex-1">
-                                {attributeName === 'Custom' ? (
-                                    // @ts-ignore
-                                    <FormField control={form.control} name={`variations.${index}.attributes.${attrIndex}.name`} render={({ field }) => <Input placeholder="Custom Name..." {...field} />} />
-                                ) : (
-                                    <FormField
-                                        control={form.control}
-                                        name={`variations.${index}.attributes.${attrIndex}.name`}
-                                        render={({ field }) => (
-                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                                <FormControl><SelectTrigger><SelectValue placeholder="Attribute" /></SelectTrigger></FormControl>
-                                                <SelectContent>
-                                                    {ATTRIBUTE_OPTIONS.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
-                                                </SelectContent>
-                                            </Select>
-                                        )}
-                                    />
-                                )}
+                                {/* @ts-ignore */}
+                                <FormField control={form.control} name={`variations.${index}.attributes.${attrIndex}.name`} render={({ field }) => <Input placeholder="Attribute Name (e.g., Color)" {...field} />} />
                                 {/* @ts-ignore */}
                                 <FormField control={form.control} name={`variations.${index}.attributes.${attrIndex}.value`} render={({ field }) => <Input placeholder="Value (e.g., Blue)" {...field} />} />
                             </div>
