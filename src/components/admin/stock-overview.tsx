@@ -2,7 +2,8 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { MoreHorizontal } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
+import { MoreHorizontal, Package, AlertTriangle, ShoppingCart, Truck, TrendingUp, TrendingDown, BarChart3, RefreshCw } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,276 +17,320 @@ import {
   ChartTooltipContent,
 } from '@/components/ui/chart'
 import { Area, AreaChart, CartesianGrid, XAxis, Bar, BarChart } from 'recharts'
+import { useQuery } from '@tanstack/react-query'
+import { fetchProductsForStockManagement } from '@/integrations/supabase/stock'
+import { useOrders } from '@/hooks/useOrders'
+import { useRouter } from 'next/navigation'
 
-const areaChartData = [
-  { name: 'Jan', orders: 50 },
-  { name: 'Feb', orders: 45 },
-  { name: 'Mar', orders: 40 },
-  { name: 'Apr', orders: 35 },
-  { name: 'May', orders: 55 },
-  { name: 'Jun', orders: 120 },
-]
+const stockChartConfig = {
+  inStock: {
+    label: "In Stock",
+    color: "hsl(142, 76%, 36%)",
+  },
+  lowStock: {
+    label: "Low Stock",
+    color: "hsl(38, 92%, 50%)",
+  },
+  outOfStock: {
+    label: "Out of Stock",
+    color: "hsl(0, 84%, 60%)",
+  },
+} satisfies ChartConfig
 
-const barChartData = [
-  { name: 'Jan', value: 280 },
-  { name: 'Feb', value: 320 },
-  { name: 'Mar', value: 350 },
-  { name: 'Apr', value: 380 },
-  { name: 'May', value: 420 },
-  { name: 'Jun', value: 450 },
-]
-
-const areaChartConfig = {
+const ordersChartConfig = {
   orders: {
-    label: "New Orders",
-    color: "hsl(var(--chart-1))",
+    label: "Orders",
+    color: "hsl(221, 83%, 53%)",
   },
 } satisfies ChartConfig
 
-const barChartConfig = {
-  value: {
-    label: "Value",
-    color: "hsl(var(--chart-2))",
-  },
-} satisfies ChartConfig
+export default function StockOverview({ onTabChange }: { onTabChange?: (tab: string) => void }) {
+  const router = useRouter()
+  const { useOrderStats } = useOrders()
+  const { data: orderStats } = useOrderStats()
 
-export default function StockOverview() {
-  return (
-    <div className="flex flex-col lg:flex-row gap-6">
-      {/* Left Content */}
-      <div className="flex-1 space-y-6">
-        {/* Top Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {/* Total Products */}
-          <Card className="bg-white">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Total Products</CardTitle>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="h-8 w-8 p-0">
-                    <MoreHorizontal className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem>View details</DropdownMenuItem>
-                  <DropdownMenuItem>Export</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">320</div>
-              <p className="text-xs text-red-500 mt-1">+5%</p>
-            </CardContent>
-          </Card>
+  const { data: products = [], isLoading } = useQuery({
+    queryKey: ['products-stock'],
+    queryFn: () => fetchProductsForStockManagement(),
+  })
 
-          {/* Low Stock */}
-          <Card className="bg-white">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Low Stock</CardTitle>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="h-8 w-8 p-0">
-                    <MoreHorizontal className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem>View details</DropdownMenuItem>
-                  <DropdownMenuItem>Export</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">15</div>
-              <p className="text-xs text-red-500 mt-1">-10%</p>
-            </CardContent>
-          </Card>
+  // Calculate real metrics
+  const metrics = (() => {
+    const totalProducts = products.length
+    const totalVariations = products.reduce((sum, p) => sum + p.variations.length, 0)
+    const inStockVariations = products.reduce((sum, p) =>
+      sum + p.variations.filter(v => v.stock > 0).length, 0
+    )
+    const lowStockVariations = products.reduce((sum, p) =>
+      sum + p.variations.filter(v => v.stock > 0 && v.stock <= 10).length, 0
+    )
+    const outOfStockVariations = products.reduce((sum, p) =>
+      sum + p.variations.filter(v => v.stock <= 0).length, 0
+    )
+    const totalStockValue = 0 // Placeholder - would need product price data
 
-          {/* New Orders */}
-          <Card className="bg-white">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">New Orders</CardTitle>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="h-8 w-8 p-0">
-                    <MoreHorizontal className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem>View details</DropdownMenuItem>
-                  <DropdownMenuItem>Export</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">120</div>
-              <p className="text-xs text-red-500 mt-1">+8%</p>
-            </CardContent>
-          </Card>
+    return {
+      totalProducts,
+      totalVariations,
+      inStockVariations,
+      lowStockVariations,
+      outOfStockVariations,
+      totalStockValue
+    }
+  })()
 
-          {/* Pending Shipments */}
-          <Card className="bg-white">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-gray-600">Pending Ship...</CardTitle>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="h-8 w-8 p-0">
-                    <MoreHorizontal className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem>View details</DropdownMenuItem>
-                  <DropdownMenuItem>Export</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">45</div>
-              <p className="text-xs text-red-500 mt-1">-2%</p>
-            </CardContent>
-          </Card>
-        </div>
+  // Prepare chart data for stock levels over time (mock data for now)
+  const stockChartData = [
+    { month: 'Jan', inStock: 45, lowStock: 8, outOfStock: 2 },
+    { month: 'Feb', inStock: 52, lowStock: 6, outOfStock: 1 },
+    { month: 'Mar', inStock: 48, lowStock: 9, outOfStock: 3 },
+    { month: 'Apr', inStock: 55, lowStock: 7, outOfStock: 1 },
+    { month: 'May', inStock: 58, lowStock: 5, outOfStock: 2 },
+    { month: 'Jun', inStock: 62, lowStock: 4, outOfStock: 1 },
+  ]
 
-        {/* Bottom Charts Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* New Orders Chart */}
-          <Card className="bg-white">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <div>
-                <CardTitle className="text-sm font-medium text-gray-600">New Orders</CardTitle>
-                <div className="text-2xl font-bold mt-2">120 <span className="text-xs text-red-500">+8%</span></div>
-              </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="h-8 w-8 p-0">
-                    <MoreHorizontal className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem>View details</DropdownMenuItem>
-                  <DropdownMenuItem>Export</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </CardHeader>
-            <CardContent>
-              <ChartContainer config={areaChartConfig}>
-                <AreaChart
-                  accessibilityLayer
-                  data={areaChartData}
-                  margin={{
-                    left: 12,
-                    right: 12,
-                  }}
-                  height={120}
-                >
-                  <CartesianGrid vertical={false} />
-                  <XAxis
-                    dataKey="name"
-                    tickLine={false}
-                    axisLine={false}
-                    tickMargin={8}
-                    tick={{ fontSize: 12, fill: '#888' }}
-                  />
-                  <ChartTooltip
-                    cursor={false}
-                    content={<ChartTooltipContent hideLabel />}
-                  />
-                  <Area
-                    dataKey="orders"
-                    type="monotone"
-                    fill="#f97316"
-                    fillOpacity={0.2}
-                    stroke="#f97316"
-                    strokeWidth={2}
-                  />
-                </AreaChart>
-              </ChartContainer>
-            </CardContent>
-          </Card>
+  // Prepare orders chart data (mock data for now)
+  const ordersChartData = [
+    { month: 'Jan', orders: 45 },
+    { month: 'Feb', orders: 52 },
+    { month: 'Mar', orders: 48 },
+    { month: 'Apr', orders: 55 },
+    { month: 'May', orders: 58 },
+    { month: 'Jun', orders: 62 },
+  ]
 
-          {/* Card Title Chart */}
-          <Card className="bg-white">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <div>
-                <CardTitle className="text-sm font-medium text-gray-600">Card Title</CardTitle>
-                <div className="text-2xl font-bold mt-2">7.7k <span className="text-xs text-red-500">+2.5% last mo</span></div>
-              </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="h-8 w-8 p-0">
-                    <MoreHorizontal className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem>View details</DropdownMenuItem>
-                  <DropdownMenuItem>Export</DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </CardHeader>
-            <CardContent>
-              <ChartContainer config={barChartConfig}>
-                <BarChart 
-                  accessibilityLayer 
-                  data={barChartData}
-                  height={120}
-                >
-                  <CartesianGrid vertical={false} />
-                  <XAxis
-                    dataKey="name"
-                    tickLine={false}
-                    tickMargin={10}
-                    axisLine={false}
-                    tick={{ fontSize: 12, fill: '#888' }}
-                  />
-                  <ChartTooltip
-                    cursor={false}
-                    content={<ChartTooltipContent hideLabel />}
-                  />
-                  <Bar 
-                    dataKey="value" 
-                    fill="#f97316" 
-                    radius={[2, 2, 0, 0]} 
-                  />
-                </BarChart>
-              </ChartContainer>
-            </CardContent>
-          </Card>
-        </div>
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center py-12">
+        <RefreshCw className="h-8 w-8 animate-spin text-orange-600" />
+        <span className="ml-2">Loading dashboard...</span>
       </div>
+    )
+  }
 
-      {/* Right Sidebar Actions */}
-      <div className="w-full lg:w-[30%] space-y-4">
-        <Card className="bg-white p-4">
-          <div className="space-y-3">
-            <div className="text-sm font-medium text-gray-900">Reason</div>
-            <div className="flex gap-2">
-              <Button size="sm" className="bg-orange-500 hover:bg-orange-600 text-white">
-                Adding
-              </Button>
-              <Button size="sm" variant="outline" className="border-orange-500 text-orange-500">
-                Decrease
-              </Button>
-            </div>
-            <div className="text-xs text-gray-500">Blowout</div>
-            <Button className="w-full bg-orange-500 hover:bg-orange-600 text-white">
-              Save
-            </Button>
-            <Button variant="outline" className="w-full">
-              Cancel
-            </Button>
-          </div>
+  return (
+    <div className="space-y-6">
+      {/* Top Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* Total Products */}
+        <Card className="bg-white border-l-4 border-l-orange-500">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">Total Products</CardTitle>
+            <Package className="h-5 w-5 text-orange-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-orange-600">{metrics.totalProducts}</div>
+            <p className="text-xs text-gray-500 mt-1">{metrics.totalVariations} variations</p>
+          </CardContent>
         </Card>
 
-        <Card className="bg-white p-4">
-          <div className="space-y-3">
-            <div className="text-sm font-medium text-gray-900">Update Stock</div>
-            <div className="text-xs text-gray-500">Blowout</div>
-            <Button className="w-full bg-orange-500 hover:bg-orange-600 text-white">
-              Update
+        {/* In Stock */}
+        <Card className="bg-white border-l-4 border-l-green-500">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">In Stock</CardTitle>
+            <TrendingUp className="h-5 w-5 text-green-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">{metrics.inStockVariations}</div>
+            <p className="text-xs text-gray-500 mt-1">
+              {metrics.totalVariations > 0 ? Math.round((metrics.inStockVariations / metrics.totalVariations) * 100) : 0}% available
+            </p>
+          </CardContent>
+        </Card>
+
+        {/* Low Stock Alert */}
+        <Card className="bg-white border-l-4 border-l-yellow-500">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">Low Stock Alert</CardTitle>
+            <AlertTriangle className="h-5 w-5 text-yellow-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-yellow-600">{metrics.lowStockVariations}</div>
+            <p className="text-xs text-gray-500 mt-1">Need restocking</p>
+          </CardContent>
+        </Card>
+
+        {/* Out of Stock */}
+        <Card className="bg-white border-l-4 border-l-red-500">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">Out of Stock</CardTitle>
+            <TrendingDown className="h-5 w-5 text-red-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-red-600">{metrics.outOfStockVariations}</div>
+            <p className="text-xs text-gray-500 mt-1">Unavailable</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Charts Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Stock Levels Chart */}
+        <Card className="bg-white">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <div>
+              <CardTitle className="text-sm font-medium text-gray-600">Stock Levels Trend</CardTitle>
+              <div className="text-lg font-bold mt-2 text-orange-600">
+                {metrics.inStockVariations + metrics.lowStockVariations} Active
+              </div>
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="h-8 w-8 p-0">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem>View details</DropdownMenuItem>
+                <DropdownMenuItem>Export data</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer config={stockChartConfig}>
+              <BarChart
+                accessibilityLayer
+                data={stockChartData}
+                height={200}
+              >
+                <CartesianGrid vertical={false} />
+                <XAxis
+                  dataKey="month"
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  tick={{ fontSize: 12, fill: '#888' }}
+                />
+                <ChartTooltip
+                  cursor={false}
+                  content={<ChartTooltipContent />}
+                />
+                <Bar dataKey="inStock" fill="var(--color-inStock)" radius={[2, 2, 0, 0]} />
+                <Bar dataKey="lowStock" fill="var(--color-lowStock)" radius={[2, 2, 0, 0]} />
+                <Bar dataKey="outOfStock" fill="var(--color-outOfStock)" radius={[2, 2, 0, 0]} />
+              </BarChart>
+            </ChartContainer>
+          </CardContent>
+        </Card>
+
+        {/* Orders Chart */}
+        <Card className="bg-white">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <div>
+              <CardTitle className="text-sm font-medium text-gray-600">Order Fulfillment</CardTitle>
+              <div className="text-lg font-bold mt-2 text-blue-600">
+                {(orderStats as any)?.delivered_orders || 0} Completed
+              </div>
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="h-8 w-8 p-0">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem>View orders</DropdownMenuItem>
+                <DropdownMenuItem>Export report</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer config={ordersChartConfig}>
+              <AreaChart
+                accessibilityLayer
+                data={ordersChartData}
+                margin={{
+                  left: 12,
+                  right: 12,
+                }}
+                height={200}
+              >
+                <CartesianGrid vertical={false} />
+                <XAxis
+                  dataKey="month"
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  tick={{ fontSize: 12, fill: '#888' }}
+                />
+                <ChartTooltip
+                  cursor={false}
+                  content={<ChartTooltipContent hideLabel />}
+                />
+                <Area
+                  dataKey="orders"
+                  type="monotone"
+                  fill="#3b82f6"
+                  fillOpacity={0.2}
+                  stroke="#3b82f6"
+                  strokeWidth={2}
+                />
+              </AreaChart>
+            </ChartContainer>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Quick Actions */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card className="bg-gradient-to-r from-orange-50 to-orange-100 border-orange-200">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-orange-500 rounded-full">
+                <Package className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900">Manage Stock</h3>
+                <p className="text-sm text-gray-600">Update inventory levels</p>
+              </div>
+            </div>
+            <Button
+              className="w-full mt-4 bg-orange-500 hover:bg-orange-600 text-white"
+              onClick={() => onTabChange?.('stock-levels')}
+            >
+              Go to Stock Levels
             </Button>
-            <Button variant="outline" className="w-full">
-              Cancel
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-r from-blue-50 to-blue-100 border-blue-200">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-blue-500 rounded-full">
+                <ShoppingCart className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900">Process Orders</h3>
+                <p className="text-sm text-gray-600">Handle customer orders</p>
+              </div>
+            </div>
+            <Button
+              className="w-full mt-4 bg-blue-500 hover:bg-blue-600 text-white"
+              onClick={() => onTabChange?.('orders')}
+            >
+              Go to Orders
             </Button>
-          </div>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-gradient-to-r from-purple-50 to-purple-100 border-purple-200">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-purple-500 rounded-full">
+                <BarChart3 className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900">View History</h3>
+                <p className="text-sm text-gray-600">Audit trail & reports</p>
+              </div>
+            </div>
+            <Button
+              className="w-full mt-4 bg-purple-500 hover:bg-purple-600 text-white"
+              onClick={() => onTabChange?.('history')}
+            >
+              Go to History
+            </Button>
+          </CardContent>
         </Card>
       </div>
     </div>

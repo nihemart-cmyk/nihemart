@@ -186,9 +186,9 @@ export default function ProductClientPage({ initialData }: ProductClientPageProp
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
           <div className="space-y-4">
             <div className="relative aspect-square bg-white rounded-lg overflow-hidden">
-              <Image src={displayImages[selectedImageIndex] || "/placeholder.svg"} alt={product.name} fill className="object-cover p-4" />
-              <Button variant="ghost" size="icon" className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/80" onClick={() => setSelectedImageIndex(p => (p - 1 + displayImages.length) % displayImages.length)}><ChevronLeft className="h-4 w-4" /></Button>
-              <Button variant="ghost" size="icon" className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/80" onClick={() => setSelectedImageIndex(p => (p + 1) % displayImages.length)}><ChevronRight className="h-4 w-4" /></Button>
+              <Image src={displayImages[selectedImageIndex] || "/placeholder.svg"} alt={product.name} fill className="object-cover" />
+              <Button variant="ghost" size="icon" className="absolute left-5 top-1/2 -translate-y-1/2 bg-white/80" onClick={() => setSelectedImageIndex(p => (p - 1 + displayImages.length) % displayImages.length)}><ChevronLeft className="h-4 w-4" /></Button>
+              <Button variant="ghost" size="icon" className="absolute right-5 top-1/2 -translate-y-1/2 bg-white/80" onClick={() => setSelectedImageIndex(p => (p + 1) % displayImages.length)}><ChevronRight className="h-4 w-4" /></Button>
             </div>
             <div className="flex gap-2 overflow-x-auto pb-2">{displayImages.map((image, index) => <button key={index} onClick={() => setSelectedImageIndex(index)} className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 ${selectedImageIndex === index ? "border-orange-500" : "border-gray-200"}`}><Image src={image} alt={`Thumbnail ${index + 1}`} width={80} height={80} className="object-cover w-full h-full" /></button>)}</div>
           </div>

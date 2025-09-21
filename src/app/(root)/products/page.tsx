@@ -189,7 +189,7 @@ function ProductListingComponent() {
                     <CardContent className="p-5">
                       <div className="relative mb-4">
                         <div className="bg-gradient-to-br from-slate-100 to-slate-200 rounded-xl p-4 aspect-square">
-                          <Image src={product?.main_image_url || "/placeholder.svg"} alt={product?.name} fill className="object-cover rounded-lg p-4" />
+                          <Image src={product?.main_image_url || "/placeholder.svg"} alt={product?.name} fill className="object-cover rounded-lg" />
                         </div>
                         <button onClick={(e) => { e.stopPropagation() }} className="absolute top-2 right-2 p-2 rounded-full bg-white/90 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-110"><Heart className="h-4 w-4 text-gray-400 hover:text-red-400" /></button>
                       </div>
