@@ -173,7 +173,7 @@ const MoreProducts: FC<MoreProductsProps> = ({}) => {
         {loading ? (
           <ProductGridSkeleton count={12} />
         ) : (
-          <div className="grid grid-cols-1 min-[500px]:grid-cols-2 min-[1000px]:grid-cols-3 xl:grid-cols-4 gap-5">
+          <div className="grid grid-cols-2 min-[500px]:grid-cols-3 min-[1000px]:grid-cols-4 xl:grid-cols-4 gap-5">
             {filteredFeaturedProducts.length > 0 ? (
               filteredFeaturedProducts.map((product) => (
                 <ProductCard key={product.id} product={product} />
@@ -215,7 +215,7 @@ const MoreProducts: FC<MoreProductsProps> = ({}) => {
         {loading ? (
           <ProductGridSkeleton count={8} />
         ) : (
-          <div className="grid grid-cols-1 min-[500px]:grid-cols-2 min-[1000px]:grid-cols-3 xl:grid-cols-4 gap-5">
+          <div className="grid grid-cols-2 min-[500px]:grid-cols-3 min-[1000px]:grid-cols-4 xl:grid-cols-4 gap-5">
             {latestProducts.map((product) => (
               <ProductCard key={product.id} product={product} />
             ))}

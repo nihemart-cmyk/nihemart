@@ -132,7 +132,7 @@ const MoreToLove: FC<MoreToLoveProps> = ({}) => {
           <ProductGridSkeleton count={8} />
         ) : (
           <>
-            <div className="grid grid-cols-1 min-[500px]:grid-cols-2 min-[1000px]:grid-cols-3 xl:grid-cols-4 gap-5">
+            <div className="grid grid-cols-2 min-[500px]:grid-cols-3 min-[1000px]:grid-cols-4 xl:grid-cols-4 gap-5">
               {moreToLove.map((product) => (
                 <ProductCard key={product.id} product={product} />
               ))}
