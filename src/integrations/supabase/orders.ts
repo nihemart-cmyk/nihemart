@@ -342,6 +342,32 @@ export async function updateOrderStatus(
    status: OrderStatus,
    additionalFields?: Partial<Order>
 ) {
+   // Fetch the existing order to validate whether status may be changed from the client
+   const { data: existingOrder, error: fetchErr } = await sb
+      .from("orders")
+      .select("id, is_external, status")
+      .eq("id", id)
+      .maybeSingle();
+
+   if (fetchErr) throw fetchErr;
+   if (!existingOrder) {
+      const e: any = new Error("Order not found");
+      e.code = "ORDER_NOT_FOUND";
+      throw e;
+   }
+
+   // If this is running in the browser (i.e. a manual UI action), disallow changing
+   // the status of internal orders. Service-role/server calls (where sb is the
+   // server client) may still update statuses.
+   const isServerClient = typeof window === "undefined";
+   if (!isServerClient && !existingOrder.is_external) {
+      const e: any = new Error(
+         "Manual status changes are only allowed for external orders"
+      );
+      e.code = "MANUAL_STATUS_DENIED";
+      throw e;
+   }
+
    const updates = {
       status,
       ...additionalFields,

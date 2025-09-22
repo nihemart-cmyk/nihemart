@@ -150,9 +150,11 @@ export async function respondToAssignment(
    if (status === "accepted") {
       // find assignment to get order id
       const assignment = data as any;
+      // When a rider accepts an assignment the order should move to "processing"
+      // (previously it was left as "assigned").
       await sb
          .from("orders")
-         .update({ status: "assigned" })
+         .update({ status: "processing" })
          .eq("id", assignment.order_id);
    }
    if (status === "completed") {

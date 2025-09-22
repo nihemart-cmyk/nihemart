@@ -166,6 +166,7 @@ export const columns: ColumnDef<Order>[] = [
          const { updateOrderStatus } = useOrders();
          const currentStatus = (row.getValue("status") ||
             "pending") as OrderStatus;
+         const isExternal = !!row.original.is_external;
 
          const handleStatusChange = async (newStatus: OrderStatus) => {
             if (isUpdating) return;
@@ -185,7 +186,7 @@ export const columns: ColumnDef<Order>[] = [
          return (
             <DropdownMenu>
                <DropdownMenuTrigger
-                  disabled={isUpdating}
+                  disabled={isUpdating || !isExternal}
                   className="w-full"
                >
                   <div
@@ -197,14 +198,23 @@ export const columns: ColumnDef<Order>[] = [
                   </div>
                </DropdownMenuTrigger>
                <DropdownMenuContent>
-                  <DropdownMenuLabel>Update Status</DropdownMenuLabel>
+                  <DropdownMenuLabel>
+                     Update Status
+                     {!isExternal && (
+                        <span className="ml-2 text-xs text-zinc-500">
+                           (external orders only)
+                        </span>
+                     )}
+                  </DropdownMenuLabel>
                   <DropdownMenuItem
                      onClick={() => handleStatusChange("pending")}
+                     disabled={!isExternal}
                   >
                      Pending
                   </DropdownMenuItem>
                   <DropdownMenuItem
                      onClick={() => handleStatusChange("processing")}
+                     disabled={!isExternal}
                   >
                      Processing
                   </DropdownMenuItem>
@@ -212,16 +222,19 @@ export const columns: ColumnDef<Order>[] = [
                      onClick={() =>
                         handleStatusChange("assigned" as OrderStatus)
                      }
+                     disabled={!isExternal}
                   >
                      Assigned
                   </DropdownMenuItem>
                   <DropdownMenuItem
                      onClick={() => handleStatusChange("delivered")}
+                     disabled={!isExternal}
                   >
                      Delivered
                   </DropdownMenuItem>
                   <DropdownMenuItem
                      onClick={() => handleStatusChange("cancelled")}
+                     disabled={!isExternal}
                   >
                      Cancelled
                   </DropdownMenuItem>
