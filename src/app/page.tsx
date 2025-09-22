@@ -4,6 +4,7 @@ import FeaturedProducts from '@/components/landing-page/FeaturedProducts'
 import Footer from '@/components/landing-page/Footer'
 import HeroCarousel from '@/components/landing-page/HeroCarousel'
 import MoreProducts from '@/components/landing-page/MoreProducts'
+import MoreToLove from '@/components/landing-page/MoreToLove'
 import NavBar from '@/components/landing-page/NavBar'
 import { FC } from 'react'
 
@@ -19,6 +20,7 @@ const page: FC<pageProps> = ({}) => {
     <Collection />
     <FeaturedProducts />
     <MoreProducts />
+    <MoreToLove />
     <Footer />
   </div>
 }
