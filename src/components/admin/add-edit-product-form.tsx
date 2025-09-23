@@ -49,7 +49,7 @@ const productSchema = z.object({
     name: z.string().min(3, "Product name is required"),
     description: z.string().optional(),
     short_description: z.string().optional(),
-    category_id: z.string().min(1, "Category is required"),
+    category_id: z.string().optional(),
     subcategory_id: z.string().optional(),
     price: z.coerce.number().min(0, "Base price is required"),
     cost_price: z.coerce.number().min(0, "Cost price is required").optional(),
@@ -62,7 +62,7 @@ const productSchema = z.object({
     requires_shipping: z.boolean().default(true),
     taxable: z.boolean().default(false),
     dimensions: z.string().optional(),
-    variations: z.array(variationSchema).min(1, "Product must have at least one variant."),
+    variations: z.array(variationSchema).min(0),
 });
 
 type ProductFormData = z.infer<typeof productSchema>;
@@ -94,6 +94,8 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
         defaultValues: isEditMode
             ? {
                 ...initialData.product,
+                name: initialData.product.name || 'Product Name',
+                status: initialData.product.status && ["draft", "active", "out_of_stock"].includes(initialData.product.status) ? initialData.product.status : "draft",
                 price: initialData.product.price ?? 0,
                 cost_price: initialData.product.cost_price ?? 0,
                 sku: initialData.product.sku ?? undefined,
@@ -102,11 +104,13 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
                 subcategory_id: initialData.product.subcategory_id ?? '',
                 dimensions: initialData.product.dimensions ?? '',
                 variations: initialData.variations.map(v => ({
-                    ...v,
+                    id: undefined,
+                    price: v.price ?? 0,
+                    stock: v.stock ?? 0,
                     name: v.name ?? '',
                     sku: v.sku ?? '',
                     barcode: v.barcode ?? '',
-                    attributes: Object.entries(v.attributes).map(([name, value]) => ({ name: name as string, value: value as string })),
+                    attributes: Object.entries(v.attributes || {}).filter(([name, value]) => typeof value === 'string' && name.trim() && value.trim()).map(([name, value]) => ({ name: name.trim(), value: (value as string).trim() })),
                     imageFiles: [],
                     existingImages: v.images || [],
                 })),
@@ -222,6 +226,7 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
                 barcode: v.barcode || null,
                 attributes: v.attributes.reduce((acc, attr) => ({ ...acc, [attr.name]: attr.value }), {}),
                 imageFiles: v.imageFiles,
+                existingImages: v.existingImages,
             }));
 
             if (isEditMode) {

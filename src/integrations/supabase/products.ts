@@ -58,7 +58,8 @@ export interface ProductVariation {
 }
 
 export interface ProductVariationInput extends Omit<ProductVariation, "images"> {
-   imageFiles?: File[];
+    imageFiles?: File[];
+    existingImages?: ProductImage[];
 }
 
 export interface Category {
@@ -167,75 +168,101 @@ export async function updateProductWithImages(
     mainImages: { url: string; file?: File; isExisting?: boolean }[],
     variationsData: ProductVariationInput[],
     selectedMainImageIndex: number = 0
- ) {
-   await sb.from("product_variations").delete().eq("product_id", productId);
-   await sb
-      .from("product_images")
-      .delete()
-      .eq("product_id", productId)
-      .is("product_variation_id", null);
+) {
+    await sb.from("product_variations").delete().eq("product_id", productId);
+    await sb
+       .from("product_images")
+       .delete()
+       .eq("product_id", productId)
+       .neq("product_variation_id", null);
 
-   // Separate existing and new images
-   const existingImages = mainImages.filter(img => img.isExisting);
-   const newFiles = mainImages.filter(img => img.file).map(img => img.file!);
+    // Separate existing and new images
+    const existingImages = mainImages.filter(img => img.isExisting);
+    const newFiles = mainImages.filter(img => img.file).map(img => img.file!);
 
-   // Upload new files
-   const newImageUrls = await Promise.all(
-      newFiles.map((file) => uploadFile(file, "product-images"))
-   );
+    // URLs to keep
+    const urlsToKeep = existingImages.map(img => img.url);
 
-   // Update is_primary for existing images
-   for (let i = 0; i < existingImages.length; i++) {
-      const img = existingImages[i];
-      const shouldBePrimary = i === selectedMainImageIndex;
-      if (img.isExisting) {
-         await sb
-            .from("product_images")
-            .update({ is_primary: shouldBePrimary })
-            .eq("url", img.url)
-            .eq("product_id", productId);
-      }
-   }
+    // Delete removed main images
+    if (urlsToKeep.length > 0) {
+       await sb
+          .from("product_images")
+          .delete()
+          .eq("product_id", productId)
+          .is("product_variation_id", null)
+          .not("url", "in", `(${urlsToKeep.map(url => `"${url}"`).join(",")})`);
+    } else {
+       await sb
+          .from("product_images")
+          .delete()
+          .eq("product_id", productId)
+          .is("product_variation_id", null);
+    }
 
-   // Set main_image_url based on selected image
-   if (mainImages.length > 0) {
-      const selectedImage = mainImages[selectedMainImageIndex];
-      if (selectedImage) {
-         if (selectedImage.isExisting) {
-            productData.main_image_url = selectedImage.url;
-         } else if (newImageUrls[selectedMainImageIndex - existingImages.length]) {
-            productData.main_image_url = newImageUrls[selectedMainImageIndex - existingImages.length];
-         }
-      }
-   }
+    // Upload new files
+    const newImageUrls = await Promise.all(
+       newFiles.map((file) => uploadFile(file, "product-images"))
+    );
 
-   const { data: updatedProduct, error: productError } = await sb
-      .from("products")
-      .update(productData)
-      .eq("id", productId)
-      .select()
-      .single();
-   if (productError) throw productError;
+    // Update is_primary for kept existing images
+    for (let i = 0; i < existingImages.length; i++) {
+       const shouldBePrimary = i === selectedMainImageIndex;
+       await sb
+          .from("product_images")
+          .update({ is_primary: shouldBePrimary })
+          .eq("url", existingImages[i].url)
+          .eq("product_id", productId);
+    }
 
-   // Insert new images
-   if (newImageUrls.length > 0) {
-      const imagesToInsert = newImageUrls.map((url, i) => ({
-         product_id: productId,
-         url,
-         position: existingImages.length + i,
-         is_primary: (existingImages.length + i) === selectedMainImageIndex,
-      }));
-      await sb.from("product_images").insert(imagesToInsert);
-   }
+    // Set main_image_url based on selected image
+    if (mainImages.length > 0) {
+       const selectedImage = mainImages[selectedMainImageIndex];
+       if (selectedImage) {
+          if (selectedImage.isExisting) {
+             productData.main_image_url = selectedImage.url;
+          } else if (newImageUrls[selectedMainImageIndex - existingImages.length]) {
+             productData.main_image_url = newImageUrls[selectedMainImageIndex - existingImages.length];
+          }
+       }
+    }
+
+    const { data: updatedProduct, error: productError } = await sb
+       .from("products")
+       .update(productData)
+       .eq("id", productId)
+       .select()
+       .single();
+    if (productError) throw productError;
+
+    // Insert new images
+    if (newImageUrls.length > 0) {
+       const imagesToInsert = newImageUrls.map((url, i) => ({
+          product_id: productId,
+          url,
+          position: existingImages.length + i,
+          is_primary: (existingImages.length + i) === selectedMainImageIndex,
+       }));
+       await sb.from("product_images").insert(imagesToInsert);
+    }
 
    for (const variation of variationsData) {
-      const { imageFiles = [], ...variationDetails } = variation;
+      const { imageFiles = [], existingImages = [], ...variationDetails } = variation;
       const { data: newVar, error: varErr } = await sb
          .from("product_variations")
          .insert({ ...variationDetails, product_id: productId })
          .select("id")
          .single();
       if (varErr) throw varErr;
+      if (existingImages.length > 0) {
+         const existingImgs = existingImages.map((img, i) => ({
+            product_id: productId,
+            product_variation_id: newVar.id,
+            url: img.url,
+            position: i,
+            is_primary: false,
+         }));
+         await sb.from("product_images").insert(existingImgs);
+      }
       if (imageFiles.length > 0) {
          const varUrls = await Promise.all(
             imageFiles.map((f) => uploadFile(f, "product-images"))
@@ -244,7 +271,7 @@ export async function updateProductWithImages(
             product_id: productId,
             product_variation_id: newVar.id,
             url,
-            position: i,
+            position: existingImages.length + i,
          }));
          await sb.from("product_images").insert(varImgs);
       }
