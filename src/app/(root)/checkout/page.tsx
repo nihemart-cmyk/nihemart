@@ -413,7 +413,9 @@ const Checkout = () => {
 
       if (!isLoggedIn) {
          toast.error(t("checkout.loginToPlaceOrder"));
-         router.push("/signin?redirect=/checkout");
+         // Preserve current path as redirect so user returns to checkout after auth
+         const currentPath = "/checkout"; // this page's path
+         router.push(`/signin?redirect=${encodeURIComponent(currentPath)}`);
          return;
       }
 
@@ -758,81 +760,120 @@ Total: ${total.toLocaleString()} RWF
                               </div>
                            )}
 
-                           {selectedDistrict && (
-                              <div className="space-y-2">
-                                 <Label className="text-sm">
-                                    Sector{" "}
-                                    <span className="text-red-500">*</span>
-                                 </Label>
-                                 <Select
-                                    value={selectedSector ?? ""}
-                                    onValueChange={(v) =>
-                                       setSelectedSector(v || null)
-                                    }
-                                 >
-                                    <SelectTrigger>
-                                       <SelectValue
-                                          placeholder={t(
-                                             "checkout.selectSectorPlaceholder"
-                                          )}
-                                       />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                       {sectors
-                                          .filter(
-                                             (s: any) =>
-                                                s.sct_district ===
-                                                selectedDistrict
-                                          )
-                                          .map((s: any) => (
-                                             <SelectItem
-                                                key={s.sct_id}
-                                                value={String(s.sct_id)}
-                                             >
-                                                {s.sct_name}
-                                             </SelectItem>
-                                          ))}
-                                    </SelectContent>
-                                 </Select>
-                              </div>
-                           )}
+                           {selectedDistrict &&
+                              (() => {
+                                 // Show sector selection only for Kigali province users
+                                 const selectedProvinceObj = provinces.find(
+                                    (p: any) =>
+                                       String(p.prv_id) ===
+                                       String(selectedProvince)
+                                 );
+                                 const provinceIsKigali = Boolean(
+                                    selectedProvinceObj?.prv_name
+                                       ?.toLowerCase()
+                                       .includes("kigali")
+                                 );
 
-                           {selectedSector && (
-                              <div className="space-y-2">
-                                 <Label className="text-sm">
-                                    Cell <span className="text-red-500">*</span>
-                                 </Label>
-                                 <Select
-                                    value={selectedCell ?? ""}
-                                    onValueChange={(v) =>
-                                       setSelectedCell(v || null)
-                                    }
-                                 >
-                                    <SelectTrigger>
-                                       <SelectValue
-                                          placeholder={t(
-                                             "checkout.selectCellPlaceholder"
-                                          )}
-                                       />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                       {cells
-                                          .filter(
-                                             (c: any) =>
-                                                c.cel_sector === selectedSector
-                                          )
-                                          .map((c: any) => (
-                                             <SelectItem
-                                                key={c.cel_id}
-                                                value={String(c.cel_id)}
-                                             >
-                                                {c.cel_name}
-                                             </SelectItem>
-                                          ))}
-                                    </SelectContent>
-                                 </Select>
-                              </div>
-                           )}
+                                 if (!provinceIsKigali) return null;
+
+                                 return (
+                                    <div className="space-y-2">
+                                       <Label className="text-sm">
+                                          Sector{" "}
+                                          <span className="text-red-500">
+                                             *
+                                          </span>
+                                       </Label>
+                                       <Select
+                                          value={selectedSector ?? ""}
+                                          onValueChange={(v) =>
+                                             setSelectedSector(v || null)
+                                          }
+                                       >
+                                          <SelectTrigger>
+                                             <SelectValue
+                                                placeholder={t(
+                                                   "checkout.selectSectorPlaceholder"
+                                                )}
+                                             />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                             {sectors
+                                                .filter(
+                                                   (s: any) =>
+                                                      s.sct_district ===
+                                                      selectedDistrict
+                                                )
+                                                .map((s: any) => (
+                                                   <SelectItem
+                                                      key={s.sct_id}
+                                                      value={String(s.sct_id)}
+                                                   >
+                                                      {s.sct_name}
+                                                   </SelectItem>
+                                                ))}
+                                          </SelectContent>
+                                       </Select>
+                                    </div>
+                                 );
+                              })()}
+
+                           {selectedSector &&
+                              (() => {
+                                 // Cell selection only makes sense when sector is shown (Kigali)
+                                 const selectedProvinceObj = provinces.find(
+                                    (p: any) =>
+                                       String(p.prv_id) ===
+                                       String(selectedProvince)
+                                 );
+                                 const provinceIsKigali = Boolean(
+                                    selectedProvinceObj?.prv_name
+                                       ?.toLowerCase()
+                                       .includes("kigali")
+                                 );
+                                 if (!provinceIsKigali) return null;
+
+                                 return (
+                                    <div className="space-y-2">
+                                       <Label className="text-sm">
+                                          Cell{" "}
+                                          <span className="text-red-500">
+                                             *
+                                          </span>
+                                       </Label>
+                                       <Select
+                                          value={selectedCell ?? ""}
+                                          onValueChange={(v) =>
+                                             setSelectedCell(v || null)
+                                          }
+                                       >
+                                          <SelectTrigger>
+                                             <SelectValue
+                                                placeholder={t(
+                                                   "checkout.selectCellPlaceholder"
+                                                )}
+                                             />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                             {cells
+                                                .filter(
+                                                   (c: any) =>
+                                                      c.cel_sector ===
+                                                      selectedSector
+                                                )
+                                                .map((c: any) => (
+                                                   <SelectItem
+                                                      key={c.cel_id}
+                                                      value={String(c.cel_id)}
+                                                   >
+                                                      {c.cel_name}
+                                                   </SelectItem>
+                                                ))}
+                                          </SelectContent>
+                                       </Select>
+                                    </div>
+                                 );
+                              })()}
 
                            {/* Show computed delivery fee */}
                            <div className="flex items-center justify-between">
@@ -900,7 +941,23 @@ Total: ${total.toLocaleString()} RWF
                                        onClick={async () => {
                                           if (isSavingAddress) return;
                                           // Save or update
-                                          if (!selectedSector) {
+                                          // Only require sector selection when the chosen province is Kigali
+                                          const selectedProvinceObj =
+                                             provinces.find(
+                                                (p: any) =>
+                                                   String(p.prv_id) ===
+                                                   String(selectedProvince)
+                                             );
+                                          const provinceIsKigali = Boolean(
+                                             selectedProvinceObj?.prv_name
+                                                ?.toLowerCase()
+                                                .includes("kigali")
+                                          );
+
+                                          if (
+                                             provinceIsKigali &&
+                                             !selectedSector
+                                          ) {
                                              toast.error(
                                                 "Please select a sector for delivery"
                                              );
@@ -928,8 +985,16 @@ Total: ${total.toLocaleString()} RWF
                                           const sectorObj = sectors.find(
                                              (s) => s.sct_id === selectedSector
                                           );
-                                          const cityName =
-                                             sectorObj?.sct_name || "";
+                                          // For Kigali, use sector name as city/street. For other provinces,
+                                          // derive city from selected district (if available) to avoid forcing
+                                          // users to pick sector/cell.
+                                          const districtObj = districts.find(
+                                             (d) =>
+                                                d.dst_id === selectedDistrict
+                                          );
+                                          const cityName = provinceIsKigali
+                                             ? sectorObj?.sct_name || ""
+                                             : districtObj?.dst_name || "";
                                           // Derive a display name from selected names (sector/cell) since displayName field removed
                                           const derivedDisplayName = (() => {
                                              if (selectedCell) {
@@ -1443,7 +1508,11 @@ Total: ${total.toLocaleString()} RWF
                                     className="w-full"
                                     size="lg"
                                     onClick={() =>
-                                       router.push("/signin?redirect=/checkout")
+                                       router.push(
+                                          `/signin?redirect=${encodeURIComponent(
+                                             "/checkout"
+                                          )}`
+                                       )
                                     }
                                  >
                                     {t("checkout.loginToContinue")}

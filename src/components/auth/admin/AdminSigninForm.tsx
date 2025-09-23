@@ -24,7 +24,8 @@ import { Mail, Lock, Eye, EyeOff, Loader } from "lucide-react";
 import { toast } from "sonner";
 import { redirect } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { GoogleSignInButton } from "./google-signin-button";
 
@@ -35,23 +36,96 @@ const AdminSigninForm: FC<AdminSigninFormProps> = ({}) => {
    const [googleLoading, setGoogleLoading] = useState(false);
    const { signIn, hasRole, user, loading } = useAuth();
    const router = useRouter();
+   const searchParams = useSearchParams();
    // Google sign-in handler
    const handleGoogleSignIn = async () => {
-      setGoogleLoading(true);
-      const { error } = await supabase.auth.signInWithOAuth({
-         provider: "google",
-         options: {
-            redirectTo:
-               typeof window !== "undefined"
-                  ? `${window.location.origin}/signin`
-                  : "/signin",
-         },
-      });
-      setGoogleLoading(false);
-      if (error) {
-         toast.error(error.message || "Google sign-in failed");
+      try {
+         setGoogleLoading(true);
+         // Preserve redirect query param so OAuth callback can send the user back
+         const redirectParam = searchParams?.get("redirect") || "/";
+         const origin =
+            typeof window !== "undefined" ? window.location.origin : "";
+         // Build a redirectTo that includes the redirect query so after OAuth returns
+         // the signin page can pick it up and redirect the user back.
+         const redirectTo = `${origin}/signin${
+            redirectParam && redirectParam !== "/"
+               ? `?redirect=${encodeURIComponent(redirectParam)}`
+               : ""
+         }`;
+
+         const { error } = await supabase.auth.signInWithOAuth({
+            provider: "google",
+            options: {
+               redirectTo,
+            },
+         });
+
+         // If supabase returns an error, show it and clear loading. Otherwise the
+         // SDK will perform a redirect; we don't need to do anything else here.
+         if (error) {
+            setGoogleLoading(false);
+            toast.error(error.message || "Google sign-in failed");
+         }
+      } catch (err: any) {
+         setGoogleLoading(false);
+         toast.error(err?.message || "Google sign-in failed");
       }
    };
+
+   // When the user becomes logged in (either via password sign-in or OAuth redirect),
+   // send them to the requested redirect path if present, otherwise fall back to role-based routing.
+   useEffect(() => {
+      if (loading) return; // wait until auth initialization completes
+      if (!user) return;
+
+      // Stop any loading state for the Google button if set
+      setGoogleLoading(false);
+
+      // try to use redirect param first
+      const redirect = searchParams?.get("redirect") || null;
+
+      // safety: only allow relative internal redirects
+      const safeRedirect = (() => {
+         if (!redirect) return null;
+         try {
+            // If user passed an absolute url matching our origin, strip origin
+            const url = new URL(
+               redirect,
+               typeof window !== "undefined"
+                  ? window.location.origin
+                  : undefined
+            );
+            if (
+               url.origin ===
+               (typeof window !== "undefined"
+                  ? window.location.origin
+                  : url.origin)
+            ) {
+               return url.pathname + url.search + url.hash;
+            }
+            // if redirect does not share origin, reject it
+            return null;
+         } catch (e) {
+            // invalid URL -> if it starts with / treat as internal
+            if (redirect.startsWith("/")) return redirect;
+            return null;
+         }
+      })();
+
+      if (safeRedirect) {
+         router.push(safeRedirect);
+         return;
+      }
+
+      // fallback: role-based redirect for admin/rider/regular user
+      if (hasRole("admin")) {
+         router.push("/admin");
+      } else if (hasRole("rider")) {
+         router.push("/rider");
+      } else {
+         router.push("/");
+      }
+   }, [user, loading, searchParams, hasRole, router]);
 
    const form = useForm<TAdminSigninSchema>({
       resolver: zodResolver(AdminSigninSchema),
@@ -72,6 +146,15 @@ const AdminSigninForm: FC<AdminSigninFormProps> = ({}) => {
 
       toast.success("Logged in successfully");
       form.reset();
+
+      // If there's a redirect query param, prefer it (safely). Otherwise role-based routing.
+      const redirect = searchParams?.get("redirect") || null;
+      const safeRedirect =
+         redirect && redirect.startsWith("/") ? redirect : null;
+      if (safeRedirect) {
+         router.push(safeRedirect);
+         return;
+      }
 
       // Redirect based on role
       if (hasRole("admin")) {
