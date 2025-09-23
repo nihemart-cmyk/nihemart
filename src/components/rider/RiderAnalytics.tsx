@@ -1,19 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { Calendar, MoreVertical, ArrowUp } from "lucide-react";
-import {
-  Line,
-  LineChart,
-  CartesianGrid,
-  XAxis,
-  YAxis,
-  ResponsiveContainer,
-} from "recharts";
-import { format } from "date-fns";
+import { Calendar, MoreVertical, ArrowUp, TrendingUp } from "lucide-react";
+import { CartesianGrid, Line, LineChart, XAxis } from "recharts";
 
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  ChartConfig,
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
@@ -23,46 +23,97 @@ import { Button } from "../ui/button";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 
 const deliveriesData = [
-  { hour: "6 AM", deliveries: 2 },
-  { hour: "8 AM", deliveries: 1 },
-  { hour: "10 AM", deliveries: 0 },
-  { hour: "12 PM", deliveries: 0 },
-  { hour: "2 PM", deliveries: 1 },
-  { hour: "4 PM", deliveries: 3 },
-  { hour: "6 PM", deliveries: 5 },
-  { hour: "8 PM", deliveries: 8 },
-  { hour: "10 PM", deliveries: 12 },
+  { time: "6 AM", deliveries: 2 },
+  { time: "8 AM", deliveries: 1 },
+  { time: "10 AM", deliveries: 0 },
+  { time: "12 PM", deliveries: 3 },
+  { time: "2 PM", deliveries: 5 },
+  { time: "4 PM", deliveries: 8 },
+  { time: "6 PM", deliveries: 12 },
+  { time: "8 PM", deliveries: 15 },
+  { time: "10 PM", deliveries: 10 },
 ];
+
+const chartConfig = {
+  deliveries: {
+    label: "Deliveries",
+    color: "hsl(var(--chart-1))",
+  },
+} satisfies ChartConfig;
 
 export function RiderAnalytics() {
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [calendarOpen, setCalendarOpen] = useState(false);
 
+  const totalDeliveries = deliveriesData.reduce((sum, item) => sum + item.deliveries, 0);
+  const peakHour = deliveriesData.reduce((prev, current) => 
+    prev.deliveries > current.deliveries ? prev : current
+  );
+
   return (
-    <div className="w-full">
+    <div className="w-full space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 md:mb-6 gap-3">
-        <h3 className="text-xl sm:text-2xl font-bold text-gray-900">
-          Deliveries Analytics
-        </h3>
-        <Button className="bg-orange-500 hover:bg-orange-600 w-full sm:w-auto">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h3 className="text-2xl font-bold text-gray-900">
+            Delivery Analytics
+          </h3>
+          <p className="text-gray-600 text-sm">
+            Track your performance throughout the day
+          </p>
+        </div>
+        <Button className="bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-lg w-full sm:w-auto">
           <ArrowUp className="w-4 h-4 mr-2" />
-          Export
+          Export Data
         </Button>
       </div>
 
-      {/* Card with Chart */}
-      <Card className="border shadow-sm mt-6">
-        <CardHeader className="flex flex-row items-center justify-end space-y-0 pb-2">
+      {/* Analytics Cards Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <Card className="border-0 shadow-md">
+          <CardContent className="p-4">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-gray-900">{totalDeliveries}</div>
+              <div className="text-sm text-gray-500">Today's Total</div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-0 shadow-md">
+          <CardContent className="p-4">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-gray-900">{peakHour.time}</div>
+              <div className="text-sm text-gray-500">Peak Hour</div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-0 shadow-md">
+          <CardContent className="p-4">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-gray-900">4.8★</div>
+              <div className="text-sm text-gray-500">Avg Rating</div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Main Chart Card */}
+      <Card className="border-0 shadow-lg">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <div className="space-y-1">
+            <CardTitle className="text-xl">Hourly Deliveries</CardTitle>
+            <CardDescription>
+              Your delivery pattern for {date ? date.toLocaleDateString() : 'today'}
+            </CardDescription>
+          </div>
           <div className="flex items-center gap-2">
             <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
-                  className="justify-start text-left font-normal h-9 px-3 w-full sm:w-auto"
+                  className="justify-start text-left font-normal h-9 px-3 border-gray-200 hover:bg-gray-50"
                 >
                   <Calendar className="mr-2 h-4 w-4" />
-                  {date ? format(date, "PPP") : <span>Pick a date</span>}
+                  {date ? date.toLocaleDateString() : <span>Pick a date</span>}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="end">
@@ -81,80 +132,66 @@ export function RiderAnalytics() {
                 />
               </PopoverContent>
             </Popover>
-            <MoreVertical className="w-4 h-4" />
           </div>
         </CardHeader>
 
         <CardContent>
-          {/* Chart Area - Scrollable on small screens */}
-          <div className="bg-gray-50 rounded-lg overflow-x-auto">
-            {/* force min width so it scrolls */}
-            <div className="min-w-[800px] h-72">
-              <ChartContainer
-                className="h-full w-full"
-                config={{
-                  type: { label: "Line Chart", color: "black" },
-                  title: { label: "Deliveries per Hour" },
-                  xKey: { label: "Hour of Day" },
-                  yKey: { label: "Deliveries" },
+          <ChartContainer config={chartConfig}>
+            <LineChart
+              accessibilityLayer
+              data={deliveriesData}
+              margin={{
+                left: 12,
+                right: 12,
+                top: 12,
+                bottom: 12,
+              }}
+            >
+              <CartesianGrid 
+                vertical={false} 
+                strokeDasharray="3 3" 
+                className="stroke-gray-200"
+              />
+              <XAxis
+                dataKey="time"
+                tickLine={false}
+                axisLine={false}
+                tickMargin={8}
+                className="text-gray-600"
+              />
+              <ChartTooltip
+                cursor={false}
+                content={<ChartTooltipContent hideLabel />}
+              />
+              <Line
+                dataKey="deliveries"
+                type="monotone"
+                stroke="var(--color-deliveries)"
+                strokeWidth={3}
+                dot={{
+                  r: 4,
+                  strokeWidth: 2,
+                  fill: "var(--color-deliveries)",
                 }}
-              >
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart
-                    data={deliveriesData}
-                    margin={{
-                      left: 12,
-                      right: 12,
-                      top: 12,
-                      bottom: 40, // extra bottom margin for label
-                    }}
-                  >
-                    <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                    <XAxis
-                      dataKey="hour"
-                      tickLine={false}
-                      axisLine={false}
-                      tickMargin={8}
-                      label={{
-                        value: "Hour of Day",
-                        position: "insideBottom",
-                        offset: -20,
-                      }}
-                    />
-                    <YAxis
-                      tickLine={false}
-                      axisLine={false}
-                      tickMargin={8}
-                      width={40}
-                      label={{
-                        value: "Deliveries",
-                        angle: -90,
-                        position: "insideLeft",
-                      }}
-                    />
-                    <ChartTooltip
-                      cursor={false}
-                      content={<ChartTooltipContent indicator="line" />}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="deliveries"
-                      stroke="black"
-                      strokeWidth={3}
-                      dot={{
-                        r: 4,
-                        stroke: "black",
-                        strokeWidth: 2,
-                        fill: "#fff",
-                      }}
-                      activeDot={{ r: 6 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </ChartContainer>
-            </div>
-          </div>
+                activeDot={{
+                  r: 6,
+                  strokeWidth: 0,
+                  fill: "var(--color-deliveries)",
+                }}
+              />
+            </LineChart>
+          </ChartContainer>
         </CardContent>
+
+        <CardFooter className="flex-col items-start gap-2 text-sm">
+          <div className="flex gap-2 font-medium leading-none">
+            Peak activity at {peakHour.time} with {peakHour.deliveries} deliveries{" "}
+            <TrendingUp className="h-4 w-4 text-green-600" />
+          </div>
+          <div className="leading-none text-muted-foreground">
+            Showing delivery pattern for the selected day
+          </div>
+        </CardFooter>
       </Card>
     </div>
   );

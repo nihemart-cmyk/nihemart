@@ -2,6 +2,8 @@
 import { RiderAnalytics } from "@/components/rider/RiderAnalytics";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import {
    Box,
    Clock,
@@ -12,6 +14,10 @@ import {
    TrendingDown,
    TrendingUp,
    Users,
+   Package,
+   Target,
+   Award,
+   Navigation,
 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
@@ -23,7 +29,7 @@ interface StatsCardProps {
    value: string;
    change?: string;
    icon: LucideIcon;
-   iconColor: string;
+   gradient: string;
 }
 
 interface ActiveRiderProps {
@@ -49,38 +55,37 @@ const StatsCard: React.FC<StatsCardProps> = ({
    value,
    change,
    icon: Icon,
-   iconColor,
+   gradient,
 }) => (
-   <div className="bg-white rounded-xl border shadow-sm p-6 flex flex-col h-full">
-      <div className="flex">
-         <div className="flex flex-col flex-grow justify-between">
-            <p className="text-sm font-medium text-gray-600 mb-2">{title}</p>
-            <p className="text-2xl font-bold text-gray-900 mb-2">{value}</p>
-            {change && (
-               <div className="flex items-center gap-1 mt-auto">
-                  {Number(change) < 0 ? (
-                     <TrendingDown className="w-4 h-4 text-red-500" />
-                  ) : (
-                     <TrendingUp className="w-4 h-4 text-green-500" />
+   <Card className="overflow-hidden border-0 shadow-lg hover:shadow-xl transition-all duration-300 group">
+      <CardContent className="p-0">
+         <div className={`${gradient} p-6 text-white relative`}>
+            <div className="flex items-center justify-between">
+               <div className="space-y-2">
+                  <p className="text-white/80 text-sm font-medium">{title}</p>
+                  <p className="text-3xl font-bold">{value}</p>
+                  {change && (
+                     <div className="flex items-center gap-1">
+                        {Number(change) < 0 ? (
+                           <TrendingDown className="w-4 h-4 text-white/80" />
+                        ) : (
+                           <TrendingUp className="w-4 h-4 text-white/80" />
+                        )}
+                        <span className="text-sm text-white/80">
+                           {change}% vs last week
+                        </span>
+                     </div>
                   )}
-                  <span
-                     className={`text-sm ${
-                        Number(change) < 0 ? "text-red-500" : "text-green-500"
-                     }`}
-                  >
-                     {change}%
-                  </span>
-                  <span className="text-sm text-gray-500">vs last 7 days</span>
                </div>
-            )}
-         </div>
-         <div className="flex items-center justify-between mb-4">
-            <div className={`p-2 rounded-lg ${iconColor}`}>
-               <Icon className="w-5 h-5 text-white" />
+               <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm group-hover:scale-110 transition-transform duration-300">
+                  <Icon className="w-7 h-7 text-white" />
+               </div>
             </div>
+            <div className="absolute -right-6 -bottom-6 w-24 h-24 bg-white/10 rounded-full"></div>
+            <div className="absolute -right-2 -bottom-2 w-16 h-16 bg-white/5 rounded-full"></div>
          </div>
-      </div>
-   </div>
+      </CardContent>
+   </Card>
 );
 
 const ActiveRiderCard: React.FC<ActiveRiderProps> = ({
@@ -91,41 +96,70 @@ const ActiveRiderCard: React.FC<ActiveRiderProps> = ({
    rating,
    status,
 }) => (
-   <div className="bg-white rounded-xl border shadow-sm p-4 h-full">
-      <div className="flex items-start justify-between gap-4">
+   <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300">
+      <CardHeader className="pb-4">
+         <CardTitle className="text-lg font-semibold text-gray-800">Your Profile</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-6">
          <div className="flex items-start gap-4">
-            <div className="p-5 rounded-full bg-blue-500">
-               <div className="w-2 h-2"></div>
+            <div className="relative">
+               <div className="w-16 h-16 bg-gradient-to-br from-orange-400 to-orange-600 rounded-xl flex items-center justify-center shadow-lg">
+                  <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
+                     <Users className="w-5 h-5 text-orange-500" />
+                  </div>
+               </div>
+               <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-white ${
+                  status === "Active" ? "bg-green-500" : "bg-red-500"
+               }`}></div>
             </div>
-            <div>
-               <h1 className="font-bold">{name}</h1>
-               <p>#{id}</p>
+            <div className="flex-1">
+               <h3 className="font-bold text-xl text-gray-900">{name}</h3>
+               <p className="text-gray-500 text-sm">ID: #{id}</p>
+               <Badge 
+                  className={`mt-2 ${
+                     status === "Active" 
+                        ? "bg-green-100 text-green-700 hover:bg-green-100" 
+                        : "bg-red-100 text-red-700 hover:bg-red-100"
+                  }`}
+               >
+                  {status}
+               </Badge>
             </div>
          </div>
-         <Badge className="bg-orange-500 hover:bg-orange-500">{status}</Badge>
-      </div>
 
-      <div className="mt-5">
-         <p className="flex gap-1 items-center text-gray-600 mb-3">
-            <MapPin />
-            {location}
-         </p>
-         <div className="flex items-center justify-between text-gray-600">
-            <p className="flex gap-1 items-center text-gray-600 mb-3">
-               <Star
-                  className="text-orange-500 outline-none"
-                  fill="#EFB100"
-               />
-               {rating}
-            </p>
-            <p>{deliveries} deliveries</p>
+         <div className="grid grid-cols-2 gap-4">
+            <div className="bg-gray-50 rounded-lg p-4 text-center">
+               <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-lg mx-auto mb-2">
+                  <Package className="w-4 h-4 text-blue-600" />
+               </div>
+               <p className="text-2xl font-bold text-gray-900">{deliveries}</p>
+               <p className="text-sm text-gray-500">Total Deliveries</p>
+            </div>
+            <div className="bg-gray-50 rounded-lg p-4 text-center">
+               <div className="flex items-center justify-center w-8 h-8 bg-yellow-100 rounded-lg mx-auto mb-2">
+                  <Star className="w-4 h-4 text-yellow-600" fill="currentColor" />
+               </div>
+               <p className="text-2xl font-bold text-gray-900">{rating}</p>
+               <p className="text-sm text-gray-500">Rating</p>
+            </div>
          </div>
-         <p className="flex gap-1 items-center text-gray-600">
-            <Clock />
-            Last active: Now
-         </p>
-      </div>
-   </div>
+
+         <div className="space-y-3">
+            <div className="flex items-center gap-3 text-gray-600">
+               <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
+                  <MapPin className="w-4 h-4" />
+               </div>
+               <span className="text-sm">{location}</span>
+            </div>
+            <div className="flex items-center gap-3 text-gray-600">
+               <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
+                  <Clock className="w-4 h-4" />
+               </div>
+               <span className="text-sm">Last active: Now</span>
+            </div>
+         </div>
+      </CardContent>
+   </Card>
 );
 
 const RecentDelivery: React.FC<RecentDeliveryProps> = ({
@@ -136,42 +170,51 @@ const RecentDelivery: React.FC<RecentDeliveryProps> = ({
    time,
    status,
 }) => (
-   <div className="bg-gray-100 rounded-xl border shadow-sm p-4 h-full flex flex-col sm:flex-row justify-between my-5 gap-4">
-      <div className="flex-1">
-         <div className="flex items-center gap-4">
-            <div className="p-5 rounded-full bg-orange-500 flex-shrink-0">
-               <div className="w-2 h-2"></div>
-            </div>
-            <div>
-               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-5">
-                  <h1 className="font-bold text-base sm:text-lg">#{id}</h1>
-                  <Badge className="bg-green-500 hover:bg-green-500 text-xs sm:text-sm">
-                     {status}
-                  </Badge>
+   <Card className="border-0 bg-gray-50 hover:bg-gray-100 transition-all duration-200 hover:shadow-md">
+      <CardContent className="p-4">
+         <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4 flex-1">
+               <div className="w-12 h-12 bg-gradient-to-br from-orange-400 to-orange-600 rounded-lg flex items-center justify-center shadow-sm">
+                  <Package className="w-5 h-5 text-white" />
                </div>
-               <p className="text-sm sm:text-base">{name}</p>
-               <p className="flex items-center gap-2 text-xs sm:text-sm">
-                  <MapPin /> {location}
-               </p>
+               <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-1">
+                     <span className="font-semibold text-gray-900">#{id}</span>
+                     <Badge 
+                        className={`text-xs ${
+                           status === "completed" || status === "delivered"
+                              ? "bg-green-100 text-green-700 hover:bg-green-100"
+                              : status === "processing"
+                              ? "bg-blue-100 text-blue-700 hover:bg-blue-100"
+                              : "bg-gray-100 text-gray-700 hover:bg-gray-100"
+                        }`}
+                     >
+                        {status}
+                     </Badge>
+                  </div>
+                  <p className="text-sm text-gray-600 mb-1">{name}</p>
+                  <div className="flex items-center gap-1 text-xs text-gray-500">
+                     <MapPin className="w-3 h-3" />
+                     <span className="truncate max-w-xs">{location}</span>
+                  </div>
+               </div>
+            </div>
+            <div className="text-right space-y-1">
+               <p className="font-bold text-gray-900">RWF {amount}</p>
+               <div className="flex items-center gap-1 text-xs text-gray-500">
+                  <Clock className="w-3 h-3" />
+                  <span>{time} ago</span>
+               </div>
             </div>
          </div>
-      </div>
-      <div className="flex flex-row sm:flex-col items-end sm:items-start justify-between sm:justify-end gap-2 sm:gap-0">
-         <p className="text-sm sm:text-base font-semibold">RWF {amount}</p>
-         <p className="flex items-center gap-2 text-xs sm:text-sm">
-            <Clock
-               size={16}
-               className="sm:size-[18px]"
-            />
-            {time} ago
-         </p>
-      </div>
-   </div>
+      </CardContent>
+   </Card>
 );
 
 const Dashboard = () => {
    const { user, isLoggedIn } = useAuth();
    const [rider, setRider] = useState<any | null>(null);
+   
    useEffect(() => {
       if (!user) return;
       fetchRiderByUserId(user.id)
@@ -185,7 +228,9 @@ const Dashboard = () => {
    const delivered = assignments.filter(
       (a: any) => a.status === "completed" || a.status === "delivered"
    ).length;
-   const avgDeliveryTime = "--"; // could compute if timestamps exist
+   const pending = assignments.filter(
+      (a: any) => a.status === "assigned"
+   ).length;
 
    const recent = assignments.slice(0, 5).map((a: any) => {
       const order =
@@ -200,42 +245,67 @@ const Dashboard = () => {
       };
    });
 
-   if (!isLoggedIn) return <div className="p-6">Please sign in.</div>;
+   if (!isLoggedIn) {
+      return (
+         <div className="min-h-screen bg-gradient-to-br from-orange-50 to-blue-50 flex items-center justify-center">
+            <Card className="p-8 text-center">
+               <CardContent>
+                  <h2 className="text-xl font-semibold mb-2">Please Sign In</h2>
+                  <p className="text-gray-600">You need to sign in to access your dashboard.</p>
+               </CardContent>
+            </Card>
+         </div>
+      );
+   }
 
    return (
-      <div className="min-h-screen bg-slate-50">
+      <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-blue-50">
          <ScrollArea className="h-[calc(100vh-2rem)]">
-            <div className="container mx-auto p-4">
-               {/* TOP */}
-               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+            <div className="container mx-auto p-6">
+               {/* Welcome Section */}
+               <div className="mb-8">
+                  <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                     Welcome back, {rider?.full_name || user?.email || "Rider"}!
+                  </h1>
+                  <p className="text-gray-600">Here's your delivery overview for today.</p>
+               </div>
+
+               {/* Stats Cards */}
+               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                   <StatsCard
-                     title="Active"
-                     value={rider?.active ? "Yes" : "No"}
+                     title="Status"
+                     value={rider?.active ? "Active" : "Inactive"}
                      change={"0"}
                      icon={Users}
-                     iconColor="bg-orange-500"
+                     gradient="bg-gradient-to-br from-orange-500 to-orange-600"
                   />
                   <StatsCard
-                     title="Total Deliveries"
+                     title="Total Orders"
                      value={`${totalDeliveries}`}
                      change={"0"}
                      icon={Box}
-                     iconColor="bg-blue-500"
+                     gradient="bg-gradient-to-br from-blue-500 to-blue-600"
                   />
                   <StatsCard
-                     title="Delivered"
+                     title="Completed"
                      value={`${delivered}`}
                      change={"0"}
+                     icon={Target}
+                     gradient="bg-gradient-to-br from-green-500 to-green-600"
+                  />
+                  <StatsCard
+                     title="Pending"
+                     value={`${pending}`}
+                     change={"0"}
                      icon={Timer}
-                     iconColor="bg-green-500"
+                     gradient="bg-gradient-to-br from-purple-500 to-purple-600"
                   />
                </div>
 
-               {/* BOTTOM */}
-               <div className="flex flex-col lg:flex-row gap-6 mt-6">
-                  {/* LEFT */}
-                  <div className="w-full lg:w-2/5 space-y-4">
-                     <h1 className="font-bold">Your Profile</h1>
+               {/* Main Content */}
+               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                  {/* Profile Card */}
+                  <div className="lg:col-span-1">
                      <ActiveRiderCard
                         id={rider?.id || "-"}
                         name={rider?.full_name || user?.email || "Rider"}
@@ -245,27 +315,45 @@ const Dashboard = () => {
                         status={rider?.active ? "Active" : "Unavailable"}
                      />
                   </div>
-                  {/* RIGHT */}
-                  <div className="w-full lg:w-3/5 space-y-4">
+
+                  {/* Analytics and Recent Deliveries */}
+                  <div className="lg:col-span-2 space-y-8">
                      <RiderAnalytics />
-                     <div className="bg-white rounded-2xl border shadow-sm p-4">
-                        <h1 className="font-semibold mb-3">
-                           Recent Deliveries
-                        </h1>
-                        <div className="space-y-3">
-                           {recent.map((r: any) => (
-                              <RecentDelivery
-                                 key={r.id}
-                                 id={r.id}
-                                 name={r.name}
-                                 location={r.location}
-                                 amount={`${r.amount}`}
-                                 time={r.time}
-                                 status={r.status}
-                              />
-                           ))}
-                        </div>
-                     </div>
+                     
+                     <Card className="border-0 shadow-lg">
+                        <CardHeader>
+                           <CardTitle className="flex items-center gap-2">
+                              <Navigation className="w-5 h-5 text-orange-500" />
+                              Recent Deliveries
+                           </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                           {isLoading ? (
+                              <div className="flex items-center justify-center py-8">
+                                 <div className="animate-spin w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full"></div>
+                              </div>
+                           ) : recent.length > 0 ? (
+                              <div className="space-y-3">
+                                 {recent.map((r: any) => (
+                                    <RecentDelivery
+                                       key={r.id}
+                                       id={r.id}
+                                       name={r.name}
+                                       location={r.location}
+                                       amount={`${r.amount}`}
+                                       time={r.time}
+                                       status={r.status}
+                                    />
+                                 ))}
+                              </div>
+                           ) : (
+                              <div className="text-center py-8 text-gray-500">
+                                 <Package className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                                 <p>No recent deliveries</p>
+                              </div>
+                           )}
+                        </CardContent>
+                     </Card>
                   </div>
                </div>
             </div>

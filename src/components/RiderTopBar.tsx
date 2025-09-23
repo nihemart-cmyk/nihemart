@@ -13,14 +13,14 @@ import {
    SheetTrigger,
 } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { DropdownMenuGroup } from "@radix-ui/react-dropdown-menu";
-import { CircleEllipsis, LogOut, Menu } from "lucide-react";
+import { LogOut, Menu, Settings, User } from "lucide-react";
 import { useRouter } from "next13-progressbar";
 import { useEffect, useState } from "react";
 import { fetchRiderByUserId } from "@/integrations/supabase/riders";
 import { useRiderAssignments } from "@/hooks/useRiders";
-import { Bell } from "lucide-react";
 import NotificationsBell from "@/components/NotificationsBell";
 import { FC } from "react";
 import RiderSidebar from "./RiderSidebar";
@@ -44,7 +44,7 @@ type TopBarProps = {
 const RiderTopBar: FC<TopBarProps> = (props) => {
    const router = useRouter();
    const { className, variant } = props;
-   const { signOut } = useAuth();
+   const { signOut, user } = useAuth();
 
    const handleLogout = async () => {
       await signOut();
@@ -52,7 +52,6 @@ const RiderTopBar: FC<TopBarProps> = (props) => {
    };
 
    const [rider, setRider] = useState<any | null>(null);
-   const { user } = useAuth();
    useEffect(() => {
       if (!user) return;
       fetchRiderByUserId(user.id)
@@ -62,11 +61,24 @@ const RiderTopBar: FC<TopBarProps> = (props) => {
 
    const { data: assignments = [] } = useRiderAssignments(rider?.id);
 
+   // Get user initials for avatar
+   const getUserInitials = () => {
+      const name = rider?.full_name || user?.email || "R";
+      if (rider?.full_name) {
+         return name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
+      }
+      return name[0].toUpperCase();
+   };
+
+   const getUserDisplayName = () => {
+      return rider?.full_name || user?.email?.split("@")[0] || "Rider";
+   };
+
    return (
       <div
          className={cn(
-            "w-full py-3 px-3 lg:px-10 flex items-center justify-between border-b border-b-brand-border bg-white",
-            { "bg-surface-secondary": variant === "secondary" },
+            "w-full py-4 px-4 lg:px-8 flex items-center justify-between border-b border-gray-200 bg-white shadow-sm",
+            { "bg-gray-50": variant === "secondary" },
             className
          )}
       >
@@ -74,70 +86,103 @@ const RiderTopBar: FC<TopBarProps> = (props) => {
             <SheetTrigger asChild>
                <Button
                   variant={"ghost"}
-                  className="lg:hidden px-0 mr-4"
+                  className="lg:hidden px-2 mr-4 hover:bg-gray-100"
                >
-                  <Menu />
+                  <Menu className="w-5 h-5" />
                </Button>
             </SheetTrigger>
             <SheetContent
                side={"left"}
                className="lg:hidden pt-3 pb-6 pr-6 pl-0"
             >
-               <SheetTitle className="sr-only">Edit profile</SheetTitle>
+               <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
                <RiderSidebar />
             </SheetContent>
          </Sheet>
-         <div className="flex gap-5 items-center">
+
+         <div className="flex gap-6 items-center">
             {variant === "primary" && (
-               <h3 className="font-bold text-3xl w-full hidden md:block">
+               <h3 className="font-bold text-2xl lg:text-3xl text-gray-900 hidden md:block">
                   {props.title}
                </h3>
             )}
-            <Badge className="flex items-center gap-1 text-black bg-gray-200 py-2 rounded-2xl hover:bg-gray-300">
+            <Badge className={cn(
+               "flex items-center gap-2 px-3 py-2 rounded-full font-medium text-sm transition-all duration-200",
+               rider?.active 
+                  ? "bg-green-50 text-green-700 border-green-200 hover:bg-green-100" 
+                  : "bg-red-50 text-red-700 border-red-200 hover:bg-red-100"
+            )}>
                <div
-                  className={`h-2 w-2 rounded-full ${
-                     rider?.active ? "bg-green-600" : "bg-red-500"
-                  }`}
+                  className={cn(
+                     "h-2 w-2 rounded-full",
+                     rider?.active ? "bg-green-500" : "bg-red-500"
+                  )}
                ></div>
                {rider?.active ? "Active" : "Unavailable"}
             </Badge>
          </div>
+
          <div
-            className={cn("flex items-center justify-between gap-3 lg:gap-6", {
+            className={cn("flex items-center justify-between gap-4 lg:gap-6", {
                "w-full": variant === "secondary",
             })}
          >
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4">
                <NotificationsBell />
             </div>
+
             <DropdownMenu>
                <DropdownMenuTrigger asChild>
                   <Button
                      variant="ghost"
-                     className="relative px-0"
+                     className="relative p-1 hover:bg-gray-100 rounded-full transition-colors duration-200"
                   >
-                     {/* <CircleEllipsis /> */}
-                     <CircleEllipsis size={30} />
+                     <Avatar className="h-9 w-9">
+                        <AvatarFallback className="bg-gradient-to-br from-orange-400 to-orange-600 text-white font-semibold text-sm">
+                           {getUserInitials()}
+                        </AvatarFallback>
+                     </Avatar>
                   </Button>
                </DropdownMenuTrigger>
                <DropdownMenuContent
-                  className="w-56"
+                  className="w-64"
                   align="end"
                   sideOffset={10}
                   forceMount
                >
+                  <DropdownMenuLabel className="p-3">
+                     <div className="flex items-center gap-3">
+                        <Avatar className="h-10 w-10">
+                           <AvatarFallback className="bg-gradient-to-br from-orange-400 to-orange-600 text-white font-semibold">
+                              {getUserInitials()}
+                           </AvatarFallback>
+                        </Avatar>
+                        <div className="flex flex-col">
+                           <p className="text-sm font-medium text-gray-900">
+                              {getUserDisplayName()}
+                           </p>
+                           <p className="text-xs text-gray-500">
+                              {user?.email}
+                           </p>
+                        </div>
+                     </div>
+                  </DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuGroup>
-                     <DropdownMenuItem>Active</DropdownMenuItem>
-                     <DropdownMenuItem>En Route</DropdownMenuItem>
-                     <DropdownMenuItem>Unavailable</DropdownMenuItem>
+                     <DropdownMenuItem 
+                        onClick={() => router.push("/rider/settings")}
+                        className="cursor-pointer hover:bg-gray-50"
+                     >
+                        <Settings className="mr-3 h-4 w-4" />
+                        Settings
+                     </DropdownMenuItem>
                   </DropdownMenuGroup>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleLogout}>
-                     <LogOut
-                        size={20}
-                        className="mr-2"
-                     />
+                  <DropdownMenuItem 
+                     onClick={handleLogout}
+                     className="cursor-pointer hover:bg-red-50 text-red-600 focus:text-red-600"
+                  >
+                     <LogOut className="mr-3 h-4 w-4" />
                      Logout
                   </DropdownMenuItem>
                </DropdownMenuContent>
