@@ -113,12 +113,7 @@ const navItems: NavItem[] = [
       icon: Icons.sidebar.stock,
       subLinks: [
          { id: "6-1", title: "Stock Management", href: "/admin/stock" },
-         {
-            id: "6-2",
-            title: "Add Stock / Update Stock",
-            href: "/admin/stock/manage",
-         },
-         { id: "6-3", title: "Stock History", href: "/admin/users/history" },
+         { id: "6-3", title: "Stock History", href: "/admin/stock/history" },
       ],
    },
    {

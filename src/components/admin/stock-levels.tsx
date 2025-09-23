@@ -5,13 +5,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
 } from '@/components/ui/table'
 import {
   DropdownMenu,
@@ -20,133 +20,286 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { Checkbox } from '@/components/ui/checkbox'
-import { 
-  Search, 
-  Edit, 
-  Trash2, 
+import {
+  Search,
+  Edit,
+  Trash2,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  History,
+  Plus,
+  Minus,
+  Package
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { fetchProductsForStockManagement, fetchStockHistory, updateStockLevel, StockProduct, StockHistoryItem } from '@/integrations/supabase/stock'
+import { fetchCategories } from '@/integrations/supabase/products'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { toast } from 'sonner'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import Image from 'next/image'
 
-const stockData = [
-  {
-    id: 1,
-    image: '/placeholder-curtain.jpg',
-    product: 'Blackout Curtain',
-    code: 'CUR-BL-001',
-    category: 'Curtains',
-    stock: 'Available',
-    price: 'RWF 80,000',
-    stockLevel: 32,
-    status: 'Progress',
-    statusColor: 'bg-yellow-100 text-yellow-800'
-  },
-  {
-    id: 2,
-    image: '/placeholder-curtain-white.jpg',
-    product: 'Light White Sheer Curtain',
-    code: 'CUR-WH-002',
-    category: 'Curtains',
-    stock: 'Available',
-    price: 'RWF 80,000',
-    stockLevel: 32,
-    status: 'Delivered',
-    statusColor: 'bg-green-100 text-green-800'
-  },
-  {
-    id: 3,
-    image: '/placeholder-curtain-linen.jpg',
-    product: 'Linen Roller Blind',
-    code: 'BLD-LN-003',
-    category: 'Curtains',
-    stock: 'Unavailable',
-    price: 'RWF 80,000',
-    stockLevel: 31,
-    status: 'Hazard',
-    statusColor: 'bg-red-100 text-red-800'
+// Stock update dialog component
+function StockUpdateDialog({ product, variation, onClose }: { product: StockProduct, variation: any, onClose: () => void }) {
+  const [change, setChange] = useState<number>(0)
+  const [reason, setReason] = useState('')
+  const [isLoading, setIsLoading] = useState(false)
+  const queryClient = useQueryClient()
+
+  const handleUpdate = async () => {
+    if (change === 0 || !reason.trim()) {
+      toast.error('Please enter a change amount and reason')
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      await updateStockLevel({
+        productId: product.id,
+        variationId: variation.id,
+        change,
+        reason: reason.trim()
+      })
+      toast.success(`Stock ${change > 0 ? 'increased' : 'decreased'} by ${Math.abs(change)} units`)
+      queryClient.invalidateQueries({ queryKey: ['products-stock'] })
+      onClose()
+    } catch (error) {
+      toast.error('Failed to update stock')
+      console.error(error)
+    } finally {
+      setIsLoading(false)
+    }
   }
-]
 
-const soldOutData = [
-  {
-    id: 1,
-    image: '/placeholder-curtain.jpg',
-    product: 'Blackout Curtain',
-    code: 'CUR-BL-001',
-    category: 'Curtains',
-    stock: 'Available',
-    price: 'RWF 80,000',
-    stockLevel: 32,
-    status: 'Progress',
-    statusColor: 'bg-yellow-100 text-yellow-800'
-  },
-  {
-    id: 2,
-    image: '/placeholder-curtain-white.jpg',
-    product: 'Light White Sheer Curtain',
-    code: 'CUR-WH-002',
-    category: 'Curtains',
-    stock: 'Available',
-    price: 'RWF 80,000',
-    stockLevel: 32,
-    status: 'Delivered',
-    statusColor: 'bg-green-100 text-green-800'
-  },
-  {
-    id: 3,
-    image: '/placeholder-curtain-linen.jpg',
-    product: 'Linen Roller Blind',
-    code: 'BLD-LN-003',
-    category: 'Curtains',
-    stock: 'Available',
-    price: 'RWF 80,000',
-    stockLevel: 31,
-    status: 'Hazard',
-    statusColor: 'bg-red-100 text-red-800'
-  }
-]
+  const quickActions = [
+    { label: '+1', value: 1, color: 'bg-green-500 hover:bg-green-600' },
+    { label: '+5', value: 5, color: 'bg-green-500 hover:bg-green-600' },
+    { label: '+10', value: 10, color: 'bg-green-500 hover:bg-green-600' },
+    { label: '-1', value: -1, color: 'bg-red-500 hover:bg-red-600' },
+    { label: '-5', value: -5, color: 'bg-red-500 hover:bg-red-600' },
+    { label: '-10', value: -10, color: 'bg-red-500 hover:bg-red-600' },
+  ]
 
-function StockTable({ title, data, count }: { title: string, data: any[], count: number }) {
-  const [selectedItems, setSelectedItems] = useState(new Set<number>())
+  return (
+    <DialogContent className="max-w-md">
+      <DialogHeader>
+        <DialogTitle>Update Stock</DialogTitle>
+        <p className="text-sm text-gray-600">{product.name} - {variation.name || 'Default'}</p>
+      </DialogHeader>
+      <div className="space-y-4">
+        <div className="bg-gray-50 p-3 rounded-lg">
+          <div className="flex justify-between items-center">
+            <span className="text-sm font-medium">Current Stock:</span>
+            <span className="text-lg font-bold text-orange-600">{variation.stock}</span>
+          </div>
+        </div>
+        {/* Quick Action Buttons */}
+        <div>
+          <Label className="text-sm font-medium">Quick Actions</Label>
+          <div className="grid grid-cols-3 gap-2 mt-2">
+            {quickActions.map((action) => (
+              <Button
+                key={action.label}
+                variant="outline"
+                size="sm"
+                className={`${action.color} text-white border-0`}
+                onClick={() => setChange(action.value)}
+              >
+                {action.label}
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        {/* Manual Input */}
+        <div>
+          <Label htmlFor="change">Or enter custom amount</Label>
+          <Input
+            id="change"
+            type="number"
+            value={change}
+            onChange={(e) => setChange(parseInt(e.target.value) || 0)}
+            placeholder="e.g., 5 (add) or -3 (subtract)"
+            className="mt-1"
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            Use positive numbers to add stock, negative numbers to reduce stock
+          </p>
+        </div>
+
+        <div>
+          <Label htmlFor="reason">Reason for change</Label>
+          <Textarea
+            id="reason"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="e.g., New shipment received, Damaged goods, Sold items..."
+            rows={3}
+            className="mt-1"
+          />
+        </div>
+
+        {/* Preview */}
+        {change !== 0 && (
+          <div className="bg-blue-50 p-3 rounded-lg">
+            <div className="flex justify-between items-center text-sm">
+              <span>New stock level:</span>
+              <span className={`font-bold ${change > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {variation.stock + change} ({change > 0 ? '+' : ''}{change})
+              </span>
+            </div>
+          </div>
+        )}
+
+        <div className="flex gap-2 pt-2">
+          <Button
+            onClick={handleUpdate}
+            disabled={isLoading || change === 0 || !reason.trim()}
+            className="bg-orange-500 hover:bg-orange-600 flex-1"
+          >
+            {isLoading ? 'Updating...' : `Update Stock ${change > 0 ? '(Add)' : '(Reduce)'}`}
+          </Button>
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+        </div>
+      </div>
+    </DialogContent>
+  )
+}
+
+// Stock history dialog component
+function StockHistoryDialog({ variationId, onClose }: { variationId: string, onClose: () => void }) {
+  const { data: history, isLoading } = useQuery({
+    queryKey: ['stock-history', variationId],
+    queryFn: () => fetchStockHistory(variationId),
+    enabled: !!variationId
+  })
+
+  return (
+    <DialogContent className="max-w-2xl">
+      <DialogHeader>
+        <DialogTitle>Stock History</DialogTitle>
+      </DialogHeader>
+      <div className="space-y-4">
+        {isLoading ? (
+          <div>Loading history...</div>
+        ) : history && history.length > 0 ? (
+          <div className="space-y-2 max-h-96 overflow-y-auto">
+            {history.map((item: StockHistoryItem) => (
+              <div key={item.id} className="border rounded p-3">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <div className="font-medium">
+                      Change: {item.change > 0 ? '+' : ''}{item.change}
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      New quantity: {item.new_quantity}
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      Reason: {item.reason || 'No reason provided'}
+                    </div>
+                  </div>
+                  <div className="text-right text-sm text-gray-500">
+                    <div>{new Date(item.created_at).toLocaleDateString()}</div>
+                    <div>{item.user?.full_name || 'Unknown user'}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div>No history available</div>
+        )}
+        <Button variant="outline" onClick={onClose}>Close</Button>
+      </div>
+    </DialogContent>
+  )
+}
+
+function StockTable({
+  title,
+  products,
+  isLoading,
+  onUpdateDialog,
+  onHistoryDialog
+}: {
+  title: string,
+  products: StockProduct[],
+  isLoading: boolean,
+  onUpdateDialog: (dialog: {product: StockProduct, variation: any} | null) => void,
+  onHistoryDialog: (variationId: string | null) => void
+}) {
+  const [selectedItems, setSelectedItems] = useState(new Set<string>())
   const [sortConfig, setSortConfig] = useState<{key: string, direction: string} | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('All Categories')
   const [stockFilter, setStockFilter] = useState('All Stock')
-  const [timeFilter, setTimeFilter] = useState('Previous week')
+  const [timeFilter, setTimeFilter] = useState('All Time')
+
+  // Fetch categories for filter
+  const { data: categories = [] } = useQuery({
+    queryKey: ['categories'],
+    queryFn: () => fetchCategories(),
+  })
 
   const columns = [
     { key: 'checkbox', label: '', width: '40px' },
     { key: 'index', label: '#', width: '60px' },
     { key: 'product', label: 'Product', width: '300px' },
-    { key: 'category', label: 'Category', width: '150px' },
+    { key: 'variation', label: 'Variation', width: '150px' },
     { key: 'stock', label: 'Stock', width: '120px' },
     { key: 'price', label: 'Price', width: '120px' },
-    { key: 'stockLevel', label: 'Stock', width: '100px' },
+    { key: 'stockLevel', label: 'Stock Level', width: '100px' },
     { key: 'status', label: 'Status', width: '120px' },
-    { key: 'actions', label: 'Actions', width: '100px' }
+    { key: 'actions', label: 'Actions', width: '150px' }
   ]
 
   const minTableWidth = columns.reduce((sum, col) => sum + parseInt(col.width), 0) + 'px'
 
-  const uniqueCategories = useMemo(() => 
-    ['All Categories', ...new Set(data.map(p => p.category))], 
-    [data]
+  // Flatten products into product-variation items
+  const flattenedData = useMemo(() => {
+    const items: any[] = []
+    products.forEach(product => {
+      product.variations.forEach(variation => {
+        console.log({product})
+        items.push({
+          id: `${product.id}-${variation.id}`,
+          productId: product.id,
+          variationId: variation.id,
+          productName: product.name,
+          variationName: variation.name,
+          stock: variation.stock,
+          price: variation?.price,
+          attributes: variation.attributes,
+          sku: null,
+          barcode: null,
+          category: product.category,
+          mainImageUrl: product.main_image_url
+        })
+      })
+    })
+    return items
+  }, [products])
+
+  const uniqueCategories = useMemo(() =>
+    ['All Categories', ...categories.map(cat => cat.name)],
+    [categories]
   )
 
-  const uniqueStocks = ['All Stock', 'Available', 'Unavailable']
+  const uniqueStocks = ['All Stock', 'In Stock', 'Low Stock', 'Out of Stock']
 
-  const uniqueTimes = ['This week', 'Previous week', 'This month']
+  const uniqueTimes = ['All Time', 'This week', 'Previous week', 'This month', 'Last 3 months']
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedItems(new Set(data.map(p => p.id)))
+      setSelectedItems(new Set(flattenedData.map(p => p.id)))
     } else {
       setSelectedItems(new Set())
     }
   }
 
-  const handleSelectItem = (id: number, checked: boolean) => {
+  const handleSelectItem = (id: string, checked: boolean) => {
     const newSelected = new Set(selectedItems)
     if (checked) {
       newSelected.add(id)
@@ -191,35 +344,53 @@ function StockTable({ title, data, count }: { title: string, data: any[], count:
   }
 
   const filteredData = useMemo(() => {
-    let filtered = [...data]
+    let filtered = [...flattenedData]
 
     // Search filter
     if (searchTerm.trim()) {
       const lowerSearch = searchTerm.toLowerCase()
-      filtered = filtered.filter(p => 
-        p.product.toLowerCase().includes(lowerSearch) ||
-        p.code.toLowerCase().includes(lowerSearch)
+      filtered = filtered.filter(p =>
+        p.productName.toLowerCase().includes(lowerSearch) ||
+        (p.variationName && p.variationName.toLowerCase().includes(lowerSearch))
       )
     }
 
     // Category filter
     if (categoryFilter !== 'All Categories') {
-      filtered = filtered.filter(p => p.category === categoryFilter)
+      filtered = filtered.filter(p => p.category?.name === categoryFilter)
     }
 
     // Stock filter
     if (stockFilter !== 'All Stock') {
-      filtered = filtered.filter(p => p.stock === stockFilter)
+      if (stockFilter === 'In Stock') {
+        filtered = filtered.filter(p => p.stock > 0)
+      } else if (stockFilter === 'Low Stock') {
+        filtered = filtered.filter(p => p.stock > 0 && p.stock <= 10)
+      } else if (stockFilter === 'Out of Stock') {
+        filtered = filtered.filter(p => p.stock <= 0)
+      }
     }
 
-    // Note: Time filter not implemented as it would require date data; placeholder for now
+    // Time filter - placeholder for now (would need update timestamps)
+    // if (timeFilter !== 'All Time') {
+    //   const now = new Date()
+    //   const timeFilters = {
+    //     'This week': 7,
+    //     'Previous week': 14,
+    //     'This month': 30,
+    //     'Last 3 months': 90
+    //   }
+    //   const days = timeFilters[timeFilter as keyof typeof timeFilters]
+    //   const cutoffDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000)
+    //   filtered = filtered.filter(p => new Date(p.updatedAt) >= cutoffDate)
+    // }
 
     // Sort
     if (sortConfig) {
       filtered.sort((a, b) => {
         const aVal = getSortValue(a, sortConfig.key)
         const bVal = getSortValue(b, sortConfig.key)
-        
+
         if (aVal < bVal) {
           return sortConfig.direction === 'asc' ? -1 : 1
         }
@@ -231,7 +402,7 @@ function StockTable({ title, data, count }: { title: string, data: any[], count:
     }
 
     return filtered
-  }, [data, searchTerm, categoryFilter, stockFilter, sortConfig])
+  }, [flattenedData, searchTerm, categoryFilter, stockFilter, sortConfig])
 
   return (
     <Card className="bg-white">
@@ -319,7 +490,7 @@ function StockTable({ title, data, count }: { title: string, data: any[], count:
                       >
                         {col.key === 'checkbox' ? (
                           <Checkbox
-                            checked={selectedItems.size === data.length && data.length > 0}
+                            checked={selectedItems.size === flattenedData.length && flattenedData.length > 0}
                             onCheckedChange={handleSelectAll}
                             className="rounded border-gray-300"
                           />
@@ -346,46 +517,92 @@ function StockTable({ title, data, count }: { title: string, data: any[], count:
                       <TableCell style={{ minWidth: columns[1].width }} className="font-medium border-b border-gray-100 px-4 py-3">{index + 1}</TableCell>
                       <TableCell style={{ minWidth: columns[2].width }} className="border-b border-gray-100 px-4 py-3">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-amber-100 rounded flex items-center justify-center">
-                            <div className="w-6 h-8 bg-amber-600 rounded-sm"></div>
+                          <div className="w-10 h-10 bg-gray-100 rounded flex items-center justify-center overflow-hidden">
+                            {(() => {
+                              const product = products.find(p => p.id === item.productId);
+                              return product?.main_image_url ? (
+                                <Image
+                                  src={product.main_image_url}
+                                  alt={item.productName}
+                                  width={40}
+                                  height={40}
+                                  className="w-full h-full object-cover"
+                                />
+                              ) : (
+                                <Package className="w-6 h-6 text-gray-400" />
+                              );
+                            })()}
                           </div>
                           <div>
-                            <div className="font-medium">{item.product}</div>
-                            <div className="text-xs text-gray-500">{item.code}</div>
+                            <div className="font-medium">{item.productName}</div>
+                            <div className="text-xs text-gray-500">{item.variationName || 'Default'}</div>
                           </div>
                         </div>
                       </TableCell>
                       <TableCell style={{ minWidth: columns[3].width }} className="border-b border-gray-100 px-4 py-3">
                         <div className="flex items-center gap-2">
-                          <div className="w-4 h-4 bg-gray-200 rounded-sm"></div>
-                          {item.category}
+                          <div className="w-4 h-4 bg-orange-200 rounded-full"></div>
+                          {item.variationName || 'Default'}
                         </div>
                       </TableCell>
                       <TableCell style={{ minWidth: columns[4].width }} className="border-b border-gray-100 px-4 py-3">
-                        <Badge 
-                          variant={item.stock === 'Available' ? 'default' : 'secondary'}
-                          className={item.stock === 'Available' 
-                            ? 'bg-green-100 text-green-800 hover:bg-green-100' 
+                        <Badge
+                          variant={item.stock > 0 ? 'default' : 'secondary'}
+                          className={item.stock > 0
+                            ? 'bg-green-100 text-green-800 hover:bg-green-100'
                             : 'bg-gray-100 text-gray-800 hover:bg-gray-100'
                           }
                         >
-                          {item.stock}
+                          {item.stock > 0 ? 'In Stock' : 'Out of Stock'}
                         </Badge>
                       </TableCell>
-                      <TableCell style={{ minWidth: columns[5].width }} className="font-medium border-b border-gray-100 px-4 py-3">{item.price}</TableCell>
-                      <TableCell style={{ minWidth: columns[6].width }} className="border-b border-gray-100 px-4 py-3">{item.stockLevel}</TableCell>
+                      <TableCell style={{ minWidth: columns[5].width }} className="font-medium border-b border-gray-100 px-4 py-3">
+                        {item.price ? `RWF ${item?.price?.toLocaleString()}` : 'N/A'}
+                      </TableCell>
+                      <TableCell style={{ minWidth: columns[6].width }} className="border-b border-gray-100 px-4 py-3">
+                        <span className={item.stock <= 10 ? 'text-red-600 font-medium' : ''}>
+                          {item.stock}
+                        </span>
+                      </TableCell>
                       <TableCell style={{ minWidth: columns[7].width }} className="border-b border-gray-100 px-4 py-3">
-                        <Badge className={item.statusColor}>
-                          {item.status}
+                        <Badge className={
+                          item.stock <= 0 ? 'bg-red-100 text-red-800' :
+                          item.stock <= 10 ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-green-100 text-green-800'
+                        }>
+                          {item.stock <= 0 ? 'Out of Stock' :
+                           item.stock <= 10 ? 'Low Stock' :
+                           'In Stock'}
                         </Badge>
                       </TableCell>
                       <TableCell style={{ minWidth: columns[8].width }} className="text-right border-b border-gray-100 px-4 py-3">
-                        <div className="flex items-center justify-end gap-2">
-                          <Button variant="ghost" size="sm">
-                            <Edit className="h-4 w-4" />
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            title="Update Stock (Add/Reduce)"
+                            onClick={() => {
+                              const product = products.find(p => p.id === item.productId)
+                              const variation = product?.variations.find(v => v.id === item.variationId)
+                              if (product && variation) {
+                                onUpdateDialog({ product, variation })
+                              }
+                            }}
+                            className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                          >
+                            <div className="flex items-center gap-1">
+                              <Plus className="h-3 w-3" />
+                              <Minus className="h-3 w-3" />
+                            </div>
                           </Button>
-                          <Button variant="ghost" size="sm">
-                            <Trash2 className="h-4 w-4" />
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            title="View History"
+                            onClick={() => onHistoryDialog(item.variationId)}
+                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                          >
+                            <History className="h-4 w-4" />
                           </Button>
                         </div>
                       </TableCell>
@@ -402,109 +619,51 @@ function StockTable({ title, data, count }: { title: string, data: any[], count:
 }
 
 export default function StockLevels() {
+  const [updateDialog, setUpdateDialog] = useState<{product: StockProduct, variation: any} | null>(null)
+  const [historyDialog, setHistoryDialog] = useState<string | null>(null)
+
+  const { data: products = [], isLoading } = useQuery({
+    queryKey: ['products-stock'],
+    queryFn: () => fetchProductsForStockManagement(),
+  })
+
+  const inStockProducts = products.filter(p =>
+    p.variations.some(v => v.stock > 0)
+  )
+
+  const outOfStockProducts = products.filter(p =>
+    p.variations.every(v => v.stock <= 0)
+  )
+
   return (
     <div className="space-y-6">
-      <StockTable title="Stock" data={stockData} count={447} />
-      <StockTable title="Sold Out" data={soldOutData} count={0} />
-      
-      {/* Additional sections - converted to tables for consistency, but empty */}
-      <Card className="bg-white">
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg font-semibold">Order</CardTitle>
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-gray-500">0</span>
-              <div className="flex items-center gap-2">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm">
-                      Previous week <ChevronDown className="ml-2 h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent>
-                    <DropdownMenuItem>This week</DropdownMenuItem>
-                    <DropdownMenuItem>Previous week</DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
-          </div>
-          <div className="relative flex-1 max-w-sm mt-4">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-            <Input placeholder="Search..." className="pl-10" />
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="relative overflow-hidden border-t rounded-b-lg">
-            <div className="overflow-x-auto">
-              <div style={{ minWidth: '800px' }}>
-                <Table>
-                  <TableHeader>
-                    <TableRow className="border-b">
-                      <TableHead className="w-12 sticky top-0 bg-gray-50/90"></TableHead>
-                      {/* Add more headers if data structure is known */}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    <TableRow>
-                      <TableCell colSpan={1} className="text-center py-8 text-gray-500">No orders found</TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <StockTable
+        title="All Products"
+        products={products}
+        isLoading={isLoading}
+        onUpdateDialog={setUpdateDialog}
+        onHistoryDialog={setHistoryDialog}
+      />
 
-      <Card className="bg-white">
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg font-semibold">In Transit (being delivered)</CardTitle>
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-gray-500">0</span>
-              <div className="flex items-center gap-2">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm">
-                      Previous week <ChevronDown className="ml-2 h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent>
-                    <DropdownMenuItem>This week</DropdownMenuItem>
-                    <DropdownMenuItem>Previous week</DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
-          </div>
-          <div className="relative flex-1 max-w-sm mt-4">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-            <Input placeholder="Search..." className="pl-10" />
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="relative overflow-hidden border-t rounded-b-lg">
-            <div className="overflow-x-auto">
-              <div style={{ minWidth: '800px' }}>
-                <Table>
-                  <TableHeader>
-                    <TableRow className="border-b">
-                      <TableHead className="w-12 sticky top-0 bg-gray-50/90"></TableHead>
-                      {/* Add more headers if data structure is known */}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    <TableRow>
-                      <TableCell colSpan={1} className="text-center py-8 text-gray-500">No items in transit</TableCell>
-                    </TableRow>
-                  </TableBody>
-                </Table>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Dialogs */}
+      {updateDialog && (
+        <Dialog open={true} onOpenChange={() => setUpdateDialog(null)}>
+          <StockUpdateDialog
+            product={updateDialog.product}
+            variation={updateDialog.variation}
+            onClose={() => setUpdateDialog(null)}
+          />
+        </Dialog>
+      )}
+
+      {historyDialog && (
+        <Dialog open={true} onOpenChange={() => setHistoryDialog(null)}>
+          <StockHistoryDialog
+            variationId={historyDialog}
+            onClose={() => setHistoryDialog(null)}
+          />
+        </Dialog>
+      )}
     </div>
   )
 }

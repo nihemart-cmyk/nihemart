@@ -38,6 +38,7 @@ const enTranslations = {
    "nav.login": "Login",
    "nav.register": "Register",
    "nav.logout": "Logout",
+   "nav.howToBuy": "How To Buy",
 
    // Homepage
    "home.hero.title": "Welcome to NiheMart",
@@ -325,6 +326,7 @@ const rwTranslations = {
    "nav.login": "Injira",
    "nav.register": "Iyandikishe",
    "nav.logout": "Sohoka",
+   "nav.howToBuy": "Uko Bagura",
 
    // Homepage
    "home.hero.title": "Murakaza neza kuri NiheMart",

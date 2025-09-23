@@ -172,8 +172,8 @@ export const ProductsTable = ({
                                 <Image src={product.main_image_url || '/placeholder.svg'} alt={product.name} fill className="object-cover" />
                                 </div>
                                 <div className="min-w-0 flex-1">
-                                <div className="font-medium text-gray-900 truncate">{product.name}</div>
-                                <div className="text-sm text-gray-500 truncate">{product.short_description || 'No description'}</div>
+                                <div className="font-medium text-gray-900 truncate max-w-[250px]" title={product.name}>{product.name}</div>
+                                <div className="text-sm text-gray-500 truncate max-w-[250px]" title={product.short_description || 'No description'}>{product.short_description || 'No description'}</div>
                                 </div>
                             </div>
                         </TableCell>
