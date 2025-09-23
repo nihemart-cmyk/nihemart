@@ -126,7 +126,7 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
       };
 
       const setupRealtime = () => {
-         // subscribe to notifications INSERTs that are either for this user or for role=admin
+         // subscribe to notifications INSERT and UPDATE events and filter client-side
          notificationsChannel = supabase
             .channel(`public:notifications:user:${user.id}`)
             .on(
@@ -135,52 +135,75 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
                   event: "INSERT",
                   schema: "public",
                   table: "notifications",
-                  // The filter syntax in supabase channels only supports column filters; we listen to all and filter client-side
                },
-               (payload) => {
-                  const row = payload.new;
-                  const recipientUser = row.recipient_user_id;
-                  const recipientRole = row.recipient_role;
-
-                  const isForUser =
-                     recipientUser && String(recipientUser) === String(user.id);
-                  const isForAdmin =
-                     recipientRole &&
-                     recipientRole === "admin" &&
-                     hasRole &&
-                     hasRole("admin");
-                  let isForRiderFallback = false;
-                  if (recipientRole === "rider") {
-                     try {
-                        const meta =
-                           typeof row.meta === "string"
-                              ? JSON.parse(row.meta)
-                              : row.meta || {};
-                        if (
-                           meta &&
-                           meta.rider_id &&
-                           riderId &&
-                           String(meta.rider_id) === String(riderId)
-                        )
-                           isForRiderFallback = true;
-                     } catch (e) {
-                        // ignore parse error
-                     }
-                  }
-
-                  if (isForUser || isForAdmin || isForRiderFallback) {
-                     addNotificationLocal({
-                        id: row.id,
-                        title: row.title,
-                        body: row.body,
-                        meta: row.meta,
-                        created_at: row.created_at,
-                        read: row.read,
-                     });
-                  }
-               }
+               (payload) => handleRealtimeRow(payload.new)
+            )
+            .on(
+               "postgres_changes",
+               {
+                  event: "UPDATE",
+                  schema: "public",
+                  table: "notifications",
+               },
+               (payload) => handleRealtimeRow(payload.new)
             )
             .subscribe();
+      };
+
+      const handleRealtimeRow = (row: any) => {
+         const recipientUser = row.recipient_user_id;
+         const recipientRole = row.recipient_role;
+
+         const isForUser =
+            recipientUser && String(recipientUser) === String(user.id);
+         const isForAdmin =
+            recipientRole === "admin" && hasRole && hasRole("admin");
+
+         let isForRiderFallback = false;
+         if (recipientRole === "rider") {
+            try {
+               const meta =
+                  typeof row.meta === "string"
+                     ? JSON.parse(row.meta)
+                     : row.meta || {};
+               if (
+                  meta &&
+                  meta.rider_id &&
+                  riderId &&
+                  String(meta.rider_id) === String(riderId)
+               )
+                  isForRiderFallback = true;
+            } catch (e) {
+               // ignore parse error
+            }
+         }
+
+         if (!(isForUser || isForAdmin || isForRiderFallback)) return;
+
+         const normalized: Notification = {
+            id: row.id,
+            title: row.title,
+            body: row.body,
+            meta: row.meta,
+            created_at: row.created_at,
+            read: row.read,
+         };
+
+         setNotifications((prev) => {
+            // replace existing if present, otherwise add to front
+            const idx = prev.findIndex((p) => p.id === normalized.id);
+            if (idx >= 0) {
+               const copy = prev.slice();
+               copy[idx] = normalized;
+               return copy;
+            }
+            return [normalized, ...prev].slice(0, 200);
+         });
+
+         // show small toast for real-time arrival
+         toast.message(
+            normalized.title + (normalized.body ? ` — ${normalized.body}` : "")
+         );
       };
 
       fetchPersisted();

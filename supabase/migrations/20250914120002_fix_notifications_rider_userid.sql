@@ -13,42 +13,42 @@ begin
   end if;
 
   if (TG_OP = 'INSERT') then
-    -- Notify the rider assigned
+    -- Notify the rider assigned. Include delivery details by selecting the order
+    -- so the rider sees address and delivery notes in the notification meta/body.
+    declare v_order record;
+    begin
+      select id, order_number, delivery_address, delivery_notes, delivery_city
+      into v_order
+      from public.orders
+      where id = new.order_id
+      limit 1;
+    exception when others then
+      v_order := null;
+    end;
+
     if v_rider_user_id is not null then
-      -- notify the actual auth user
       perform public.insert_notification(
         v_rider_user_id,
         null,
         'assignment_created',
         'New delivery assigned',
-        format('Order %s assigned to you', new.order_id),
-        to_jsonb(new)
+        format('Deliver order %s to %s', coalesce(v_order.order_number::text, new.order_id::text), coalesce(v_order.delivery_address, 'address not provided')),
+        (to_jsonb(new) || jsonb_build_object('order', to_jsonb(v_order)))
       );
     else
-      -- fallback to role-based rider notification and include rider_id in meta
       perform public.insert_notification(
         null,
         'rider',
         'assignment_created',
         'New delivery assigned',
-        format('Order %s assigned to you', new.order_id),
-        (to_jsonb(new) || jsonb_build_object('rider_id', new.rider_id))
+        format('Deliver order %s to %s', coalesce(v_order.order_number::text, new.order_id::text), coalesce(v_order.delivery_address, 'address not provided')),
+        (to_jsonb(new) || jsonb_build_object('order', to_jsonb(v_order)) || jsonb_build_object('rider_id', new.rider_id))
       );
     end if;
-
-    -- Also notify admins (role-based)
-    perform public.insert_notification(
-      null,
-      'admin',
-      'assignment_created',
-      'Order assigned to rider',
-      format('Order %s assigned to rider %s', new.order_id, new.rider_id),
-      to_jsonb(new)
-    );
     return new;
   elsif (TG_OP = 'UPDATE') then
     if (new.status = 'accepted' and old.status is distinct from new.status) then
-      -- notify admin that rider accepted
+      -- notify admin that rider accepted (concise)
       perform public.insert_notification(
         null,
         'admin',
@@ -78,12 +78,13 @@ begin
         );
       end if;
     elsif (new.status = 'rejected' and old.status is distinct from new.status) then
+      -- include rejection notes in admin notification body if present
       perform public.insert_notification(
         null,
         'admin',
         'assignment_rejected',
         'Rider rejected assignment',
-        format('Rider %s rejected order %s', new.rider_id, new.order_id),
+        format('Rider %s rejected order %s. Reason: %s', new.rider_id, new.order_id, coalesce(new.notes, 'no reason provided')),
         to_jsonb(new)
       );
       if v_rider_user_id is not null then

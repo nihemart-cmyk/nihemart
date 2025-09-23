@@ -9,10 +9,14 @@ import {
    DropdownMenuItem,
    DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/hooks/useAuth";
 
 const NotificationsBell: React.FC = () => {
    const { notifications, markAsRead } = useNotifications();
    const unread = notifications.filter((n) => !n.read).length;
+   const router = useRouter();
+   const { hasRole } = useAuth();
 
    return (
       <DropdownMenu>
@@ -42,7 +46,28 @@ const NotificationsBell: React.FC = () => {
             {notifications.map((n) => (
                <DropdownMenuItem
                   key={n.id}
-                  onClick={() => markAsRead(n.id)}
+                  onClick={() => {
+                     markAsRead(n.id);
+                     try {
+                        // If notification meta contains an order id, navigate to rider order details
+                        const meta =
+                           typeof n.meta === "string"
+                              ? JSON.parse(n.meta)
+                              : n.meta || {};
+                        // Only navigate to the rider notification detail route when
+                        // the current user is a rider (or not an admin). Admins should
+                        // not be redirected to rider pages which can cause unexpected
+                        // redirects to `/` due to route guards.
+                        const isAdmin = hasRole && hasRole("admin");
+                        if (!isAdmin) {
+                           if (meta && (meta.order?.id || meta.order_id)) {
+                              router.push(`/rider/notifications/${n.id}`);
+                           }
+                        }
+                     } catch (e) {
+                        // fallback: do nothing special
+                     }
+                  }}
                   className={`flex flex-col items-start gap-1 py-2 ${
                      n.read ? "opacity-60" : ""
                   }`}

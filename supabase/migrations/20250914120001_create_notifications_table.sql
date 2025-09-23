@@ -111,24 +111,26 @@ create or replace function public.notify_on_orders() returns trigger language pl
 begin
   if (TG_OP = 'UPDATE') then
     if (new.status is distinct from old.status) then
-      -- notify order owner
+      -- notify order owner of status change (concise)
       perform public.insert_notification(
         new.user_id,
         null,
         'order_status_update',
-        format('Your order %s status changed', coalesce(new.order_number::text, new.id::text)),
+        format('Order %s status: %s', coalesce(new.order_number::text, new.id::text), new.status),
         format('Status changed to: %s', new.status),
         jsonb_build_object('old_status', old.status, 'new_status', new.status, 'order_id', new.id)
       );
-      -- notify admins as well
-      perform public.insert_notification(
-        null,
-        'admin',
-        'order_status_update',
-        format('Order %s status changed', coalesce(new.order_number::text, new.id::text)),
-        format('Status changed to: %s', new.status),
-        jsonb_build_object('old_status', old.status, 'new_status', new.status, 'order_id', new.id)
-      );
+      -- Only notify admins for delivered orders (successful delivery)
+      if (new.status = 'delivered') then
+        perform public.insert_notification(
+          null,
+          'admin',
+          'order_delivered',
+          format('Order %s delivered', coalesce(new.order_number::text, new.id::text)),
+          format('Order %s was delivered', coalesce(new.order_number::text, new.id::text)),
+          jsonb_build_object('old_status', old.status, 'new_status', new.status, 'order_id', new.id)
+        );
+      end if;
     end if;
     return new;
   end if;

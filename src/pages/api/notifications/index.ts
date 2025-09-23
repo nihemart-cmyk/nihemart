@@ -24,7 +24,23 @@ export default async function handler(
 
    try {
       if (req.method === "GET") {
-         const { userId, role, limit = 50 } = req.query;
+         const { userId, role, limit = 50, notificationId } = req.query;
+
+         // If a notificationId is provided, return that single notification
+         if (notificationId) {
+            const { data, error } = await supabase
+               .from("notifications")
+               .select("*")
+               .eq("id", String(notificationId))
+               .limit(1);
+            if (error) {
+               console.error("fetch notification error:", error);
+               return res.status(500).json({ error: error.message || error });
+            }
+            return res
+               .status(200)
+               .json({ notification: (data && data[0]) || null });
+         }
 
          let query = supabase
             .from("notifications")
