@@ -22,7 +22,7 @@ const MarqueeBanner: React.FC = () => {
   const textContent = "Exceptional Support, Sustainable Solutions";
 
   return (
-    <section className="relative w-full py-16 overflow-hidden">
+    <section className="relative w-full py-16 overflow-hidden hidden md:block">
       <div className="bg-[#f97316] h-20 transform -skew-y-2">
         <div className="transform skew-y-2">
           <div className="relative flex overflow-hidden">

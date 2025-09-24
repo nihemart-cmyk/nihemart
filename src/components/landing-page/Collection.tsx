@@ -78,11 +78,12 @@ const Collection: FC<CollectionProps> = ({}) => {
 
   return (
     <div className="my-10 relative">
+      <h1 className="pl-3 xs:pl-5 sm:pl-10 lg:pl-20 text-4xl font-bold text-neutral-900 mb-5">Categories Available</h1>
       <div
         className="flex overflow-x-scroll scroll-smooth gap-2 pl-3 xs:pl-5 sm:pl-10 lg:pl-20 scrollbar-hidden"
         ref={sliderRef}
         onScroll={handleSliderScroll}
-      >
+        >
         {loading
           ? Array(6)
               .fill(0)
