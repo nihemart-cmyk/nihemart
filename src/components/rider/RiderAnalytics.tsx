@@ -74,7 +74,7 @@ export function RiderAnalytics() {
           <CardContent className="p-4">
             <div className="text-center">
               <div className="text-2xl font-bold text-gray-900">{totalDeliveries}</div>
-              <div className="text-sm text-gray-500">Today's Total</div>
+              <div className="text-sm text-gray-500">Today&apos;s Total</div>
             </div>
           </CardContent>
         </Card>

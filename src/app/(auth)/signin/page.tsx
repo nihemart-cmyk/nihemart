@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { FC, useEffect } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuthStore } from "@/store/auth.store";
 import logo from "@/assets/logo.png";
@@ -12,7 +12,6 @@ interface pageProps {}
 
 const page: FC<pageProps> = ({}) => {
    const router = useRouter();
-   const searchParams = useSearchParams();
    const { setUser, setSession, fetchRoles } = useAuthStore();
 
    useEffect(() => {
@@ -49,7 +48,10 @@ const page: FC<pageProps> = ({}) => {
             }
 
             // If there's a redirect query param on the signin path, honor it
-            const redirect = searchParams?.get("redirect") || null;
+            const redirect =
+               typeof window !== "undefined"
+                  ? new URL(window.location.href).searchParams.get("redirect")
+                  : null;
             const safeRedirect =
                redirect && redirect.startsWith("/") ? redirect : null;
             if (safeRedirect) {
@@ -64,7 +66,7 @@ const page: FC<pageProps> = ({}) => {
       };
 
       handle();
-   }, [router, searchParams, setSession, setUser, fetchRoles]);
+   }, [router, setSession, setUser, fetchRoles]);
 
    return (
       <div className="flex min-h-screen flex-col lg:flex-row">

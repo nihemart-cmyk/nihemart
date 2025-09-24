@@ -24,7 +24,7 @@ import { Mail, Lock, Eye, EyeOff, Loader } from "lucide-react";
 import { toast } from "sonner";
 import { redirect } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { GoogleSignInButton } from "./google-signin-button";
@@ -36,13 +36,16 @@ const AdminSigninForm: FC<AdminSigninFormProps> = ({}) => {
    const [googleLoading, setGoogleLoading] = useState(false);
    const { signIn, hasRole, user, loading } = useAuth();
    const router = useRouter();
-   const searchParams = useSearchParams();
    // Google sign-in handler
    const handleGoogleSignIn = async () => {
       try {
          setGoogleLoading(true);
          // Preserve redirect query param so OAuth callback can send the user back
-         const redirectParam = searchParams?.get("redirect") || "/";
+         const redirectParam =
+            typeof window !== "undefined"
+               ? new URL(window.location.href).searchParams.get("redirect") ||
+                 "/"
+               : "/";
          const origin =
             typeof window !== "undefined" ? window.location.origin : "";
          // Build a redirectTo that includes the redirect query so after OAuth returns
@@ -82,7 +85,10 @@ const AdminSigninForm: FC<AdminSigninFormProps> = ({}) => {
       setGoogleLoading(false);
 
       // try to use redirect param first
-      const redirect = searchParams?.get("redirect") || null;
+      const redirect =
+         typeof window !== "undefined"
+            ? new URL(window.location.href).searchParams.get("redirect")
+            : null;
 
       // safety: only allow relative internal redirects
       const safeRedirect = (() => {
@@ -125,7 +131,7 @@ const AdminSigninForm: FC<AdminSigninFormProps> = ({}) => {
       } else {
          router.push("/");
       }
-   }, [user, loading, searchParams, hasRole, router]);
+   }, [user, loading, hasRole, router]);
 
    const form = useForm<TAdminSigninSchema>({
       resolver: zodResolver(AdminSigninSchema),
@@ -148,7 +154,10 @@ const AdminSigninForm: FC<AdminSigninFormProps> = ({}) => {
       form.reset();
 
       // If there's a redirect query param, prefer it (safely). Otherwise role-based routing.
-      const redirect = searchParams?.get("redirect") || null;
+      const redirect =
+         typeof window !== "undefined"
+            ? new URL(window.location.href).searchParams.get("redirect")
+            : null;
       const safeRedirect =
          redirect && redirect.startsWith("/") ? redirect : null;
       if (safeRedirect) {
