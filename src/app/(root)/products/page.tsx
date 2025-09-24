@@ -286,7 +286,7 @@ function ProductListingComponent() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-orange-50">
-      <div className="container mx-auto px-4 py-6">
+      <div className="container mx-auto px-2 md:px-4 py-6">
         <div className="flex gap-6">
           <div className="hidden lg:block w-80 flex-shrink-0">
             <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 sticky top-28">
@@ -370,7 +370,7 @@ function ProductListingComponent() {
                 </Button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
+              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-2 md:gap-5 mb-8">
                 {loading
                   ? Array.from({ length: PAGE_LIMIT }).map((_, i) => (
                       <Card
@@ -384,7 +384,7 @@ function ProductListingComponent() {
                         onClick={() => router.push(`/products/${product?.id}`)}
                         className="group hover:shadow-xl transition-all duration-300 hover:-translate-y-1 bg-white border-0 shadow-md cursor-pointer"
                       >
-                        <CardContent className="p-5">
+                        <CardContent className="md:p-5 p-2">
                           <div className="relative mb-4">
                             <div className="bg-gradient-to-br from-slate-100 to-slate-200 rounded-xl p-4 aspect-square">
                               <Image
@@ -406,22 +406,22 @@ function ProductListingComponent() {
                             </button>
                           </div>
                           <div className="space-y-2">
-                            <h3 className="font-semibold text-gray-900 text-lg truncate">
+                            <h3 className="font-semibold text-gray-900 text-sm md:text-lg ">
                               {product?.name}
                             </h3>
-                            <p className="text-sm text-gray-900">
-                              {product?.short_description || "Generic"}
+                            <p className="text-sm text-gray-900 truncate">
+                              {product?.short_description}
                             </p>
-                            <p className="text-sm text-gray-500">
+                            {/* <p className="text-sm text-gray-500">
                               {product?.brand || "Generic"}
-                            </p>
+                            </p> */}
                             <div className="flex items-center space-x-1">
                               {renderStars(product?.average_rating)}
                               <span className="text-sm text-gray-500 ml-2">
                                 ({product?.review_count || 0})
                               </span>
                             </div>
-                            <p className="text-xl font-bold text-gray-900">
+                            <p className="text-lg md:text-xl font-bold text-gray-900">
                               {product?.price.toLocaleString("en-US", {
                                 minimumFractionDigits: 2,
                                 maximumFractionDigits: 2,

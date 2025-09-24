@@ -104,7 +104,7 @@ const Collection: FC<CollectionProps> = ({}) => {
                   fill
                   className="absolute object-contain z-0 group-hover:scale-105 transition-transform duration-300 p-5"
                 />
-                <div className="relative w-full z-10 h-full bg-gradient-to-t from-black/80 from-0% to-transparent to-70% flex flex-col justify-end text-white md:px-5 px-1 text-center pb-5">
+                <div className="relative w-full z-10 h-full bg-gradient-to-t from-black/80 from-0% to-transparent to-70% flex flex-col justify-end text-white md:px-5 px-1 text-center md:text-left pb-5">
                   <h4 className="md:text-2xl text-lg font-semibold truncate w-full">{category.name}</h4>
                   <div className="hidden md:flex items-center justify-between mt-1">
                     <p className="text-sm opacity-80">
