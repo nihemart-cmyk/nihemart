@@ -245,7 +245,9 @@ export async function respondToRefundRequest(
    // Fetch existing
    const { data: existing, error: fetchError } = await sb
       .from("order_items")
-      .select("id, order_id, refund_status, product_name, price, quantity")
+      .select(
+         "id, order_id, refund_status, product_name, price, quantity, product_id, product_variation_id"
+      )
       .eq("id", itemId)
       .maybeSingle();
 
@@ -273,8 +275,173 @@ export async function respondToRefundRequest(
 
    if (error) throw error;
 
-   // If approved, notify user that refund will be processed within 24 hours
+   // If approved, attempt to restock the item (best-effort) and notify user that refund will be processed
    if (approve) {
+      // Best-effort: restock all items from this order and mark them as refunded/approved
+      try {
+         const { data: items, error: itemsErr } = await sb
+            .from("order_items")
+            .select(
+               "id, quantity, product_id, product_variation_id, refund_status"
+            )
+            .eq("order_id", existing.id);
+         if (itemsErr) {
+            console.warn(
+               "Failed to fetch order items for restock after full-order refund:",
+               itemsErr
+            );
+         } else if (Array.isArray(items) && items.length) {
+            await Promise.all(
+               items.map(async (it: any) => {
+                  try {
+                     const qty = Number(it.quantity || 0);
+                     if (!qty || qty <= 0) return;
+
+                     if (it.product_variation_id) {
+                        const { data: varRow, error: varErr } = await sb
+                           .from("product_variations")
+                           .select("id, stock")
+                           .eq("id", it.product_variation_id)
+                           .maybeSingle();
+                        if (varErr) {
+                           console.warn(
+                              "Failed to fetch product_variation for restock:",
+                              varErr
+                           );
+                        } else if (varRow && typeof varRow.stock === "number") {
+                           const newStock = Number(varRow.stock) + qty;
+                           const { error: uErr } = await sb
+                              .from("product_variations")
+                              .update({ stock: newStock })
+                              .eq("id", it.product_variation_id);
+                           if (uErr)
+                              console.warn(
+                                 "Failed to update product_variation stock on restock:",
+                                 uErr
+                              );
+                        }
+                        return;
+                     }
+
+                     if (it.product_id) {
+                        const { data: pRow, error: pErr } = await sb
+                           .from("products")
+                           .select("id, stock, track_quantity")
+                           .eq("id", it.product_id)
+                           .maybeSingle();
+                        if (pErr) {
+                           console.warn(
+                              "Failed to fetch product for restock:",
+                              pErr
+                           );
+                        } else if (
+                           pRow &&
+                           pRow.track_quantity &&
+                           typeof pRow.stock === "number"
+                        ) {
+                           const newStock = Number(pRow.stock) + qty;
+                           const { error: upErr } = await sb
+                              .from("products")
+                              .update({ stock: newStock })
+                              .eq("id", it.product_id);
+                           if (upErr)
+                              console.warn(
+                                 "Failed to update product stock on restock:",
+                                 upErr
+                              );
+                        }
+                     }
+                  } catch (innerErr) {
+                     console.warn(
+                        "Error restocking item after full-order refund:",
+                        innerErr
+                     );
+                  }
+               })
+            );
+
+            // Mark the order items as refunded/approved so UI can reflect item-level refund state
+            try {
+               const { error: updErr } = await sb
+                  .from("order_items")
+                  .update({ refund_status: "approved", refund_requested: true })
+                  .eq("order_id", existing.id);
+               if (updErr)
+                  console.warn(
+                     "Failed to update order_items refund_status after full-order refund:",
+                     updErr
+                  );
+            } catch (updEx) {
+               console.warn(
+                  "Failed to mark order_items as approved after full-order refund:",
+                  updEx
+               );
+            }
+         }
+      } catch (restockErr) {
+         console.warn(
+            "Error running restock for full-order refund:",
+            restockErr
+         );
+      }
+      try {
+         const qty = Number(existing.quantity || 0);
+         if (qty > 0) {
+            // If variation present, increment variation stock
+            if (existing.product_variation_id) {
+               const { data: varRow, error: varErr } = await sb
+                  .from("product_variations")
+                  .select("id, stock")
+                  .eq("id", existing.product_variation_id)
+                  .maybeSingle();
+               if (varErr) {
+                  console.warn(
+                     "Failed to fetch product_variation for restock:",
+                     varErr
+                  );
+               } else if (varRow && typeof varRow.stock === "number") {
+                  const newStock = Number(varRow.stock) + qty;
+                  const { error: uErr } = await sb
+                     .from("product_variations")
+                     .update({ stock: newStock })
+                     .eq("id", existing.product_variation_id);
+                  if (uErr)
+                     console.warn(
+                        "Failed to update product_variation stock on restock:",
+                        uErr
+                     );
+               }
+            } else if (existing.product_id) {
+               // Otherwise, increment product stock if tracking enabled
+               const { data: pRow, error: pErr } = await sb
+                  .from("products")
+                  .select("id, stock, track_quantity")
+                  .eq("id", existing.product_id)
+                  .maybeSingle();
+               if (pErr) {
+                  console.warn("Failed to fetch product for restock:", pErr);
+               } else if (
+                  pRow &&
+                  pRow.track_quantity &&
+                  typeof pRow.stock === "number"
+               ) {
+                  const newStock = Number(pRow.stock) + qty;
+                  const { error: upErr } = await sb
+                     .from("products")
+                     .update({ stock: newStock })
+                     .eq("id", existing.product_id);
+                  if (upErr)
+                     console.warn(
+                        "Failed to update product stock on restock:",
+                        upErr
+                     );
+               }
+            }
+         }
+      } catch (restockErr) {
+         console.warn("Error restoring stock for refunded item:", restockErr);
+      }
+
       // try to fetch order owner to notify them specifically
       try {
          const { data: orderData } = await sb
@@ -469,11 +636,22 @@ const buildOrdersQuery = (options: OrderQueryOptions) => {
 
 // Fetch all orders (admin only)
 export async function fetchAllOrders(options: OrderQueryOptions = {}) {
-   const query = buildOrdersQuery(options);
-   const { data, error, count } = await query.select(
-      "*, items:order_items(*)",
-      { count: "exact" }
-   );
+   // To avoid inflated counts caused by joins (orders with multiple items),
+   // fetch the exact count separately using a HEAD request (no joined relations),
+   // then fetch the paginated data with the items relation included.
+   const countQuery = buildOrdersQuery({ ...options, pagination: undefined });
+   const { count, error: countError } = await countQuery.select("id", {
+      head: true,
+      count: "exact",
+   });
+
+   if (countError) {
+      console.error("Error fetching orders count:", countError);
+      throw countError;
+   }
+
+   const dataQuery = buildOrdersQuery(options);
+   const { data, error } = await dataQuery.select("*, items:order_items(*)");
 
    if (error) {
       console.error("Error fetching orders:", error);
@@ -491,15 +669,26 @@ export async function fetchUserOrders(
    options: OrderQueryOptions = {},
    userId?: string
 ) {
-   const query = buildOrdersQuery(options);
+   const baseOptions = { ...options };
+   // Build an unpaginated count query to get an exact unique orders count
+   const countQuery = buildOrdersQuery({
+      ...baseOptions,
+      pagination: undefined,
+   });
+   if (userId) countQuery.eq("user_id", userId);
+   const { count, error: countError } = await countQuery.select("id", {
+      head: true,
+      count: "exact",
+   });
 
-   if (userId) {
-      query.eq("user_id", userId);
+   if (countError) {
+      console.error("Error fetching user orders count:", countError);
+      throw countError;
    }
-   const { data, error, count } = await query.select(
-      "*, items:order_items(*)",
-      { count: "exact" }
-   );
+
+   const dataQuery = buildOrdersQuery(options);
+   if (userId) dataQuery.eq("user_id", userId);
+   const { data, error } = await dataQuery.select("*, items:order_items(*)");
 
    if (error) {
       console.error("Error fetching user orders:", error);
@@ -622,12 +811,113 @@ export async function createOrder({
          );
       }
 
-      // Return the complete order with items
-      const fullOrder = await fetchOrderById(createdOrder.id);
-      if (!fullOrder) {
-         throw new Error("Failed to retrieve created order");
-      }
-      return fullOrder;
+      // Return the created order immediately (with inserted items) to avoid blocking the client.
+      // Long-running best-effort tasks (stock updates, notifications) are kicked off
+      // in the background and do not block the response.
+      const quickOrder = {
+         ...createdOrder,
+         items: Array.isArray(itemsData) ? itemsData : [],
+      } as Order;
+
+      // Run post-order background tasks asynchronously without awaiting them so the
+      // client can redirect quickly. Errors are logged but won't fail the creation flow.
+      (async () => {
+         try {
+            if (itemsData && Array.isArray(itemsData)) {
+               await Promise.all(
+                  itemsData.map(async (it: any) => {
+                     try {
+                        const qty = Number(it.quantity || 0);
+                        if (!qty || qty <= 0) return;
+
+                        // If variation present, decrement variation stock
+                        if (it.product_variation_id) {
+                           const { data: varRow, error: varErr } = await sb
+                              .from("product_variations")
+                              .select("id, stock")
+                              .eq("id", it.product_variation_id)
+                              .maybeSingle();
+                           if (varErr) {
+                              console.warn(
+                                 "Failed to fetch product_variation for stock update:",
+                                 varErr
+                              );
+                              return;
+                           }
+                           if (varRow && typeof varRow.stock === "number") {
+                              const newStock = Math.max(
+                                 0,
+                                 Number(varRow.stock) - qty
+                              );
+                              const { error: uErr } = await sb
+                                 .from("product_variations")
+                                 .update({ stock: newStock })
+                                 .eq("id", it.product_variation_id);
+                              if (uErr)
+                                 console.warn(
+                                    "Failed to update product_variation stock:",
+                                    uErr
+                                 );
+                           }
+                           return;
+                        }
+
+                        // Otherwise, decrement product stock if tracking enabled
+                        if (it.product_id) {
+                           const { data: pRow, error: pErr } = await sb
+                              .from("products")
+                              .select("id, stock, track_quantity")
+                              .eq("id", it.product_id)
+                              .maybeSingle();
+                           if (pErr) {
+                              console.warn(
+                                 "Failed to fetch product for stock update:",
+                                 pErr
+                              );
+                              return;
+                           }
+                           if (
+                              pRow &&
+                              pRow.track_quantity &&
+                              typeof pRow.stock === "number"
+                           ) {
+                              const newStock = Math.max(
+                                 0,
+                                 Number(pRow.stock) - qty
+                              );
+                              const { error: upErr } = await sb
+                                 .from("products")
+                                 .update({ stock: newStock })
+                                 .eq("id", it.product_id);
+                              if (upErr)
+                                 console.warn(
+                                    "Failed to update product stock:",
+                                    upErr
+                                 );
+                           }
+                        }
+                     } catch (innerErr) {
+                        console.warn(
+                           "Error decrementing stock for item:",
+                           innerErr
+                        );
+                     }
+                  })
+               );
+            }
+         } catch (stockErr) {
+            console.warn(
+               "Error running stock decrement for order items:",
+               stockErr
+            );
+         }
+
+         // Fire-and-forget: additional background work (notifications, analytics etc.) could go here.
+      })().catch((bgErr) => {
+         console.warn("Background post-order task failed:", bgErr);
+      });
+
+      return quickOrder;
    } catch (error) {
       console.error("Order creation failed:", error);
       throw error;

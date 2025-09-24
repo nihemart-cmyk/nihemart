@@ -448,8 +448,96 @@ export function useOrders() {
                approve: boolean;
                note?: string;
             }) => respondToRefundRequest(itemId, approve, note),
-            onSuccess: () => {
-               queryClient.invalidateQueries({ queryKey: orderKeys.lists() });
+            onSuccess: (updatedItem) => {
+               // Try to merge the updated item row into any cached orders so UI updates immediately
+               try {
+                  const item = updatedItem as any;
+                  const updatedItemId = item?.id;
+                  const parentOrderId = item?.order_id;
+
+                  // Update any cached order detail queries
+                  const details = queryClient.getQueriesData({
+                     queryKey: orderKeys.details(),
+                  });
+                  for (const [key, data] of details) {
+                     try {
+                        const order = data as any;
+                        if (!order || !Array.isArray(order.items)) continue;
+                        const idx = order.items.findIndex(
+                           (it: any) => it.id === updatedItemId
+                        );
+                        if (idx !== -1) {
+                           const updated = { ...order };
+                           updated.items = [...order.items];
+                           updated.items[idx] = {
+                              ...updated.items[idx],
+                              ...item,
+                           };
+                           queryClient.setQueryData(key, updated);
+                        }
+                     } catch (e) {}
+                  }
+
+                  // Update paginated lists
+                  const lists = queryClient.getQueriesData({
+                     queryKey: orderKeys.lists(),
+                  });
+                  for (const [key, data] of lists) {
+                     try {
+                        const list = data as any;
+                        if (!list || !Array.isArray(list.data)) continue;
+                        const updatedList = { ...list };
+                        updatedList.data = list.data.map((order: any) => {
+                           if (!order.items) return order;
+                           const itemIdx = order.items.findIndex(
+                              (it: any) => it.id === updatedItemId
+                           );
+                           if (itemIdx === -1) return order;
+                           const updatedOrder = { ...order };
+                           updatedOrder.items = [...order.items];
+                           updatedOrder.items[itemIdx] = {
+                              ...updatedOrder.items[itemIdx],
+                              ...item,
+                           };
+                           return updatedOrder;
+                        });
+                        queryClient.setQueryData(key, updatedList);
+                     } catch (e) {}
+                  }
+
+                  // Also update the specific order detail key if present
+                  if (parentOrderId) {
+                     const existing = queryClient.getQueryData(
+                        orderKeys.detail(parentOrderId)
+                     );
+                     if (existing) {
+                        const order = existing as any;
+                        if (Array.isArray(order.items)) {
+                           const idx = order.items.findIndex(
+                              (it: any) => it.id === updatedItemId
+                           );
+                           if (idx !== -1) {
+                              const updated = { ...order };
+                              updated.items = [...order.items];
+                              updated.items[idx] = {
+                                 ...updated.items[idx],
+                                 ...item,
+                              };
+                              queryClient.setQueryData(
+                                 orderKeys.detail(parentOrderId),
+                                 updated
+                              );
+                           }
+                        }
+                     }
+                  }
+               } catch (e) {
+                  // fallback to invalidation
+                  queryClient.invalidateQueries({
+                     queryKey: orderKeys.lists(),
+                  });
+               }
+
                queryClient.invalidateQueries({ queryKey: orderKeys.stats() });
                toast.success("Refund response processed");
             },
@@ -470,8 +558,67 @@ export function useOrders() {
                approve: boolean;
                note?: string;
             }) => respondToOrderRefundRequest(orderId, approve, note),
-            onSuccess: () => {
-               queryClient.invalidateQueries({ queryKey: orderKeys.lists() });
+            onSuccess: (updatedOrder) => {
+               try {
+                  const order = updatedOrder as any;
+                  const id = order?.id;
+
+                  // Merge into order detail cache
+                  const existing = queryClient.getQueryData(
+                     orderKeys.detail(id)
+                  );
+                  if (existing) {
+                     const merged = { ...(existing as any), ...order } as any;
+                     if (
+                        order?.refund_status === "approved" &&
+                        Array.isArray(merged.items)
+                     ) {
+                        merged.items = merged.items.map((it: any) => ({
+                           ...it,
+                           refund_status:
+                              it.refund_status === "requested"
+                                 ? "approved"
+                                 : it.refund_status,
+                        }));
+                     }
+                     queryClient.setQueryData(orderKeys.detail(id), merged);
+                  }
+
+                  // Merge into list pages
+                  const lists = queryClient.getQueriesData({
+                     queryKey: orderKeys.lists(),
+                  });
+                  for (const [key, data] of lists) {
+                     try {
+                        const list = data as any;
+                        if (!list || !Array.isArray(list.data)) continue;
+                        const updatedList = { ...list };
+                        updatedList.data = list.data.map((o: any) => {
+                           if (o.id !== id) return o;
+                           const merged = { ...o, ...order } as any;
+                           if (
+                              order?.refund_status === "approved" &&
+                              Array.isArray(merged.items)
+                           ) {
+                              merged.items = merged.items.map((it: any) => ({
+                                 ...it,
+                                 refund_status:
+                                    it.refund_status === "requested"
+                                       ? "approved"
+                                       : it.refund_status,
+                              }));
+                           }
+                           return merged;
+                        });
+                        queryClient.setQueryData(key, updatedList);
+                     } catch (e) {}
+                  }
+               } catch (e) {
+                  queryClient.invalidateQueries({
+                     queryKey: orderKeys.lists(),
+                  });
+               }
+
                queryClient.invalidateQueries({ queryKey: orderKeys.stats() });
                toast.success("Order refund response processed");
             },

@@ -304,7 +304,7 @@ const Checkout = () => {
    const sectorFee = selectedSectorObj
       ? (sectorsFees as any)[selectedSectorObj.sct_name]
       : undefined;
-   const transport = sectorFee ?? 1700; // fallback if no sector chosen
+   const transport = sectorFee ?? 3000; // fallback if no sector chosen
    const total = subtotal + transport;
 
    // Determine if the selected location (either explicit province selection or selected saved address) is Kigali

@@ -266,8 +266,8 @@ export const columns: ColumnDef<Order>[] = [
          const order = row.original;
          const hasRefund =
             (Array.isArray(order.items) &&
-               order.items.some((it) => !!it.refund_status)) ||
-            !!order.refund_status;
+               order.items.some((it) => it.refund_status === "requested")) ||
+            order.refund_status === "requested";
          const { hasRole } = useAuth();
          const isAdmin = hasRole && hasRole("admin");
          const [showCustomerDetails, setShowCustomerDetails] = useState(false);
@@ -318,11 +318,13 @@ export const columns: ColumnDef<Order>[] = [
                            Manage refund
                         </DropdownMenuItem>
                      )}
-                     <DropdownMenuItem
-                        onClick={() => setShowAssignDialog(true)}
-                     >
-                        Assign to rider
-                     </DropdownMenuItem>
+                     {order.status === "pending" && (
+                        <DropdownMenuItem
+                           onClick={() => setShowAssignDialog(true)}
+                        >
+                           Assign to rider
+                        </DropdownMenuItem>
+                     )}
                   </DropdownMenuContent>
                </DropdownMenu>
 

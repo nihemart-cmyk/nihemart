@@ -4,6 +4,7 @@
 create or replace function public.notify_on_order_assignments() returns trigger language plpgsql as $$
 declare
   v_rider_user_id uuid;
+  v_order record;
 begin
   -- try to get the auth user id for the rider
   if (new.rider_id is not null) then
@@ -15,7 +16,7 @@ begin
   if (TG_OP = 'INSERT') then
     -- Notify the rider assigned. Include delivery details by selecting the order
     -- so the rider sees address and delivery notes in the notification meta/body.
-    declare v_order record;
+    -- fetch order details into v_order
     begin
       select id, order_number, delivery_address, delivery_notes, delivery_city
       into v_order
@@ -33,7 +34,14 @@ begin
         'assignment_created',
         'New delivery assigned',
         format('Deliver order %s to %s', coalesce(v_order.order_number::text, new.order_id::text), coalesce(v_order.delivery_address, 'address not provided')),
-        (to_jsonb(new) || jsonb_build_object('order', to_jsonb(v_order)))
+        -- Use a safe json object for the order payload to avoid referencing variables in contexts where
+        -- the planner might expect a relation. Build the JSON explicitly from a subselect when available.
+        (to_jsonb(new) || jsonb_build_object('order', (
+           select to_jsonb(o) from (
+             select id, order_number, delivery_address, delivery_notes, delivery_city
+             from public.orders where id = new.order_id limit 1
+           ) o
+        )))
       );
     else
       perform public.insert_notification(
@@ -42,7 +50,12 @@ begin
         'assignment_created',
         'New delivery assigned',
         format('Deliver order %s to %s', coalesce(v_order.order_number::text, new.order_id::text), coalesce(v_order.delivery_address, 'address not provided')),
-        (to_jsonb(new) || jsonb_build_object('order', to_jsonb(v_order)) || jsonb_build_object('rider_id', new.rider_id))
+        (to_jsonb(new) || jsonb_build_object('order', (
+           select to_jsonb(o) from (
+             select id, order_number, delivery_address, delivery_notes, delivery_city
+             from public.orders where id = new.order_id limit 1
+           ) o
+        )) || jsonb_build_object('rider_id', new.rider_id))
       );
     end if;
     return new;

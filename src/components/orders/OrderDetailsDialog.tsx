@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useOrders } from "@/hooks/useOrders";
-import { Dialog as DialogPrimitive } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "../ui/scroll-area";
 import { UserAvatarProfile } from "../user-avatar-profile";
@@ -263,16 +262,14 @@ export function OrderDetailsDialog({
                      </div>
                   </Card>
                   {/* Request full refund dialog */}
-                  <DialogPrimitive
+                  <Dialog
                      open={showOrderRefundDialog}
                      onOpenChange={setShowOrderRefundDialog}
                   >
-                     <DialogPrimitive.Content className="max-w-md">
-                        <DialogPrimitive.Header>
-                           <DialogPrimitive.Title>
-                              Request full order refund
-                           </DialogPrimitive.Title>
-                        </DialogPrimitive.Header>
+                     <DialogContent className="max-w-md">
+                        <DialogHeader>
+                           <DialogTitle>Request full order refund</DialogTitle>
+                        </DialogHeader>
                         <div className="p-4">
                            <p className="text-sm text-muted-foreground mb-2">
                               Please provide a reason for requesting a refund
@@ -319,8 +316,8 @@ export function OrderDetailsDialog({
                               </Button>
                            </div>
                         </div>
-                     </DialogPrimitive.Content>
-                  </DialogPrimitive>
+                     </DialogContent>
+                  </Dialog>
                </div>
             </ScrollArea>
          </DialogContent>

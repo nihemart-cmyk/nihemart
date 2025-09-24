@@ -124,11 +124,27 @@ const OrdersTable: FC<OrdersTableProps> = () => {
       ...queryOptions,
    });
 
+   // Also fetch all orders without pagination to get an authoritative total count
+   // This is used to ensure the 'All' status shows the real total (unique orders)
+   const { data: allOrdersUnpaginated } = useAllOrders({
+      filters: queryOptions.filters,
+      // no pagination so the integration returns the full count
+   });
+
    const orders = ordersData?.data || [];
    const totalCount = ordersData?.count || 0;
    const totalPages = Math.max(1, Math.ceil(totalCount / limit));
    const rangeStart = totalCount === 0 ? 0 : (page - 1) * limit + 1;
    const rangeEnd = Math.min(totalCount, page * limit);
+
+   // Debug: log authoritative and fallback counts to diagnose mismatches
+   console.log("OrdersTable counts:", {
+      paginated_totalCount: totalCount,
+      unpaginated_totalCount: allOrdersUnpaginated?.count,
+      statsDataSummary: statsData,
+      loadedOrdersLength: orders.length,
+      sampleOrderIds: orders.slice(0, 10).map((o) => o.id),
+   });
 
    const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       setSearch(e.target.value);
@@ -219,36 +235,37 @@ const OrdersTable: FC<OrdersTableProps> = () => {
 
                         // If it's an array, try multiple heuristics
                         if (Array.isArray(stats)) {
-                           // If label is All, sum any numeric-looking keys
+                           // If label is All, try to find an explicit summary/total entry
                            if (label === "All") {
-                              // Sum only keys that likely represent counts (avoid amounts/prices/revenue)
-                              const isCountKey = (k: string) =>
-                                 /count|orders?|qty|num|items?/i.test(k) &&
-                                 !/amount|price|revenue|sum|total_amount/i.test(
-                                    k
-                                 );
-                              return stats.reduce((acc: number, s: any) => {
-                                 if (!s || typeof s !== "object") return acc;
-                                 // Prefer explicit count-like keys
-                                 const key = Object.keys(s).find((k) =>
-                                    isCountKey(k)
-                                 );
-                                 if (key) return acc + parseNumber(s[key]);
+                              // Look for an object that explicitly represents a total/summary
+                              const totalLikeKeyRE =
+                                 /^(total|all|summary|orders?_count|order_count|total_orders?)$/i;
 
-                                 // Fallback to common keys but avoid amount-like keys
-                                 const fallback =
+                              for (const s of stats) {
+                                 if (!s || typeof s !== "object") continue;
+                                 // Prefer an explicit 'total' or 'summary' key
+                                 const key = Object.keys(s).find((k) =>
+                                    totalLikeKeyRE.test(k)
+                                 );
+                                 if (key) return parseNumber(s[key]);
+                              }
+
+                              // If none found, try common numeric keys on a single summary object
+                              for (const s of stats) {
+                                 if (!s || typeof s !== "object") continue;
+                                 const v =
+                                    s.total ??
                                     s.count ??
                                     s.order_count ??
                                     s.qty ??
                                     s.num ??
-                                    s.items ??
-                                    s.total;
-                                 // Ensure fallback key's original property name isn't something like total_amount
-                                 if (fallback != null)
-                                    return acc + parseNumber(fallback);
+                                    s.items;
+                                 if (v != null) return parseNumber(v);
+                              }
 
-                                 return acc;
-                              }, 0);
+                              // As a last resort, avoid summing multiple buckets (which can double-count across time)
+                              // and instead return 0 so the UI falls back to server count or loaded orders length.
+                              return 0;
                            }
 
                            // try to find an element where any string value matches mappingStr
@@ -298,10 +315,25 @@ const OrdersTable: FC<OrdersTableProps> = () => {
                         // If it's an object map
                         if (typeof stats === "object") {
                            if (label === "All") {
-                              // Sum only keys that look like counts
+                              // Prefer an explicit total-like key if present (avoid double-counting)
+                              const explicitTotalKey = Object.keys(stats).find(
+                                 (k) =>
+                                    /^(total|total_orders|orders?_total|orders?_count|total_count)$/i.test(
+                                       k
+                                    )
+                              );
+                              if (explicitTotalKey)
+                                 return parseNumber(
+                                    (stats as any)[explicitTotalKey]
+                                 );
+
+                              // If no explicit total found, try common numeric keys on a single summary object
+                              if ((stats as any).total != null)
+                                 return parseNumber((stats as any).total);
+
+                              // Fallback: sum bucket-like keys but exclude any key that looks like an overall total
                               const isCountKey = (k: string) =>
-                                 /count|orders?|qty|num|items?/i.test(k) &&
-                                 !/amount|price|revenue|sum|total_amount/i.test(
+                                 /^(pending|processing|delivered|shipped|cancelled|cancelled_orders|paid|unpaid|external|pending_orders|processing_orders|delivered_orders|shipped_orders|cancelled_orders)$/i.test(
                                     k
                                  );
                               const keys =
@@ -312,9 +344,8 @@ const OrdersTable: FC<OrdersTableProps> = () => {
                                        acc + parseNumber((stats as any)[k]),
                                     0
                                  );
-                              if (stats.total != null)
-                                 return parseNumber(stats.total);
-                              // fallback: sum numeric-looking values
+
+                              // Last resort: sum numeric-looking values (safe fallback)
                               return Object.values(stats).reduce(
                                  (acc: number, v: any) =>
                                     acc +
@@ -342,21 +373,51 @@ const OrdersTable: FC<OrdersTableProps> = () => {
                      };
 
                      let count = 0;
-                     if (statsData) {
-                        try {
-                           count = countFromStats(statsData);
-                        } catch (e) {
-                           count = 0;
-                        }
-                     }
 
-                     // Fallback to counting from loaded orders if stats didn't yield a number
-                     if (!count) {
-                        count = orders.filter((order) => {
-                           if (label === "All") return true;
-                           const expectedStatus = statusMapping[label];
-                           return order.status === expectedStatus;
-                        }).length;
+                     // If this is the 'All' label, use a deterministic authoritative source
+                     if (label === "All") {
+                        // Prefer explicit statsData total first
+                        const statsTotal =
+                           (statsData as any)?.total_orders ??
+                           (statsData as any)?.totalOrders ??
+                           (statsData as any)?.total;
+
+                        // Compute a deduplicated count from available data as a robust fallback
+                        const unpaginatedData =
+                           allOrdersUnpaginated?.data ?? [];
+                        const paginatedData = ordersData?.data ?? [];
+                        const combined = [...unpaginatedData, ...paginatedData];
+                        const dedupCount = new Set(
+                           combined.map((o: any) => o?.id)
+                        ).size;
+
+                        const preferredAll =
+                           statsTotal != null
+                              ? parseNumber(statsTotal)
+                              : dedupCount > 0
+                              ? dedupCount
+                              : allOrdersUnpaginated?.count ??
+                                totalCount ??
+                                orders.length ??
+                                0;
+
+                        count = parseNumber(preferredAll);
+                     } else {
+                        if (statsData) {
+                           try {
+                              count = countFromStats(statsData);
+                           } catch (e) {
+                              count = 0;
+                           }
+                        }
+
+                        // Fallback to counting from loaded orders if stats didn't yield a number
+                        if (!count) {
+                           count = orders.filter((order) => {
+                              const expectedStatus = statusMapping[label];
+                              return order.status === expectedStatus;
+                           }).length;
+                        }
                      }
 
                      return (
@@ -565,8 +626,6 @@ const OrdersTable: FC<OrdersTableProps> = () => {
                      </div>
                   </PopoverContent>
                </Popover>
-
-             
 
                <Popover>
                   <PopoverTrigger asChild>

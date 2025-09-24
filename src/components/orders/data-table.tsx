@@ -61,9 +61,9 @@ export function DataTable<TData, TValue>({
             <TableBody>
                {table.getRowModel().rows?.length ? (
                   table.getRowModel().rows.map((row) => {
-                     // highlight the entire row if any order item has a refund_status set
+                     // highlight the entire row only if any order item has a refund_status === 'requested'
                      const hasRefund = (row.original as any)?.items?.some(
-                        (it: any) => !!it?.refund_status
+                        (it: any) => it?.refund_status === "requested"
                      );
 
                      return (
