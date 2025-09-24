@@ -160,6 +160,80 @@ const OrderDetails = () => {
       }
    };
 
+   // Build timeline entries from available timestamps and status.
+   // This ensures we always show a sensible timeline even if some fields are missing.
+   const buildTimeline = () => {
+      const entries: {
+         key: string;
+         title: string;
+         date?: string | null;
+         color?: string;
+         icon?: any;
+      }[] = [];
+
+      // Always include order placed
+      entries.push({
+         key: "placed",
+         title: "Order Placed",
+         date: order.created_at,
+         color: "bg-gray-400",
+         icon: <Calendar className="h-4 w-4 text-white" />,
+      });
+
+      // Processing
+      if (
+         order.status === "processing" ||
+         order.status === "shipped" ||
+         order.status === "delivered"
+      ) {
+         entries.push({
+            key: "processing",
+            title: "Order Processing",
+            // processed_at may not exist on the order object in all schemas; fall back to updated_at
+            date: (order as any).processed_at || order.updated_at,
+            color: "bg-blue-500",
+            icon: <Package className="h-4 w-4 text-white" />,
+         });
+      }
+
+      // Shipped
+      if (order.status === "shipped" || order.status === "delivered") {
+         entries.push({
+            key: "shipped",
+            title: "Order Shipped",
+            date: order.shipped_at,
+            color: "bg-purple-500",
+            icon: <Truck className="h-4 w-4 text-white" />,
+         });
+      }
+
+      // Delivered
+      if (order.status === "delivered") {
+         entries.push({
+            key: "delivered",
+            title: "Order Delivered",
+            date: order.delivered_at,
+            color: "bg-green-500",
+            icon: <CheckCircle className="h-4 w-4 text-white" />,
+         });
+      }
+
+      // Cancelled
+      if (order.status === "cancelled") {
+         entries.push({
+            key: "cancelled",
+            title: "Order Cancelled",
+            // cancelled_at may not exist in all schemas; use updated_at as fallback
+            date: (order as any).cancelled_at || order.updated_at,
+            color: "bg-red-500",
+            icon: <X className="h-4 w-4 text-white" />,
+         });
+      }
+
+      // Remove entries without dates except 'placed' (we still may want to show placed without date)
+      return entries.filter((e, idx) => (e.date ? true : e.key === "placed"));
+   };
+
    const handleStatusUpdate = async (newStatus: string) => {
       if (isUpdatingStatus) return;
 
@@ -229,8 +303,8 @@ Please let me know if you need any additional information.
 
    return (
       <div className="container mx-auto px-4 py-8">
-         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8 gap-4">
-            <div className="flex items-center space-x-4">
+         <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8 gap-4">
+            <div className="flex items-start md:items-center space-x-4 w-full md:w-auto">
                <Button
                   variant="ghost"
                   size="sm"
@@ -239,34 +313,36 @@ Please let me know if you need any additional information.
                   <ArrowLeft className="h-4 w-4 mr-2" />
                   Back
                </Button>
-               <div>
-                  <h1 className="text-2xl sm:text-3xl font-bold">
+               <div className="min-w-0">
+                  <h1 className="text-xl sm:text-2xl md:text-3xl font-bold truncate">
                      Order #{order.order_number}
                   </h1>
-                  <p className="text-muted-foreground text-sm sm:text-base">
+                  <p className="text-muted-foreground text-xs sm:text-sm">
                      Placed on {formatDate(order.created_at)}
                   </p>
                </div>
             </div>
 
-            <div className="flex items-center space-x-3">
-               <Badge
-                  className={getStatusColor(order.status)}
-                  variant="secondary"
-               >
-                  {getStatusIcon(order.status)}
-                  <span className="ml-2 capitalize">
-                     {order.status || "unknown"}
-                  </span>
-               </Badge>
+            <div className="flex items-center space-x-3 mt-3 md:mt-0 w-full md:w-auto justify-between md:justify-end">
+               <div className="flex items-center space-x-3">
+                  <Badge
+                     className={getStatusColor(order.status)}
+                     variant="secondary"
+                  >
+                     {getStatusIcon(order.status)}
+                     <span className="ml-2 capitalize hidden sm:inline">
+                        {order.status || "unknown"}
+                     </span>
+                  </Badge>
 
-               <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleWhatsAppContact}
-               >
-                  Contact Support
-               </Button>
+                  <Button
+                     variant="outline"
+                     size="sm"
+                     onClick={handleWhatsAppContact}
+                  >
+                     Contact Support
+                  </Button>
+               </div>
             </div>
          </div>
 
@@ -404,36 +480,39 @@ Please let me know if you need any additional information.
                      <CardTitle>Order Timeline</CardTitle>
                   </CardHeader>
                   <CardContent>
-                     {order.shipped_at && (
-                        <div className="flex items-center space-x-3">
-                           <div className="flex-shrink-0">
-                              <div className="w-8 h-8 bg-purple-500 rounded-full flex items-center justify-center">
-                                 <Truck className="h-4 w-4 text-white" />
+                     {buildTimeline().length > 0 ? (
+                        <div className="space-y-4">
+                           {buildTimeline().map((entry) => (
+                              <div
+                                 key={entry.key}
+                                 className="flex items-start space-x-3"
+                              >
+                                 <div className="flex-shrink-0">
+                                    <div
+                                       className={`w-8 h-8 ${
+                                          entry.color || "bg-gray-400"
+                                       } rounded-full flex items-center justify-center`}
+                                    >
+                                       {entry.icon}
+                                    </div>
+                                 </div>
+                                 <div>
+                                    <p className="font-semibold">
+                                       {entry.title}
+                                    </p>
+                                    <p className="text-sm text-muted-foreground">
+                                       {entry.date
+                                          ? formatDate(entry.date)
+                                          : "Date not available"}
+                                    </p>
+                                 </div>
                               </div>
-                           </div>
-                           <div>
-                              <p className="font-semibold">Order Shipped</p>
-                              <p className="text-sm text-muted-foreground">
-                                 {formatDate(order.shipped_at)}
-                              </p>
-                           </div>
+                           ))}
                         </div>
-                     )}
-
-                     {order.delivered_at && (
-                        <div className="flex items-center space-x-3">
-                           <div className="flex-shrink-0">
-                              <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
-                                 <CheckCircle className="h-4 w-4 text-white" />
-                              </div>
-                           </div>
-                           <div>
-                              <p className="font-semibold">Order Delivered</p>
-                              <p className="text-sm text-muted-foreground">
-                                 {formatDate(order.delivered_at)}
-                              </p>
-                           </div>
-                        </div>
+                     ) : (
+                        <p className="text-muted-foreground">
+                           No timeline data available for this order.
+                        </p>
                      )}
                   </CardContent>
                </Card>
