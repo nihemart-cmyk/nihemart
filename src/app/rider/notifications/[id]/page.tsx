@@ -167,9 +167,9 @@ export default async function NotificationPage({
                                        <p className="text-sm text-muted-foreground">
                                           Quantity: {item.quantity}
                                        </p>
-                                       {item.rejected_reason && (
+                                       {item.refund_reason && (
                                           <p className="text-xs italic">
-                                             Reason: {item.rejected_reason}
+                                             Reason: {item.refund_reason}
                                           </p>
                                        )}
                                     </div>

@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useOrders } from "@/hooks/useOrders";
+import { Dialog as DialogPrimitive } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { ScrollArea } from "../ui/scroll-area";
 import { UserAvatarProfile } from "../user-avatar-profile";
 import { Card } from "../ui/card";
@@ -24,11 +26,18 @@ export function OrderDetailsDialog({
    onOpenChange,
    order,
 }: OrderDetailsDialogProps) {
-   const { useUnrejectOrderItem } = useOrders();
-   const unreject = useUnrejectOrderItem();
+   const { useCancelRefundRequestItem, useRequestRefundItem } = useOrders();
+   const cancelRefund = useCancelRefundRequestItem();
+   const requestRefund = useRequestRefundItem();
+   const { useRequestRefundOrder, useCancelRefundRequestOrder } = useOrders();
+   const requestOrderRefund = useRequestRefundOrder();
+   const cancelOrderRefund = useCancelRefundRequestOrder();
    const [loadingItemId, setLoadingItemId] = useState<string | null>(null);
    const customerName =
       `${order.customer_first_name} ${order.customer_last_name}`.trim();
+   const [showOrderRefundDialog, setShowOrderRefundDialog] = useState(false);
+   const [orderRefundReason, setOrderRefundReason] = useState("");
+   const [orderLoading, setOrderLoading] = useState(false);
 
    return (
       <Dialog
@@ -128,39 +137,54 @@ export function OrderDetailsDialog({
                                     <p className="font-medium">
                                        {item.product_name}
                                     </p>
-                                    {item.rejected && (
+                                    {item.refund_status ? (
                                        <>
-                                          <Badge variant="destructive">
-                                             Rejected
-                                          </Badge>
-                                          <Button
-                                             size="sm"
-                                             variant="ghost"
-                                             onClick={async () => {
-                                                setLoadingItemId(item.id);
-                                                try {
-                                                   await unreject.mutateAsync(
-                                                      item.id
-                                                   );
-                                                   // toast shown by hook
-                                                } catch (e) {
-                                                   // handled by mutation
-                                                } finally {
-                                                   setLoadingItemId(null);
-                                                }
-                                             }}
-                                             disabled={
-                                                loadingItemId === item.id
+                                          <Badge
+                                             variant={
+                                                item.refund_status ===
+                                                "approved"
+                                                   ? "default"
+                                                   : item.refund_status ===
+                                                     "rejected"
+                                                   ? "destructive"
+                                                   : "secondary"
                                              }
                                           >
-                                             {loadingItemId === item.id ? (
-                                                <Loader2 className="h-4 w-4 animate-spin" />
-                                             ) : (
-                                                "Undo"
-                                             )}
-                                          </Button>
+                                             {item.refund_status
+                                                .charAt(0)
+                                                .toUpperCase() +
+                                                item.refund_status.slice(1)}
+                                          </Badge>
+                                          {item.refund_status ===
+                                             "requested" && (
+                                             <Button
+                                                size="sm"
+                                                variant="ghost"
+                                                onClick={async () => {
+                                                   setLoadingItemId(item.id);
+                                                   try {
+                                                      await cancelRefund.mutateAsync(
+                                                         item.id
+                                                      );
+                                                   } catch (e) {
+                                                      // handled by mutation
+                                                   } finally {
+                                                      setLoadingItemId(null);
+                                                   }
+                                                }}
+                                                disabled={
+                                                   loadingItemId === item.id
+                                                }
+                                             >
+                                                {loadingItemId === item.id ? (
+                                                   <Loader2 className="h-4 w-4 animate-spin" />
+                                                ) : (
+                                                   "Cancel"
+                                                )}
+                                             </Button>
+                                          )}
                                        </>
-                                    )}
+                                    ) : null}
                                  </div>
                                  {item.variation_name && (
                                     <p className="text-sm text-muted-foreground">
@@ -170,9 +194,9 @@ export function OrderDetailsDialog({
                                  <p className="text-sm text-muted-foreground">
                                     Quantity: {item.quantity}
                                  </p>
-                                 {item.rejected_reason && (
+                                 {item.refund_reason && (
                                     <p className="text-xs text-muted-foreground mt-1 italic">
-                                       Reason: {item.rejected_reason}
+                                       Reason: {item.refund_reason}
                                     </p>
                                  )}
                               </div>
@@ -202,8 +226,101 @@ export function OrderDetailsDialog({
                            <p>Total</p>
                            <p>{order.total.toLocaleString()} RWF</p>
                         </div>
+                        {/* Full order refund actions */}
+                        <div className="mt-4 space-x-2">
+                           {!order.refund_status && (
+                              <Button
+                                 variant="outline"
+                                 onClick={() => setShowOrderRefundDialog(true)}
+                              >
+                                 Request full order refund
+                              </Button>
+                           )}
+                           {order.refund_status === "requested" && (
+                              <Button
+                                 variant="ghost"
+                                 onClick={async () => {
+                                    try {
+                                       setOrderLoading(true);
+                                       await cancelOrderRefund.mutateAsync(
+                                          order.id
+                                       );
+                                    } catch (e) {
+                                       // handled by mutation
+                                    } finally {
+                                       setOrderLoading(false);
+                                    }
+                                 }}
+                              >
+                                 {orderLoading ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                 ) : (
+                                    "Cancel full refund request"
+                                 )}
+                              </Button>
+                           )}
+                        </div>
                      </div>
                   </Card>
+                  {/* Request full refund dialog */}
+                  <DialogPrimitive
+                     open={showOrderRefundDialog}
+                     onOpenChange={setShowOrderRefundDialog}
+                  >
+                     <DialogPrimitive.Content className="max-w-md">
+                        <DialogPrimitive.Header>
+                           <DialogPrimitive.Title>
+                              Request full order refund
+                           </DialogPrimitive.Title>
+                        </DialogPrimitive.Header>
+                        <div className="p-4">
+                           <p className="text-sm text-muted-foreground mb-2">
+                              Please provide a reason for requesting a refund
+                              for the entire order.
+                           </p>
+                           <Input
+                              value={orderRefundReason}
+                              onChange={(e) =>
+                                 setOrderRefundReason(e.target.value)
+                              }
+                              placeholder="Reason"
+                           />
+                           <div className="mt-4 flex justify-end">
+                              <Button
+                                 variant="ghost"
+                                 onClick={() => setShowOrderRefundDialog(false)}
+                              >
+                                 Cancel
+                              </Button>
+                              <Button
+                                 className="ml-2"
+                                 onClick={async () => {
+                                    if (!orderRefundReason.trim()) return;
+                                    try {
+                                       setOrderLoading(true);
+                                       await requestOrderRefund.mutateAsync({
+                                          orderId: order.id,
+                                          reason: orderRefundReason,
+                                       });
+                                       setShowOrderRefundDialog(false);
+                                       setOrderRefundReason("");
+                                    } catch (e) {
+                                       // handled by mutation
+                                    } finally {
+                                       setOrderLoading(false);
+                                    }
+                                 }}
+                              >
+                                 {orderLoading ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                 ) : (
+                                    "Request refund"
+                                 )}
+                              </Button>
+                           </div>
+                        </div>
+                     </DialogPrimitive.Content>
+                  </DialogPrimitive>
                </div>
             </ScrollArea>
          </DialogContent>

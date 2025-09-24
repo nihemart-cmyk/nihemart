@@ -34,6 +34,11 @@ export interface Order extends OrderBase {
    delivered_at?: string | null;
    items?: OrderItem[];
    status: OrderStatus;
+   // Order-level refund fields (for full-order refunds)
+   refund_requested?: boolean;
+   refund_reason?: string | null;
+   refund_status?: RefundStatus | null;
+   refund_requested_at?: string | null;
 }
 
 export interface OrderItem {
@@ -48,8 +53,12 @@ export interface OrderItem {
    quantity: number;
    total: number;
    created_at: string;
-   rejected?: boolean;
-   rejected_reason?: string;
+   // Refund-related fields
+   refund_requested?: boolean;
+   refund_reason?: string | null;
+   // refund_status: null | 'requested' | 'approved' | 'rejected' | 'cancelled'
+   refund_status?: RefundStatus | null;
+   refund_requested_at?: string | null;
 }
 
 export interface OrderItemInput {
@@ -62,6 +71,8 @@ export interface OrderItemInput {
    product_variation_id?: string;
    total: number;
 }
+
+export type RefundStatus = "requested" | "approved" | "rejected" | "cancelled";
 
 export interface CreateOrderRequest {
    order: OrderBase;

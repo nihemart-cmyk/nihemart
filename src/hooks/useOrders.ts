@@ -7,8 +7,12 @@ import {
    fetchOrderById,
    createOrder,
    updateOrderStatus,
-   rejectOrderItem,
-   unrejectOrderItem,
+   requestRefundForItem,
+   cancelRefundRequestForItem,
+   requestRefundForOrder,
+   cancelRefundRequestForOrder,
+   respondToRefundRequest,
+   respondToOrderRefundRequest,
    deleteOrder,
    getOrderStats,
    type Order,
@@ -179,7 +183,6 @@ export function useUpdateOrderStatus() {
 // Hook for rejecting an order item
 export function useRejectOrderItem() {
    const queryClient = useQueryClient();
-
    return useMutation({
       mutationFn: ({
          orderItemId,
@@ -187,9 +190,7 @@ export function useRejectOrderItem() {
       }: {
          orderItemId: string;
          reason: string;
-      }) => rejectOrderItem(orderItemId, reason),
-
-      // Optimistic update: update cached order detail(s) and lists immediately
+      }) => requestRefundForItem(orderItemId, reason),
       onMutate: async ({
          orderItemId,
          reason,
@@ -200,7 +201,6 @@ export function useRejectOrderItem() {
          await queryClient.cancelQueries({ queryKey: orderKeys.details() });
          await queryClient.cancelQueries({ queryKey: orderKeys.lists() });
 
-         // Snapshot previous data for rollback
          const previousDetails = queryClient.getQueriesData({
             queryKey: orderKeys.details(),
          });
@@ -208,7 +208,7 @@ export function useRejectOrderItem() {
             queryKey: orderKeys.lists(),
          });
 
-         // Update any cached order detail that contains this item
+         // Optimistically mark item as refund_requested/requested
          for (const [key, data] of previousDetails) {
             try {
                const order = data as any;
@@ -221,125 +221,10 @@ export function useRejectOrderItem() {
                      updated.items = [...order.items];
                      updated.items[idx] = {
                         ...updated.items[idx],
-                        rejected: true,
-                        rejected_reason: reason,
-                     };
-                     queryClient.setQueryData(key, updated);
-                  }
-               }
-            } catch (e) {
-               // ignore individual update errors
-            }
-         }
-
-         // Update any cached lists (shape may be { data: Order[]; count })
-         for (const [key, data] of previousLists) {
-            try {
-               const list = data as any;
-               if (list && Array.isArray(list.data)) {
-                  const updatedList = { ...list };
-                  updatedList.data = list.data.map((order: any) => {
-                     if (!order.items) return order;
-                     const itemIdx = order.items.findIndex(
-                        (it: any) => it.id === orderItemId
-                     );
-                     if (itemIdx === -1) return order;
-                     const updatedOrder = { ...order };
-                     updatedOrder.items = [...order.items];
-                     updatedOrder.items[itemIdx] = {
-                        ...updatedOrder.items[itemIdx],
-                        rejected: true,
-                        rejected_reason: reason,
-                     };
-                     return updatedOrder;
-                  });
-                  queryClient.setQueryData(key, updatedList);
-               }
-            } catch (e) {
-               // ignore
-            }
-         }
-
-         return { previousDetails, previousLists };
-      },
-
-      onError: (err, variables, context: any) => {
-         console.error("Failed to reject order item:", err);
-         // Rollback caches
-         if (context?.previousDetails) {
-            for (const [key, data] of context.previousDetails) {
-               try {
-                  queryClient.setQueryData(key, data);
-               } catch (e) {}
-            }
-         }
-         if (context?.previousLists) {
-            for (const [key, data] of context.previousLists) {
-               try {
-                  queryClient.setQueryData(key, data);
-               } catch (e) {}
-            }
-         }
-         // Try to show a helpful message from the backend when available
-         const message =
-            err?.message ||
-            (err && err.error && err.error.message) ||
-            "Failed to reject item";
-         toast.error(message);
-      },
-
-      onSettled: (data: any, error: any, variables: any) => {
-         // Ensure fresh data
-         queryClient.invalidateQueries({ queryKey: orderKeys.lists() });
-         // If server returned order_id, invalidate that detail specifically
-         if (data?.order_id) {
-            queryClient.invalidateQueries({
-               queryKey: orderKeys.detail(data.order_id),
-            });
-         } else {
-            queryClient.invalidateQueries({ queryKey: orderKeys.details() });
-         }
-      },
-
-      onSuccess: (data: any) => {
-         // Keep behaviour: toast on success
-         toast.success("Item rejected");
-      },
-   });
-}
-
-// Hook for un-rejecting an order item (undo rejection)
-export function useUnrejectOrderItem() {
-   const queryClient = useQueryClient();
-
-   return useMutation({
-      mutationFn: (orderItemId: string) => unrejectOrderItem(orderItemId),
-      onMutate: async (orderItemId: string) => {
-         await queryClient.cancelQueries({ queryKey: orderKeys.details() });
-         await queryClient.cancelQueries({ queryKey: orderKeys.lists() });
-
-         const previousDetails = queryClient.getQueriesData({
-            queryKey: orderKeys.details(),
-         });
-         const previousLists = queryClient.getQueriesData({
-            queryKey: orderKeys.lists(),
-         });
-
-         // Optimistically clear rejected flag in cached data
-         for (const [key, data] of previousDetails) {
-            try {
-               const order = data as any;
-               if (order && Array.isArray(order.items)) {
-                  const idx = order.items.findIndex(
-                     (it: any) => it.id === orderItemId
-                  );
-                  if (idx !== -1) {
-                     const updated = { ...order };
-                     updated.items = [...order.items];
-                     updated.items[idx] = {
-                        ...updated.items[idx],
-                        rejected: false,
-                        rejected_reason: null,
+                        refund_requested: true,
+                        refund_reason: reason,
+                        refund_status: "requested",
+                        refund_requested_at: new Date().toISOString(),
                      };
                      queryClient.setQueryData(key, updated);
                   }
@@ -362,8 +247,10 @@ export function useUnrejectOrderItem() {
                      updatedOrder.items = [...order.items];
                      updatedOrder.items[itemIdx] = {
                         ...updatedOrder.items[itemIdx],
-                        rejected: false,
-                        rejected_reason: null,
+                        refund_requested: true,
+                        refund_reason: reason,
+                        refund_status: "requested",
+                        refund_requested_at: new Date().toISOString(),
                      };
                      return updatedOrder;
                   });
@@ -390,7 +277,8 @@ export function useUnrejectOrderItem() {
                } catch (e) {}
             }
          }
-         toast.error("Failed to undo rejection");
+         const message = err?.message || "Failed to request refund";
+         toast.error(message);
       },
       onSettled: (data: any) => {
          queryClient.invalidateQueries({ queryKey: orderKeys.lists() });
@@ -401,6 +289,111 @@ export function useUnrejectOrderItem() {
          } else {
             queryClient.invalidateQueries({ queryKey: orderKeys.details() });
          }
+      },
+      onSuccess: () => {
+         toast.success("Refund requested");
+      },
+   });
+}
+
+// Hook for un-rejecting an order item (undo rejection)
+export function useUnrejectOrderItem() {
+   const queryClient = useQueryClient();
+   return useMutation({
+      mutationFn: (orderItemId: string) =>
+         cancelRefundRequestForItem(orderItemId),
+      onMutate: async (orderItemId: string) => {
+         await queryClient.cancelQueries({ queryKey: orderKeys.details() });
+         await queryClient.cancelQueries({ queryKey: orderKeys.lists() });
+
+         const previousDetails = queryClient.getQueriesData({
+            queryKey: orderKeys.details(),
+         });
+         const previousLists = queryClient.getQueriesData({
+            queryKey: orderKeys.lists(),
+         });
+
+         for (const [key, data] of previousDetails) {
+            try {
+               const order = data as any;
+               if (order && Array.isArray(order.items)) {
+                  const idx = order.items.findIndex(
+                     (it: any) => it.id === orderItemId
+                  );
+                  if (idx !== -1) {
+                     const updated = { ...order };
+                     updated.items = [...order.items];
+                     updated.items[idx] = {
+                        ...updated.items[idx],
+                        refund_requested: false,
+                        refund_reason: null,
+                        refund_status: "cancelled",
+                        refund_requested_at: null,
+                     };
+                     queryClient.setQueryData(key, updated);
+                  }
+               }
+            } catch (e) {}
+         }
+
+         for (const [key, data] of previousLists) {
+            try {
+               const list = data as any;
+               if (list && Array.isArray(list.data)) {
+                  const updatedList = { ...list };
+                  updatedList.data = list.data.map((order: any) => {
+                     if (!order.items) return order;
+                     const itemIdx = order.items.findIndex(
+                        (it: any) => it.id === orderItemId
+                     );
+                     if (itemIdx === -1) return order;
+                     const updatedOrder = { ...order };
+                     updatedOrder.items = [...order.items];
+                     updatedOrder.items[itemIdx] = {
+                        ...updatedOrder.items[itemIdx],
+                        refund_requested: false,
+                        refund_reason: null,
+                        refund_status: "cancelled",
+                        refund_requested_at: null,
+                     };
+                     return updatedOrder;
+                  });
+                  queryClient.setQueryData(key, updatedList);
+               }
+            } catch (e) {}
+         }
+
+         return { previousDetails, previousLists };
+      },
+      onError: (err, variables, context: any) => {
+         if (context?.previousDetails) {
+            for (const [key, data] of context.previousDetails) {
+               try {
+                  queryClient.setQueryData(key, data);
+               } catch (e) {}
+            }
+         }
+         if (context?.previousLists) {
+            for (const [key, data] of context.previousLists) {
+               try {
+                  queryClient.setQueryData(key, data);
+               } catch (e) {}
+            }
+         }
+         toast.error("Failed to cancel refund request");
+      },
+      onSettled: (data: any) => {
+         queryClient.invalidateQueries({ queryKey: orderKeys.lists() });
+         if (data?.order_id) {
+            queryClient.invalidateQueries({
+               queryKey: orderKeys.detail(data.order_id),
+            });
+         } else {
+            queryClient.invalidateQueries({ queryKey: orderKeys.details() });
+         }
+      },
+      onSuccess: () => {
+         toast.success("Refund request cancelled");
       },
    });
 }
@@ -442,8 +435,246 @@ export function useOrders() {
          useAllOrders(options || {}),
       useOrder: (id: string) => useOrder(id),
       useOrderStats: () => useOrderStats(),
-      useRejectOrderItem: () => useRejectOrderItem(),
-      useUnrejectOrderItem: () => useUnrejectOrderItem(),
+      useRequestRefundItem: () => useRejectOrderItem(),
+      useCancelRefundRequestItem: () => useUnrejectOrderItem(),
+      useRespondRefundRequest: () =>
+         useMutation({
+            mutationFn: ({
+               itemId,
+               approve,
+               note,
+            }: {
+               itemId: string;
+               approve: boolean;
+               note?: string;
+            }) => respondToRefundRequest(itemId, approve, note),
+            onSuccess: () => {
+               queryClient.invalidateQueries({ queryKey: orderKeys.lists() });
+               queryClient.invalidateQueries({ queryKey: orderKeys.stats() });
+               toast.success("Refund response processed");
+            },
+            onError: (err) => {
+               console.error("Failed to respond to refund:", err);
+               toast.error(err?.message || "Failed to process refund response");
+            },
+         }),
+      // Admin respond to full-order refunds
+      useRespondOrderRefund: () =>
+         useMutation({
+            mutationFn: ({
+               orderId,
+               approve,
+               note,
+            }: {
+               orderId: string;
+               approve: boolean;
+               note?: string;
+            }) => respondToOrderRefundRequest(orderId, approve, note),
+            onSuccess: () => {
+               queryClient.invalidateQueries({ queryKey: orderKeys.lists() });
+               queryClient.invalidateQueries({ queryKey: orderKeys.stats() });
+               toast.success("Order refund response processed");
+            },
+            onError: (err) => {
+               console.error("Failed to respond to order refund:", err);
+               toast.error(
+                  err?.message || "Failed to process order refund response"
+               );
+            },
+         }),
+
+      // Hook to request full-order refund
+      useRequestRefundOrder: () =>
+         useMutation({
+            mutationFn: ({
+               orderId,
+               reason,
+            }: {
+               orderId: string;
+               reason: string;
+            }) => requestRefundForOrder(orderId, reason),
+            onMutate: async ({
+               orderId,
+               reason,
+            }: {
+               orderId: string;
+               reason: string;
+            }) => {
+               await queryClient.cancelQueries({
+                  queryKey: orderKeys.details(),
+               });
+               await queryClient.cancelQueries({ queryKey: orderKeys.lists() });
+
+               const previousDetails = queryClient.getQueriesData({
+                  queryKey: orderKeys.details(),
+               });
+               const previousLists = queryClient.getQueriesData({
+                  queryKey: orderKeys.lists(),
+               });
+
+               for (const [key, data] of previousDetails) {
+                  try {
+                     const order = data as any;
+                     if (order && order.id === orderId) {
+                        const updated = {
+                           ...order,
+                           refund_requested: true,
+                           refund_reason: reason,
+                           refund_status: "requested",
+                           refund_requested_at: new Date().toISOString(),
+                        };
+                        queryClient.setQueryData(key, updated);
+                     }
+                  } catch (e) {}
+               }
+
+               for (const [key, data] of previousLists) {
+                  try {
+                     const list = data as any;
+                     if (list && Array.isArray(list.data)) {
+                        const updatedList = { ...list };
+                        updatedList.data = list.data.map((order: any) => {
+                           if (order.id !== orderId) return order;
+                           return {
+                              ...order,
+                              refund_requested: true,
+                              refund_reason: reason,
+                              refund_status: "requested",
+                              refund_requested_at: new Date().toISOString(),
+                           };
+                        });
+                        queryClient.setQueryData(key, updatedList);
+                     }
+                  } catch (e) {}
+               }
+
+               return { previousDetails, previousLists };
+            },
+            onError: (err, vars, context: any) => {
+               if (context?.previousDetails) {
+                  for (const [key, data] of context.previousDetails) {
+                     try {
+                        queryClient.setQueryData(key, data);
+                     } catch (e) {}
+                  }
+               }
+               if (context?.previousLists) {
+                  for (const [key, data] of context.previousLists) {
+                     try {
+                        queryClient.setQueryData(key, data);
+                     } catch (e) {}
+                  }
+               }
+               toast.error(
+                  err?.message || "Failed to request full-order refund"
+               );
+            },
+            onSettled: (data: any) => {
+               queryClient.invalidateQueries({ queryKey: orderKeys.lists() });
+               if (data?.id) {
+                  queryClient.invalidateQueries({
+                     queryKey: orderKeys.detail(data.id),
+                  });
+               } else {
+                  queryClient.invalidateQueries({
+                     queryKey: orderKeys.details(),
+                  });
+               }
+            },
+            onSuccess: () => {
+               toast.success("Full-order refund requested");
+            },
+         }),
+
+      // Hook to cancel full-order refund
+      useCancelRefundRequestOrder: () =>
+         useMutation({
+            mutationFn: (orderId: string) =>
+               cancelRefundRequestForOrder(orderId),
+            onMutate: async (orderId: string) => {
+               await queryClient.cancelQueries({
+                  queryKey: orderKeys.details(),
+               });
+               await queryClient.cancelQueries({ queryKey: orderKeys.lists() });
+
+               const previousDetails = queryClient.getQueriesData({
+                  queryKey: orderKeys.details(),
+               });
+               const previousLists = queryClient.getQueriesData({
+                  queryKey: orderKeys.lists(),
+               });
+
+               for (const [key, data] of previousDetails) {
+                  try {
+                     const order = data as any;
+                     if (order && order.id === orderId) {
+                        const updated = {
+                           ...order,
+                           refund_requested: false,
+                           refund_reason: null,
+                           refund_status: "cancelled",
+                           refund_requested_at: null,
+                        };
+                        queryClient.setQueryData(key, updated);
+                     }
+                  } catch (e) {}
+               }
+
+               for (const [key, data] of previousLists) {
+                  try {
+                     const list = data as any;
+                     if (list && Array.isArray(list.data)) {
+                        const updatedList = { ...list };
+                        updatedList.data = list.data.map((order: any) => {
+                           if (order.id !== orderId) return order;
+                           return {
+                              ...order,
+                              refund_requested: false,
+                              refund_reason: null,
+                              refund_status: "cancelled",
+                              refund_requested_at: null,
+                           };
+                        });
+                        queryClient.setQueryData(key, updatedList);
+                     }
+                  } catch (e) {}
+               }
+
+               return { previousDetails, previousLists };
+            },
+            onError: (err, vars, context: any) => {
+               if (context?.previousDetails) {
+                  for (const [key, data] of context.previousDetails) {
+                     try {
+                        queryClient.setQueryData(key, data);
+                     } catch (e) {}
+                  }
+               }
+               if (context?.previousLists) {
+                  for (const [key, data] of context.previousLists) {
+                     try {
+                        queryClient.setQueryData(key, data);
+                     } catch (e) {}
+                  }
+               }
+               toast.error("Failed to cancel full-order refund request");
+            },
+            onSettled: (data: any) => {
+               queryClient.invalidateQueries({ queryKey: orderKeys.lists() });
+               if (data?.id) {
+                  queryClient.invalidateQueries({
+                     queryKey: orderKeys.detail(data.id),
+                  });
+               } else {
+                  queryClient.invalidateQueries({
+                     queryKey: orderKeys.details(),
+                  });
+               }
+            },
+            onSuccess: () => {
+               toast.success("Full-order refund cancelled");
+            },
+         }),
 
       // Mutation hooks
       createOrder: useCreateOrder(),

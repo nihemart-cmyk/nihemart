@@ -44,8 +44,9 @@ const OrderDetails = () => {
    const {
       useOrder,
       updateOrderStatus,
-      useRejectOrderItem,
-      useUnrejectOrderItem,
+      useRequestRefundItem,
+      useCancelRefundRequestItem,
+      useRespondRefundRequest,
    } = useOrders();
    const router = useRouter();
    const params = useParams();
@@ -56,8 +57,9 @@ const OrderDetails = () => {
    const [rejectReason, setRejectReason] = useState("");
    const [rejectingItemId, setRejectingItemId] = useState<string | null>(null);
    const [isRejecting, setIsRejecting] = useState(false);
-   const rejectOrderItem = useRejectOrderItem();
-   const unrejectOrderItem = useUnrejectOrderItem();
+   const requestRefund = useRequestRefundItem();
+   const cancelRefund = useCancelRefundRequestItem();
+   const respondRefund = useRespondRefundRequest();
    const [unrejectingItemId, setUnrejectingItemId] = useState<string | null>(
       null
    );
@@ -316,44 +318,58 @@ Please let me know if you need any additional information.
                                     </p>
 
                                     <div className="mt-2 flex items-center justify-end space-x-2">
-                                       {item.rejected ? (
+                                       {item.refund_status ? (
                                           <>
-                                             <Badge variant="destructive">
-                                                Rejected
-                                             </Badge>
-                                             <Button
-                                                size="sm"
-                                                variant="ghost"
-                                                onClick={async () => {
-                                                   setUnrejectingItemId(
-                                                      item.id
-                                                   );
-                                                   try {
-                                                      await unrejectOrderItem.mutateAsync(
-                                                         item.id
-                                                      );
-                                                      toast.success(
-                                                         "Rejection undone"
-                                                      );
-                                                   } catch (e) {
-                                                      // error handled by mutation
-                                                   } finally {
-                                                      setUnrejectingItemId(
-                                                         null
-                                                      );
-                                                   }
-                                                }}
-                                                disabled={
-                                                   unrejectingItemId === item.id
+                                             <Badge
+                                                variant={
+                                                   item.refund_status ===
+                                                   "approved"
+                                                      ? "default"
+                                                      : item.refund_status ===
+                                                        "rejected"
+                                                      ? "destructive"
+                                                      : "secondary"
                                                 }
                                              >
-                                                {unrejectingItemId ===
-                                                item.id ? (
-                                                   <Loader2 className="h-4 w-4 animate-spin" />
-                                                ) : (
-                                                   "Undo"
-                                                )}
-                                             </Button>
+                                                {item.refund_status
+                                                   .charAt(0)
+                                                   .toUpperCase() +
+                                                   item.refund_status.slice(1)}
+                                             </Badge>
+                                             {item.refund_status ===
+                                                "requested" && (
+                                                <Button
+                                                   size="sm"
+                                                   variant="ghost"
+                                                   onClick={async () => {
+                                                      setUnrejectingItemId(
+                                                         item.id
+                                                      );
+                                                      try {
+                                                         await cancelRefund.mutateAsync(
+                                                            item.id
+                                                         );
+                                                      } catch (e) {
+                                                         // handled by mutation
+                                                      } finally {
+                                                         setUnrejectingItemId(
+                                                            null
+                                                         );
+                                                      }
+                                                   }}
+                                                   disabled={
+                                                      unrejectingItemId ===
+                                                      item.id
+                                                   }
+                                                >
+                                                   {unrejectingItemId ===
+                                                   item.id ? (
+                                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                                   ) : (
+                                                      "Cancel"
+                                                   )}
+                                                </Button>
+                                             )}
                                           </>
                                        ) : (
                                           <>
@@ -365,7 +381,7 @@ Please let me know if you need any additional information.
                                                    setRejectDialogOpen(true);
                                                 }}
                                              >
-                                                Reject
+                                                Request Refund
                                              </Button>
                                           </>
                                        )}
@@ -585,10 +601,10 @@ Please let me know if you need any additional information.
          >
             <DialogContent>
                <DialogHeader>
-                  <DialogTitle>Reject Item</DialogTitle>
+                  <DialogTitle>Request Refund</DialogTitle>
                   <DialogDescription>
-                     Provide a reason for rejecting this item. This will be sent
-                     to the admin.
+                     Provide a reason for requesting a refund for this item. The
+                     admin will review your request.
                   </DialogDescription>
                </DialogHeader>
 
@@ -620,11 +636,11 @@ Please let me know if you need any additional information.
                            if (!rejectingItemId) return;
                            setIsRejecting(true);
                            try {
-                              await rejectOrderItem.mutateAsync({
+                              await requestRefund.mutateAsync({
                                  orderItemId: rejectingItemId,
                                  reason: rejectReason,
                               });
-                              toast.success("Item rejected");
+                              toast.success("Refund requested");
                               setRejectDialogOpen(false);
                               setRejectReason("");
                               setRejectingItemId(null);

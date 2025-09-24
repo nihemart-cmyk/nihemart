@@ -1,69 +1,367 @@
-// Reject an order item
-export async function rejectOrderItem(itemId: string, reason: string) {
-   // First, try to fetch the item to give a clearer error if it doesn't exist or is not readable
+// Request a refund for an order item (customer)
+export async function requestRefundForItem(itemId: string, reason: string) {
    const { data: existing, error: fetchError } = await sb
       .from("order_items")
-      .select("id, order_id")
+      .select("id, order_id, product_name, price, quantity, created_at")
       .eq("id", itemId)
       .maybeSingle();
 
-   if (fetchError) {
-      // If the select fails due to RLS, surface the error
-      throw fetchError;
-   }
+   if (fetchError) throw fetchError;
+   if (!existing) throw new Error("Order item not found or inaccessible");
 
-   if (!existing) {
-      throw new Error(
-         "Order item not found or you don't have permission to access it."
-      );
+   const now = new Date().toISOString();
+   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+   // Optional: enforce that refund requests are only allowed within 24 hours of delivery.
+   // If order delivery timestamp exists on the parent order, ensure current time is within 24h of delivered_at.
+   let parentOrder: any = null;
+   try {
+      const { data } = await sb
+         .from("orders")
+         .select(
+            "delivered_at, customer_first_name, customer_last_name, delivery_city"
+         )
+         .eq("id", existing.order_id)
+         .maybeSingle();
+      parentOrder = data;
+      if (parentOrder?.delivered_at) {
+         const deliveredAt = new Date(parentOrder.delivered_at).getTime();
+         const nowTs = Date.now();
+         if (nowTs - deliveredAt > 24 * 60 * 60 * 1000) {
+            const e: any = new Error(
+               "Refund period has expired (24 hours after delivery)"
+            );
+            e.code = "REFUND_EXPIRED";
+            throw e;
+         }
+      }
+   } catch (err) {
+      if ((err as any).code === "REFUND_EXPIRED") throw err;
+      // ignore other errors fetching order
    }
 
    const { data, error } = await sb
       .from("order_items")
-      .update({ rejected: true, rejected_reason: reason })
+      .update({
+         refund_requested: true,
+         refund_reason: reason,
+         refund_status: "requested",
+         refund_requested_at: now,
+         refund_expires_at: expiresAt,
+      })
       .eq("id", itemId)
       .select()
       .maybeSingle();
 
-   if (error) {
-      throw error;
-   }
+   if (error) throw error;
+   if (!data) throw new Error("Failed to request refund for order item");
 
-   if (!data) {
-      throw new Error(
-         "Failed to update the order item. Check permissions or try again."
+   // Notify admins that a user has requested a refund, include customer name, city and reason
+   try {
+      const customerName =
+         `${parentOrder?.customer_first_name || ""} ${
+            parentOrder?.customer_last_name || ""
+         }`.trim() || "Customer";
+      const city = parentOrder?.delivery_city || "";
+      const title = "Refund requested";
+      const body = `${customerName}${
+         city ? ` from ${city}` : ""
+      } requested a refund for ${existing.product_name}. Reason: ${reason}`;
+      await sb.rpc("insert_notification", {
+         p_recipient_user_id: null,
+         p_recipient_role: "admin",
+         p_type: "refund_requested",
+         p_title: title,
+         p_body: body,
+         p_meta: JSON.stringify({
+            order_id: existing.order_id,
+            item_id: existing.id,
+            reason,
+         }),
+      });
+   } catch (err) {
+      console.warn(
+         "Failed to insert admin notification for refund request:",
+         err
       );
    }
 
    return data;
 }
 
-// Un-reject an order item (clear rejected flag and reason)
-export async function unrejectOrderItem(itemId: string) {
+// Request a full-order refund (customer)
+export async function requestRefundForOrder(orderId: string, reason: string) {
+   const { data: existing, error: fetchError } = await sb
+      .from("orders")
+      .select(
+         "id, delivered_at, customer_first_name, customer_last_name, delivery_city, user_id, order_number"
+      )
+      .eq("id", orderId)
+      .maybeSingle();
+
+   if (fetchError) throw fetchError;
+   if (!existing) throw new Error("Order not found or inaccessible");
+
+   const now = new Date().toISOString();
+   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+   if (existing?.delivered_at) {
+      const deliveredAt = new Date(existing.delivered_at).getTime();
+      const nowTs = Date.now();
+      if (nowTs - deliveredAt > 24 * 60 * 60 * 1000) {
+         const e: any = new Error(
+            "Refund period has expired (24 hours after delivery)"
+         );
+         e.code = "REFUND_EXPIRED";
+         throw e;
+      }
+   }
+
+   const { data, error } = await sb
+      .from("orders")
+      .update({
+         refund_requested: true,
+         refund_reason: reason,
+         refund_status: "requested",
+         refund_requested_at: now,
+         refund_expires_at: expiresAt,
+      })
+      .eq("id", orderId)
+      .select()
+      .maybeSingle();
+
+   if (error) throw error;
+   if (!data) throw new Error("Failed to request full-order refund");
+
+   // Notify admins
+   try {
+      const customerName =
+         `${existing?.customer_first_name || ""} ${
+            existing?.customer_last_name || ""
+         }`.trim() || "Customer";
+      const city = existing?.delivery_city || "";
+      const title = "Full order refund requested";
+      const body = `${customerName}${
+         city ? ` from ${city}` : ""
+      } requested a refund for order ${
+         existing.order_number || existing.id
+      }. Reason: ${reason}`;
+      await sb.rpc("insert_notification", {
+         p_recipient_user_id: null,
+         p_recipient_role: "admin",
+         p_type: "refund_requested",
+         p_title: title,
+         p_body: body,
+         p_meta: JSON.stringify({ order_id: existing.id, reason }),
+      });
+   } catch (err) {
+      console.warn(
+         "Failed to insert admin notification for full-order refund request:",
+         err
+      );
+   }
+
+   return data;
+}
+
+// Cancel full-order refund request (customer)
+export async function cancelRefundRequestForOrder(orderId: string) {
+   const { data: existing, error: fetchError } = await sb
+      .from("orders")
+      .select("id, refund_status")
+      .eq("id", orderId)
+      .maybeSingle();
+
+   if (fetchError) throw fetchError;
+   if (!existing) throw new Error("Order not found or inaccessible");
+
+   if (existing.refund_status !== "requested") {
+      const e: any = new Error(
+         "Refund cannot be cancelled in its current state"
+      );
+      e.code = "INVALID_REFUND_STATE";
+      throw e;
+   }
+
+   const { data, error } = await sb
+      .from("orders")
+      .update({
+         refund_requested: false,
+         refund_reason: null,
+         refund_status: "cancelled",
+         refund_requested_at: null,
+      })
+      .eq("id", orderId)
+      .select()
+      .maybeSingle();
+
+   if (error) throw error;
+   return data;
+}
+
+// Cancel a refund request (customer)
+export async function cancelRefundRequestForItem(itemId: string) {
    const { data: existing, error: fetchError } = await sb
       .from("order_items")
-      .select("id, order_id")
+      .select("id, refund_status")
       .eq("id", itemId)
       .maybeSingle();
 
    if (fetchError) throw fetchError;
-   if (!existing)
-      throw new Error(
-         "Order item not found or you don't have permission to access it."
+   if (!existing) throw new Error("Order item not found or inaccessible");
+
+   // Only allow cancel when in requested state
+   if (existing.refund_status !== "requested") {
+      const e: any = new Error(
+         "Refund cannot be cancelled in its current state"
       );
+      e.code = "INVALID_REFUND_STATE";
+      throw e;
+   }
 
    const { data, error } = await sb
       .from("order_items")
-      .update({ rejected: false, rejected_reason: null })
+      .update({
+         refund_requested: false,
+         refund_reason: null,
+         refund_status: "cancelled",
+         refund_requested_at: null,
+      })
       .eq("id", itemId)
       .select()
       .maybeSingle();
 
    if (error) throw error;
-   if (!data)
-      throw new Error(
-         "Failed to update the order item. Check permissions or try again."
+
+   return data;
+}
+
+// Admin responds to a refund request: approve or reject
+export async function respondToRefundRequest(
+   itemId: string,
+   approve: boolean,
+   adminNote?: string
+) {
+   // Fetch existing
+   const { data: existing, error: fetchError } = await sb
+      .from("order_items")
+      .select("id, order_id, refund_status, product_name, price, quantity")
+      .eq("id", itemId)
+      .maybeSingle();
+
+   if (fetchError) throw fetchError;
+   if (!existing) throw new Error("Order item not found");
+
+   if (existing.refund_status !== "requested") {
+      const e: any = new Error(
+         "Refund is not in a state that can be responded to"
       );
+      e.code = "INVALID_REFUND_STATE";
+      throw e;
+   }
+
+   const newStatus = approve ? "approved" : "rejected";
+   const updates: any = { refund_status: newStatus };
+   if (!approve) updates.refund_reason = existing.refund_reason || null;
+
+   const { data, error } = await sb
+      .from("order_items")
+      .update(updates)
+      .eq("id", itemId)
+      .select()
+      .maybeSingle();
+
+   if (error) throw error;
+
+   // If approved, notify user that refund will be processed within 24 hours
+   if (approve) {
+      // try to fetch order owner to notify them specifically
+      try {
+         const { data: orderData } = await sb
+            .from("orders")
+            .select("user_id")
+            .eq("id", existing.order_id)
+            .maybeSingle();
+         const recipientUserId = orderData?.user_id || null;
+         await sb.rpc("insert_notification", {
+            p_recipient_user_id: recipientUserId,
+            p_recipient_role: null,
+            p_type: "refund_approved",
+            p_title: "Refund approved",
+            p_body: `Your refund request for item ${existing.product_name} has been approved. Please allow up to 24 hours for processing.`,
+            p_meta: JSON.stringify({
+               order_id: existing.order_id,
+               item_id: existing.id,
+            }),
+         });
+      } catch (err) {
+         // don't fail the whole flow if notification insertion fails
+         console.warn(
+            "Failed to create notification for refund approval:",
+            err
+         );
+      }
+   }
+
+   return data;
+}
+
+// Admin responds to a full-order refund request
+export async function respondToOrderRefundRequest(
+   orderId: string,
+   approve: boolean,
+   adminNote?: string
+) {
+   const { data: existing, error: fetchError } = await sb
+      .from("orders")
+      .select("id, user_id, order_number, refund_status, refund_reason")
+      .eq("id", orderId)
+      .maybeSingle();
+
+   if (fetchError) throw fetchError;
+   if (!existing) throw new Error("Order not found");
+
+   if (existing.refund_status !== "requested") {
+      const e: any = new Error(
+         "Refund is not in a state that can be responded to"
+      );
+      e.code = "INVALID_REFUND_STATE";
+      throw e;
+   }
+
+   const newStatus = approve ? "approved" : "rejected";
+   const updates: any = { refund_status: newStatus };
+
+   const { data, error } = await sb
+      .from("orders")
+      .update(updates)
+      .eq("id", orderId)
+      .select()
+      .maybeSingle();
+
+   if (error) throw error;
+
+   if (approve) {
+      try {
+         const recipientUserId = existing.user_id || null;
+         await sb.rpc("insert_notification", {
+            p_recipient_user_id: recipientUserId,
+            p_recipient_role: null,
+            p_type: "refund_approved",
+            p_title: "Refund approved",
+            p_body: `Your refund request for order ${
+               existing.order_number || existing.id
+            } has been approved. Please allow up to 24 hours for processing.`,
+            p_meta: JSON.stringify({ order_id: existing.id }),
+         });
+      } catch (err) {
+         console.warn(
+            "Failed to create notification for order refund approval:",
+            err
+         );
+      }
+   }
+
    return data;
 }
 import { supabase as browserSupabase } from "./client";

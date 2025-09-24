@@ -60,6 +60,35 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
                : { notifications: [] };
             let combined: Notification[] = userJson.notifications || [];
 
+            // Also fetch any notifications where meta includes this user id (fallback)
+            try {
+               const resMeta = await fetch(`/api/notifications?limit=200`);
+               if (resMeta.ok) {
+                  const metaJson = await resMeta.json();
+                  const metaFiltered = (metaJson.notifications || []).filter(
+                     (n: any) => {
+                        try {
+                           const meta =
+                              typeof n.meta === "string"
+                                 ? JSON.parse(n.meta)
+                                 : n.meta || {};
+                           return (
+                              meta &&
+                              (String(meta.user_id) === String(user.id) ||
+                                 String(meta.recipient_user_id) ===
+                                    String(user.id))
+                           );
+                        } catch (e) {
+                           return false;
+                        }
+                     }
+                  );
+                  combined = [...metaFiltered, ...combined];
+               }
+            } catch (e) {
+               // ignore
+            }
+
             // fetch role-based notifications: admin
             if (hasRole && hasRole("admin")) {
                const resAdmin = await fetch(

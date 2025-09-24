@@ -23,7 +23,9 @@ import { useState } from "react";
 import { CustomerDetailsDialog } from "./CustomerDetailsDialog";
 import { OrderDetailsDialog } from "./OrderDetailsDialog";
 import { AssignRiderDialog } from "./AssignRiderDialog";
+import { ManageRefundDialog } from "./ManageRefundDialog";
 import { useOrders } from "@/hooks/useOrders";
+import { useAuth } from "@/hooks/useAuth";
 
 // Import the Supabase Order type
 import { Order, OrderStatus } from "@/types/orders";
@@ -262,9 +264,18 @@ export const columns: ColumnDef<Order>[] = [
       size: 10,
       cell: ({ row }) => {
          const order = row.original;
+         const hasRefund =
+            (Array.isArray(order.items) &&
+               order.items.some((it) => !!it.refund_status)) ||
+            !!order.refund_status;
+         const { hasRole } = useAuth();
+         const isAdmin = hasRole && hasRole("admin");
          const [showCustomerDetails, setShowCustomerDetails] = useState(false);
          const [showOrderDetails, setShowOrderDetails] = useState(false);
          const [showAssignDialog, setShowAssignDialog] = useState(false);
+         const [showManageRefund, setShowManageRefund] = useState(false);
+         const refundItem =
+            order.items?.find((it) => !!it.refund_status) || null;
 
          return (
             <>
@@ -300,6 +311,13 @@ export const columns: ColumnDef<Order>[] = [
                      >
                         View order details
                      </DropdownMenuItem>
+                     {hasRefund && isAdmin && (
+                        <DropdownMenuItem
+                           onClick={() => setShowManageRefund(true)}
+                        >
+                           Manage refund
+                        </DropdownMenuItem>
+                     )}
                      <DropdownMenuItem
                         onClick={() => setShowAssignDialog(true)}
                      >
@@ -324,6 +342,15 @@ export const columns: ColumnDef<Order>[] = [
                   onOpenChange={setShowOrderDetails}
                   order={order}
                />
+
+               {isAdmin && hasRefund && (
+                  <ManageRefundDialog
+                     open={showManageRefund}
+                     onOpenChange={setShowManageRefund}
+                     order={order}
+                     item={refundItem}
+                  />
+               )}
 
                <AssignRiderDialog
                   open={showAssignDialog}
