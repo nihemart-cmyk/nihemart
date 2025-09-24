@@ -10,6 +10,7 @@ import { Eye, Star } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import MaxWidthWrapper from "../MaxWidthWrapper";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface MoreToLoveProps {}
 
@@ -128,6 +129,8 @@ const ProductCard = ({ product }: { product: StoreProduct }) => (
 );
 
 const MoreToLove: FC<MoreToLoveProps> = ({}) => {
+  const { t } = useLanguage();
+
   const [moreToLove, setMoreToLove] = useState<StoreProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -177,7 +180,7 @@ const MoreToLove: FC<MoreToLoveProps> = ({}) => {
     <div className="mb-20">
       <MaxWidthWrapper size={"lg"} className="">
         <h3 className="text-4xl font-bold text-neutral-900 mb-8">
-          More To Love
+          {t("home.more")}
         </h3>
 
         {loading ? (
@@ -196,7 +199,7 @@ const MoreToLove: FC<MoreToLoveProps> = ({}) => {
                 disabled={loadingMore}
                 className="px-6 py-3 rounded-full"
               >
-                {loadingMore ? "Loading..." : "Load More"}
+                {loadingMore ? t('common.loading') : t('common.loadMore')}
               </Button>
             </div>
           </>

@@ -21,6 +21,7 @@ import type {
   StoreCategorySimple,
 } from "@/integrations/supabase/store";
 import Link from "next/link";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface FeaturedProductsProps {}
 
@@ -32,6 +33,9 @@ const promos = [
 ];
 
 const FeaturedProducts: FC<FeaturedProductsProps> = ({}) => {
+  const { t } = useLanguage();
+
+  
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("all");
   const [categories, setCategories] = useState<StoreCategorySimple[]>([]);
   const [products, setProducts] = useState<StoreProduct[]>([]);
@@ -85,7 +89,7 @@ const FeaturedProducts: FC<FeaturedProductsProps> = ({}) => {
   return (
     <MaxWidthWrapper size={"lg"} className="my-20">
       <h3 className="text-4xl font-bold text-neutral-900 mb-5">
-        Products under <span className="text-brand-orange">RWF 15,000</span>
+        {t('home.under')} <span className="text-brand-orange">RWF 15,000</span>
       </h3>
       <div className="flex items-center flex-wrap gap-3 mb-8">
         <Button

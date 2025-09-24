@@ -13,6 +13,7 @@ import type {
   StoreProduct,
   StoreCategorySimple,
 } from "@/integrations/supabase/store";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface MoreProductsProps {}
 
@@ -94,6 +95,8 @@ const ProductGridSkeleton = ({ count = 4 }: { count?: number }) => (
 );
 
 const MoreProducts: FC<MoreProductsProps> = ({}) => {
+  const { t } = useLanguage();
+
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("all");
   const [allFeatured, setAllFeatured] = useState<StoreProduct[]>([]);
   const [latestProducts, setLatestProducts] = useState<StoreProduct[]>([]);
@@ -147,7 +150,7 @@ const MoreProducts: FC<MoreProductsProps> = ({}) => {
     <div>
       <MaxWidthWrapper size={"lg"} className="">
         <h3 className="text-4xl font-bold text-neutral-900 mb-5">
-          Featured products
+          {t('home.featured')}
         </h3>
         <div className="flex items-center flex-wrap gap-3 mb-8">
           <Button
@@ -210,7 +213,7 @@ const MoreProducts: FC<MoreProductsProps> = ({}) => {
         </div>
 
         <h3 className="text-4xl font-bold text-neutral-900 mb-8 mt-20">
-          New arrivals
+          {t('home.new')}
         </h3>
 
         {loading ? (
