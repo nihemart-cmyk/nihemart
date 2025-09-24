@@ -13,6 +13,7 @@ import type {
   StoreProduct,
   StoreCategorySimple,
 } from "@/integrations/supabase/store";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface MoreProductsProps {}
 
@@ -33,50 +34,51 @@ const services = [
 const ProductCard = ({ product }: { product: StoreProduct }) => (
   <Link
     href={`/products/${product.id}`}
-    className="shrink-0 group aspect-[9/12] bg-gray-100 rounded-2xl overflow-hidden relative"
+    className="group flex flex-col bg-white rounded-2xl overflow-hidden shadow hover:shadow-xl transition-shadow duration-300 border border-gray-100 h-full relative"
+    aria-label={`View details for ${product.name}`}
+    tabIndex={0}
   >
-    <Image
-      src={product.main_image_url || "/placeholder.svg"}
-      alt={product.name}
-      fill
-      className="absolute object-cover z-0 group-hover:scale-105 transition-transform"
-    />
-    <div className="relative w-full z-10 text-lg h-full flex flex-col justify-between px-3 py-4 bg-gradient-to-t from-black/60 to-transparent">
-      <div className="w-full flex items-center justify-between">
-        <p className="px-4 py-1 text-white bg-red-500 rounded-full text-sm">
-          Hot
-        </p>
-        {(product.average_rating || null) && (
-          <p className="px-2 py-1 bg-white rounded-full flex items-center gap-1">
-            <Star fill="#eab308" size={14} className="text-warning" />{" "}
-            <span className="font-mono text-sm">
-              {product?.average_rating?.toFixed(1)}
-            </span>
-          </p>
-        )}
-      </div>
-      <div>
-        <h4 className="font-light text-white">
-          {product.brand || "New Arrival"}
-        </h4>
-        <div className="flex items-center justify-between text-white">
-          <p className="font-semibold truncate">{product.name}</p>{" "}
-          <span className="font-mono text-base">
-            RWF {product.price.toLocaleString()}
-          </span>
-        </div>
-        <p className="text-sm truncate text-white">
-          {product?.short_description}
-        </p>
-      </div>
+    {/* Hot badge (hidden on mobile) */}
+    <div className="hidden md:block absolute z-20 left-3 top-3">
+      <span className="bg-red-500 text-white text-xs font-bold px-4 py-1 rounded-full shadow-md tracking-widest">
+        HOT
+      </span>
     </div>
-    <div className="z-20 absolute inset-0 transition-opacity duration-300 opacity-0 group-hover:opacity-100 bg-black/40 flex items-center justify-center">
-      <Button
-        variant={"secondary"}
-        className="hover:bg-white rounded-full h-14 w-14 p-1"
-      >
-        <Eye />
-      </Button>
+    {/* Product Image */}
+    <div className="relative w-full aspect-[4/5] bg-gray-100">
+      <Image
+        src={product.main_image_url || "/placeholder.svg"}
+        alt={product.name}
+        fill
+        className="object-cover transition-transform duration-300 group-hover:scale-105"
+        sizes="(max-width: 640px) 100vw, 33vw"
+      />
+    </div>
+    {/* Card Content */}
+    <div className="flex flex-col flex-1 px-3 md:px-4 pt-3 pb-4 gap-2">
+      {/* Brand, Rating, Price */}
+      <div className="flex flex-col md:flex-row flex-wrap md:items-center justify-between gap-x-2 gap-y-1 mb-1">
+        <span className="text-xs text-gray-500 font-semibold truncate w-full md:max-w-[40%] ">
+          {product.brand || "New Arrival"}
+        </span>
+        {(product.average_rating || null) && (
+          <span className="flex items-center gap-1 bg-gray-100 rounded-full px-2 py-0.5 text-xs font-mono">
+            <Star fill="#eab308" size={13} className="text-warning" />
+            {product?.average_rating?.toFixed(1)}
+          </span>
+        )}
+        <span className="inline-block bg-brand-orange text-white text-xs font-bold rounded-full px-2 py-0.5 mr-auto">
+          RWF {product.price.toLocaleString()}
+        </span>
+      </div>
+      {/* Product Name */}
+      <h4 className="font-bold text-gray-900 text-base md:text-lg line-clamp-2">
+        {product.name}
+      </h4>
+      {/* Description */}
+      <p className="text-xs md:text-sm text-gray-600 line-clamp-2">
+        {product?.short_description}
+      </p>
     </div>
   </Link>
 );
@@ -93,6 +95,8 @@ const ProductGridSkeleton = ({ count = 4 }: { count?: number }) => (
 );
 
 const MoreProducts: FC<MoreProductsProps> = ({}) => {
+  const { t } = useLanguage();
+
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("all");
   const [allFeatured, setAllFeatured] = useState<StoreProduct[]>([]);
   const [latestProducts, setLatestProducts] = useState<StoreProduct[]>([]);
@@ -146,7 +150,7 @@ const MoreProducts: FC<MoreProductsProps> = ({}) => {
     <div>
       <MaxWidthWrapper size={"lg"} className="">
         <h3 className="text-4xl font-bold text-neutral-900 mb-5">
-          Featured products
+          {t('home.featured')}
         </h3>
         <div className="flex items-center flex-wrap gap-3 mb-8">
           <Button
@@ -173,7 +177,7 @@ const MoreProducts: FC<MoreProductsProps> = ({}) => {
         {loading ? (
           <ProductGridSkeleton count={12} />
         ) : (
-          <div className="grid grid-cols-2 min-[500px]:grid-cols-3 min-[1000px]:grid-cols-4 xl:grid-cols-4 gap-5">
+          <div className="grid grid-cols-2 min-[500px]:grid-cols-3 min-[1000px]:grid-cols-4 xl:grid-cols-4 gap-2 md:gap-5">
             {filteredFeaturedProducts.length > 0 ? (
               filteredFeaturedProducts.map((product) => (
                 <ProductCard key={product.id} product={product} />
@@ -209,13 +213,13 @@ const MoreProducts: FC<MoreProductsProps> = ({}) => {
         </div>
 
         <h3 className="text-4xl font-bold text-neutral-900 mb-8 mt-20">
-          New arrivals
+          {t('home.new')}
         </h3>
 
         {loading ? (
           <ProductGridSkeleton count={8} />
         ) : (
-          <div className="grid grid-cols-2 min-[500px]:grid-cols-3 min-[1000px]:grid-cols-4 xl:grid-cols-4 gap-5">
+          <div className="grid grid-cols-2 min-[500px]:grid-cols-3 min-[1000px]:grid-cols-4 xl:grid-cols-4 gap-2 md:gap-5">
             {latestProducts.map((product) => (
               <ProductCard key={product.id} product={product} />
             ))}

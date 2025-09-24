@@ -15,12 +15,13 @@ import {
 } from "../ui/dropdown-menu";
 import Link from "next/link";
 import { toast } from "sonner";
-import { useLanguage, Language } from "@/contexts/LanguageContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { Badge } from "../ui/badge";
 import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
 import { SearchPopover } from "../search-popover";
+import { Language } from "@/locales";
 
 interface NavBarProps {}
 

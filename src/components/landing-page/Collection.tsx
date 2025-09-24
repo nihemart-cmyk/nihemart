@@ -6,10 +6,13 @@ import { FC, RefObject, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { fetchCategories } from "@/integrations/supabase/categories";
 import type { Category } from "@/integrations/supabase/categories";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface CollectionProps {}
 
 const Collection: FC<CollectionProps> = ({}) => {
+  const { t } = useLanguage();
+
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [chevAppear, setChevApp] = useState<{ left: boolean; right: boolean }>({
@@ -78,8 +81,11 @@ const Collection: FC<CollectionProps> = ({}) => {
 
   return (
     <div className="my-10 relative">
+      <h1 className="pl-3 xs:pl-5 sm:pl-10 lg:pl-20 text-4xl font-bold text-neutral-900 mb-5">
+        {t("home.categories")}
+      </h1>
       <div
-        className="flex overflow-x-scroll scroll-smooth gap-5 pl-3 xs:pl-5 sm:pl-10 lg:pl-20 scrollbar-hidden"
+        className="flex overflow-x-scroll scroll-smooth gap-2 pl-3 xs:pl-5 sm:pl-10 lg:pl-20 scrollbar-hidden"
         ref={sliderRef}
         onScroll={handleSliderScroll}
       >
@@ -96,7 +102,7 @@ const Collection: FC<CollectionProps> = ({}) => {
               <Link
                 href={`/products?categories=${category.id}`}
                 key={category.id}
-                className="block md:w-80 w-40 shrink-0 aspect-[9/12] bg-blue-100 rounded-2xl overflow-hidden relative group"
+                className="block md:w-80 w-32 shrink-0 aspect-[9/12] bg-blue-100 rounded-2xl overflow-hidden relative group"
               >
                 <Image
                   src={category.icon_url || "/placeholder.svg"}
@@ -104,8 +110,10 @@ const Collection: FC<CollectionProps> = ({}) => {
                   fill
                   className="absolute object-contain z-0 group-hover:scale-105 transition-transform duration-300 p-5"
                 />
-                <div className="relative w-full z-10 h-full bg-gradient-to-t from-black/80 from-0% to-transparent to-70% flex flex-col justify-end text-white px-5 pb-5">
-                  <h4 className="md:text-2xl text-xl font-semibold">{category.name}</h4>
+                <div className="relative w-full z-10 h-full bg-gradient-to-t from-black/80 from-0% to-transparent to-70% flex flex-col justify-end text-white md:px-5 px-1 text-center md:text-left pb-5">
+                  <h4 className="md:text-2xl text-lg font-semibold truncate w-full">
+                    {category.name}
+                  </h4>
                   <div className="hidden md:flex items-center justify-between mt-1">
                     <p className="text-sm opacity-80">
                       Check out all our products
