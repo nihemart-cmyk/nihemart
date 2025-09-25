@@ -6,6 +6,7 @@ export interface StockProduct {
     id: string;
     name: string;
     price?: number;
+    stock?: number;
     main_image_url?: string | null;
     category?: {
         id: string;
@@ -34,7 +35,7 @@ export interface StockHistoryItem {
 export async function fetchProductsForStockManagement(search: string = ''): Promise<StockProduct[]> {
     let query = sb
         .from('products')
-        .select('id, name, main_image_url, price, category:categories(id, name), variations:product_variations(id, name, stock, attributes, price)')
+        .select('id, name, main_image_url, price, stock, category:categories(id, name), variations:product_variations(id, name, stock, attributes, price)')
         .order('name');
 
     if (search.trim()) {
@@ -170,4 +171,65 @@ export async function fetchAllStockHistory({
         data: data as StockHistoryWithDetails[],
         count: count || 0
     };
+}
+
+export async function updateProductStock({
+    productId,
+    change,
+    reason
+}: {
+    productId: string;
+    change: number;
+    reason: string;
+}): Promise<number> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("User not authenticated");
+
+    // Get current stock
+    const { data: product, error: fetchError } = await sb
+        .from('products')
+        .select('stock')
+        .eq('id', productId)
+        .single();
+
+    if (fetchError) throw fetchError;
+
+    const currentStock = product.stock || 0;
+    const newStock = currentStock + change;
+
+    // Update stock
+    const { error: updateError } = await sb
+        .from('products')
+        .update({ stock: newStock, updated_at: 'now()' })
+        .eq('id', productId);
+
+    if (updateError) throw updateError;
+
+    // Log the change
+    const { error: logError } = await sb
+        .from('stock_history')
+        .insert({
+            product_id: productId,
+            product_variation_id: null,
+            user_id: user.id,
+            change,
+            new_quantity: newStock,
+            reason
+        });
+
+    if (logError) throw logError;
+
+    return newStock;
+}
+
+export async function fetchProductStockHistory(productId: string): Promise<StockHistoryItem[]> {
+    const { data, error } = await sb
+        .from('stock_history')
+        .select('*, user:profiles(full_name)')
+        .eq('product_id', productId)
+        .is('product_variation_id', null)
+        .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data as StockHistoryItem[];
 }
