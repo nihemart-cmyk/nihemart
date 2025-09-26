@@ -22,6 +22,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
 import { SearchPopover } from "../search-popover";
 import { Language } from "@/locales";
+import NotificationsBell from "../NotificationsBell";
 
 interface NavBarProps {}
 
@@ -205,6 +206,9 @@ const NavBar: FC<NavBarProps> = ({}) => {
                   <DropdownMenuItem asChild>
                     <Link href={"/orders"}>{t("nav.orders")}</Link>
                   </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href={"/notifications"}>{t("nav.notifications")}</Link>
+                  </DropdownMenuItem>
                   {hasRole("admin") && (
                     <DropdownMenuItem asChild>
                       <Link href={"/admin"}>{t("nav.admin")}</Link>
@@ -218,6 +222,7 @@ const NavBar: FC<NavBarProps> = ({}) => {
               )}
             </DropdownMenuContent>
           </DropdownMenu>
+          <NotificationsBell />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button className="relative px-2 lg:hidden bg-brand-blue hover:bg-brand-blue/90 ml-1">

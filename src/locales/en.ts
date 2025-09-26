@@ -12,6 +12,7 @@ export const en: Record<string, string> = {
   "nav.register": "Register",
   "nav.logout": "Logout",
   "nav.howToBuy": "How To Buy",
+  "nav.notifications": "Notifications",
 
   // Homepage
   "home.hero.title": "Welcome to NiheMart",

@@ -12,6 +12,7 @@ export const rw: Record<string, string> = {
   "nav.register": "Iyandikishe",
   "nav.logout": "Sohoka",
   "nav.howToBuy": "Uko Bagura",
+  "nav.notifications": "Ubutumwa",
 
   // Homepage
   "home.hero.title": "Murakaza neza kuri NiheMart",
