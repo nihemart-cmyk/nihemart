@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -53,6 +54,8 @@ const OrderDetails = () => {
    const orderId = params?.id as string;
 
    const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+   const [redirectAfterCancel, setRedirectAfterCancel] = useState(true);
    const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
    const [rejectReason, setRejectReason] = useState("");
    const [rejectingItemId, setRejectingItemId] = useState<string | null>(null);
@@ -65,6 +68,7 @@ const OrderDetails = () => {
    );
 
    const { data: order, isLoading, error } = useOrder(orderId);
+   const isOwner = user?.id === order?.user_id;
    const isAdmin = hasRole("admin");
 
    // Redirect if not logged in
@@ -394,73 +398,82 @@ Please let me know if you need any additional information.
                                     </p>
 
                                     <div className="mt-2 flex items-center justify-end space-x-2">
-                                       {item.refund_status ? (
-                                          <>
-                                             <Badge
-                                                variant={
-                                                   item.refund_status ===
-                                                   "approved"
-                                                      ? "default"
-                                                      : item.refund_status ===
-                                                        "rejected"
-                                                      ? "destructive"
-                                                      : "secondary"
-                                                }
-                                             >
-                                                {item.refund_status
-                                                   .charAt(0)
-                                                   .toUpperCase() +
-                                                   item.refund_status.slice(1)}
-                                             </Badge>
-                                             {item.refund_status ===
-                                                "requested" && (
-                                                <Button
-                                                   size="sm"
-                                                   variant="ghost"
-                                                   onClick={async () => {
-                                                      setUnrejectingItemId(
-                                                         item.id
-                                                      );
-                                                      try {
-                                                         await cancelRefund.mutateAsync(
-                                                            item.id
-                                                         );
-                                                      } catch (e) {
-                                                         // handled by mutation
-                                                      } finally {
-                                                         setUnrejectingItemId(
-                                                            null
-                                                         );
-                                                      }
-                                                   }}
-                                                   disabled={
-                                                      unrejectingItemId ===
-                                                      item.id
+                                       {/* Only allow the order owner (not admins) to request/cancel refunds for items */}
+                                       {!isAdmin && isOwner ? (
+                                          item.refund_status ? (
+                                             <>
+                                                <Badge
+                                                   variant={
+                                                      item.refund_status ===
+                                                      "approved"
+                                                         ? "default"
+                                                         : item.refund_status ===
+                                                           "rejected"
+                                                         ? "destructive"
+                                                         : "secondary"
                                                    }
                                                 >
-                                                   {unrejectingItemId ===
-                                                   item.id ? (
-                                                      <Loader2 className="h-4 w-4 animate-spin" />
-                                                   ) : (
-                                                      "Cancel"
-                                                   )}
-                                                </Button>
-                                             )}
-                                          </>
-                                       ) : (
-                                          <>
+                                                   {item.refund_status
+                                                      .charAt(0)
+                                                      .toUpperCase() +
+                                                      item.refund_status.slice(
+                                                         1
+                                                      )}
+                                                </Badge>
+                                                {item.refund_status ===
+                                                   "requested" && (
+                                                   <Button
+                                                      size="sm"
+                                                      variant="ghost"
+                                                      onClick={async () => {
+                                                         setUnrejectingItemId(
+                                                            item.id
+                                                         );
+                                                         try {
+                                                            await cancelRefund.mutateAsync(
+                                                               item.id
+                                                            );
+                                                         } catch (e) {
+                                                            // handled by mutation
+                                                         } finally {
+                                                            setUnrejectingItemId(
+                                                               null
+                                                            );
+                                                         }
+                                                      }}
+                                                      disabled={
+                                                         unrejectingItemId ===
+                                                         item.id
+                                                      }
+                                                   >
+                                                      {unrejectingItemId ===
+                                                      item.id ? (
+                                                         <Loader2 className="h-4 w-4 animate-spin" />
+                                                      ) : (
+                                                         "Cancel"
+                                                      )}
+                                                   </Button>
+                                                )}
+                                             </>
+                                          ) : (
                                              <Button
                                                 size="sm"
-                                                variant="destructive"
+                                                variant={
+                                                   order.status === "delivered"
+                                                      ? "outline"
+                                                      : "destructive"
+                                                }
                                                 onClick={() => {
                                                    setRejectingItemId(item.id);
                                                    setRejectDialogOpen(true);
                                                 }}
                                              >
-                                                Request Refund
+                                                {order.status === "delivered"
+                                                   ? "Request Refund"
+                                                   : "Reject"}
                                              </Button>
-                                          </>
-                                       )}
+                                          )
+                                       ) : null}
                                     </div>
                                  </div>
                               </div>
@@ -665,6 +678,108 @@ Please let me know if you need any additional information.
                                        "Cancel Order"
                                     )}
                                  </Button>
+                              )}
+                        </div>
+                     </CardContent>
+                  </Card>
+               )}
+
+               {/* Owner Controls: allow order owners to cancel their own orders when pending/processing */}
+               {!isAdmin && isOwner && (
+                  <Card>
+                     <CardHeader>
+                        <CardTitle>Order Actions</CardTitle>
+                     </CardHeader>
+                     <CardContent>
+                        <div className="space-y-2">
+                           {order.status &&
+                              ["pending", "processing"].includes(
+                                 order.status
+                              ) && (
+                                 <>
+                                    <Button
+                                       size="sm"
+                                       variant="destructive"
+                                       onClick={() =>
+                                          setShowCancelConfirm(true)
+                                       }
+                                    >
+                                       Cancel Order
+                                    </Button>
+
+                                    {/* Confirmation dialog for order owner cancel */}
+                                    <Dialog
+                                       open={showCancelConfirm}
+                                       onOpenChange={setShowCancelConfirm}
+                                    >
+                                       <DialogContent className="max-w-md">
+                                          <DialogHeader>
+                                             <DialogTitle>
+                                                Confirm Cancel Order
+                                             </DialogTitle>
+                                             <DialogDescription>
+                                                Are you sure you want to cancel
+                                                this order? This action cannot
+                                                be undone.
+                                             </DialogDescription>
+                                          </DialogHeader>
+
+                                          <div className="mt-4 flex items-center gap-3 px-2">
+                                             <Checkbox
+                                                checked={redirectAfterCancel}
+                                                onCheckedChange={(v) =>
+                                                   setRedirectAfterCancel(
+                                                      Boolean(v)
+                                                   )
+                                                }
+                                             />
+                                             <span className="text-sm">
+                                                Also redirect to Orders page
+                                                after cancel
+                                             </span>
+                                          </div>
+
+                                          <div className="mt-4 flex justify-end space-x-2">
+                                             <Button
+                                                variant="ghost"
+                                                onClick={() =>
+                                                   setShowCancelConfirm(false)
+                                                }
+                                             >
+                                                No, keep order
+                                             </Button>
+                                             <Button
+                                                variant="destructive"
+                                                onClick={async () => {
+                                                   try {
+                                                      setIsUpdatingStatus(true);
+                                                      await handleStatusUpdate(
+                                                         "cancelled"
+                                                      );
+                                                      setShowCancelConfirm(
+                                                         false
+                                                      );
+                                                      toast.success(
+                                                         "Order cancelled"
+                                                      );
+                                                      if (redirectAfterCancel) {
+                                                         router.push("/orders");
+                                                      }
+                                                   } catch (e) {
+                                                      // handled by mutation
+                                                   } finally {
+                                                      setIsUpdatingStatus(
+                                                         false
+                                                      );
+                                                   }
+                                                }}
+                                             >
+                                                Yes, cancel order
+                                             </Button>
+                                          </div>
+                                       </DialogContent>
+                                    </Dialog>
+                                 </>
                               )}
                         </div>
                      </CardContent>

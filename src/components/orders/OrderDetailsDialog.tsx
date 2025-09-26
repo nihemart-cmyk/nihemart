@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useOrders } from "@/hooks/useOrders";
+import { useAuth } from "@/hooks/useAuth";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "../ui/scroll-area";
 import { UserAvatarProfile } from "../user-avatar-profile";
@@ -31,6 +32,8 @@ export function OrderDetailsDialog({
    const { useRequestRefundOrder, useCancelRefundRequestOrder } = useOrders();
    const requestOrderRefund = useRequestRefundOrder();
    const cancelOrderRefund = useCancelRefundRequestOrder();
+   const { user } = useAuth();
+   const isOwner = user?.id === order.user_id;
    const [loadingItemId, setLoadingItemId] = useState<string | null>(null);
    const customerName =
       `${order.customer_first_name} ${order.customer_last_name}`.trim();
@@ -225,40 +228,44 @@ export function OrderDetailsDialog({
                            <p>Total</p>
                            <p>{order.total.toLocaleString()} RWF</p>
                         </div>
-                        {/* Full order refund actions */}
-                        <div className="mt-4 space-x-2">
-                           {!order.refund_status && (
-                              <Button
-                                 variant="outline"
-                                 onClick={() => setShowOrderRefundDialog(true)}
-                              >
-                                 Request full order refund
-                              </Button>
-                           )}
-                           {order.refund_status === "requested" && (
-                              <Button
-                                 variant="ghost"
-                                 onClick={async () => {
-                                    try {
-                                       setOrderLoading(true);
-                                       await cancelOrderRefund.mutateAsync(
-                                          order.id
-                                       );
-                                    } catch (e) {
-                                       // handled by mutation
-                                    } finally {
-                                       setOrderLoading(false);
+                        {/* Full order refund actions - only visible to the order owner (not admins viewing other orders) */}
+                        {isOwner && (
+                           <div className="mt-4 space-x-2">
+                              {!order.refund_status && (
+                                 <Button
+                                    variant="outline"
+                                    onClick={() =>
+                                       setShowOrderRefundDialog(true)
                                     }
-                                 }}
-                              >
-                                 {orderLoading ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                 ) : (
-                                    "Cancel full refund request"
-                                 )}
-                              </Button>
-                           )}
-                        </div>
+                                 >
+                                    Request full order refund
+                                 </Button>
+                              )}
+                              {order.refund_status === "requested" && (
+                                 <Button
+                                    variant="ghost"
+                                    onClick={async () => {
+                                       try {
+                                          setOrderLoading(true);
+                                          await cancelOrderRefund.mutateAsync(
+                                             order.id
+                                          );
+                                       } catch (e) {
+                                          // handled by mutation
+                                       } finally {
+                                          setOrderLoading(false);
+                                       }
+                                    }}
+                                 >
+                                    {orderLoading ? (
+                                       <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                       "Cancel full refund request"
+                                    )}
+                                 </Button>
+                              )}
+                           </div>
+                        )}
                      </div>
                   </Card>
                   {/* Request full refund dialog */}
