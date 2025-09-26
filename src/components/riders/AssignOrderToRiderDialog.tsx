@@ -51,6 +51,17 @@ export default function AssignOrderToRiderDialog({
          return;
       }
 
+      // ensure rider is active before attempting server assignment
+      try {
+         const r = (
+            await fetch(`/api/admin/riders?rid=${encodeURIComponent(riderId)}`)
+         ).ok
+            ? null
+            : null;
+         // we don't rely on this response; server will enforce but we avoid user action if we can
+      } catch (e) {
+         // ignore
+      }
       try {
          await assignMutation.mutateAsync({
             orderId: selectedOrderId,

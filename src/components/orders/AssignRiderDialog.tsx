@@ -107,15 +107,18 @@ export function AssignRiderDialog({
                         </SelectTrigger>
                         <SelectContent>
                            {ridersQuery.data && ridersQuery.data.length > 0 ? (
-                              ridersQuery.data.map((r) => (
-                                 <SelectItem
-                                    key={r.id}
-                                    value={r.id}
-                                 >
-                                    {r.full_name || r.id}
-                                    {r.phone ? ` — ${r.phone}` : ""}
-                                 </SelectItem>
-                              ))
+                              // show only active riders
+                              ridersQuery.data
+                                 .filter((r) => r.active !== false)
+                                 .map((r) => (
+                                    <SelectItem
+                                       key={r.id}
+                                       value={r.id}
+                                    >
+                                       {r.full_name || r.id}
+                                       {r.phone ? ` — ${r.phone}` : ""}
+                                    </SelectItem>
+                                 ))
                            ) : (
                               <SelectItem value="">
                                  No riders available

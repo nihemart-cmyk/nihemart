@@ -38,17 +38,23 @@ export default async function handler(
          return res
             .status(404)
             .json({ error: { code: err.code, message: err.message } });
+      if (err && err.code === "RIDER_NOT_FOUND")
+         return res
+            .status(404)
+            .json({ error: { code: err.code, message: err.message } });
+      if (err && err.code === "RIDER_INACTIVE")
+         return res
+            .status(409)
+            .json({ error: { code: err.code, message: err.message } });
       if (err && err.code === "ORDER_NOT_PENDING")
          return res
             .status(409)
             .json({ error: { code: err.code, message: err.message } });
-      return res
-         .status(500)
-         .json({
-            error: {
-               code: err.code || "INTERNAL_ERROR",
-               message: err.message || "Failed to assign order",
-            },
-         });
+      return res.status(500).json({
+         error: {
+            code: err.code || "INTERNAL_ERROR",
+            message: err.message || "Failed to assign order",
+         },
+      });
    }
 }
