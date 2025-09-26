@@ -32,7 +32,7 @@ import {
   Package
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { fetchProductsForStockManagement, fetchStockHistory, updateStockLevel, StockProduct, StockHistoryItem } from '@/integrations/supabase/stock'
+import { fetchProductsForStockManagement, fetchStockHistory, updateStockLevel, updateProductStock, fetchProductStockHistory, StockProduct, StockHistoryItem } from '@/integrations/supabase/stock'
 import { fetchCategories } from '@/integrations/supabase/products'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
@@ -48,6 +48,8 @@ function StockUpdateDialog({ product, variation, onClose }: { product: StockProd
   const [isLoading, setIsLoading] = useState(false)
   const queryClient = useQueryClient()
 
+  const currentStock = variation ? variation.stock : (product.stock || 0)
+
   const handleUpdate = async () => {
     if (change === 0 || !reason.trim()) {
       toast.error('Please enter a change amount and reason')
@@ -56,12 +58,20 @@ function StockUpdateDialog({ product, variation, onClose }: { product: StockProd
 
     setIsLoading(true)
     try {
-      await updateStockLevel({
-        productId: product.id,
-        variationId: variation.id,
-        change,
-        reason: reason.trim()
-      })
+      if (variation) {
+        await updateStockLevel({
+          productId: product.id,
+          variationId: variation.id,
+          change,
+          reason: reason.trim()
+        })
+      } else {
+        await updateProductStock({
+          productId: product.id,
+          change,
+          reason: reason.trim()
+        })
+      }
       toast.success(`Stock ${change > 0 ? 'increased' : 'decreased'} by ${Math.abs(change)} units`)
       queryClient.invalidateQueries({ queryKey: ['products-stock'] })
       onClose()
@@ -86,13 +96,13 @@ function StockUpdateDialog({ product, variation, onClose }: { product: StockProd
     <DialogContent className="max-w-md">
       <DialogHeader>
         <DialogTitle>Update Stock</DialogTitle>
-        <p className="text-sm text-gray-600">{product.name} - {variation.name || 'Default'}</p>
+        <p className="text-sm text-gray-600">{product.name} - {variation ? (variation.name || 'Default') : 'Product Stock'}</p>
       </DialogHeader>
       <div className="space-y-4">
         <div className="bg-gray-50 p-3 rounded-lg">
           <div className="flex justify-between items-center">
             <span className="text-sm font-medium">Current Stock:</span>
-            <span className="text-lg font-bold text-orange-600">{variation.stock}</span>
+            <span className="text-lg font-bold text-orange-600">{currentStock}</span>
           </div>
         </div>
         {/* Quick Action Buttons */}
@@ -147,7 +157,7 @@ function StockUpdateDialog({ product, variation, onClose }: { product: StockProd
             <div className="flex justify-between items-center text-sm">
               <span>New stock level:</span>
               <span className={`font-bold ${change > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {variation.stock + change} ({change > 0 ? '+' : ''}{change})
+                {currentStock + change} ({change > 0 ? '+' : ''}{change})
               </span>
             </div>
           </div>
@@ -202,7 +212,57 @@ function StockHistoryDialog({ variationId, onClose }: { variationId: string, onC
                   </div>
                   <div className="text-right text-sm text-gray-500">
                     <div>{new Date(item.created_at).toLocaleDateString()}</div>
-                    <div>{item.user?.full_name || 'Unknown user'}</div>
+                    <div>{item.user?.full_name || 'you'}</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div>No history available</div>
+        )}
+        <Button variant="outline" onClick={onClose}>Close</Button>
+      </div>
+    </DialogContent>
+  )
+}
+
+// Product stock history dialog component
+function ProductStockHistoryDialog({ productId, onClose }: { productId: string, onClose: () => void }) {
+  const { data: history, isLoading } = useQuery({
+    queryKey: ['product-stock-history', productId],
+    queryFn: () => fetchProductStockHistory(productId),
+    enabled: !!productId
+  })
+
+  return (
+    <DialogContent className="max-w-2xl">
+      <DialogHeader>
+        <DialogTitle>Product Stock History</DialogTitle>
+      </DialogHeader>
+      <div className="space-y-4">
+        {isLoading ? (
+          <div>Loading history...</div>
+        ) : history && history.length > 0 ? (
+          <div className="space-y-2 max-h-96 overflow-y-auto">
+            {history.map((item: StockHistoryItem) => (
+              <div key={item.id} className="border rounded p-3">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <div className="font-medium">
+                      Change: {item.change > 0 ? '+' : ''}{item.change}
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      New quantity: {item.new_quantity}
+                    </div>
+                    <div className="text-sm text-gray-600">
+                      Reason: {item.reason || 'No reason provided'}
+                    </div>
+                  </div>
+                  <div className="text-right text-sm text-gray-500">
+                    <div>{new Date(item.created_at).toLocaleDateString()}</div>
+                    {/* <div>{item.user?.full_name || 'Unknown user'}</div> */}
+                    <div>{item.user?.full_name || 'You'}</div>
                   </div>
                 </div>
               </div>
@@ -222,14 +282,17 @@ function StockTable({
   products,
   isLoading,
   onUpdateDialog,
-  onHistoryDialog
+  onHistoryDialog,
+  onProductHistoryDialog
 }: {
   title: string,
   products: StockProduct[],
   isLoading: boolean,
   onUpdateDialog: (dialog: {product: StockProduct, variation: any} | null) => void,
-  onHistoryDialog: (variationId: string | null) => void
+  onHistoryDialog: (variationId: string | null) => void,
+  onProductHistoryDialog: (productId: string | null) => void
 }) {
+  console.log({products})
   const [selectedItems, setSelectedItems] = useState(new Set<string>())
   const [sortConfig, setSortConfig] = useState<{key: string, direction: string} | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
@@ -261,23 +324,41 @@ function StockTable({
   const flattenedData = useMemo(() => {
     const items: any[] = []
     products.forEach(product => {
-      product.variations.forEach(variation => {
-        console.log({product})
+      if (product.variations.length > 0) {
+        product.variations.forEach(variation => {
+          console.log({product})
+          items.push({
+            id: `${product.id}-${variation.id}`,
+            productId: product.id,
+            variationId: variation.id,
+            productName: product.name,
+            variationName: variation.name,
+            stock: variation.stock,
+            price: variation?.price,
+            attributes: variation.attributes,
+            sku: null,
+            barcode: null,
+            category: product.category,
+            mainImageUrl: product.main_image_url
+          })
+        })
+      } else {
+        // Handle products without variations
         items.push({
-          id: `${product.id}-${variation.id}`,
+          id: `${product.id}-default`,
           productId: product.id,
-          variationId: variation.id,
+          variationId: null, // No variation ID for stock management
           productName: product.name,
-          variationName: variation.name,
-          stock: variation.stock,
-          price: variation?.price,
-          attributes: variation.attributes,
+          variationName: 'Default',
+          stock: product.stock || 0, // Stock from product
+          price: product.price,
+          attributes: {},
           sku: null,
           barcode: null,
           category: product.category,
           mainImageUrl: product.main_image_url
         })
-      })
+      }
     })
     return items
   }, [products])
@@ -583,8 +664,8 @@ function StockTable({
                             title="Update Stock (Add/Reduce)"
                             onClick={() => {
                               const product = products.find(p => p.id === item.productId)
-                              const variation = product?.variations.find(v => v.id === item.variationId)
-                              if (product && variation) {
+                              const variation = item.variationId ? product?.variations.find(v => v.id === item.variationId) : null
+                              if (product) {
                                 onUpdateDialog({ product, variation })
                               }
                             }}
@@ -599,7 +680,13 @@ function StockTable({
                             variant="ghost"
                             size="sm"
                             title="View History"
-                            onClick={() => onHistoryDialog(item.variationId)}
+                            onClick={() => {
+                              if (item.variationId) {
+                                onHistoryDialog(item.variationId)
+                              } else {
+                                onProductHistoryDialog(item.productId)
+                              }
+                            }}
                             className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
                           >
                             <History className="h-4 w-4" />
@@ -621,6 +708,7 @@ function StockTable({
 export default function StockLevels() {
   const [updateDialog, setUpdateDialog] = useState<{product: StockProduct, variation: any} | null>(null)
   const [historyDialog, setHistoryDialog] = useState<string | null>(null)
+  const [productHistoryDialog, setProductHistoryDialog] = useState<string | null>(null)
 
   const { data: products = [], isLoading } = useQuery({
     queryKey: ['products-stock'],
@@ -643,6 +731,7 @@ export default function StockLevels() {
         isLoading={isLoading}
         onUpdateDialog={setUpdateDialog}
         onHistoryDialog={setHistoryDialog}
+        onProductHistoryDialog={setProductHistoryDialog}
       />
 
       {/* Dialogs */}
@@ -661,6 +750,15 @@ export default function StockLevels() {
           <StockHistoryDialog
             variationId={historyDialog}
             onClose={() => setHistoryDialog(null)}
+          />
+        </Dialog>
+      )}
+
+      {productHistoryDialog && (
+        <Dialog open={true} onOpenChange={() => setProductHistoryDialog(null)}>
+          <ProductStockHistoryDialog
+            productId={productHistoryDialog}
+            onClose={() => setProductHistoryDialog(null)}
           />
         </Dialog>
       )}

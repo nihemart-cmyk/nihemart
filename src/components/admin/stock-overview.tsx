@@ -57,16 +57,34 @@ export default function StockOverview({ onTabChange }: { onTabChange?: (tab: str
   // Calculate real metrics
   const metrics = (() => {
     const totalProducts = products.length
-    const totalVariations = products.reduce((sum, p) => sum + p.variations.length, 0)
-    const inStockVariations = products.reduce((sum, p) =>
-      sum + p.variations.filter(v => v.stock > 0).length, 0
-    )
-    const lowStockVariations = products.reduce((sum, p) =>
-      sum + p.variations.filter(v => v.stock > 0 && v.stock <= 10).length, 0
-    )
-    const outOfStockVariations = products.reduce((sum, p) =>
-      sum + p.variations.filter(v => v.stock <= 0).length, 0
-    )
+    let totalVariations = 0
+    let inStockVariations = 0
+    let lowStockVariations = 0
+    let outOfStockVariations = 0
+
+    products.forEach(product => {
+      if (product.variations.length > 0) {
+        // Product has variations
+        totalVariations += product.variations.length
+        inStockVariations += product.variations.filter(v => v.stock > 0).length
+        lowStockVariations += product.variations.filter(v => v.stock > 0 && v.stock <= 10).length
+        outOfStockVariations += product.variations.filter(v => v.stock <= 0).length
+      } else {
+        // Product without variations - count as 1 item
+        totalVariations += 1
+        const stock = product.stock || 0
+        if (stock > 0) {
+          if (stock <= 10) {
+            lowStockVariations += 1
+          } else {
+            inStockVariations += 1
+          }
+        } else {
+          outOfStockVariations += 1
+        }
+      }
+    })
+
     const totalStockValue = 0 // Placeholder - would need product price data
 
     return {
