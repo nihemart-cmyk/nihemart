@@ -189,6 +189,9 @@ const NavBar: FC<NavBarProps> = ({}) => {
                     <Link href={"/about"}>{t("nav.about")}</Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
+                    <Link href={"/returns"}>{t("nav.returns")}</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
                     <Link href={"/signin"}>{t("nav.login")}</Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
@@ -202,6 +205,9 @@ const NavBar: FC<NavBarProps> = ({}) => {
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
                     <Link href={"/profile"}>{t("nav.profile")}</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href={"/returns"}>{t("nav.returns")}</Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
                     <Link href={"/orders"}>{t("nav.orders")}</Link>

@@ -13,6 +13,43 @@ export const en: Record<string, string> = {
   "nav.logout": "Logout",
   "nav.howToBuy": "How To Buy",
   "nav.notifications": "Notifications",
+  "nav.returns": "Return & Refund Policy",
+
+  // Return and Refund Policy
+
+  returnTitle: "Return and Refund Policy",
+  returnHero:
+    "We want you to be completely satisfied with your purchase. Please read our return and refund policy for more details.",
+  termsTitle: "Return Terms and Conditions",
+  termsCondition1Title: "Eligibility for Returns",
+  termsCondition1Desc:
+    "You can return the product within 30 days from the date of delivery if it is in its original, unopened condition.",
+  termsCondition2Title: "Non-Returnable Products",
+  termsCondition2Desc:
+    "Some items such as perishable goods, custom orders, and intimate apparel cannot be returned.",
+  termsCondition3Title: "Product Condition",
+  termsCondition3Desc:
+    "Returned products must be unused, with all original tags, packaging, and accessories included.",
+  termsCondition4Title: "Return Process",
+  termsCondition4Desc:
+    "To initiate a return, please contact our customer support team with your order details.",
+  termsCondition5Title: "Return Shipping Costs",
+  termsCondition5Desc:
+    "The customer is responsible for paying return shipping costs, unless the product is defective or damaged.",
+  refundTitle: "Refund Policy",
+  refundCondition1Title: "Refund Eligibility",
+  refundCondition1Desc:
+    "Refunds are available for returns processed within 30 days of purchase and under our return policy conditions.",
+  refundCondition2Title: "Refund Method",
+  refundCondition2Desc:
+    "Refunds will be processed back to the original payment method used during purchase.",
+  refundCondition3Title: "Processing Time",
+  refundCondition3Desc:
+    "Refunds typically take 5–7 business days to process after we receive your returned product.",
+  contactTitle: "Contact Customer Support",
+  contactDesc:
+    "If you have any questions or need assistance with returns and refunds, feel free to contact our customer support team.",
+  supportEmailLabel: "Support Email",
 
   // Homepage
   "home.hero.title": "Welcome to NiheMart",
@@ -28,9 +65,9 @@ export const en: Record<string, string> = {
   "home.customers": "What Our Customers Say",
   "home.customers.description":
     "Read what our satisfied customers have to say about their experience with NiheMart",
-   "home.new": "New Arrivals",
-   "home.more": "More to Love",
-   "home.under": "Products under",
+  "home.new": "New Arrivals",
+  "home.more": "More to Love",
+  "home.under": "Products under",
 
   // Products
   "products.title": "Products",
@@ -41,7 +78,7 @@ export const en: Record<string, string> = {
   "products.outOfStock": "Out of Stock",
   "products.viewDetails": "View Details",
 
-//   how to buy
+  //   how to buy
   "howToBuy.title": "How to Buy",
   "howToBuy.subtitle":
     "Shopping with us is quick, easy, and secure. Follow these simple steps to place your order.",
