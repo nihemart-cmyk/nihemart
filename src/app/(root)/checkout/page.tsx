@@ -31,7 +31,6 @@ import {
 import provincesJson from "@/lib/data/provinces.json";
 import districtsJson from "@/lib/data/districts.json";
 import sectorsJson from "@/lib/data/sectors.json";
-import cellsJson from "@/lib/data/cells.json";
 import sectorsFees from "@/lib/data/sectors_fees.json";
 import {
    Loader2,
@@ -123,7 +122,6 @@ const Checkout = () => {
    const [provinces, setProvinces] = useState<any[]>([]);
    const [districts, setDistricts] = useState<any[]>([]);
    const [sectors, setSectors] = useState<any[]>([]);
-   const [cells, setCells] = useState<any[]>([]);
 
    // Selected location ids
    const [selectedProvince, setSelectedProvince] = useState<string | null>(
@@ -133,7 +131,6 @@ const Checkout = () => {
       null
    );
    const [selectedSector, setSelectedSector] = useState<string | null>(null);
-   const [selectedCell, setSelectedCell] = useState<string | null>(null);
 
    // Address form fields for new/edit
    const [houseNumber, setHouseNumber] = useState<string>("");
@@ -250,7 +247,7 @@ const Checkout = () => {
          setProvinces(extract(provincesJson, "1_provinces"));
          setDistricts(extract(districtsJson, "2_districts"));
          setSectors(extract(sectorsJson, "3_sectors"));
-         setCells(extract(cellsJson, "4_cells"));
+         // cells data and cell selection removed
       } catch (err) {
          console.error("Failed to load location data:", err);
       }
@@ -818,62 +815,7 @@ Total: ${total.toLocaleString()} RWF
                                  );
                               })()}
 
-                           {selectedSector &&
-                              (() => {
-                                 // Cell selection only makes sense when sector is shown (Kigali)
-                                 const selectedProvinceObj = provinces.find(
-                                    (p: any) =>
-                                       String(p.prv_id) ===
-                                       String(selectedProvince)
-                                 );
-                                 const provinceIsKigali = Boolean(
-                                    selectedProvinceObj?.prv_name
-                                       ?.toLowerCase()
-                                       .includes("kigali")
-                                 );
-                                 if (!provinceIsKigali) return null;
-
-                                 return (
-                                    <div className="space-y-2">
-                                       <Label className="text-sm">
-                                          Cell{" "}
-                                          <span className="text-red-500">
-                                             *
-                                          </span>
-                                       </Label>
-                                       <Select
-                                          value={selectedCell ?? ""}
-                                          onValueChange={(v) =>
-                                             setSelectedCell(v || null)
-                                          }
-                                       >
-                                          <SelectTrigger>
-                                             <SelectValue
-                                                placeholder={t(
-                                                   "checkout.selectCellPlaceholder"
-                                                )}
-                                             />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                             {cells
-                                                .filter(
-                                                   (c: any) =>
-                                                      c.cel_sector ===
-                                                      selectedSector
-                                                )
-                                                .map((c: any) => (
-                                                   <SelectItem
-                                                      key={c.cel_id}
-                                                      value={String(c.cel_id)}
-                                                   >
-                                                      {c.cel_name}
-                                                   </SelectItem>
-                                                ))}
-                                          </SelectContent>
-                                       </Select>
-                                    </div>
-                                 );
-                              })()}
+                           {/* Cell selection removed */}
 
                            {/* Show computed delivery fee */}
                            <div className="flex items-center justify-between">
@@ -997,14 +939,6 @@ Total: ${total.toLocaleString()} RWF
                                              : districtObj?.dst_name || "";
                                           // Derive a display name from selected names (sector/cell) since displayName field removed
                                           const derivedDisplayName = (() => {
-                                             if (selectedCell) {
-                                                const foundCell = cells.find(
-                                                   (c) =>
-                                                      c.cel_id === selectedCell
-                                                );
-                                                if (foundCell)
-                                                   return `${foundCell.cel_name} address`;
-                                             }
                                              if (sectorObj)
                                                 return `${sectorObj.sct_name} address`;
                                              return "Address";
