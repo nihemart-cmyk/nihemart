@@ -1,36 +1,73 @@
 export const en: Record<string, string> = {
-   // Navigation
-   "nav.home": "Home",
-   "nav.products": "Products",
-   "nav.about": "About",
-   "nav.contact": "Contact",
-   "nav.cart": "Cart",
-   "nav.orders": "Orders",
-   "nav.profile": "Profile",
-   "nav.addresses": "Addresses",
-   "nav.admin": "Admin",
-   "nav.login": "Login",
-   "nav.register": "Register",
-   "nav.logout": "Logout",
-   "nav.howToBuy": "How To Buy",
+  // Navigation
+  "nav.home": "Home",
+  "nav.products": "Products",
+  "nav.about": "About",
+  "nav.contact": "Contact",
+  "nav.cart": "Cart",
+  "nav.orders": "Orders",
+  "nav.profile": "Profile",
+  "nav.admin": "Admin",
+  "nav.login": "Login",
+  "nav.register": "Register",
+  "nav.logout": "Logout",
+  "nav.howToBuy": "How To Buy",
+  "nav.notifications": "Notifications",
+  "nav.returns": "Return & Refund Policy",
 
-   // Homepage
-   "home.hero.title": "Welcome to NiheMart",
-   "home.hero.learnmore": "Learn More",
-   "home.hero.subtitle": "Your premier online marketplace in Rwanda",
-   "home.hero.cta": "Shop Now",
-   "home.featured": "Featured Products",
-   "home.categories": "Categories Available",
-   "home.premium": "Discover our premium products at unbeatable prices",
-   "home.categories.description":
-      "Find exactly what you need across various categories",
-   "home.viewall": "View all products",
-   "home.customers": "What Our Customers Say",
-   "home.customers.description":
-      "Read what our satisfied customers have to say about their experience with NiheMart",
-   "home.new": "New Arrivals",
-   "home.more": "More to Love",
-   "home.under": "Products under",
+  // Return and Refund Policy
+
+  returnTitle: "Return and Refund Policy",
+  returnHero:
+    "We want you to be completely satisfied with your purchase. Please read our return and refund policy for more details.",
+  termsTitle: "Return Terms and Conditions",
+  termsCondition1Title: "Eligibility for Returns",
+  termsCondition1Desc:
+    "You can return the product within 30 days from the date of delivery if it is in its original, unopened condition.",
+  termsCondition2Title: "Non-Returnable Products",
+  termsCondition2Desc:
+    "Some items such as perishable goods, custom orders, and intimate apparel cannot be returned.",
+  termsCondition3Title: "Product Condition",
+  termsCondition3Desc:
+    "Returned products must be unused, with all original tags, packaging, and accessories included.",
+  termsCondition4Title: "Return Process",
+  termsCondition4Desc:
+    "To initiate a return, please contact our customer support team with your order details.",
+  termsCondition5Title: "Return Shipping Costs",
+  termsCondition5Desc:
+    "The customer is responsible for paying return shipping costs, unless the product is defective or damaged.",
+  refundTitle: "Refund Policy",
+  refundCondition1Title: "Refund Eligibility",
+  refundCondition1Desc:
+    "Refunds are available for returns processed within 30 days of purchase and under our return policy conditions.",
+  refundCondition2Title: "Refund Method",
+  refundCondition2Desc:
+    "Refunds will be processed back to the original payment method used during purchase.",
+  refundCondition3Title: "Processing Time",
+  refundCondition3Desc:
+    "Refunds typically take 5–7 business days to process after we receive your returned product.",
+  contactTitle: "Contact Customer Support",
+  contactDesc:
+    "If you have any questions or need assistance with returns and refunds, feel free to contact our customer support team.",
+  supportEmailLabel: "Support Email",
+
+  // Homepage
+  "home.hero.title": "Welcome to NiheMart",
+  "home.hero.learnmore": "Learn More",
+  "home.hero.subtitle": "Your premier online marketplace in Rwanda",
+  "home.hero.cta": "Shop Now",
+  "home.featured": "Featured Products",
+  "home.categories": "Categories Available",
+  "home.premium": "Discover our premium products at unbeatable prices",
+  "home.categories.description":
+    "Find exactly what you need across various categories",
+  "home.viewall": "View all products",
+  "home.customers": "What Our Customers Say",
+  "home.customers.description":
+    "Read what our satisfied customers have to say about their experience with NiheMart",
+  "home.new": "New Arrivals",
+  "home.more": "More to Love",
+  "home.under": "Products under",
 
    // Products
    "products.title": "Products",
@@ -41,29 +78,29 @@ export const en: Record<string, string> = {
    "products.outOfStock": "Out of Stock",
    "products.viewDetails": "View Details",
 
-   //   how to buy
-   "howToBuy.title": "How to Buy",
-   "howToBuy.subtitle":
-      "Shopping with us is quick, easy, and secure. Follow these simple steps to place your order.",
-   "howToBuy.step1.title": "Browse Products",
-   "howToBuy.step1.desc":
-      "Explore our wide range of categories and use the search bar or filters to quickly find what you need.",
-   "howToBuy.step2.title": "Add to Cart",
-   "howToBuy.step2.desc":
-      "Once you find a product you love, click 'Add to Cart'. You can review or update your cart anytime before checkout.",
-   "howToBuy.step3.title": "Proceed to Checkout",
-   "howToBuy.step3.desc":
-      "Go to your cart and click 'Checkout'. You’ll be asked to provide delivery details and confirm your order.",
-   "howToBuy.step4.title": "Secure Payment",
-   "howToBuy.step4.desc":
-      "Choose your preferred payment method. We support mobile money, credit cards, and cash on delivery.",
-   "howToBuy.step5.title": "Delivery",
-   "howToBuy.step5.desc":
-      "Sit back and relax! Your items will be delivered to your chosen address within the estimated delivery time.",
-   "howToBuy.ctaTitle": "Ready to start shopping?",
-   "howToBuy.ctaSubtitle":
-      "Discover amazing deals and enjoy a seamless shopping experience with us. Your next favorite product is just a click away.",
-   "howToBuy.ctaButton": "Start Shopping",
+  //   how to buy
+  "howToBuy.title": "How to Buy",
+  "howToBuy.subtitle":
+    "Shopping with us is quick, easy, and secure. Follow these simple steps to place your order.",
+  "howToBuy.step1.title": "Browse Products",
+  "howToBuy.step1.desc":
+    "Explore our wide range of categories and use the search bar or filters to quickly find what you need.",
+  "howToBuy.step2.title": "Add to Cart",
+  "howToBuy.step2.desc":
+    "Once you find a product you love, click 'Add to Cart'. You can review or update your cart anytime before checkout.",
+  "howToBuy.step3.title": "Proceed to Checkout",
+  "howToBuy.step3.desc":
+    "Go to your cart and click 'Checkout'. You’ll be asked to provide delivery details and confirm your order.",
+  "howToBuy.step4.title": "Secure Payment",
+  "howToBuy.step4.desc":
+    "Choose your preferred payment method. We support mobile money, credit cards, and cash on delivery.",
+  "howToBuy.step5.title": "Delivery",
+  "howToBuy.step5.desc":
+    "Sit back and relax! Your items will be delivered to your chosen address within the estimated delivery time.",
+  "howToBuy.ctaTitle": "Ready to start shopping?",
+  "howToBuy.ctaSubtitle":
+    "Discover amazing deals and enjoy a seamless shopping experience with us. Your next favorite product is just a click away.",
+  "howToBuy.ctaButton": "Start Shopping",
 
    // Cart
    "cart.title": "Shopping Cart",

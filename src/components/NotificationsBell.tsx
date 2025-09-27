@@ -24,7 +24,7 @@ const NotificationsBell: React.FC = () => {
             <Button
                variant="ghost"
                size="icon"
-               className="relative"
+               className="relative z-[9999]"
             >
                <Bell className="w-5 h-5" />
                {unread > 0 && (
@@ -36,10 +36,10 @@ const NotificationsBell: React.FC = () => {
          </DropdownMenuTrigger>
          <DropdownMenuContent
             align="end"
-            className="w-80 max-h-96 overflow-auto"
+            className="w-80 max-h-96 overflow-auto z-[9999]"
          >
             {notifications.length === 0 && (
-               <DropdownMenuItem className="text-sm">
+               <DropdownMenuItem className="text-sm z-[9999]">
                   No notifications
                </DropdownMenuItem>
             )}
@@ -68,7 +68,7 @@ const NotificationsBell: React.FC = () => {
                         // fallback: do nothing special
                      }
                   }}
-                  className={`flex flex-col items-start gap-1 py-2 ${
+                  className={`z-[9999] flex flex-col items-start gap-1 py-2 ${
                      n.read ? "opacity-60" : ""
                   }`}
                >

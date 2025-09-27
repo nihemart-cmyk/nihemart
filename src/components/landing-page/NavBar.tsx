@@ -22,6 +22,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
 import { SearchPopover } from "../search-popover";
 import { Language } from "@/locales";
+import NotificationsBell from "../NotificationsBell";
 
 interface NavBarProps {}
 
@@ -171,129 +172,114 @@ const NavBar: FC<NavBarProps> = ({}) => {
                      <ShoppingCart className="h-5 w-5 text-slate-700 group-hover:text-white transition-colors duration-200" />
                      {/* Always render the Badge node so server and client DOM shape match.
                          Populate the visible count only after client mount to avoid hydration errors. */}
-                     <Badge
-                        className={`absolute -top-2 -right-2 h-5 w-5 rounded-full text-xs p-0 flex items-center justify-center bg-orange-400 outline-none z-10 ${
-                           !mounted || badgeCount === 0
-                              ? "opacity-0 pointer-events-none"
-                              : "opacity-100"
-                        }`}
-                     >
-                        <span suppressHydrationWarning>
-                           {mounted && badgeCount > 0 ? badgeCount : ""}
-                        </span>
-                     </Badge>
-                  </Link>
-               </Button>
-               <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                     <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label="User menu"
-                     >
-                        <User className="h-5 w-5" />
-                     </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent
-                     align="end"
-                     className="z-[9999]"
+              <Badge
+                className={`absolute -top-2 -right-2 h-5 w-5 rounded-full text-xs p-0 flex items-center justify-center bg-orange-400 outline-none z-10 ${
+                  !mounted || badgeCount === 0
+                    ? "opacity-0 pointer-events-none"
+                    : "opacity-100"
+                }`}
+              >
+                <span suppressHydrationWarning>
+                  {mounted && badgeCount > 0 ? badgeCount : ""}
+                </span>
+              </Badge>
+            </Link>
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" aria-label="User menu">
+                <User className="h-5 w-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="z-[9999]">
+              {!user ? (
+                <>
+                  <DropdownMenuItem asChild>
+                    <Link href={"/about"}>{t("nav.about")}</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href={"/returns"}>{t("nav.returns")}</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href={"/signin"}>{t("nav.login")}</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href={"/signup"}>{t("nav.register")}</Link>
+                  </DropdownMenuItem>
+                </>
+              ) : (
+                <>
+                  <DropdownMenuItem asChild>
+                    <Link href={"/about"}>{t("nav.about")}</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href={"/profile"}>{t("nav.profile")}</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href={"/returns"}>{t("nav.returns")}</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href={"/orders"}>{t("nav.orders")}</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href={"/notifications"}>{t("nav.notifications")}</Link>
+                  </DropdownMenuItem>
+                  {hasRole("admin") && (
+                    <DropdownMenuItem asChild>
+                      <Link href={"/admin"}>{t("nav.admin")}</Link>
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem onClick={handleLogout}>
+                    <LogOut className="h-4 w-4 mr-2" />
+                    {t("nav.logout")}
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <NotificationsBell />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button className="relative px-2 lg:hidden bg-brand-blue hover:bg-brand-blue/90 ml-1">
+                <Menu />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              className="w-56 z-[9999]"
+              align="end"
+              sideOffset={10}
+              forceMount
+            >
+              {routes.map(({ name, url }, index) => (
+                <DropdownMenuItem key={index} asChild className="border-b">
+                  <Link href={url}>{t(name)}</Link>
+                </DropdownMenuItem>
+              ))}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    aria-label={t("nav.language") || "Select language"}
+                    className="bg-orange-500 hover:bg-orange-500/90 w-full mt-2"
                   >
-                     {!user ? (
-                        <>
-                           <DropdownMenuItem asChild>
-                              <Link href={"/about"}>{t("nav.about")}</Link>
-                           </DropdownMenuItem>
-                           <DropdownMenuItem asChild>
-                              <Link href={"/signin"}>{t("nav.login")}</Link>
-                           </DropdownMenuItem>
-                           <DropdownMenuItem asChild>
-                              <Link href={"/signup"}>{t("nav.register")}</Link>
-                           </DropdownMenuItem>
-                        </>
-                     ) : (
-                        <>
-                           <DropdownMenuItem asChild>
-                              <Link href={"/about"}>{t("nav.about")}</Link>
-                           </DropdownMenuItem>
-                           <DropdownMenuItem asChild>
-                              <Link href={"/profile"}>{t("nav.profile")}</Link>
-                           </DropdownMenuItem>
-                           <DropdownMenuItem asChild>
-                              <Link href={"/addresses"}>
-                                 {t("nav.addresses")}
-                              </Link>
-                           </DropdownMenuItem>
-                           <DropdownMenuItem asChild>
-                              <Link href={"/orders"}>{t("nav.orders")}</Link>
-                           </DropdownMenuItem>
-                           {hasRole("admin") && (
-                              <DropdownMenuItem asChild>
-                                 <Link href={"/admin"}>{t("nav.admin")}</Link>
-                              </DropdownMenuItem>
-                           )}
-                           <DropdownMenuItem onClick={handleLogout}>
-                              <LogOut className="h-4 w-4 mr-2" />
-                              {t("nav.logout")}
-                           </DropdownMenuItem>
-                        </>
-                     )}
-                  </DropdownMenuContent>
-               </DropdownMenu>
-               <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                     <Button className="relative px-2 lg:hidden bg-brand-blue hover:bg-brand-blue/90 ml-1">
-                        <Menu />
-                     </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent
-                     className="w-56 z-[9999]"
-                     align="end"
-                     sideOffset={10}
-                     forceMount
-                  >
-                     {routes.map(({ name, url }, index) => (
-                        <DropdownMenuItem
-                           key={index}
-                           asChild
-                           className="border-b"
-                        >
-                           <Link href={url}>{t(name)}</Link>
-                        </DropdownMenuItem>
-                     ))}
-                     <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                           <Button
-                              aria-label={
-                                 t("nav.language") || "Select language"
-                              }
-                              className="bg-orange-500 hover:bg-orange-500/90 w-full mt-2"
-                           >
-                              <Globe className="h-4 w-4" />
-                              <span className="">{language.toUpperCase()}</span>
-                           </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent
-                           align="end"
-                           className="z-[9999]"
-                        >
-                           <DropdownMenuItem
-                              onClick={() => handleLanguageChange("en")}
-                           >
-                              English
-                           </DropdownMenuItem>
-                           <DropdownMenuItem
-                              onClick={() => handleLanguageChange("rw")}
-                           >
-                              Kinyarwanda
-                           </DropdownMenuItem>
-                        </DropdownMenuContent>
-                     </DropdownMenu>
-                  </DropdownMenuContent>
-               </DropdownMenu>
-            </div>
-         </MaxWidthWrapper>
-      </div>
-   );
+                    <Globe className="h-4 w-4" />
+                    <span className="">{language.toUpperCase()}</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="z-[9999]">
+                  <DropdownMenuItem onClick={() => handleLanguageChange("en")}>
+                    English
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleLanguageChange("rw")}>
+                    Kinyarwanda
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </MaxWidthWrapper>
+    </div>
+  );
 };
 
 export default NavBar;
