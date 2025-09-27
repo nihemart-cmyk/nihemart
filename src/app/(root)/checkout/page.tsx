@@ -12,7 +12,6 @@ import type { CreateOrderRequest } from "@/types/orders";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrders } from "@/hooks/useOrders";
 import { useCart } from "@/contexts/CartContext";
-// Address dialog removed; address form will live inside the collapsible
 import {
    Collapsible,
    CollapsibleTrigger,
@@ -41,6 +40,7 @@ import {
    CreditCard,
    ChevronDown,
    ChevronRight,
+   Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -73,7 +73,7 @@ const Checkout = () => {
    const [orderItems, setOrderItems] = useState<CartItem[]>([]);
    const [errors, setErrors] = useState<any>({});
 
-   // zod schema for address add/edit form (minimal: phone required)
+   // Enhanced phone validation for Rwanda
    const phoneSchema = z.object({
       phone: z
          .string()
@@ -82,26 +82,27 @@ const Checkout = () => {
          })
          .refine(
             (val) => {
-               // Basic Rwanda phone normalization: accept numbers with or without +250, spaces or dashes
-               const cleaned = val.replace(/[^0-9]/g, "");
-               // Accept if local 9 digits (starts with 7 or 3?) or with country code 12 digits (2507...)
-               return (
-                  /^0?7\d{8}$/.test(cleaned) ||
-                  /^2507\d{8}$/.test(cleaned) ||
-                  /^\+2507\d{8}$/.test(val)
-               );
+               // Clean the input - remove all non-digit characters except +
+               const cleaned = val.replace(/[^\d+]/g, "");
+
+               // Pattern 1: +250 followed by 9 digits (total 13 chars including +)
+               if (/^\+250\d{9}$/.test(cleaned)) return true;
+
+               // Pattern 2: 07 followed by 8 digits (total 10 digits)
+               if (/^07\d{8}$/.test(cleaned)) return true;
+
+               return false;
             },
             {
                message:
                   t("checkout.errors.validPhone") ||
-                  "Please enter a valid phone number",
+                  "Phone must be in format +250XXXXXXXXX or 07XXXXXXXX",
             }
          ),
    });
+
    const [isSubmitting, setIsSubmitting] = useState(false);
-   // address dialog removed; we now use collapsible to add/manage addresses
    const [addressOpen, setAddressOpen] = useState(false);
-   // Add-new-address collapsible
    const [addNewOpen, setAddNewOpen] = useState(false);
    const [instructionsOpen, setInstructionsOpen] = useState(false);
    const [paymentOpen, setPaymentOpen] = useState(false);
@@ -140,26 +141,87 @@ const Checkout = () => {
    );
    const [isSavingAddress, setIsSavingAddress] = useState(false);
 
-   // Normalize phone to E.164 (basic): convert local numbers like 0784123456 or 784123456 to +250784123456
+   // Enhanced phone formatting function
+   const formatPhoneInput = (input: string) => {
+      // Remove all non-digit characters except +
+      const cleaned = input.replace(/[^\d+]/g, "");
+
+      // If starts with +250, format as +250 XXX XXX XXX
+      if (cleaned.startsWith("+250")) {
+         const digits = cleaned.slice(4);
+         if (digits.length <= 3) return `+250 ${digits}`;
+         if (digits.length <= 6)
+            return `+250 ${digits.slice(0, 3)} ${digits.slice(3)}`;
+         return `+250 ${digits.slice(0, 3)} ${digits.slice(
+            3,
+            6
+         )} ${digits.slice(6, 9)}`;
+      }
+
+      // If starts with 07, format as 07X XXX XXX
+      if (cleaned.startsWith("07")) {
+         const digits = cleaned;
+         if (digits.length <= 3) return digits;
+         if (digits.length <= 6)
+            return `${digits.slice(0, 3)} ${digits.slice(3)}`;
+         return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(
+            6,
+            10
+         )}`;
+      }
+
+      return cleaned;
+   };
+
+   // Handle phone input with validation
+   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const input = e.target.value;
+      const formatted = formatPhoneInput(input);
+
+      // Limit length based on format
+      if (formatted.startsWith("+250")) {
+         if (formatted.replace(/[^\d]/g, "").length <= 12) {
+            setPhoneInput(formatted);
+         }
+      } else if (formatted.startsWith("07")) {
+         if (formatted.replace(/[^\d]/g, "").length <= 10) {
+            setPhoneInput(formatted);
+         }
+      } else {
+         // Allow initial typing
+         if (input.length <= 15) {
+            setPhoneInput(formatted);
+         }
+      }
+
+      // Clear phone error as user types
+      if (errors?.phone) {
+         setErrors((prev: any) => ({ ...prev, phone: undefined }));
+      }
+   };
+
+   // Normalize phone to E.164 format
    const normalizePhone = (raw: string) => {
       if (!raw) return raw;
-      const trimmed = raw.trim();
-      // Remove spaces, dashes, parentheses
-      const digits = trimmed.replace(/[^0-9+]/g, "");
-      // If already starts with + and country code, ensure it's in +250 format
-      if (digits.startsWith("+")) return digits;
-      // If starts with 250 (country code without +)
-      if (digits.startsWith("250") && digits.length === 12) return `+${digits}`;
-      // If starts with leading zero local format e.g., 0784xxxxxx
-      if (digits.startsWith("0") && digits.length === 10) {
+      const digits = raw.replace(/[^\d]/g, "");
+
+      // If it's 10 digits starting with 07
+      if (digits.length === 10 && digits.startsWith("07")) {
          return `+250${digits.slice(1)}`;
       }
-      // If it's 9 digits local without leading zero
-      if (digits.length === 9) return `+250${digits}`;
-      // fallback: return original cleaned digits
-      return digits;
+
+      // If it's 12 digits starting with 250
+      if (digits.length === 12 && digits.startsWith("250")) {
+         return `+${digits}`;
+      }
+
+      // If already in +250 format
+      if (raw.startsWith("+250")) {
+         return raw.replace(/[^\d+]/g, "");
+      }
+
+      return raw;
    };
-   // (display name removed; we'll derive display_name when saving)
 
    useEffect(() => {
       try {
@@ -176,7 +238,6 @@ const Checkout = () => {
             .map((p: string) => p.trim())
             .filter(Boolean);
          if (parts.length >= 2) {
-            // Prefer the second-to-last segment as city (addresses often are "street, city, country")
             const possibleCity =
                parts.length >= 2 ? parts[parts.length - 2] : parts[0];
             if (possibleCity && possibleCity.length > 1) {
@@ -185,7 +246,6 @@ const Checkout = () => {
             }
          }
 
-         // Fallback: simple keyword checks
          if (/kigali/i.test(addr)) {
             setFormData((prev) => ({ ...prev, city: "Kigali" }));
          }
@@ -194,7 +254,7 @@ const Checkout = () => {
       }
    }, [formData.address, selectedAddress]);
 
-   // Keep local orderItems in sync with cart context (single source of truth)
+   // Keep local orderItems in sync with cart context
    useEffect(() => {
       try {
          if (Array.isArray(cartItems)) {
@@ -228,7 +288,7 @@ const Checkout = () => {
       }
    }, [cartItems, user]);
 
-   // Load location data from JSON imports and normalize to the "data" arrays
+   // Load location data from JSON imports
    useEffect(() => {
       try {
          const extract = (j: any, namePart: string) => {
@@ -239,7 +299,6 @@ const Checkout = () => {
                );
                return table?.data || [];
             }
-            // in case file already exports the table object
             if (j.type === "table" && j.data) return j.data;
             return [];
          };
@@ -247,7 +306,6 @@ const Checkout = () => {
          setProvinces(extract(provincesJson, "1_provinces"));
          setDistricts(extract(districtsJson, "2_districts"));
          setSectors(extract(sectorsJson, "3_sectors"));
-         // cells data and cell selection removed
       } catch (err) {
          console.error("Failed to load location data:", err);
       }
@@ -256,28 +314,14 @@ const Checkout = () => {
    // Update dependent lists when selections change
    useEffect(() => {
       if (!selectedProvince) return;
-      const filteredDistricts = districts.filter(
-         (d) => d.dst_province === selectedProvince
-      );
-      // clear downstream selections (cells were removed from the UI)
       setSelectedDistrict(null);
       setSelectedSector(null);
-      setDistricts((prev) => prev); // keep master list; filtered used in render
    }, [selectedProvince]);
 
    useEffect(() => {
       if (!selectedDistrict) return;
-      const filteredSectors = sectors.filter(
-         (s) => s.sct_district === selectedDistrict
-      );
       setSelectedSector(null);
-      setSectors((prev) => prev); // keep master list; filtered used in render
    }, [selectedDistrict]);
-
-   useEffect(() => {
-      if (!selectedSector) return;
-      // cells selection was removed from the flow; nothing to clear here
-   }, [selectedSector]);
 
    // Redirect if cart is empty
    useEffect(() => {
@@ -293,15 +337,14 @@ const Checkout = () => {
       (sum, item) => sum + item.price * item.quantity,
       0
    );
-   // Delivery fee depends on selected sector name (from sectors list) -> lookup sectorsFees
    const selectedSectorObj = sectors.find((s) => s.sct_id === selectedSector);
    const sectorFee = selectedSectorObj
       ? (sectorsFees as any)[selectedSectorObj.sct_name]
       : undefined;
-   const transport = sectorFee ?? 3000; // fallback if no sector chosen
+   const transport = sectorFee ?? 3000;
    const total = subtotal + transport;
 
-   // Determine if the selected location (either explicit province selection or selected saved address) is Kigali
+   // Determine if the selected location is Kigali
    const selectedProvinceObj = provinces.find(
       (p) => String(p.prv_id) === String(selectedProvince)
    );
@@ -322,10 +365,8 @@ const Checkout = () => {
    );
    const isKigali = isKigaliByProvince || isKigaliBySavedAddress;
 
-   // Helper to display province label localized via translations when available
    const getProvinceLabel = (p: any) => {
       const raw = String(p?.prv_name || "").toLowerCase();
-      // common mappings
       if (
          raw.includes("south") ||
          raw.includes("majyepfo") ||
@@ -342,12 +383,11 @@ const Checkout = () => {
          return t("province.east");
       if (raw.includes("west") || raw.includes("iburengerazuba"))
          return t("province.west");
-      // try a direct translation key based on slug
+
       const slug = raw.replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
       const tryKey = `province.${slug}`;
       const resolved = t(tryKey);
       if (resolved !== tryKey) return resolved;
-      // fallback to original name
       return p?.prv_name || tryKey;
    };
 
@@ -367,7 +407,7 @@ const Checkout = () => {
             t("checkout.errors.validEmailRequired") ||
             "Please enter a valid email";
       }
-      // If a saved address is selected, treat it as a valid address
+
       const hasAddressValue =
          (formData.address && formData.address.trim()) || selectedAddress;
       if (!hasAddressValue)
@@ -383,19 +423,11 @@ const Checkout = () => {
 
    // Handle order creation
    const handleCreateOrder = async () => {
-      // Prevent multiple submissions
       if (isSubmitting) return;
-
-      console.log("handleCreateOrder invoked", {
-         isSubmitting,
-         formData,
-         orderItems,
-      });
 
       const formErrors = validateForm();
       if (Object.keys(formErrors).length > 0) {
          setErrors(formErrors);
-         // Provide immediate user feedback so clicking doesn't feel like a no-op
          const msgs = Object.values(formErrors).filter(Boolean);
          if (msgs.length > 0) {
             toast.error(String(msgs[0]));
@@ -407,8 +439,7 @@ const Checkout = () => {
 
       if (!isLoggedIn) {
          toast.error(t("checkout.loginToPlaceOrder"));
-         // Preserve current path as redirect so user returns to checkout after auth
-         const currentPath = "/checkout"; // this page's path
+         const currentPath = "/checkout";
          router.push(`/signin?redirect=${encodeURIComponent(currentPath)}`);
          return;
       }
@@ -431,7 +462,6 @@ const Checkout = () => {
                customer_email: formData.email.trim(),
                customer_first_name: formData.firstName.trim(),
                customer_last_name: formData.lastName.trim(),
-               // Prefer selected saved address values when present
                customer_phone:
                   (selectedAddress?.phone || formData.phone || "").trim() ||
                   undefined,
@@ -449,9 +479,6 @@ const Checkout = () => {
                status: "pending" as const,
             },
             items: orderItems.map((item) => {
-               // Prefer explicit product_id stored on the cart item.
-               // Fallback: if `id` was generated as `${product_id}-${product_variation_id}`
-               // we can recover product_id by taking the first 36 chars (UUID length).
                const explicitProductId = (item as any).product_id as
                   | string
                   | undefined;
@@ -461,10 +488,8 @@ const Checkout = () => {
                   if (idStr.length === 36) {
                      resolvedProductId = idStr;
                   } else if (idStr.length >= 73 && idStr[36] === "-") {
-                     // pattern: <36 chars uuid>-<36 chars uuid>
                      resolvedProductId = idStr.slice(0, 36);
                   } else {
-                     // last resort: leave id as-is (may be legacy or SKU)
                      resolvedProductId = idStr;
                   }
                }
@@ -484,17 +509,10 @@ const Checkout = () => {
             }),
          };
 
-         console.log(
-            "Order data being sent:",
-            JSON.stringify(orderData, null, 2)
-         );
-
-         // include delivery instructions if provided
          if (formData.delivery_notes) {
             orderData.order.delivery_notes = formData.delivery_notes;
          }
 
-         // Use mutate with callbacks so React Query handles async and we reliably observe network activity
          if (!createOrder || typeof createOrder.mutate !== "function") {
             console.error("createOrder mutation is not available", createOrder);
             toast.error(
@@ -506,26 +524,20 @@ const Checkout = () => {
 
          createOrder.mutate(orderData as CreateOrderRequest, {
             onSuccess: (createdOrder: any) => {
-               console.log("createOrder.onSuccess", createdOrder);
-               // Clear cart only after successful order creation (use context)
                try {
                   clearCart();
                } catch (e) {
-                  // fallback
                   localStorage.removeItem("cart");
                }
-               setOrderItems([]); // Clear local state too
+               setOrderItems([]);
 
                toast.success(
                   `Order #${createdOrder.order_number} has been created successfully!`
                );
-
-               // Redirect to order details page
                router.push(`/orders/${createdOrder.id}`);
             },
             onError: (error: any) => {
                console.error("createOrder.onError", error);
-               // More specific error handling
                if (error?.message?.includes("uuid")) {
                   toast.error(
                      "Invalid product data. Please refresh and try again."
@@ -548,7 +560,6 @@ const Checkout = () => {
          });
       } catch (error: any) {
          console.error("Order creation failed (sync):", error);
-         // fallback error feedback
          toast.error(
             `Failed to create order: ${error?.message || "Unknown error"}`
          );
@@ -556,7 +567,6 @@ const Checkout = () => {
       }
    };
 
-   // Function to generate the WhatsApp message (fallback)
    const generateWhatsAppMessage = () => {
       const productDetails = orderItems
          .map(
@@ -610,16 +620,19 @@ Total: ${total.toLocaleString()} RWF
    // Show empty cart message
    if (orderItems.length === 0) {
       return (
-         <div className="container mx-auto px-4 py-8">
+         <div className="container mx-auto px-4 py-8 max-w-7xl">
             <div className="text-center py-12">
-               <ShoppingCart className="h-24 w-24 text-muted-foreground mx-auto mb-6" />
-               <h1 className="text-3xl font-bold mb-4">
+               <ShoppingCart className="h-16 w-16 sm:h-24 sm:w-24 text-muted-foreground mx-auto mb-4 sm:mb-6" />
+               <h1 className="text-xl sm:text-3xl font-bold mb-3 sm:mb-4 px-2">
                   {t("checkout.cartEmptyTitle")}
                </h1>
-               <p className="text-muted-foreground mb-8">
+               <p className="text-muted-foreground mb-6 sm:mb-8 px-4 text-sm sm:text-base">
                   {t("checkout.cartEmptyInfo")}
                </p>
-               <Button onClick={() => router.push("/")}>
+               <Button
+                  onClick={() => router.push("/")}
+                  className="bg-orange-500 hover:bg-orange-600 text-white text-sm sm:text-base"
+               >
                   {t("checkout.continueShopping")}
                </Button>
             </div>
@@ -628,434 +641,420 @@ Total: ${total.toLocaleString()} RWF
    }
 
    return (
-      <div className="container mx-auto px-4 py-8">
-         <h1 className="text-4xl font-extrabold tracking-tight mb-8">
+      <div className="container mx-auto px-3 sm:px-4 py-6 sm:py-8 max-w-[90vw]">
+         <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight mb-6 sm:mb-8 px-2 sm:px-0">
             {t("checkout.title")}
          </h1>
 
-         <div className="grid lg:grid-cols-2 gap-8">
-            <div className="space-y-6">
+         <div className="grid lg:grid-cols-2 gap-6 sm:gap-8">
+            {/* Left Column - Forms */}
+            <div className="space-y-4 sm:space-y-6">
                {/* Add delivery address section */}
-               <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                     <div className="flex items-center space-x-3">
-                        <MapPin className="h-5 w-5 text-gray-600" />
-                        <h2 className="text-lg font-medium">
+               <div className="space-y-3 sm:space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0">
+                     <div className="flex items-center space-x-2 sm:space-x-3">
+                        <MapPin className="h-4 w-4 sm:h-5 sm:w-5 text-orange-600" />
+                        <h2 className="text-base sm:text-lg font-medium">
                            {t("checkout.addDeliveryAddress")}
                         </h2>
                      </div>
                      <Button
                         onClick={() => {
-                           // Open the Add New Address collapsible and close the saved-addresses collapsible
                            setAddNewOpen(true);
                            setAddressOpen(false);
-                           // Reset selection so selects show sequentially
                            setSelectedProvince(null);
                            setSelectedDistrict(null);
                            setSelectedSector(null);
-                           // cells/state removed - nothing to clear here
-                           // Reset form fields
                            setHouseNumber("");
                            setPhoneInput("");
                            setEditingAddressId(null);
                         }}
                         size="sm"
                         variant="outline"
-                        className="border border-gray-300 text-gray-700 hover:bg-gray-50"
+                        className="border-orange-300 text-orange-600 hover:bg-orange-50 hover:border-orange-400 w-full sm:w-auto text-xs sm:text-sm"
                      >
+                        <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
                         {t("checkout.addNewAddress")}
                      </Button>
                   </div>
 
-                  {/* Add New Address (collapsible) - shows selects sequentially and form */}
+                  {/* Add New Address (collapsible) */}
                   <Collapsible
                      open={addNewOpen}
                      onOpenChange={setAddNewOpen}
                   >
                      <CollapsibleTrigger asChild>
-                        <div className="mt-3">
-                           {/* visually nothing here; the Add button controls opening */}
-                        </div>
+                        <div className="mt-2"></div>
                      </CollapsibleTrigger>
-                     <CollapsibleContent className="mt-4">
-                        <div className="border rounded-lg p-4 bg-gray-50 space-y-4">
-                           <div className="text-sm font-medium">
+                     <CollapsibleContent className="mt-3 sm:mt-4">
+                        <div className="border border-orange-200 rounded-lg p-3 sm:p-4 bg-gradient-to-r from-orange-50 to-orange-25 space-y-3 sm:space-y-4">
+                           <div className="text-xs sm:text-sm font-medium text-orange-800">
                               {t("checkout.addNewAddress")}
                            </div>
 
-                           {/* Sequential selects: only show next select after previous is chosen */}
-                           <div className="space-y-2">
-                              <Label className="text-sm">
-                                 Province{" "}
-                                 <span className="text-red-500">*</span>
-                              </Label>
-                              <Select
-                                 value={selectedProvince ?? ""}
-                                 onValueChange={(v) =>
-                                    setSelectedProvince(v || null)
-                                 }
-                              >
-                                 <SelectTrigger>
-                                    <SelectValue
-                                       placeholder={t(
-                                          "checkout.selectProvincePlaceholder"
-                                       )}
-                                    />
-                                 </SelectTrigger>
-                                 <SelectContent>
-                                    {provinces.map((p: any) => (
-                                       <SelectItem
-                                          key={p.prv_id}
-                                          value={String(p.prv_id)}
-                                       >
-                                          {getProvinceLabel(p)}
-                                       </SelectItem>
-                                    ))}
-                                 </SelectContent>
-                              </Select>
-                           </div>
-
-                           {selectedProvince && (
-                              <div className="space-y-2">
-                                 <Label className="text-sm">
-                                    District{" "}
+                           {/* Sequential selects */}
+                           <div className="space-y-2 sm:space-y-3">
+                              <div>
+                                 <Label className="text-xs sm:text-sm font-medium text-gray-700">
+                                    Province{" "}
                                     <span className="text-red-500">*</span>
                                  </Label>
                                  <Select
-                                    value={selectedDistrict ?? ""}
+                                    value={selectedProvince ?? ""}
                                     onValueChange={(v) =>
-                                       setSelectedDistrict(v || null)
+                                       setSelectedProvince(v || null)
                                     }
                                  >
-                                    <SelectTrigger>
+                                    <SelectTrigger className="border-gray-300 focus:border-orange-500 focus:ring-orange-500 text-xs sm:text-sm h-9 sm:h-10">
                                        <SelectValue
                                           placeholder={t(
-                                             "checkout.selectDistrictPlaceholder"
+                                             "checkout.selectProvincePlaceholder"
                                           )}
                                        />
                                     </SelectTrigger>
-                                    <SelectContent>
-                                       {districts
-                                          .filter(
-                                             (d: any) =>
-                                                d.dst_province ===
-                                                selectedProvince
-                                          )
-                                          .map((d: any) => (
-                                             <SelectItem
-                                                key={d.dst_id}
-                                                value={String(d.dst_id)}
-                                             >
-                                                {d.dst_name}
-                                             </SelectItem>
-                                          ))}
+                                    <SelectContent className="text-xs sm:text-sm max-h-48 sm:max-h-56">
+                                       {provinces.map((p: any) => (
+                                          <SelectItem
+                                             key={p.prv_id}
+                                             value={String(p.prv_id)}
+                                             className="text-xs sm:text-sm"
+                                          >
+                                             {getProvinceLabel(p)}
+                                          </SelectItem>
+                                       ))}
                                     </SelectContent>
                                  </Select>
                               </div>
-                           )}
 
-                           {selectedDistrict &&
-                              (() => {
-                                 // Show sector selection only for Kigali province users
-                                 const selectedProvinceObj = provinces.find(
-                                    (p: any) =>
-                                       String(p.prv_id) ===
-                                       String(selectedProvince)
-                                 );
-                                 const provinceIsKigali = Boolean(
-                                    selectedProvinceObj?.prv_name
-                                       ?.toLowerCase()
-                                       .includes("kigali")
-                                 );
+                              {selectedProvince && (
+                                 <div>
+                                    <Label className="text-xs sm:text-sm font-medium text-gray-700">
+                                       District{" "}
+                                       <span className="text-red-500">*</span>
+                                    </Label>
+                                    <Select
+                                       value={selectedDistrict ?? ""}
+                                       onValueChange={(v) =>
+                                          setSelectedDistrict(v || null)
+                                       }
+                                    >
+                                       <SelectTrigger className="border-gray-300 focus:border-orange-500 focus:ring-orange-500 text-xs sm:text-sm h-9 sm:h-10">
+                                          <SelectValue
+                                             placeholder={t(
+                                                "checkout.selectDistrictPlaceholder"
+                                             )}
+                                          />
+                                       </SelectTrigger>
+                                       <SelectContent className="text-xs sm:text-sm max-h-48 sm:max-h-56">
+                                          {districts
+                                             .filter(
+                                                (d: any) =>
+                                                   d.dst_province ===
+                                                   selectedProvince
+                                             )
+                                             .map((d: any) => (
+                                                <SelectItem
+                                                   key={d.dst_id}
+                                                   value={String(d.dst_id)}
+                                                   className="text-xs sm:text-sm"
+                                                >
+                                                   {d.dst_name}
+                                                </SelectItem>
+                                             ))}
+                                       </SelectContent>
+                                    </Select>
+                                 </div>
+                              )}
 
-                                 if (!provinceIsKigali) return null;
+                              {selectedDistrict &&
+                                 (() => {
+                                    const selectedProvinceObj = provinces.find(
+                                       (p: any) =>
+                                          String(p.prv_id) ===
+                                          String(selectedProvince)
+                                    );
+                                    const provinceIsKigali = Boolean(
+                                       selectedProvinceObj?.prv_name
+                                          ?.toLowerCase()
+                                          .includes("kigali")
+                                    );
 
-                                 return (
-                                    <div className="space-y-2">
-                                       <Label className="text-sm">
-                                          Sector{" "}
-                                          <span className="text-red-500">
-                                             *
-                                          </span>
-                                       </Label>
-                                       <Select
-                                          value={selectedSector ?? ""}
-                                          onValueChange={(v) =>
-                                             setSelectedSector(v || null)
-                                          }
-                                       >
-                                          <SelectTrigger>
-                                             <SelectValue
-                                                placeholder={t(
-                                                   "checkout.selectSectorPlaceholder"
-                                                )}
-                                             />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                             {sectors
-                                                .filter(
-                                                   (s: any) =>
-                                                      s.sct_district ===
-                                                      selectedDistrict
-                                                )
-                                                .map((s: any) => (
-                                                   <SelectItem
-                                                      key={s.sct_id}
-                                                      value={String(s.sct_id)}
-                                                   >
-                                                      {s.sct_name}
-                                                   </SelectItem>
-                                                ))}
-                                          </SelectContent>
-                                       </Select>
-                                    </div>
-                                 );
-                              })()}
+                                    if (!provinceIsKigali) return null;
 
-                           {/* Cell selection removed */}
-
-                           {/* Show computed delivery fee */}
-                           <div className="flex items-center justify-between">
-                              <div className="text-sm text-gray-700">
-                                 {t("checkout.deliveryFee")}
-                              </div>
-                              <div className="text-sm font-semibold">
-                                 RWF {transport.toLocaleString()}
-                              </div>
+                                    return (
+                                       <div>
+                                          <Label className="text-xs sm:text-sm font-medium text-gray-700">
+                                             Sector{" "}
+                                             <span className="text-red-500">
+                                                *
+                                             </span>
+                                          </Label>
+                                          <Select
+                                             value={selectedSector ?? ""}
+                                             onValueChange={(v) =>
+                                                setSelectedSector(v || null)
+                                             }
+                                          >
+                                             <SelectTrigger className="border-gray-300 focus:border-orange-500 focus:ring-orange-500 text-xs sm:text-sm h-9 sm:h-10">
+                                                <SelectValue
+                                                   placeholder={t(
+                                                      "checkout.selectSectorPlaceholder"
+                                                   )}
+                                                />
+                                             </SelectTrigger>
+                                             <SelectContent className="text-xs sm:text-sm max-h-48 sm:max-h-56">
+                                                {sectors
+                                                   .filter(
+                                                      (s: any) =>
+                                                         s.sct_district ===
+                                                         selectedDistrict
+                                                   )
+                                                   .map((s: any) => (
+                                                      <SelectItem
+                                                         key={s.sct_id}
+                                                         value={String(
+                                                            s.sct_id
+                                                         )}
+                                                         className="text-xs sm:text-sm"
+                                                      >
+                                                         {s.sct_name}
+                                                      </SelectItem>
+                                                   ))}
+                                             </SelectContent>
+                                          </Select>
+                                       </div>
+                                    );
+                                 })()}
                            </div>
 
-                           {/* Add/Edit form (always visible inside Add New Address) */}
-                           <div className="pt-2">
-                              <div className="flex items-center justify-between">
-                                 <div className="text-sm font-medium">
-                                    {t("checkout.otherInfo")}
-                                 </div>
+                           {/* Address form */}
+                           <div className="pt-1 sm:pt-2 space-y-2 sm:space-y-3">
+                              <div className="text-xs sm:text-sm font-medium text-gray-700">
+                                 {t("checkout.otherInfo")}
                               </div>
 
-                              <div className="mt-2 space-y-2">
-                                 <div>
-                                    <label className="text-sm font-medium">
-                                       {t("checkout.houseStreet")}
-                                    </label>
+                              <div>
+                                 <Label className="text-xs sm:text-sm font-medium text-gray-700">
+                                    {t("checkout.houseStreet")}
+                                 </Label>
+                                 <Input
+                                    placeholder={t(
+                                       "checkout.houseStreetPlaceholder"
+                                    )}
+                                    value={houseNumber}
+                                    onChange={(e) =>
+                                       setHouseNumber(e.target.value)
+                                    }
+                                    className="border-gray-300 focus:border-orange-500 focus:ring-orange-500 text-xs sm:text-sm h-9 sm:h-10"
+                                 />
+                              </div>
+
+                              <div>
+                                 <Label className="text-xs sm:text-sm font-medium text-gray-700">
+                                    {t("checkout.phone")}{" "}
+                                    <span className="text-red-500">*</span>
+                                 </Label>
+                                 <div className="relative">
                                     <Input
-                                       placeholder={t(
-                                          "checkout.houseStreetPlaceholder"
-                                       )}
-                                       value={houseNumber}
-                                       onChange={(e) =>
-                                          setHouseNumber(e.target.value)
-                                       }
+                                       placeholder="07X XXX XXX or +250 XXX XXX XXX"
+                                       value={phoneInput}
+                                       onChange={handlePhoneChange}
+                                       className={`border-gray-300 focus:border-orange-500 focus:ring-orange-500 text-xs sm:text-sm h-9 sm:h-10 ${
+                                          errors?.phone
+                                             ? "border-red-500 focus:border-red-500 focus:ring-red-500"
+                                             : ""
+                                       }`}
                                     />
-                                 </div>
-                                 <div>
-                                    <label className="text-sm font-medium">
-                                       {t("checkout.phone")}{" "}
-                                       <span className="text-red-500">*</span>
-                                    </label>
-                                    <div>
-                                       <Input
-                                          placeholder={t(
-                                             "checkout.phonePlaceholder"
-                                          )}
-                                          value={phoneInput}
-                                          onChange={(e) => {
-                                             setPhoneInput(e.target.value);
-                                             // clear inline phone error as user types
-                                             setErrors((prev: any) => ({
-                                                ...prev,
-                                                phone: undefined,
-                                             }));
-                                          }}
-                                       />
-                                       {errors?.phone && (
-                                          <p className="text-xs text-red-600 mt-1">
-                                             {errors.phone}
-                                          </p>
-                                       )}
+                                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-xs text-gray-400">
+                                       {phoneInput.startsWith("+250")
+                                          ? "RW"
+                                          : phoneInput.startsWith("07")
+                                          ? "RW"
+                                          : ""}
                                     </div>
                                  </div>
+                                 {errors?.phone && (
+                                    <p className="text-xs text-red-600 mt-1">
+                                       {errors.phone}
+                                    </p>
+                                 )}
+                                 <p className="text-xs text-gray-500 mt-1">
+                                    Format: +250 XXX XXX XXX or 07X XXX XXX
+                                 </p>
+                              </div>
 
-                                 <div className="flex space-x-2">
-                                    <Button
-                                       onClick={async () => {
-                                          if (isSavingAddress) return;
-                                          // Save or update
-                                          // Only require sector selection when the chosen province is Kigali
-                                          const selectedProvinceObj =
-                                             provinces.find(
-                                                (p: any) =>
-                                                   String(p.prv_id) ===
-                                                   String(selectedProvince)
-                                             );
-                                          const provinceIsKigali = Boolean(
-                                             selectedProvinceObj?.prv_name
-                                                ?.toLowerCase()
-                                                .includes("kigali")
-                                          );
+                              <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 pt-1 sm:pt-2">
+                                 <Button
+                                    onClick={async () => {
+                                       if (isSavingAddress) return;
 
-                                          if (
-                                             provinceIsKigali &&
-                                             !selectedSector
-                                          ) {
-                                             toast.error(
-                                                "Please select a sector for delivery"
-                                             );
-                                             return;
-                                          }
-                                          // prevent double-clicks
-                                          setIsSavingAddress(true);
-                                          // validate phone with zod
-                                          try {
-                                             phoneSchema.parse({
-                                                phone: phoneInput,
-                                             });
-                                          } catch (ve: any) {
-                                             const first =
-                                                ve?.errors?.[0]?.message ||
-                                                t("checkout.errors.validPhone");
-                                             setErrors((prev: any) => ({
-                                                ...prev,
-                                                phone: first,
-                                             }));
-                                             toast.error(String(first));
-                                             setIsSavingAddress(false);
-                                             return;
-                                          }
-                                          const sectorObj = sectors.find(
-                                             (s) => s.sct_id === selectedSector
+                                       const selectedProvinceObj =
+                                          provinces.find(
+                                             (p: any) =>
+                                                String(p.prv_id) ===
+                                                String(selectedProvince)
                                           );
-                                          // For Kigali, use sector name as city/street. For other provinces,
-                                          // derive city from selected district (if available) to avoid forcing
-                                          // users to pick sector/cell.
-                                          const districtObj = districts.find(
-                                             (d) =>
-                                                d.dst_id === selectedDistrict
-                                          );
-                                          const cityName = provinceIsKigali
-                                             ? sectorObj?.sct_name || ""
-                                             : districtObj?.dst_name || "";
-                                          // Derive a display name from selected names (sector/cell) since displayName field removed
-                                          const derivedDisplayName = (() => {
-                                             if (sectorObj)
-                                                return `${sectorObj.sct_name} address`;
-                                             return "Address";
-                                          })();
-                                          try {
-                                             const normalizedPhone =
-                                                normalizePhone(phoneInput);
+                                       const provinceIsKigali = Boolean(
+                                          selectedProvinceObj?.prv_name
+                                             ?.toLowerCase()
+                                             .includes("kigali")
+                                       );
 
-                                             if (editingAddressId) {
-                                                const updated =
-                                                   await updateAddress(
-                                                      editingAddressId,
-                                                      {
-                                                         display_name:
-                                                            derivedDisplayName,
-                                                         street: cityName,
-                                                         house_number:
-                                                            houseNumber,
-                                                         phone: normalizedPhone,
-                                                         city: cityName,
-                                                      }
-                                                   );
-                                                if (updated)
-                                                   toast.success(
-                                                      t(
-                                                         "checkout.updatedSuccess"
-                                                      )
-                                                   );
-                                                else
-                                                   toast.error(
-                                                      t("checkout.updateFailed")
-                                                   );
-                                             } else {
-                                                const saved = await saveAddress(
+                                       if (
+                                          provinceIsKigali &&
+                                          !selectedSector
+                                       ) {
+                                          toast.error(
+                                             "Please select a sector for delivery"
+                                          );
+                                          return;
+                                       }
+
+                                       setIsSavingAddress(true);
+
+                                       // Validate phone with enhanced schema
+                                       try {
+                                          phoneSchema.parse({
+                                             phone: phoneInput,
+                                          });
+                                       } catch (ve: any) {
+                                          const first =
+                                             ve?.errors?.[0]?.message ||
+                                             t("checkout.errors.validPhone");
+                                          setErrors((prev: any) => ({
+                                             ...prev,
+                                             phone: first,
+                                          }));
+                                          toast.error(String(first));
+                                          setIsSavingAddress(false);
+                                          return;
+                                       }
+
+                                       const sectorObj = sectors.find(
+                                          (s) => s.sct_id === selectedSector
+                                       );
+                                       const districtObj = districts.find(
+                                          (d) => d.dst_id === selectedDistrict
+                                       );
+                                       const cityName = provinceIsKigali
+                                          ? sectorObj?.sct_name || ""
+                                          : districtObj?.dst_name || "";
+                                       const derivedDisplayName = sectorObj
+                                          ? `${sectorObj.sct_name} address`
+                                          : "Address";
+
+                                       try {
+                                          const normalizedPhone =
+                                             normalizePhone(phoneInput);
+
+                                          if (editingAddressId) {
+                                             const updated =
+                                                await updateAddress(
+                                                   editingAddressId,
                                                    {
                                                       display_name:
                                                          derivedDisplayName,
-                                                      lat: "0",
-                                                      lon: "0",
-                                                      address: {
-                                                         city: cityName,
-                                                      },
                                                       street: cityName,
                                                       house_number: houseNumber,
                                                       phone: normalizedPhone,
-                                                      is_default: false,
+                                                      city: cityName,
                                                    }
                                                 );
-                                                if (saved)
-                                                   toast.success(
-                                                      t("checkout.savedSuccess")
-                                                   );
-                                                else
-                                                   toast.error(
-                                                      t("checkout.saveFailed")
-                                                   );
-                                             }
-                                             // refresh list and switch UI: close Add New, open Select Address
-                                             await reloadSaved();
-                                             // close the Add New collapsible and open the Select Delivery Address
-                                             setAddNewOpen(false);
-                                             setAddressOpen(true);
-                                             setEditingAddressId(null);
-                                             // clear form
-                                             setHouseNumber("");
-                                             setPhoneInput("");
-                                          } catch (err) {
-                                             console.error(err);
-                                             toast.error(
-                                                t("checkout.saveFailed")
-                                             );
-                                             setIsSavingAddress(false);
+                                             if (updated)
+                                                toast.success(
+                                                   t("checkout.updatedSuccess")
+                                                );
+                                             else
+                                                toast.error(
+                                                   t("checkout.updateFailed")
+                                                );
+                                          } else {
+                                             const saved = await saveAddress({
+                                                display_name:
+                                                   derivedDisplayName,
+                                                lat: "0",
+                                                lon: "0",
+                                                address: { city: cityName },
+                                                street: cityName,
+                                                house_number: houseNumber,
+                                                phone: normalizedPhone,
+                                                is_default: false,
+                                             });
+                                             if (saved)
+                                                toast.success(
+                                                   t("checkout.savedSuccess")
+                                                );
+                                             else
+                                                toast.error(
+                                                   t("checkout.saveFailed")
+                                                );
                                           }
 
-                                          // final cleanup: ensure button re-enabled
-                                          setIsSavingAddress(false);
-                                       }}
-                                       disabled={isSavingAddress}
-                                       aria-busy={isSavingAddress}
-                                    >
-                                       {t("common.save")}
-                                    </Button>
-                                    <Button
-                                       variant="outline"
-                                       onClick={() => {
+                                          // Refresh and switch UI
+                                          await reloadSaved();
+                                          setAddNewOpen(false);
+                                          setAddressOpen(true);
                                           setEditingAddressId(null);
                                           setHouseNumber("");
                                           setPhoneInput("");
-                                       }}
-                                    >
-                                       {t("common.cancel")}
-                                    </Button>
-                                 </div>
+                                       } catch (err) {
+                                          console.error(err);
+                                          toast.error(t("checkout.saveFailed"));
+                                       } finally {
+                                          setIsSavingAddress(false);
+                                       }
+                                    }}
+                                    disabled={isSavingAddress}
+                                    className="bg-orange-500 hover:bg-orange-600 text-white text-xs sm:text-sm h-9 sm:h-10"
+                                 >
+                                    {isSavingAddress ? (
+                                       <>
+                                          <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 animate-spin" />
+                                          {t("common.saving") || "Saving..."}
+                                       </>
+                                    ) : (
+                                       t("common.save")
+                                    )}
+                                 </Button>
+                                 <Button
+                                    variant="outline"
+                                    onClick={() => {
+                                       setEditingAddressId(null);
+                                       setHouseNumber("");
+                                       setPhoneInput("");
+                                       setAddNewOpen(false);
+                                    }}
+                                    className="border-gray-300 text-gray-700 hover:bg-gray-50 text-xs sm:text-sm h-9 sm:h-10"
+                                 >
+                                    {t("common.cancel")}
+                                 </Button>
                               </div>
                            </div>
                         </div>
                      </CollapsibleContent>
                   </Collapsible>
 
-                  {/* Select delivery address (separate collapsible) */}
+                  {/* Select delivery address */}
                   <Collapsible
                      open={addressOpen}
                      onOpenChange={setAddressOpen}
                   >
                      <CollapsibleTrigger asChild>
-                        <button className="w-full text-left p-0 flex items-center space-x-2 text-gray-600 hover:text-gray-800">
+                        <button className="w-full text-left p-0 flex items-center space-x-2 text-gray-600 hover:text-orange-600 transition-colors text-sm">
                            {addressOpen ? (
-                              <ChevronDown className="h-4 w-4" />
+                              <ChevronDown className="h-3 w-3 sm:h-4 sm:w-4" />
                            ) : (
-                              <ChevronRight className="h-4 w-4" />
+                              <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4" />
                            )}
-                           <span className="text-sm">
+                           <span className="text-xs sm:text-sm font-medium">
                               {t("checkout.selectDeliveryAddress")}
                            </span>
                         </button>
                      </CollapsibleTrigger>
-                     <CollapsibleContent className="mt-4">
-                        <div className="border rounded-lg p-4 bg-gray-50">
+                     <CollapsibleContent className="mt-3 sm:mt-4">
+                        <div className="border border-gray-200 rounded-lg p-3 sm:p-4 bg-gray-50">
                            {savedAddresses && savedAddresses.length > 0 ? (
-                              <div className="space-y-3">
+                              <div className="space-y-2 sm:space-y-3">
                                  {savedAddresses.map((addr) => (
                                     <div
                                        key={addr.id}
@@ -1063,7 +1062,6 @@ Total: ${total.toLocaleString()} RWF
                                        tabIndex={0}
                                        onClick={() => {
                                           selectAddress(addr.id);
-                                          // try set selectedSector by matching known fields
                                           const foundSector = sectors.find(
                                              (s) =>
                                                 s.sct_name === addr.street ||
@@ -1089,7 +1087,6 @@ Total: ${total.toLocaleString()} RWF
                                                    foundDistrict.dst_province
                                                 );
                                           }
-                                          // Use the first segment (usually street) for the address field
                                           const streetOrName =
                                              addr.street ??
                                              addr.display_name ??
@@ -1156,16 +1153,16 @@ Total: ${total.toLocaleString()} RWF
                                              }));
                                           }
                                        }}
-                                       className={`p-4 rounded-lg cursor-pointer transition-colors border-2 bg-white hover:border-orange-300 ${
+                                       className={`p-3 sm:p-4 rounded-lg cursor-pointer transition-all duration-200 border-2 bg-white hover:border-orange-300 hover:shadow-sm ${
                                           selectedAddress?.id === addr.id
-                                             ? "border-orange-400 bg-orange-50"
+                                             ? "border-orange-400 bg-orange-50 shadow-sm"
                                              : "border-gray-200"
                                        }`}
                                     >
                                        <div className="flex items-start">
-                                          <div className="flex items-center mr-3">
+                                          <div className="flex items-center mr-2 sm:mr-3 mt-0.5">
                                              <div
-                                                className={`h-4 w-4 rounded-full border-2 flex items-center justify-center ${
+                                                className={`h-3 w-3 sm:h-4 sm:w-4 rounded-full border-2 flex items-center justify-center transition-colors ${
                                                    selectedAddress?.id ===
                                                    addr.id
                                                       ? "bg-orange-500 border-orange-500"
@@ -1174,19 +1171,19 @@ Total: ${total.toLocaleString()} RWF
                                              >
                                                 {selectedAddress?.id ===
                                                    addr.id && (
-                                                   <div className="h-2 w-2 bg-white rounded-full" />
+                                                   <div className="h-1 w-1 sm:h-2 sm:w-2 bg-white rounded-full" />
                                                 )}
                                              </div>
                                           </div>
-                                          <div className="flex-1">
-                                             <p className="font-medium text-sm text-gray-800">
+                                          <div className="flex-1 min-w-0">
+                                             <p className="font-medium text-xs sm:text-sm text-gray-800 truncate">
                                                 {addr.display_name}
                                              </p>
-                                             <p className="text-sm text-gray-600">
+                                             <p className="text-xs text-gray-600 mt-0.5">
                                                 {addr.city}
                                              </p>
                                              {addr.phone && (
-                                                <p className="text-sm text-blue-600">
+                                                <p className="text-xs text-orange-600 mt-1">
                                                    {t(
                                                       "checkout.contactPhoneLabel"
                                                    )}{" "}
@@ -1197,9 +1194,16 @@ Total: ${total.toLocaleString()} RWF
                                        </div>
                                     </div>
                                  ))}
-                                 <div className="flex justify-end pt-4">
+                                 <div className="flex flex-col sm:flex-row justify-between pt-3 sm:pt-4 gap-2 sm:gap-0">
                                     <Button
-                                       className="bg-orange-400 hover:bg-orange-500 text-white px-6"
+                                       variant="outline"
+                                       className="border-orange-300 text-orange-600 hover:bg-orange-50 text-xs sm:text-sm h-9 sm:h-10"
+                                       onClick={() => router.push("/addresses")}
+                                    >
+                                       Manage Addresses
+                                    </Button>
+                                    <Button
+                                       className="bg-orange-500 hover:bg-orange-600 text-white px-4 text-xs sm:text-sm h-9 sm:h-10"
                                        onClick={() => {
                                           setAddressOpen(false);
                                           setInstructionsOpen(true);
@@ -1210,7 +1214,7 @@ Total: ${total.toLocaleString()} RWF
                                  </div>
                               </div>
                            ) : (
-                              <div className="text-sm text-gray-500">
+                              <div className="text-xs sm:text-sm text-gray-500 text-center py-3 sm:py-4">
                                  {t("checkout.noSavedAddresses")}
                               </div>
                            )}
@@ -1220,31 +1224,31 @@ Total: ${total.toLocaleString()} RWF
                </div>
 
                {/* Delivery instructions section */}
-               <div className="space-y-4">
+               <div className="space-y-3 sm:space-y-4">
                   <Collapsible
                      open={instructionsOpen}
                      onOpenChange={setInstructionsOpen}
                   >
                      <CollapsibleTrigger asChild>
-                        <button className="w-full text-left p-0 flex items-center space-x-3 text-gray-600 hover:text-gray-800">
-                           <Package className="h-5 w-5" />
-                           <span className="text-lg font-medium">
+                        <button className="w-full text-left p-0 flex items-center space-x-2 sm:space-x-3 text-gray-600 hover:text-orange-600 transition-colors">
+                           <Package className="h-4 w-4 sm:h-5 sm:w-5" />
+                           <span className="text-base sm:text-lg font-medium">
                               {t("checkout.deliveryInstructions")}
                            </span>
                         </button>
                      </CollapsibleTrigger>
-                     <CollapsibleContent className="mt-4">
-                        <div className="space-y-3">
+                     <CollapsibleContent className="mt-3 sm:mt-4">
+                        <div className="space-y-3 sm:space-y-4 border border-gray-200 rounded-lg p-3 sm:p-4 bg-gray-50">
                            <div>
                               <Label
                                  htmlFor="delivery_notes"
-                                 className="text-sm font-medium"
+                                 className="text-xs sm:text-sm font-medium text-gray-700"
                               >
                                  {t("checkout.deliveryInstructions")}
                               </Label>
                               <textarea
                                  id="delivery_notes"
-                                 rows={4}
+                                 rows={3}
                                  placeholder={t(
                                     "checkout.writeDeliveryInstructions"
                                  )}
@@ -1255,22 +1259,22 @@ Total: ${total.toLocaleString()} RWF
                                        delivery_notes: e.target.value,
                                     }))
                                  }
-                                 className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none"
+                                 className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 resize-none transition-colors text-xs sm:text-sm"
                               />
-                              <p className="mt-1 text-xs text-gray-500">
+                              <p className="mt-2 text-xs text-gray-500">
                                  {t("checkout.deliveryInstructionsHelper")}
                               </p>
                            </div>
-                           <div className="flex space-x-2 pt-2">
+                           <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 pt-1 sm:pt-2">
                               <Button
                                  variant="outline"
                                  onClick={() => setInstructionsOpen(false)}
-                                 className="border-gray-300 text-gray-700"
+                                 className="border-gray-300 text-gray-700 hover:bg-gray-50 text-xs sm:text-sm h-9 sm:h-10"
                               >
                                  {t("common.previous")}
                               </Button>
                               <Button
-                                 className="bg-orange-400 hover:bg-orange-500 text-white"
+                                 className="bg-orange-500 hover:bg-orange-600 text-white text-xs sm:text-sm h-9 sm:h-10"
                                  onClick={() => {
                                     setInstructionsOpen(false);
                                     setPaymentOpen(true);
@@ -1285,22 +1289,22 @@ Total: ${total.toLocaleString()} RWF
                </div>
 
                {/* Payment Method section */}
-               <div className="space-y-4">
+               <div className="space-y-3 sm:space-y-4">
                   <Collapsible
                      open={paymentOpen}
                      onOpenChange={setPaymentOpen}
                   >
                      <CollapsibleTrigger asChild>
-                        <button className="w-full text-left p-0 flex items-center space-x-3 text-gray-600 hover:text-gray-800">
-                           <CreditCard className="h-5 w-5" />
-                           <span className="text-lg font-medium">
+                        <button className="w-full text-left p-0 flex items-center space-x-2 sm:space-x-3 text-gray-600 hover:text-orange-600 transition-colors">
+                           <CreditCard className="h-4 w-4 sm:h-5 sm:w-5" />
+                           <span className="text-base sm:text-lg font-medium">
                               {t("checkout.paymentMethod")}
                            </span>
                         </button>
                      </CollapsibleTrigger>
-                     <CollapsibleContent className="mt-4">
-                        <div className="border rounded-lg p-4 bg-gray-50">
-                           <p className="text-sm text-gray-600">
+                     <CollapsibleContent className="mt-3 sm:mt-4">
+                        <div className="border border-gray-200 rounded-lg p-3 sm:p-4 bg-gray-50">
+                           <p className="text-xs sm:text-sm text-gray-600">
                               {t("checkout.selectPaymentMethod")}
                            </p>
                         </div>
@@ -1310,96 +1314,123 @@ Total: ${total.toLocaleString()} RWF
             </div>
 
             {/* Order Summary - Right Side */}
-            <div>
-               <Card className="sticky top-4 border border-gray-200">
-                  <CardHeader className="pb-4">
-                     <CardTitle className="text-lg font-medium">
+            <div className="lg:sticky lg:top-4">
+               <Card className="border border-gray-200 shadow-sm w-full max-w-full overflow-hidden">
+                  <CardHeader className="pb-3 sm:pb-4">
+                     <CardTitle className="text-base sm:text-lg font-medium text-gray-900">
                         {t("checkout.orderSummary")}
                      </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                     {orderItems.map((item, index) => (
-                        <div
-                           key={`${item.id}-${
-                              item.variation_id || "no-variation"
-                           }-${index}`}
-                        >
-                           <div className="flex items-start space-x-3">
-                              <div className="w-12 h-12 bg-gray-100 rounded flex-shrink-0 flex items-center justify-center">
-                                 <Package className="h-6 w-6 text-gray-400" />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                 <h4 className="font-medium text-sm text-gray-900 truncate">
-                                    {item.name}
-                                 </h4>
-                                 {item.variation_name && (
-                                    <p className="text-xs text-gray-500">
-                                       Size: {item.variation_name} •
-                                    </p>
-                                 )}
-                                 <p className="text-sm font-medium text-gray-900 mt-1">
-                                    RWF {item.price.toLocaleString()}
-                                 </p>
-                                 <p className="text-xs text-gray-500">
-                                    Quantity: {item.quantity}
-                                 </p>
+                  <CardContent className="space-y-3 sm:space-y-4">
+                     {/* Order Items with proper wrapping */}
+                     <div className="max-h-60 sm:max-h-80 overflow-y-auto -mr-1 sm:-mr-2 pr-1 sm:pr-2">
+                        {orderItems.map((item, index) => (
+                           <div
+                              key={`${item.id}-${
+                                 item.variation_id || "no-variation"
+                              }-${index}`}
+                              className="border-b border-gray-100 pb-2 sm:pb-3 last:border-b-0"
+                           >
+                              <div className="flex items-start gap-2 sm:gap-3">
+                                 <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-orange-100 to-orange-200 rounded flex-shrink-0 flex items-center justify-center mt-0.5">
+                                    <Package className="h-4 w-4 sm:h-5 sm:w-5 text-orange-600" />
+                                 </div>
+                                 <div className="flex-1 min-w-0">
+                                    {/* Product name with proper line wrapping */}
+                                    <h4 className="font-medium text-xs sm:text-sm text-gray-900 break-words leading-tight">
+                                       {item.name}
+                                    </h4>
+                                    {item.variation_name && (
+                                       <p className="text-xs text-gray-500 mt-0.5">
+                                          Size: {item.variation_name}
+                                       </p>
+                                    )}
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-0 mt-1 sm:mt-2">
+                                       <p className="text-xs sm:text-sm font-medium text-gray-900">
+                                          RWF {item.price.toLocaleString()}
+                                       </p>
+                                       <div className="flex items-center justify-between sm:justify-end gap-2">
+                                          <p className="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded whitespace-nowrap">
+                                             Qty: {item.quantity}
+                                          </p>
+                                          <p className="text-xs sm:text-sm font-medium text-orange-600 whitespace-nowrap">
+                                             RWF {(item.price * item.quantity).toLocaleString()}
+                                          </p>
+                                       </div>
+                                    </div>
+                                 </div>
                               </div>
                            </div>
-                        </div>
-                     ))}
+                        ))}
+                     </div>
 
-                     <Separator className="my-4" />
+                     <Separator className="my-3 sm:my-4" />
 
-                     <div className="space-y-2">
-                        <div className="flex justify-between text-sm">
-                           <span>{t("checkout.subtotal")}</span>
-                           <span>RWF {subtotal.toLocaleString()}</span>
+                     {/* Order Totals */}
+                     <div className="space-y-2 sm:space-y-3">
+                        <div className="flex justify-between text-xs sm:text-sm">
+                           <span className="text-gray-600">
+                              {t("checkout.subtotal")}
+                           </span>
+                           <span className="font-medium">
+                              RWF {subtotal.toLocaleString()}
+                           </span>
                         </div>
-                        <div className="flex justify-between text-sm items-center">
+                        <div className="flex justify-between text-xs sm:text-sm items-center">
                            <div className="flex items-center">
-                              <span>{t("checkout.deliveryFee")}</span>
-                              <div className="ml-1 w-3 h-3 rounded-full border border-gray-400 flex items-center justify-center">
+                              <span className="text-gray-600">
+                                 {t("checkout.deliveryFee")}
+                              </span>
+                              <div className="ml-2 w-3 h-3 sm:w-4 sm:h-4 rounded-full border border-gray-400 flex items-center justify-center">
                                  <span className="text-xs text-gray-400">
                                     i
                                  </span>
                               </div>
                            </div>
-                           <span>RWF {transport.toLocaleString()}</span>
+                           <span className="font-medium text-orange-600">
+                              RWF {transport.toLocaleString()}
+                           </span>
                         </div>
                         <Separator />
-                        <div className="flex justify-between text-lg font-bold">
-                           <span>{t("checkout.total")}</span>
-                           <span>RWF {total.toLocaleString()}</span>
+                        <div className="flex justify-between text-sm sm:text-lg font-bold">
+                           <span className="text-gray-900">
+                              {t("checkout.total")}
+                           </span>
+                           <span className="text-orange-600">
+                              RWF {total.toLocaleString()}
+                           </span>
                         </div>
                      </div>
 
-                     <div className="space-y-3 pt-4">
+                     {/* Delivery Address & Order Buttons */}
+                     <div className="space-y-2 sm:space-y-3 pt-3 sm:pt-4">
                         {selectedAddress && (
-                           <div className="border-2 border-amber-200 p-4 rounded-lg bg-gradient-to-r from-amber-50 to-white shadow-sm flex items-start justify-between">
-                              <div className="flex items-start">
-                                 <div className="mr-3 mt-0.5">
-                                    <CheckCircle2 className="h-6 w-6 text-amber-600" />
+                           <div className="border-2 border-orange-200 p-3 sm:p-4 rounded-lg bg-gradient-to-r from-orange-50 to-white shadow-sm">
+                              <div className="flex items-start justify-between gap-2">
+                                 <div className="flex items-start min-w-0 flex-1">
+                                    <div className="mr-2 sm:mr-3 mt-0.5 flex-shrink-0">
+                                       <CheckCircle2 className="h-4 w-4 sm:h-5 sm:w-5 text-orange-600" />
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                       <p className="text-xs sm:text-sm font-medium text-gray-900">
+                                          {t("checkout.deliveringTo")}
+                                       </p>
+                                       <p className="text-xs sm:text-sm font-semibold text-gray-800 break-words">
+                                          {selectedAddress.display_name}
+                                       </p>
+                                       <p className="text-xs text-gray-600 break-words">
+                                          {selectedAddress.city}
+                                          {selectedAddress.phone
+                                             ? ` • ${selectedAddress.phone}`
+                                             : ""}
+                                       </p>
+                                    </div>
                                  </div>
-                                 <div>
-                                    <p className="text-sm font-medium">
-                                       {t("checkout.deliveringTo")}
-                                    </p>
-                                    <p className="text-sm font-semibold">
-                                       {selectedAddress.display_name}
-                                    </p>
-                                    <p className="text-xs text-muted-foreground">
-                                       {selectedAddress.city}
-                                       {selectedAddress.phone
-                                          ? ` • ${selectedAddress.phone}`
-                                          : ""}
-                                    </p>
-                                 </div>
-                              </div>
-                              <div className="flex items-center">
                                  <Button
                                     size="sm"
                                     variant="outline"
                                     onClick={() => setAddressOpen(true)}
+                                    className="border-orange-300 text-orange-600 hover:bg-orange-50 flex-shrink-0 text-xs h-7 sm:h-9 whitespace-nowrap"
                                  >
                                     {t("common.edit")}
                                  </Button>
@@ -1407,61 +1438,59 @@ Total: ${total.toLocaleString()} RWF
                            </div>
                         )}
 
-                        {/* Show Place Order only when Kigali is selected (either by province selection or by saved address). */}
-                        {isKigali ? (
-                           isLoggedIn ? (
-                              <Button
-                                 className="w-full"
-                                 size="lg"
-                                 onClick={handleCreateOrder}
-                                 disabled={
-                                    isSubmitting || orderItems.length === 0
-                                 }
-                              >
-                                 {isSubmitting ? (
-                                    <>
-                                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                       {t("checkout.processing")}
-                                    </>
-                                 ) : (
-                                    <>
-                                       <CheckCircle2 className="h-4 w-4 mr-2" />
-                                       {t("checkout.placeOrder")}
-                                    </>
-                                 )}
-                              </Button>
-                           ) : (
-                              <div className="space-y-2">
-                                 <p className="text-sm text-muted-foreground text-center">
-                                    {t("checkout.loginToPlaceOrder")}
-                                 </p>
+                        {/* Order buttons */}
+                        <div className="pt-1">
+                           {isKigali ? (
+                              isLoggedIn ? (
                                  <Button
-                                    className="w-full"
-                                    size="lg"
-                                    onClick={() =>
-                                       router.push(
-                                          `/signin?redirect=${encodeURIComponent(
-                                             "/checkout"
-                                          )}`
-                                       )
+                                    className="w-full bg-orange-500 hover:bg-orange-600 text-white text-sm sm:text-base h-10 sm:h-12"
+                                    onClick={handleCreateOrder}
+                                    disabled={
+                                       isSubmitting || orderItems.length === 0
                                     }
                                  >
-                                    {t("checkout.loginToContinue")}
+                                    {isSubmitting ? (
+                                       <>
+                                          <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 animate-spin" />
+                                          {t("checkout.processing")}
+                                       </>
+                                    ) : (
+                                       <>
+                                          <CheckCircle2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                                          {t("checkout.placeOrder")}
+                                       </>
+                                    )}
                                  </Button>
-                              </div>
-                           )
-                        ) : (
-                           // Non-Kigali: show only WhatsApp order action
-                           <Button
-                              variant="outline"
-                              className="w-full"
-                              size="lg"
-                              onClick={handleWhatsAppCheckout}
-                              disabled={isSubmitting || orderItems.length === 0}
-                           >
-                              {t("checkout.orderViaWhatsApp")}
-                           </Button>
-                        )}
+                              ) : (
+                                 <div className="space-y-2">
+                                    <p className="text-xs sm:text-sm text-gray-600 text-center">
+                                       {t("checkout.loginToPlaceOrder")}
+                                    </p>
+                                    <Button
+                                       className="w-full bg-orange-500 hover:bg-orange-600 text-white text-sm sm:text-base h-10 sm:h-12"
+                                       onClick={() =>
+                                          router.push(
+                                             `/signin?redirect=${encodeURIComponent(
+                                                "/checkout"
+                                             )}`
+                                          )
+                                       }
+                                    >
+                                       {t("checkout.loginToContinue")}
+                                    </Button>
+                                 </div>
+                              )
+                           ) : (
+                              <Button
+                                 variant="outline"
+                                 className="w-full border-orange-300 text-orange-600 hover:bg-orange-50 text-sm sm:text-base h-10 sm:h-12"
+                                 onClick={handleWhatsAppCheckout}
+                                 disabled={isSubmitting || orderItems.length === 0}
+                              >
+                                 {t("checkout.orderViaWhatsApp")}
+                              </Button>
+                           )}
+                        </div>
                      </div>
                   </CardContent>
                </Card>
