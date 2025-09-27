@@ -1,6 +1,6 @@
 "use client";
 
-import { slideImg1 } from "@/assets";
+import { carousel1, carousel2 } from "@/assets";
 import {
   Carousel,
   CarouselContent,
@@ -14,20 +14,53 @@ import Image from "next/image";
 import { Button } from "../ui/button";
 import MaxWidthWrapper from "../MaxWidthWrapper";
 
+const carouselContent = [
+  {
+    image: carousel1,
+    heading: "Headphones",
+    description: "Products you can't find anywhere else in Rwanda now delivered to you in 40 minutes.",
+    buttonText: "Shop headphones",
+  },
+  {
+    image: carousel2,
+    heading: "Easy access",
+    description: "Not in Kigali? It's okay, we deliver",
+    buttonText: "Shop speakers",
+  },
+  {
+    image: carousel1,
+    heading: "Earbuds",
+    description: "You like it? We bring it to you.",
+    buttonText: "Shop earbuds",
+  },
+  {
+    image: carousel2,
+    heading: "Accessories",
+    description: "Yes we know, our prices are low.",
+    buttonText: "Shop accessories",
+  },
+  {
+    image: carousel1,
+    heading: "Bundles",
+    description: "Buy gifts, home appliances, kids products, watches, necklaces, etc with us.",
+    buttonText: "Shop bundles",
+  },
+];
+
 export default function HeroCarousel() {
   return (
     <MaxWidthWrapper size={"lg"} className="my-20">
       <div className="relative">
         <Carousel opts={{ loop: true }} plugins={[Autoplay()]}>
           <CarouselContent>
-            {Array.from({ length: 5 }).map((_, index) => (
+            {carouselContent.map((slide, index) => (
               <CarouselItem key={index} className="basis-[97%] sm:basis-[90%]">
                 <div className="relative h-[60vh] sm:h-[80vh] rounded-2xl overflow-hidden">
                   <Image
                     className="w-full h-full object-cover absolute inset-0 z-0"
                     alt="image"
                     priority
-                    src={slideImg1}
+                    src={slide.image}
                     height={500}
                     width={980}
                   />
@@ -35,17 +68,17 @@ export default function HeroCarousel() {
                     <div className="mt-auto mb-36 px-10 sm:px-20 flex flex-col md:flex-row justify-between md:items-center gap-6 md:gap-5">
                       <div className="flex flex-col xs:gap-2 md:gap-4">
                         <h3 className="mt-auto text-3xl xs:text-5xl sm:text-6xl lg:text-7xl text-white font-semibold">
-                          Headphones
+                          {slide.heading}
                         </h3>
                         <p className="text-white text-base xs:text-lg">
-                          Hear the future, save the planet.
+                          {slide.description}
                         </p>
                       </div>
                       <Button
                         className="bg-brand-orange text-white hover:bg-brand-orange/90 rounded-full w-full md:w-fit"
                         size={"lg"}
                       >
-                        Shop headphones
+                        {slide.buttonText}
                       </Button>
                     </div>
                   </div>

@@ -35,7 +35,6 @@ const promos = [
 const FeaturedProducts: FC<FeaturedProductsProps> = ({}) => {
   const { t } = useLanguage();
 
-  
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("all");
   const [categories, setCategories] = useState<StoreCategorySimple[]>([]);
   const [products, setProducts] = useState<StoreProduct[]>([]);
@@ -89,7 +88,7 @@ const FeaturedProducts: FC<FeaturedProductsProps> = ({}) => {
   return (
     <MaxWidthWrapper size={"lg"} className="my-20">
       <h3 className="text-4xl font-bold text-neutral-900 mb-5">
-        {t('home.under')} <span className="text-brand-orange">RWF 15,000</span>
+        {t("home.under")} <span className="text-brand-orange">RWF 15,000</span>
       </h3>
       <div className="flex items-center flex-wrap gap-3 mb-8">
         <Button
@@ -122,7 +121,7 @@ const FeaturedProducts: FC<FeaturedProductsProps> = ({}) => {
             Array.from({ length: 4 }).map((_, index) => (
               <CarouselItem
                 key={index}
-                className="sm:basis-1/2 lg:basis-1/3 xl:basis-1/4"
+                className="basis-[80%] sm:basis-1/2 lg:basis-1/3 xl:basis-1/5"
               >
                 <div className="shrink-0 group aspect-[9/12] bg-gray-200 rounded-2xl animate-pulse" />
               </CarouselItem>
@@ -131,7 +130,7 @@ const FeaturedProducts: FC<FeaturedProductsProps> = ({}) => {
             products.map((product) => (
               <CarouselItem
                 key={product.id}
-                className="sm:basis-1/2 lg:basis-1/3 xl:basis-1/4 mb-5"
+                className="basis-[80%] sm:basis-1/2 lg:basis-1/3 xl:basis-1/4 mb-5"
               >
                 <Link
                   href={`/products/${product.id}`}
@@ -141,13 +140,16 @@ const FeaturedProducts: FC<FeaturedProductsProps> = ({}) => {
                 >
                   <div className="bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden flex flex-col h-full relative border border-gray-100">
                     {/* Hot Ribbon (hidden on mobile for less clutter) */}
-                    {/* <div className="hidden md:block absolute z-20 left-0 top-4">
-                      <div className="rotate-[-45deg] -ml-2">
-                        <span className="bg-red-500 text-white text-[10px] font-bold px-6 py-1 rounded shadow-md tracking-widest drop-shadow-lg">
+                    <div className="absolute z-20 left-0 top-4">
+                      <div className="pl-2">
+                        {/* <span className="bg-red-500 text-white text-[10px] font-bold px-6 py-1 rounded shadow-md tracking-widest drop-shadow-lg">
                           HOT
+                        </span> */}
+                        <span className="inline-block bg-brand-orange text-white text-xs font-bold rounded-full px-2 py-0.5 ml-auto">
+                          RWF {product.price.toLocaleString()}
                         </span>
                       </div>
-                    </div> */}
+                    </div>
                     {/* Product Image */}
                     <div className="relative w-full aspect-[4/5] bg-gradient-to-br from-blue-100 to-blue-50 overflow-hidden">
                       <Image
@@ -162,7 +164,7 @@ const FeaturedProducts: FC<FeaturedProductsProps> = ({}) => {
                     {/* Card Content */}
                     <div className="flex flex-col flex-1 px-3 md:px-4 pt-2 md:pt-3 pb-4 md:pb-5 gap-2">
                       {/* Brand, Rating, Price */}
-                      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 mb-1">
+                      {/* <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 mb-1">
                         <span className="text-xs text-gray-500 font-semibold truncate max-w-[40%]">
                           {product.brand || "New Arrival"}
                         </span>
@@ -179,7 +181,7 @@ const FeaturedProducts: FC<FeaturedProductsProps> = ({}) => {
                         <span className="inline-block bg-brand-orange text-white text-xs font-bold rounded-full px-2 py-0.5 ml-auto">
                           RWF {product.price.toLocaleString()}
                         </span>
-                      </div>
+                      </div> */}
                       {/* Product Name */}
                       <h4 className="font-bold text-gray-900 text-base md:text-lg truncate">
                         {product.name}

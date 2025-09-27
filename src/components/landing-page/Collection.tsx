@@ -87,7 +87,7 @@ const Collection: FC<CollectionProps> = ({}) => {
           {t("home.categories")}
         </h1>
         <div
-          className="flex overflow-x-scroll scroll-smooth gap-2 pl-3 xs:pl-5 sm:pl-10 lg:pl-20 scrollbar-hidden"
+          className="flex overflow-x-scroll scroll-smooth gap-2 scrollbar-hidden"
           ref={sliderRef}
           onScroll={handleSliderScroll}
         >
@@ -97,7 +97,7 @@ const Collection: FC<CollectionProps> = ({}) => {
                 .map((_, i) => (
                   <div
                     key={i}
-                    className=" shrink-0 aspect-[9/12] bg-gray-200 rounded-2xl animate-pulse"
+                    className="w-80 shrink-0 aspect-[9/12] bg-gray-200 rounded-2xl animate-pulse"
                   />
                 ))
             : categories.map((category) => (

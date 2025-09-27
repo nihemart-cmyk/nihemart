@@ -84,9 +84,12 @@ const ProductCard = ({ product }: { product: StoreProduct }) => (
     tabIndex={0}
   >
     {/* Hot badge (hidden on mobile) */}
-    <div className="hidden md:block absolute z-20 left-3 top-3">
-      <span className="bg-red-500 text-white text-xs font-bold px-4 py-1 rounded-full shadow-md tracking-widest">
+    <div className="absolute z-20 left-3 top-3">
+      {/* <span className="bg-red-500 text-white text-xs font-bold px-4 py-1 rounded-full shadow-md tracking-widest">
         HOT
+      </span> */}
+      <span className="inline-block bg-brand-orange text-white text-xs font-bold rounded-full px-2 py-0.5 mr-auto">
+        RWF {product.price.toLocaleString()}
       </span>
     </div>
     {/* Product Image */}
@@ -102,7 +105,7 @@ const ProductCard = ({ product }: { product: StoreProduct }) => (
     {/* Card Content */}
     <div className="flex flex-col flex-1 px-3 md:px-4 pt-3 pb-4 gap-2">
       {/* Brand, Rating, Price */}
-      <div className="flex flex-col md:flex-row flex-wrap md:items-center justify-between gap-x-2 gap-y-1 mb-1">
+      {/* <div className="flex flex-col md:flex-row flex-wrap md:items-center justify-between gap-x-2 gap-y-1 mb-1">
         <span className="text-xs text-gray-500 font-semibold truncate w-full md:max-w-[40%] ">
           {product.brand || "New Arrival"}
         </span>
@@ -115,7 +118,7 @@ const ProductCard = ({ product }: { product: StoreProduct }) => (
         <span className="inline-block bg-brand-orange text-white text-xs font-bold rounded-full px-2 py-0.5 mr-auto">
           RWF {product.price.toLocaleString()}
         </span>
-      </div>
+      </div> */}
       {/* Product Name */}
       <h4 className="font-bold text-gray-900 text-base md:text-lg line-clamp-2">
         {product.name}
@@ -199,7 +202,7 @@ const MoreToLove: FC<MoreToLoveProps> = ({}) => {
                 disabled={loadingMore}
                 className="px-6 py-3 rounded-full"
               >
-                {loadingMore ? t('common.loading') : t('common.loadMore')}
+                {loadingMore ? t("common.loading") : t("common.loadMore")}
               </Button>
             </div>
           </>
