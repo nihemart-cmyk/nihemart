@@ -259,10 +259,9 @@ const Checkout = () => {
       const filteredDistricts = districts.filter(
          (d) => d.dst_province === selectedProvince
       );
-      // clear downstream selections
+      // clear downstream selections (cells were removed from the UI)
       setSelectedDistrict(null);
       setSelectedSector(null);
-      setSelectedCell(null);
       setDistricts((prev) => prev); // keep master list; filtered used in render
    }, [selectedProvince]);
 
@@ -272,14 +271,12 @@ const Checkout = () => {
          (s) => s.sct_district === selectedDistrict
       );
       setSelectedSector(null);
-      setSelectedCell(null);
       setSectors((prev) => prev); // keep master list; filtered used in render
    }, [selectedDistrict]);
 
    useEffect(() => {
       if (!selectedSector) return;
-      setSelectedCell(null);
-      setCells((prev) => prev); // keep master list; filtered used in render
+      // cells selection was removed from the flow; nothing to clear here
    }, [selectedSector]);
 
    // Redirect if cart is empty
@@ -656,7 +653,7 @@ Total: ${total.toLocaleString()} RWF
                            setSelectedProvince(null);
                            setSelectedDistrict(null);
                            setSelectedSector(null);
-                           setSelectedCell(null);
+                           // cells/state removed - nothing to clear here
                            // Reset form fields
                            setHouseNumber("");
                            setPhoneInput("");
