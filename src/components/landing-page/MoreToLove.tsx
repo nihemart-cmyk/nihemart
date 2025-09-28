@@ -11,6 +11,7 @@ import Image from "next/image";
 import Link from "next/link";
 import MaxWidthWrapper from "../MaxWidthWrapper";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { WishlistButton } from "../ui/wishlist-button";
 
 interface MoreToLoveProps {}
 
@@ -84,13 +85,34 @@ const ProductCard = ({ product }: { product: StoreProduct }) => (
     tabIndex={0}
   >
     {/* Hot badge (hidden on mobile) */}
-    <div className="absolute z-20 left-3 top-3">
-      {/* <span className="bg-red-500 text-white text-xs font-bold px-4 py-1 rounded-full shadow-md tracking-widest">
+    {/* <div className="absolute z-20 left-3 top-3"> */}
+    {/* <span className="bg-red-500 text-white text-xs font-bold px-4 py-1 rounded-full shadow-md tracking-widest">
         HOT
       </span> */}
-      <span className="inline-block bg-brand-orange text-white text-xs font-bold rounded-full px-2 py-0.5 mr-auto">
+    {/* <span className="inline-block bg-brand-orange text-white text-xs font-bold rounded-full px-2 py-0.5 mr-auto">
         RWF {product.price.toLocaleString()}
+      </span> */}
+    {/* </div> */}
+    <div className="absolute z-20 left-3 top-3">
+      {/* <span className="bg-red-500 text-white text-xs font-bold px-4 py-1 rounded-full shadow-md tracking-widest">
+            HOT
+          </span> */}
+      <span className="inline-block bg-brand-orange text-white text-xs font-bold rounded-full px-2 py-0.5 mr-auto">
+        RWF{" "}
+        {product?.price.toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}{" "}
       </span>
+    </div>
+    {/* Wishlist button */}
+    <div className="absolute z-20 right-3 top-3">
+      <WishlistButton
+        productId={product.id}
+        size="sm"
+        variant="ghost"
+        className="bg-white/80 backdrop-blur-sm hover:bg-white shadow-sm"
+      />
     </div>
     {/* Product Image */}
     <div className="relative w-full aspect-[4/5] bg-gray-100">
@@ -120,7 +142,7 @@ const ProductCard = ({ product }: { product: StoreProduct }) => (
         </span>
       </div> */}
       {/* Product Name */}
-      <h4 className="font-bold text-gray-900 text-base md:text-lg line-clamp-2">
+      <h4 className="font-bold text-gray-900 text-base md:text-lg line-clamp-2 truncate">
         {product.name}
       </h4>
       {/* Description */}
