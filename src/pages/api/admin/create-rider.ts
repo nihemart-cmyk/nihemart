@@ -85,6 +85,33 @@ export default async function handler(
          }
       }
 
+      // Ensure a profiles row exists and contains provided metadata (full_name, phone)
+      // Use service role client on server so RLS does not block this operation.
+      if (createdUserId) {
+         try {
+            const { error: profileErr } = await supabase
+               .from("profiles")
+               .upsert(
+                  [
+                     {
+                        id: createdUserId,
+                        full_name: full_name || null,
+                        phone: phone || null,
+                     },
+                  ],
+                  { onConflict: "id" }
+               );
+            if (profileErr) {
+               console.error(
+                  "Failed to upsert profile for new rider user:",
+                  profileErr
+               );
+            }
+         } catch (e) {
+            console.error("Error upserting profile for new rider user:", e);
+         }
+      }
+
       const rider = await createRider({
          full_name,
          phone,
