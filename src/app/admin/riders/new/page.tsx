@@ -3,6 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import {
    Select,
    SelectTrigger,
@@ -26,6 +27,8 @@ const NewRiderPage = () => {
    const [fullName, setFullName] = useState("");
    const [phone, setPhone] = useState("");
    const [vehicle, setVehicle] = useState("");
+   const [active, setActive] = useState(true);
+   const [notes, setNotes] = useState("");
    const [loading, setLoading] = useState(false);
    const [error, setError] = useState("");
    const [message, setMessage] = useState("");
@@ -53,6 +56,8 @@ const NewRiderPage = () => {
                vehicle,
                email,
                password,
+               active,
+               notes,
             }),
          });
 
@@ -191,6 +196,25 @@ const NewRiderPage = () => {
                                     className="pl-10"
                                     placeholder="Phone number"
                                     disabled={loading}
+                                 />
+                              </div>
+
+                              <div>
+                                 <Label>Active</Label>
+                                 <div className="mt-2">
+                                    <Switch
+                                       checked={active}
+                                       onCheckedChange={(v) => setActive(!!v)}
+                                    />
+                                 </div>
+                              </div>
+
+                              <div>
+                                 <Label>Notes</Label>
+                                 <Input
+                                    value={notes}
+                                    onChange={(e) => setNotes(e.target.value)}
+                                    placeholder="Optional notes about rider"
                                  />
                               </div>
                            </div>

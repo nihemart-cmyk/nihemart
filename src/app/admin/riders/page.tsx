@@ -9,6 +9,18 @@ import useRiders, {
 } from "@/hooks/useRiders";
 import { useEffect } from "react";
 import { toast } from "sonner";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+   AlertDialog,
+   AlertDialogContent,
+   AlertDialogHeader,
+   AlertDialogTitle,
+   AlertDialogDescription,
+   AlertDialogFooter,
+   AlertDialogAction,
+   AlertDialogCancel,
+   AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import dynamic from "next/dynamic";
 import { useState } from "react";
 import {
@@ -42,6 +54,17 @@ const RidersPage = () => {
    const assign = useAssignOrder();
    const [dialogOpen, setDialogOpen] = useState(false);
    const [activeRiderId, setActiveRiderId] = useState<string | null>(null);
+   const qc = useQueryClient();
+
+   // confirmation dialogs state
+   const [confirmToggle, setConfirmToggle] = useState<{
+      open: boolean;
+      riderId?: string;
+   }>({ open: false });
+   const [confirmDelete, setConfirmDelete] = useState<{
+      open: boolean;
+      riderId?: string;
+   }>({ open: false });
 
    const riders = data || [];
 
@@ -182,8 +205,26 @@ const RidersPage = () => {
                      <DropdownMenuLabel>Actions</DropdownMenuLabel>
                      <DropdownMenuItem
                         onClick={() => openAssignDialog(rider.id)}
+                        disabled={rider.active === false}
                      >
-                        Assign to order
+                        {rider.active === false
+                           ? "Cannot assign (inactive)"
+                           : "Assign to order"}
+                     </DropdownMenuItem>
+                     <DropdownMenuSeparator />
+                     <DropdownMenuItem
+                        onClick={() =>
+                           setConfirmToggle({ open: true, riderId: rider.id })
+                        }
+                     >
+                        {rider.active ? "Disable rider" : "Enable rider"}
+                     </DropdownMenuItem>
+                     <DropdownMenuItem
+                        onClick={() =>
+                           setConfirmDelete({ open: true, riderId: rider.id })
+                        }
+                     >
+                        Delete rider
                      </DropdownMenuItem>
                      <DropdownMenuSeparator />
                      <DropdownMenuItem
@@ -450,6 +491,22 @@ const RidersPage = () => {
                   onAssigned={onAssigned}
                />
             )}
+
+            {/* Toggle active mutation */}
+            <ToggleActiveController
+               confirm={confirmToggle}
+               setConfirm={setConfirmToggle}
+               qc={qc}
+               refetch={refetch}
+            />
+
+            {/* Delete mutation */}
+            <DeleteRiderController
+               confirm={confirmDelete}
+               setConfirm={setConfirmDelete}
+               qc={qc}
+               refetch={refetch}
+            />
          </div>
          <ScrollBar orientation="horizontal" />
       </ScrollArea>
@@ -457,3 +514,125 @@ const RidersPage = () => {
 };
 
 export default RidersPage;
+
+// Controller component: handles toggling active state with confirmation dialog
+function ToggleActiveController({ confirm, setConfirm, qc, refetch }: any) {
+   const mutation = useMutation({
+      mutationFn: async ({ riderId, newState }: any) => {
+         const res = await fetch("/api/admin/update-rider", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ riderId, updates: { active: newState } }),
+         });
+         if (!res.ok) {
+            const json = await res.json().catch(() => ({}));
+            throw new Error(json.error || "Failed to update rider");
+         }
+         return res.json();
+      },
+      onSuccess: () => {
+         qc.invalidateQueries({ queryKey: ["riders"] });
+         refetch && refetch();
+         toast.success("Rider updated");
+      },
+      onError: (err: any) => {
+         console.error(err);
+         toast.error(err?.message || "Failed to update rider");
+      },
+   });
+
+   const riderId = confirm?.riderId;
+
+   return (
+      <AlertDialog open={!!confirm?.open}>
+         <AlertDialogContent>
+            <AlertDialogHeader>
+               <AlertDialogTitle>
+                  {mutation.status === "pending"
+                     ? "Updating rider..."
+                     : "Change rider status"}
+               </AlertDialogTitle>
+               <p className="text-sm text-muted-foreground mt-1">
+                  Are you sure you want to change this rider&apos;s active
+                  status?
+               </p>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+               <AlertDialogCancel onClick={() => setConfirm({ open: false })}>
+                  Cancel
+               </AlertDialogCancel>
+               <AlertDialogAction
+                  onClick={async () => {
+                     if (!riderId) return;
+                     mutation.mutate({ riderId, newState: true });
+                     setConfirm({ open: false });
+                  }}
+               >
+                  {mutation.status === "pending" ? "Updating..." : "Confirm"}
+               </AlertDialogAction>
+            </AlertDialogFooter>
+         </AlertDialogContent>
+      </AlertDialog>
+   );
+}
+
+// Controller component: handles deleting rider with confirmation
+function DeleteRiderController({ confirm, setConfirm, qc, refetch }: any) {
+   const mutation = useMutation({
+      mutationFn: async ({ riderId }: any) => {
+         const res = await fetch("/api/admin/delete-rider", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ riderId }),
+         });
+         if (!res.ok) {
+            const json = await res.json().catch(() => ({}));
+            throw new Error(json.error || "Failed to delete rider");
+         }
+         return res.json();
+      },
+      onSuccess: () => {
+         qc.invalidateQueries({ queryKey: ["riders"] });
+         refetch && refetch();
+         toast.success("Rider deleted");
+      },
+      onError: (err: any) => {
+         console.error(err);
+         toast.error(err?.message || "Failed to delete rider");
+      },
+   });
+
+   const riderId = confirm?.riderId;
+
+   return (
+      <AlertDialog open={!!confirm?.open}>
+         <AlertDialogContent>
+            <AlertDialogHeader>
+               <AlertDialogTitle>
+                  {mutation.status === "pending"
+                     ? "Deleting rider..."
+                     : "Delete rider"}
+               </AlertDialogTitle>
+               <AlertDialogDescription>
+                  This action cannot be undone. Rider and related data will be
+                  removed.
+               </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+               <AlertDialogCancel onClick={() => setConfirm({ open: false })}>
+                  Cancel
+               </AlertDialogCancel>
+               <AlertDialogAction
+                  onClick={async () => {
+                     if (!riderId) return;
+                     mutation.mutate({ riderId });
+                     setConfirm({ open: false });
+                  }}
+               >
+                  {mutation.status === "pending" ? "Deleting..." : "Delete"}
+               </AlertDialogAction>
+            </AlertDialogFooter>
+         </AlertDialogContent>
+      </AlertDialog>
+   );
+}

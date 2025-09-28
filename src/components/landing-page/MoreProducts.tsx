@@ -35,9 +35,12 @@ const services = [
 const ProductCard = ({ product }: { product: StoreProduct }) => (
   <div className="group flex flex-col bg-white rounded-2xl overflow-hidden shadow hover:shadow-xl transition-shadow duration-300 border border-gray-100 h-full relative">
     {/* Hot badge (hidden on mobile) */}
-    <div className="hidden md:block absolute z-20 left-3 top-3">
-      <span className="bg-red-500 text-white text-xs font-bold px-4 py-1 rounded-full shadow-md tracking-widest">
+    <div className="absolute z-20 left-3 top-3">
+      {/* <span className="bg-red-500 text-white text-xs font-bold px-4 py-1 rounded-full shadow-md tracking-widest">
         HOT
+      </span> */}
+      <span className="inline-block bg-brand-orange text-white text-xs font-bold rounded-full px-2 py-0.5 mr-auto">
+        RWF {product.price.toLocaleString()}
       </span>
     </div>
     {/* Wishlist button */}
@@ -67,7 +70,7 @@ const ProductCard = ({ product }: { product: StoreProduct }) => (
     {/* Card Content */}
     <div className="flex flex-col flex-1 px-3 md:px-4 pt-3 pb-4 gap-2">
       {/* Brand, Rating, Price */}
-      <div className="flex flex-col md:flex-row flex-wrap md:items-center justify-between gap-x-2 gap-y-1 mb-1">
+      {/* <div className="flex flex-col md:flex-row flex-wrap md:items-center justify-between gap-x-2 gap-y-1 mb-1">
         <span className="text-xs text-gray-500 font-semibold truncate w-full md:max-w-[40%] ">
           {product.brand || "New Arrival"}
         </span>
@@ -80,9 +83,9 @@ const ProductCard = ({ product }: { product: StoreProduct }) => (
         <span className="inline-block bg-brand-orange text-white text-xs font-bold rounded-full px-2 py-0.5 mr-auto">
           RWF {product.price.toLocaleString()}
         </span>
-      </div>
+      </div> */}
       {/* Product Name */}
-      <h4 className="font-bold text-gray-900 text-base md:text-lg line-clamp-2">
+      <h4 className="font-bold text-gray-900 text-base md:text-lg line-clamp-2 truncate">
         {product.name}
       </h4>
       {/* Description */}
@@ -160,7 +163,7 @@ const MoreProducts: FC<MoreProductsProps> = ({}) => {
     <div>
       <MaxWidthWrapper size={"lg"} className="">
         <h3 className="text-4xl font-bold text-neutral-900 mb-5">
-          {t('home.featured')}
+          {t("home.featured")}
         </h3>
         <div className="flex items-center flex-wrap gap-3 mb-8">
           <Button
@@ -223,7 +226,7 @@ const MoreProducts: FC<MoreProductsProps> = ({}) => {
         </div>
 
         <h3 className="text-4xl font-bold text-neutral-900 mb-8 mt-20">
-          {t('home.new')}
+          {t("home.new")}
         </h3>
 
         {loading ? (
@@ -247,7 +250,7 @@ const MoreProducts: FC<MoreProductsProps> = ({}) => {
           </div>
         ))}
       </MaxWidthWrapper>
-      <MarqueeBanner />
+      {/* <MarqueeBanner /> */}
     </div>
   );
 };

@@ -25,7 +25,16 @@ export default async function handler(
    if (!supabase)
       return res.status(500).json({ error: "Supabase not configured" });
 
-   const { full_name, phone, vehicle, user_id, email, password } = req.body;
+   const {
+      full_name,
+      phone,
+      vehicle,
+      user_id,
+      email,
+      password,
+      active,
+      notes,
+   } = req.body;
    try {
       let createdUserId = user_id || null;
 
@@ -81,6 +90,10 @@ export default async function handler(
          phone,
          vehicle,
          user_id: createdUserId,
+         active: typeof active === "boolean" ? active : true,
+         // allow storing arbitrary notes about the rider
+         // @ts-ignore: notes column may exist in schema
+         notes: notes || null,
       });
 
       // For debugging: return any user_roles rows for the createdUserId so callers

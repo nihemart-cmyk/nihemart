@@ -101,6 +101,26 @@ export async function assignOrderToRider(
          throw e;
       }
 
+      // Ensure rider exists and is active before assigning
+      const { data: riderRow, error: riderErr } = await sb
+         .from("riders")
+         .select("id, active")
+         .eq("id", riderId)
+         .maybeSingle();
+      if (riderErr) throw riderErr;
+      if (!riderRow) {
+         const e: any = new Error("Rider not found");
+         e.code = "RIDER_NOT_FOUND";
+         throw e;
+      }
+      if (riderRow.active === false) {
+         const e: any = new Error(
+            "Rider is inactive and cannot be assigned orders"
+         );
+         e.code = "RIDER_INACTIVE";
+         throw e;
+      }
+
       const { data, error } = await sb
          .from("order_assignments")
          .insert([{ order_id: orderId, rider_id: riderId, notes }])
@@ -117,6 +137,17 @@ export async function assignOrderToRider(
       // rethrow for caller to handle
       throw err;
    }
+}
+
+export async function deleteRider(riderId: string) {
+   const { data, error } = await sb
+      .from("riders")
+      .delete()
+      .eq("id", riderId)
+      .select()
+      .maybeSingle();
+   if (error) throw error;
+   return data as any;
 }
 
 export async function respondToAssignment(
