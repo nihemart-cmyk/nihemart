@@ -19,7 +19,12 @@ const page: FC<pageProps> = ({}) => {
                   "radial-gradient(circle,rgba(54, 169, 236, 0) 10%, rgba(255, 255, 255, 1) 60%)",
               }}
             ></div>
-            <Image src={"/Pattern.png"} alt="pattern" fill className="object-cover" />
+            <Image
+              src={"/Pattern.png"}
+              alt="pattern"
+              fill
+              className="object-cover"
+            />
             <Image
               src={logo}
               alt="ilead logo"
