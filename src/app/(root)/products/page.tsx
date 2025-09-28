@@ -44,6 +44,7 @@ import type {
 import { useDebounce } from "@/hooks/use-debounce";
 import Image from "next/image";
 import { useCart } from "@/contexts/CartContext";
+import { WishlistButton } from "@/components/ui/wishlist-button";
 
 const PAGE_LIMIT = 12;
 
@@ -396,14 +397,14 @@ function ProductListingComponent() {
                                 className="object-cover rounded-lg"
                               />
                             </div>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                              }}
-                              className="absolute top-2 right-2 p-2 rounded-full bg-white/90 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-110"
-                            >
-                              <Heart className="h-4 w-4 text-gray-400 hover:text-red-400" />
-                            </button>
+                            <div className="absolute top-2 right-2">
+                              <WishlistButton
+                                productId={product.id}
+                                size="sm"
+                                variant="ghost"
+                                className="bg-white/90 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-110 p-2 rounded-full"
+                              />
+                            </div>
                           </div>
                           <div className="space-y-2">
                             <h3 className="font-semibold text-gray-900 text-sm md:text-lg ">

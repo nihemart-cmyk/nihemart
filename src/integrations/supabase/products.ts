@@ -438,6 +438,7 @@ export interface ProductReview {
   rating: number;
   title: string | null;
   content: string | null;
+  image_url: string | null;
   created_at: string;
   author: {
     full_name: string | null;
@@ -455,7 +456,7 @@ export async function fetchProductWithReviews(productId: string) {
 
   const { data: reviews, error: reviewsError } = await sb
     .from('reviews')
-    .select('id, rating, title, content, created_at, author:profiles!user_id(full_name)')
+    .select('id, rating, title, content, image_url, created_at, author:profiles!user_id(full_name)')
     .eq('product_id', productId)
     .order('created_at', { ascending: false });
 
@@ -465,10 +466,43 @@ export async function fetchProductWithReviews(productId: string) {
 }
 
 export async function deleteReview(reviewId: string) {
+  // First, fetch the review to get the image_url
+  const { data: review, error: fetchError } = await sb
+    .from('reviews')
+    .select('image_url')
+    .eq('id', reviewId)
+    .single();
+
+  if (fetchError) throw fetchError;
+
+  // If there's an image, delete it from storage
+  if (review?.image_url) {
+    try {
+      // Extract the file path from the URL
+      const urlParts = review.image_url.split('/');
+      const fileName = urlParts[urlParts.length - 1];
+
+      if (fileName) {
+        const { error: storageError } = await sb.storage
+          .from('reviews-images')
+          .remove([fileName]);
+
+        if (storageError) {
+          console.warn('Failed to delete review image from storage:', storageError);
+          // Don't throw here - we still want to delete the review even if image deletion fails
+        }
+      }
+    } catch (storageErr) {
+      console.warn('Error deleting review image:', storageErr);
+      // Continue with review deletion
+    }
+  }
+
+  // Delete the review
   const { error } = await sb
     .from('reviews')
     .delete()
     .eq('id', reviewId);
-  
+
   if (error) throw error;
 }

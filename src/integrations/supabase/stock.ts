@@ -154,19 +154,12 @@ export async function fetchAllStockHistory({
     }
 
     if (search.trim()) {
-        // Search in product names, variation names, reasons, and user names
-        query = query.or(`
-            products.name.ilike.%${search}%,
-            product_variations.name.ilike.%${search}%,
-            reason.ilike.%${search}%,
-            profiles.full_name.ilike.%${search}%
-        `);
+        query = query.ilike('reason', `%${search}%`);
     }
 
     const { data, error, count } = await query;
 
     if (error) throw error;
-
     return {
         data: data as StockHistoryWithDetails[],
         count: count || 0

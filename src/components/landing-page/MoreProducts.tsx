@@ -14,6 +14,7 @@ import type {
   StoreCategorySimple,
 } from "@/integrations/supabase/store";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { WishlistButton } from "@/components/ui/wishlist-button";
 
 interface MoreProductsProps {}
 
@@ -32,20 +33,29 @@ const services = [
 ];
 
 const ProductCard = ({ product }: { product: StoreProduct }) => (
-  <Link
-    href={`/products/${product.id}`}
-    className="group flex flex-col bg-white rounded-2xl overflow-hidden shadow hover:shadow-xl transition-shadow duration-300 border border-gray-100 h-full relative"
-    aria-label={`View details for ${product.name}`}
-    tabIndex={0}
-  >
+  <div className="group flex flex-col bg-white rounded-2xl overflow-hidden shadow hover:shadow-xl transition-shadow duration-300 border border-gray-100 h-full relative">
     {/* Hot badge (hidden on mobile) */}
     <div className="hidden md:block absolute z-20 left-3 top-3">
       <span className="bg-red-500 text-white text-xs font-bold px-4 py-1 rounded-full shadow-md tracking-widest">
         HOT
       </span>
     </div>
+    {/* Wishlist button */}
+    <div className="absolute z-20 right-3 top-3">
+      <WishlistButton
+        productId={product.id}
+        size="sm"
+        variant="ghost"
+        className="bg-white/80 backdrop-blur-sm hover:bg-white shadow-sm"
+      />
+    </div>
     {/* Product Image */}
-    <div className="relative w-full aspect-[4/5] bg-gray-100">
+    <Link
+      href={`/products/${product.id}`}
+      className="relative w-full aspect-[4/5] bg-gray-100 block"
+      aria-label={`View details for ${product.name}`}
+      tabIndex={0}
+    >
       <Image
         src={product.main_image_url || "/placeholder.svg"}
         alt={product.name}
@@ -53,7 +63,7 @@ const ProductCard = ({ product }: { product: StoreProduct }) => (
         className="object-cover transition-transform duration-300 group-hover:scale-105"
         sizes="(max-width: 640px) 100vw, 33vw"
       />
-    </div>
+    </Link>
     {/* Card Content */}
     <div className="flex flex-col flex-1 px-3 md:px-4 pt-3 pb-4 gap-2">
       {/* Brand, Rating, Price */}
@@ -80,7 +90,7 @@ const ProductCard = ({ product }: { product: StoreProduct }) => (
         {product?.short_description}
       </p>
     </div>
-  </Link>
+  </div>
 );
 
 const ProductGridSkeleton = ({ count = 4 }: { count?: number }) => (

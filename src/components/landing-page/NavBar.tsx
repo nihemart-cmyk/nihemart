@@ -203,6 +203,9 @@ const NavBar: FC<NavBarProps> = ({}) => {
                     <Link href={"/profile"}>{t("nav.profile")}</Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
+                    <Link href={"/wishlist"}>Wishlist</Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
                     <Link href={"/orders"}>{t("nav.orders")}</Link>
                   </DropdownMenuItem>
                   {hasRole("admin") && (
@@ -235,6 +238,9 @@ const NavBar: FC<NavBarProps> = ({}) => {
                   <Link href={url}>{t(name)}</Link>
                 </DropdownMenuItem>
               ))}
+              <DropdownMenuItem asChild className="border-b">
+                <Link href="/wishlist">Wishlist</Link>
+              </DropdownMenuItem>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button

@@ -11,6 +11,8 @@ import {
   RotateCcw,
   ChevronLeft,
   ChevronRight,
+  Upload,
+  X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,6 +35,7 @@ import type { User } from "@supabase/supabase-js";
 import { toast } from "sonner";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { WishlistButton } from "@/components/ui/wishlist-button";
 
 interface ProductClientPageProps {
   initialData: ProductPageData;
@@ -243,12 +246,12 @@ export default function ProductClientPage({
                 src={displayImages[selectedImageIndex] || "/placeholder.svg"}
                 alt={product.name}
                 fill
-                className="object-cover"
+                className="object-contain"
               />
               <Button
                 variant="ghost"
                 size="icon"
-                className="absolute left-5 top-1/2 -translate-y-1/2 bg-white/80"
+                className="absolute border border-orange-500 left-5 top-1/2 -translate-y-1/2 bg-white/80"
                 onClick={() =>
                   setSelectedImageIndex(
                     (p) => (p - 1 + displayImages.length) % displayImages.length
@@ -260,7 +263,7 @@ export default function ProductClientPage({
               <Button
                 variant="ghost"
                 size="icon"
-                className="absolute right-5 top-1/2 -translate-y-1/2 bg-white/80"
+                className="absolute border border-orange-500 right-5 top-1/2 -translate-y-1/2 bg-white/80"
                 onClick={() =>
                   setSelectedImageIndex((p) => (p + 1) % displayImages.length)
                 }
@@ -292,13 +295,22 @@ export default function ProductClientPage({
           </div>
 
           <div className="space-y-6">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">
-                {product.name}
-              </h1>
-              <p className="text-gray-600 mt-1">
-                {product.brand || "Generic Brand"}
-              </p>
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <h1 className="text-3xl font-bold text-gray-900">
+                  {product.name}
+                </h1>
+                <p className="text-gray-600 mt-1">
+                  {product.brand || "Generic Brand"}
+                </p>
+              </div>
+              <WishlistButton
+                productId={product.id}
+                size="lg"
+                variant="outline"
+                showText={false}
+                className="ml-4"
+              />
             </div>
             <div className="space-y-2">
               {/* <div className="flex items-baseline gap-2"><span className="text-3xl font-bold text-orange-600">{currentPrice.toFixed(2)} frw</span>{comparePrice && <span className="text-lg text-gray-500 line-through">€{comparePrice.toFixed(2)}</span>}</div> */}
@@ -538,6 +550,17 @@ export default function ProductClientPage({
                               />
                             ))}
                           </div>
+                          {review.image_url && (
+                            <div className="mb-4">
+                              <Image
+                                src={review.image_url}
+                                alt="Review image"
+                                width={300}
+                                height={200}
+                                className="rounded-lg object-cover max-w-full h-auto"
+                              />
+                            </div>
+                          )}
                           <h5 className="font-medium mb-2">{review.title}</h5>
                           <p className="text-gray-600">{review.content}</p>
                         </div>
@@ -588,15 +611,16 @@ export default function ProductClientPage({
                         src={p.main_image_url || "/placeholder.svg"}
                         alt={p.name}
                         fill
-                        className="object-cover group-hover:scale-105 transition-transform"
+                        className="object-cover transition-transform"
                       />
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="absolute top-2 right-2 bg-white/80"
-                      >
-                        <Heart className="h-4 w-4" />
-                      </Button>
+                      <div className="absolute top-2 right-2">
+                        <WishlistButton
+                          productId={p.id}
+                          size="sm"
+                          variant="ghost"
+                          className="bg-white/80 backdrop-blur-sm shadow-sm"
+                        />
+                      </div>
                     </div>
                     <h3 className="font-medium text-sm mb-1 truncate">
                       {p.name}
@@ -640,7 +664,30 @@ function ReviewForm({
   const [hoverRating, setHoverRating] = useState(0);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) { // 5MB limit
+        toast.error("Image size must be less than 5MB");
+        return;
+      }
+      if (!file.type.startsWith('image/')) {
+        toast.error("Please select a valid image file");
+        return;
+      }
+      setImageFile(file);
+      setImagePreview(URL.createObjectURL(file));
+    }
+  };
+
+  const removeImage = () => {
+    setImageFile(null);
+    setImagePreview(null);
+  };
 
   const handleSubmit = async () => {
     if (rating === 0) {
@@ -655,12 +702,14 @@ function ReviewForm({
         rating,
         title,
         content,
-      });
+      }, imageFile || undefined);
       toast.success("Thank you for your review!");
       onReviewSubmitted(newReview);
       setRating(0);
       setTitle("");
       setContent("");
+      setImageFile(null);
+      setImagePreview(null);
     } catch (error: any) {
       toast.error(error.message || "Failed to submit review.");
     } finally {
@@ -714,6 +763,46 @@ function ReviewForm({
             placeholder="Tell us what you think..."
             className="mt-2 min-h-[120px]"
           />
+        </div>
+        <div>
+          <Label>Review Image (Optional)</Label>
+          <div className="mt-2">
+            {!imagePreview ? (
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-gray-400 transition-colors">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                  className="hidden"
+                  id="review-image"
+                />
+                <label htmlFor="review-image" className="cursor-pointer">
+                  <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                  <p className="text-sm text-gray-600">Click to upload an image</p>
+                  <p className="text-xs text-gray-500 mt-1">Max 5MB, JPG, PNG, GIF</p>
+                </label>
+              </div>
+            ) : (
+              <div className="relative">
+                <Image
+                  src={imagePreview}
+                  alt="Review preview"
+                  width={200}
+                  height={200}
+                  className="rounded-lg object-cover"
+                />
+                <Button
+                  type="button"
+                  variant="destructive"
+                  size="icon"
+                  className="absolute -top-2 -right-2 h-6 w-6"
+                  onClick={removeImage}
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            )}
+          </div>
         </div>
         <Button
           onClick={handleSubmit}
