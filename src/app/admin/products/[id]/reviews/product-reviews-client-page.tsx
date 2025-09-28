@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Star, Trash2, ArrowLeft } from "lucide-react";
+import Image from "next/image";
 
 import type { ProductReview } from "@/integrations/supabase/products";
 import { deleteReview } from "@/integrations/supabase/products";
@@ -84,6 +85,17 @@ export default function ProductReviewsClientPage({ productName, initialReviews }
                       <span className="text-xs text-muted-foreground">{new Date(review.created_at).toLocaleDateString()}</span>
                     </div>
                     <div className="flex items-center">{renderStars(review.rating)}</div>
+                    {review.image_url && (
+                      <div className="mb-2">
+                        <Image
+                          src={review.image_url}
+                          alt="Review image"
+                          width={200}
+                          height={150}
+                          className="rounded-lg object-cover max-w-full h-auto"
+                        />
+                      </div>
+                    )}
                     {review.title && <p className="font-medium">{review.title}</p>}
                     <p className="text-sm text-muted-foreground">{review.content}</p>
                   </div>

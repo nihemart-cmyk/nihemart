@@ -59,6 +59,7 @@ export interface ProductReview {
   rating: number;
   title: string | null;
   content: string | null;
+  image_url: string | null;
   created_at: string;
   author: { full_name: string | null } | null;
 }
@@ -75,6 +76,7 @@ export interface ReviewBase {
   rating: number;
   title?: string;
   content?: string;
+  image_url?: string;
 }
 export interface StoreCategorySimple {
   id: string;
@@ -175,7 +177,7 @@ export async function fetchStoreProductById(
     sb
       .from("reviews")
       .select(
-        "id, rating, title, content, created_at, author:profiles!user_id(full_name)"
+        "id, rating, title, content, image_url, created_at, author:profiles!user_id(full_name)"
       )
       .eq("product_id", id),
   ]);
@@ -205,7 +207,8 @@ export async function fetchStoreProductById(
   };
 }
 export async function createStoreReview(
-  reviewData: ReviewBase
+  reviewData: ReviewBase,
+  imageFile?: File
 ): Promise<ProductReview> {
   const {
     data: { session },
@@ -216,9 +219,32 @@ export async function createStoreReview(
   if (reviewData.user_id !== session.user.id) {
     throw new Error("User ID mismatch.");
   }
+
+  let imageUrl = reviewData.image_url || null;
+
+  // Upload image if provided
+  if (imageFile) {
+    const fileExt = imageFile.name.split(".").pop();
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+    const { error: uploadError } = await sb.storage
+      .from("reviews-images")
+      .upload(fileName, imageFile);
+    if (uploadError) throw uploadError;
+
+    const { data: urlData } = sb.storage
+      .from("reviews-images")
+      .getPublicUrl(fileName);
+    imageUrl = urlData.publicUrl;
+  }
+
+  const reviewToInsert = {
+    ...reviewData,
+    image_url: imageUrl,
+  };
+
   const { data, error } = await sb
     .from("reviews")
-    .insert(reviewData)
+    .insert(reviewToInsert)
     .select("*, author:profiles!user_id(full_name)")
     .single();
   if (error) {

@@ -5,6 +5,7 @@ export const rw: Record<string, string> = {
   "nav.about": "Ibyerekeye Twe",
   "nav.contact": "Twandikire",
   "nav.cart": "Agatebo",
+  "nav.wishlist": "Ibyo nakunze",
   "nav.orders": "Komande",
   "nav.profile": "Umwirondoro",
   "nav.admin": "Admin",

@@ -21,6 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { TagInput } from "@/components/ui/tag-input";
 
 import { supabase } from "@/integrations/supabase/client";
 import { createProductWithImages, updateProductWithImages, fetchCategoriesWithSubcategories } from "@/integrations/supabase/products";
@@ -62,6 +63,7 @@ const productSchema = z.object({
     requires_shipping: z.boolean().default(true),
     taxable: z.boolean().default(false),
     dimensions: z.string().optional(),
+    tags: z.array(z.string()).default([]),
     variations: z.array(variationSchema).min(0),
 });
 
@@ -103,6 +105,7 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
                 short_description: initialData.product.short_description ?? '',
                 subcategory_id: initialData.product.subcategory_id ?? '',
                 dimensions: initialData.product.dimensions ?? '',
+                tags: initialData.product.tags ?? [],
                 variations: initialData.variations.map(v => ({
                     id: undefined,
                     price: v.price ?? 0,
@@ -126,6 +129,7 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
                 continue_selling_when_oos: false,
                 requires_shipping: true,
                 taxable: false,
+                tags: [],
                 variations: [{ name: "Default", price: 0, stock: 0, attributes: [{ name: "Title", value: "Default" }], imageFiles: [] }],
             },
     });
@@ -214,6 +218,7 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
                 requires_shipping: data.requires_shipping,
                 taxable: data.taxable,
                 dimensions: data.dimensions || null,
+                tags: data.tags,
                 stock: data.variations.reduce((sum, v) => sum + Number(v.stock), 0),
             };
 
@@ -340,13 +345,15 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
 
                             <div className="space-y-6">
                                 <Card><CardHeader><CardTitle>Organization</CardTitle></CardHeader><CardContent className="space-y-4">
-                                    {/* @ts-ignore */}
-                                    <FormField control={form.control} name="status" render={({ field }) => <FormItem><FormLabel>Status</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="draft">Draft</SelectItem><SelectItem value="active">Active</SelectItem><SelectItem value="out_of_stock">Out of Stock</SelectItem></SelectContent></Select><FormMessage /></FormItem>} />
-                                    {/* @ts-ignore */}
-                                    <FormField control={form.control} name="category_id" render={({ field }) => <FormItem><FormLabel>Category</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger></FormControl><SelectContent>{categories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>} />
-                                    {/* @ts-ignore */}
-                                    <FormField control={form.control} name="subcategory_id" render={({ field }) => <FormItem><FormLabel>Subcategory</FormLabel><Select onValueChange={field.onChange} value={field.value || ''} disabled={!selectedCategoryId || subcategories.length === 0}><FormControl><SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger></FormControl><SelectContent>{subcategories.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>} />
-                                </CardContent></Card>
+                                     {/* @ts-ignore */}
+                                     <FormField control={form.control} name="status" render={({ field }) => <FormItem><FormLabel>Status</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="draft">Draft</SelectItem><SelectItem value="active">Active</SelectItem><SelectItem value="out_of_stock">Out of Stock</SelectItem></SelectContent></Select><FormMessage /></FormItem>} />
+                                     {/* @ts-ignore */}
+                                     <FormField control={form.control} name="category_id" render={({ field }) => <FormItem><FormLabel>Category</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger></FormControl><SelectContent>{categories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>} />
+                                     {/* @ts-ignore */}
+                                     <FormField control={form.control} name="subcategory_id" render={({ field }) => <FormItem><FormLabel>Subcategory</FormLabel><Select onValueChange={field.onChange} value={field.value || ''} disabled={!selectedCategoryId || subcategories.length === 0}><FormControl><SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger></FormControl><SelectContent>{subcategories.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>} />
+                                     {/* @ts-ignore */}
+                                     <FormField control={form.control} name="tags" render={({ field }) => <FormItem><FormLabel>Tags</FormLabel><FormControl><TagInput value={field.value || []} onChange={field.onChange} placeholder="Add product tags..." /></FormControl><FormMessage /></FormItem>} />
+                                 </CardContent></Card>
 
                                 <Card><CardHeader><CardTitle>Pricing</CardTitle></CardHeader><CardContent className="space-y-4">
                                     {/* @ts-ignore */}

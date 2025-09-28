@@ -20,6 +20,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import {
   Search,
   Download,
@@ -34,7 +35,7 @@ import {
   RefreshCw
 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
-import { fetchAllStockHistory, StockHistoryWithDetails } from '@/integrations/supabase/stock'
+import { fetchAllStockHistory, StockHistoryWithDetails, fetchProductsForStockManagement, StockProduct } from '@/integrations/supabase/stock'
 import { format } from 'date-fns'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/store/auth.store'
@@ -60,6 +61,11 @@ export default function StockHistoryPage() {
       limit,
       offset: (page - 1) * limit
     })
+  })
+
+  const { data: products } = useQuery<StockProduct[]>({
+    queryKey: ['products-for-stock-history'],
+    queryFn: () => fetchProductsForStockManagement('')
   })
 
   const history = data?.data || []
@@ -236,15 +242,27 @@ export default function StockHistoryPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                   <Input
-                    placeholder="Search products, reasons..."
+                    placeholder="Search reasons..."
                     className="pl-10"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                   />
+                </div>
+
+                <div className="relative">
+                  <Select value={selectedProduct} onValueChange={(value) => setSelectedProduct(value === 'all' ? '' : value)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="All products" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All products</SelectItem>
+                      {products?.map(p => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="relative">
