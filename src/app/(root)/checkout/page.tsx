@@ -392,6 +392,41 @@ const Checkout = () => {
    };
 
    // Form validation
+   // Helper to derive a reasonable city value from selected location or saved address
+   const deriveCity = () => {
+      // Priority: selectedSector (sector name) -> selectedDistrict (district name) -> selectedProvince (province name) -> selectedAddress.city -> formData.city
+      try {
+         if (selectedSector) {
+            const s = sectors.find(
+               (x) => String(x.sct_id) === String(selectedSector)
+            );
+            if (s && s.sct_name) return s.sct_name;
+         }
+
+         if (selectedDistrict) {
+            const d = districts.find(
+               (x) => String(x.dst_id) === String(selectedDistrict)
+            );
+            if (d && d.dst_name) return d.dst_name;
+         }
+
+         if (selectedProvince) {
+            const p = provinces.find(
+               (x) => String(x.prv_id) === String(selectedProvince)
+            );
+            if (p && p.prv_name) return p.prv_name;
+         }
+
+         if (selectedAddress?.city) return selectedAddress.city;
+
+         if (formData.city && formData.city.trim()) return formData.city.trim();
+      } catch (err) {
+         console.error("deriveCity error:", err);
+      }
+
+      return "";
+   };
+
    const validateForm = () => {
       const formErrors: any = {};
       const emailPattern = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/;
@@ -414,9 +449,9 @@ const Checkout = () => {
          formErrors.address =
             t("checkout.errors.addressRequired") ||
             "Delivery address is required";
-      if (!formData.city.trim())
-         formErrors.city =
-            t("checkout.errors.cityRequired") || "City is required";
+
+      // City is derived from selected location (sector/district/province) or saved address.
+      // Do not require the user to enter a separate `city` value.
 
       return formErrors;
    };
@@ -453,6 +488,8 @@ const Checkout = () => {
       setErrors({});
 
       try {
+         const derivedCity = deriveCity();
+
          const orderData: CreateOrderRequest = {
             order: {
                user_id: user!.id,
@@ -471,7 +508,9 @@ const Checkout = () => {
                   formData.address ??
                   ""
                ).trim(),
+               // Use derived city (sector/district/province or saved address)
                delivery_city: (
+                  derivedCity ||
                   selectedAddress?.city ||
                   formData.city ||
                   ""
@@ -579,6 +618,8 @@ const Checkout = () => {
          )
          .join("\n");
 
+      const derivedCity = deriveCity();
+
       const message = `
 *New Order Request*
 
@@ -586,7 +627,7 @@ const Checkout = () => {
 Name: ${formData.firstName} ${formData.lastName}
 Email: ${formData.email}
 Phone: ${formData.phone}
-Address: ${formData.address}, ${formData.city}
+Address: ${formData.address}, ${derivedCity || formData.city}
 
 *Products:*
 ${productDetails}
@@ -1354,7 +1395,10 @@ Total: ${total.toLocaleString()} RWF
                                              Qty: {item.quantity}
                                           </p>
                                           <p className="text-xs sm:text-sm font-medium text-orange-600 whitespace-nowrap">
-                                             RWF {(item.price * item.quantity).toLocaleString()}
+                                             RWF{" "}
+                                             {(
+                                                item.price * item.quantity
+                                             ).toLocaleString()}
                                           </p>
                                        </div>
                                     </div>
@@ -1485,7 +1529,9 @@ Total: ${total.toLocaleString()} RWF
                                  variant="outline"
                                  className="w-full border-orange-300 text-orange-600 hover:bg-orange-50 text-sm sm:text-base h-10 sm:h-12"
                                  onClick={handleWhatsAppCheckout}
-                                 disabled={isSubmitting || orderItems.length === 0}
+                                 disabled={
+                                    isSubmitting || orderItems.length === 0
+                                 }
                               >
                                  {t("checkout.orderViaWhatsApp")}
                               </Button>

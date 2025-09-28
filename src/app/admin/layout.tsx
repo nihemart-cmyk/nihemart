@@ -1,21 +1,26 @@
-import Sidebar from '@/components/Sidebar'
-import TopBar from '@/components/TopBar'
-import { ReactNode } from 'react'
+import Sidebar from "@/components/Sidebar";
+import TopBar from "@/components/TopBar";
+import { ReactNode } from "react";
 
 interface LayoutProps {
-    children: ReactNode,
+   children: ReactNode;
 }
 
 const layout = ({ children }: LayoutProps) => {
-    return <div className='w-full h-screen overflow-hidden flex bg-white'>
-        <div className="w-80 border-r bg-surface-secondary border-border-primary h-full hidden lg:block">
+   return (
+      <div className="w-full min-h-screen flex bg-white">
+         <div className="w-80 border-r bg-surface-secondary border-border-primary h-screen hidden lg:block">
             <Sidebar />
-        </div>
-        <div className='w-full'>
-            <TopBar variant='primary' title='Dashboard'/>
+         </div>
+         <div className="w-full overflow-auto">
+            <TopBar
+               variant="primary"
+               title="Dashboard"
+            />
             {children}
-        </div>
-    </div>
-}
+         </div>
+      </div>
+   );
+};
 
-export default layout
+export default layout;

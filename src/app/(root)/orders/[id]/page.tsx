@@ -48,6 +48,8 @@ const OrderDetails = () => {
       useRequestRefundItem,
       useCancelRefundRequestItem,
       useRespondRefundRequest,
+      useRequestRefundOrder,
+      useCancelRefundRequestOrder,
    } = useOrders();
    const router = useRouter();
    const params = useParams();
@@ -70,6 +72,10 @@ const OrderDetails = () => {
    const { data: order, isLoading, error } = useOrder(orderId);
    const isOwner = user?.id === order?.user_id;
    const isAdmin = hasRole("admin");
+
+   // mutations for order-level actions
+   const requestOrderRefund = useRequestRefundOrder();
+   const cancelOrderRefund = useCancelRefundRequestOrder();
 
    // Redirect if not logged in
    if (!isLoggedIn) {
@@ -608,77 +614,164 @@ Please let me know if you need any additional information.
                   </CardContent>
                </Card>
 
-               {/* Admin Controls */}
-               {isAdmin && (
+               {/* Shared Order Actions (show to owner and admins) */}
+               {(isAdmin || isOwner) && (
                   <Card>
                      <CardHeader>
-                        <CardTitle>Admin Controls</CardTitle>
+                        <CardTitle>Order Actions</CardTitle>
                      </CardHeader>
-                     <CardContent className="space-y-3">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                           {order.status === "pending" && (
-                              <Button
-                                 size="sm"
-                                 onClick={() =>
-                                    handleStatusUpdate("processing")
-                                 }
-                                 disabled={isUpdatingStatus}
-                              >
-                                 {isUpdatingStatus ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                 ) : (
-                                    "Mark Processing"
-                                 )}
-                              </Button>
-                           )}
-
-                           {order.status === "processing" && (
-                              <Button
-                                 size="sm"
-                                 onClick={() => handleStatusUpdate("shipped")}
-                                 disabled={isUpdatingStatus}
-                              >
-                                 {isUpdatingStatus ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                 ) : (
-                                    "Mark Shipped"
-                                 )}
-                              </Button>
-                           )}
-
-                           {order.status === "shipped" && (
-                              <Button
-                                 size="sm"
-                                 onClick={() => handleStatusUpdate("delivered")}
-                                 disabled={isUpdatingStatus}
-                              >
-                                 {isUpdatingStatus ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                 ) : (
-                                    "Mark Delivered"
-                                 )}
-                              </Button>
-                           )}
-
-                           {order.status &&
-                              ["pending", "processing"].includes(
-                                 order.status
-                              ) && (
+                     <CardContent>
+                        <div className="space-y-2">
+                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {/* Admin status controls */}
+                              {isAdmin && order.status === "pending" && (
                                  <Button
                                     size="sm"
-                                    variant="destructive"
                                     onClick={() =>
-                                       handleStatusUpdate("cancelled")
+                                       handleStatusUpdate("processing")
                                     }
                                     disabled={isUpdatingStatus}
                                  >
                                     {isUpdatingStatus ? (
                                        <Loader2 className="h-4 w-4 animate-spin" />
                                     ) : (
-                                       "Cancel Order"
+                                       "Mark Processing"
                                     )}
                                  </Button>
                               )}
+
+                              {isAdmin && order.status === "processing" && (
+                                 <Button
+                                    size="sm"
+                                    onClick={() =>
+                                       handleStatusUpdate("shipped")
+                                    }
+                                    disabled={isUpdatingStatus}
+                                 >
+                                    {isUpdatingStatus ? (
+                                       <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                       "Mark Shipped"
+                                    )}
+                                 </Button>
+                              )}
+
+                              {isAdmin && order.status === "shipped" && (
+                                 <Button
+                                    size="sm"
+                                    onClick={() =>
+                                       handleStatusUpdate("delivered")
+                                    }
+                                    disabled={isUpdatingStatus}
+                                 >
+                                    {isUpdatingStatus ? (
+                                       <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                       "Mark Delivered"
+                                    )}
+                                 </Button>
+                              )}
+
+                              {/* Cancel order button available to admins and owners when pending/processing */}
+                              {order.status &&
+                                 ["pending", "processing"].includes(
+                                    order.status
+                                 ) && (
+                                    <Button
+                                       size="sm"
+                                       variant="destructive"
+                                       onClick={async () => {
+                                          try {
+                                             setIsUpdatingStatus(true);
+                                             await handleStatusUpdate(
+                                                "cancelled"
+                                             );
+                                             toast.success("Order cancelled");
+                                             // if owner, keep existing redirect behavior handled below
+                                          } catch (e) {
+                                             // handled by mutation
+                                          } finally {
+                                             setIsUpdatingStatus(false);
+                                          }
+                                       }}
+                                       disabled={isUpdatingStatus}
+                                    >
+                                       Cancel Order
+                                    </Button>
+                                 )}
+                           </div>
+
+                           {/* Full-order refund request (owner/admin) - only within 24 hours of delivery and if not already requested */}
+                           {order.status === "delivered" &&
+                              order.delivered_at &&
+                              (() => {
+                                 const deliveredAt = new Date(
+                                    order.delivered_at
+                                 ).getTime();
+                                 const now = Date.now();
+                                 const within24h =
+                                    now - deliveredAt <= 24 * 60 * 60 * 1000;
+                                 const refundNotRequested =
+                                    order.refund_status !== "requested";
+
+                                 if (within24h && refundNotRequested) {
+                                    return (
+                                       <div>
+                                          <Button
+                                             size="sm"
+                                             variant="outline"
+                                             onClick={async () => {
+                                                const reason = window.prompt(
+                                                   "Please enter a reason for the full-order refund:"
+                                                );
+                                                if (!reason) return;
+                                                try {
+                                                   await requestOrderRefund.mutateAsync(
+                                                      {
+                                                         orderId: order.id,
+                                                         reason,
+                                                      }
+                                                   );
+                                                   toast.success(
+                                                      "Refund requested"
+                                                   );
+                                                } catch (err) {
+                                                   // mutation handles toast
+                                                }
+                                             }}
+                                          >
+                                             Request Full Refund
+                                          </Button>
+                                       </div>
+                                    );
+                                 }
+                                 // If refund already requested, allow cancelling the refund request for owner
+                                 if (!refundNotRequested && isOwner) {
+                                    return (
+                                       <div>
+                                          <Button
+                                             size="sm"
+                                             onClick={async () => {
+                                                try {
+                                                   await cancelOrderRefund.mutateAsync(
+                                                      order.id
+                                                   );
+                                                   toast.success(
+                                                      "Refund request cancelled"
+                                                   );
+                                                } catch (e) {
+                                                   // handled by mutation
+                                                }
+                                             }}
+                                          >
+                                             Cancel Refund Request
+                                          </Button>
+                                       </div>
+                                    );
+                                 }
+
+                                 return null;
+                              })()}
                         </div>
                      </CardContent>
                   </Card>

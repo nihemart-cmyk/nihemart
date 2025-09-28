@@ -1,13 +1,12 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+// Using native scroll container instead of Radix ScrollArea to avoid clipping horizontal scrollbars
 import useRiders, {
    useAssignOrder,
    useRiderAssignments,
 } from "@/hooks/useRiders";
-import { useEffect } from "react";
 import { toast } from "sonner";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -22,13 +21,10 @@ import {
    AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import dynamic from "next/dynamic";
-import { useState } from "react";
-import {
-   ColumnDef,
-   getCoreRowModel,
-   useReactTable,
-} from "@tanstack/react-table";
-import { DataTable } from "@/components/data-table/data-table";
+
+import { ColumnDef } from "@tanstack/react-table";
+import { DataTable } from "@/components/riders/data-table";
+import { TableFilters } from "@/components/admin/table-filters";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -60,6 +56,7 @@ const RidersPage = () => {
    const [confirmToggle, setConfirmToggle] = useState<{
       open: boolean;
       riderId?: string;
+      newState?: boolean;
    }>({ open: false });
    const [confirmDelete, setConfirmDelete] = useState<{
       open: boolean;
@@ -78,35 +75,105 @@ const RidersPage = () => {
       refetch();
    };
 
+   // metrics and filters state
    const totalRiders = riders.length;
    const activeRiders = riders.filter((r: any) => r.active).length;
-   const vehicles = Array.from(
+   const vehiclesList = Array.from(
       new Set(riders.map((r: any) => r.vehicle).filter(Boolean))
-   ).length;
-   const [topAmount, setTopAmount] = useState<number | null>(null);
+   );
+   const vehicles = vehiclesList.length;
 
+   // Filters (client-side) to mirror OrdersTable UX
+   const [search, setSearch] = useState("");
+   const [statusFilter, setStatusFilter] = useState<
+      "All" | "Active" | "Disabled" | "Inactive"
+   >("All");
+   const [vehicleFilter, setVehicleFilter] = useState<string | undefined>(
+      undefined
+   );
+   const [page, setPage] = useState(1);
+   const [limit, setLimit] = useState(10);
+
+   // fetch top rider (who delivered the most orders / amount)
+   const [topRider, setTopRider] = useState<any | null>(null);
+   const fetchTopRider = async () => {
+      try {
+         const res = await fetch("/api/admin/riders/top-amount");
+         if (!res.ok) throw new Error("Failed to fetch top rider");
+         const d = await res.json();
+         // API returns { topRiderId, topAmount }
+         if (d && d.topRiderId) {
+            // fetch rider details
+            const r = riders.find((x: any) => x.id === d.topRiderId);
+            if (r) {
+               setTopRider({ ...r, deliveredAmount: d.topAmount });
+            } else {
+               // fallback to server API to fetch rider row by id
+               const rr = await fetch(
+                  `/api/admin/riders?rid=${encodeURIComponent(d.topRiderId)}`
+               );
+               if (rr.ok) {
+                  const jr = await rr.json();
+                  setTopRider({
+                     ...(jr.rider || {}),
+                     deliveredAmount: d.topAmount,
+                  });
+               } else {
+                  setTopRider({
+                     id: d.topRiderId,
+                     deliveredAmount: d.topAmount,
+                  });
+               }
+            }
+         } else {
+            setTopRider(null);
+         }
+      } catch (err) {
+         console.error("fetchTopRider error", err);
+         setTopRider(null);
+      }
+   };
+
+   // Fetch top rider once after the riders data has been loaded. Use a ref to
+   // ensure we don't refetch repeatedly when `riders` array identity changes.
+   const topRiderFetchedRef = React.useRef(false);
    useEffect(() => {
-      let mounted = true;
-      fetch("/api/admin/riders/top-amount")
-         .then((r) => r.json())
-         .then((d) => {
-            if (!mounted) return;
-            setTopAmount(d?.topAmount || 0);
-         })
-         .catch(() => {
-            if (!mounted) return;
-            setTopAmount(null);
-         });
-      return () => {
-         mounted = false;
-      };
-   }, []);
+      if (topRiderFetchedRef.current) return;
+      if (!riders || riders.length === 0) return;
+      topRiderFetchedRef.current = true;
+      fetchTopRider();
+   }, [riders]);
 
    // Helper components and table columns must be defined in component scope (not inside JSX)
+   // Local state to hold the latest assignment per rider for the current page.
+   const [latestAssignmentsMap, setLatestAssignmentsMap] = useState<
+      Record<string, any>
+   >({});
+
+   // Fetch batched latest assignment for the riders currently shown on the page.
+   const fetchLatestAssignmentsForPage = async (riderIds: string[]) => {
+      if (!riderIds || riderIds.length === 0)
+         return setLatestAssignmentsMap({});
+      try {
+         const res = await fetch(
+            `/api/admin/rider-assignments?ids=${encodeURIComponent(
+               riderIds.join(",")
+            )}`
+         );
+         if (!res.ok) {
+            console.error("Failed to fetch batched assignments", res.status);
+            return;
+         }
+         const json = await res.json();
+         setLatestAssignmentsMap(json.assignments || {});
+      } catch (err) {
+         console.error("fetchLatestAssignmentsForPage error", err);
+      }
+   };
+
    const LatestAssignment = ({ row }: any) => {
       const riderId = row.original.id;
-      const assignmentsQuery = useRiderAssignments(riderId);
-      const latest = assignmentsQuery.data?.[0];
+      const latest = latestAssignmentsMap[riderId];
       const order = latest?.orders;
       return (
          <div className="text-sm">
@@ -123,8 +190,7 @@ const RidersPage = () => {
 
    const AddressCell = ({ row }: any) => {
       const riderId = row.original.id;
-      const assignmentsQuery = useRiderAssignments(riderId);
-      const latest = assignmentsQuery.data?.[0];
+      const latest = latestAssignmentsMap[riderId];
       const order = latest?.orders;
       return (
          <div className="text-sm text-text-secondary max-w-sm truncate">
@@ -170,10 +236,21 @@ const RidersPage = () => {
       },
       {
          accessorKey: "active",
-         header: "ACTIVE",
-         cell: ({ row }) => (
-            <Badge>{row.getValue("active") ? "Yes" : "No"}</Badge>
-         ),
+         header: "STATUS",
+         cell: ({ row }) => {
+            const active = row.getValue("active");
+            return (
+               <Badge
+                  className={
+                     active
+                        ? "bg-green-100 text-green-800"
+                        : "bg-red-100 text-red-800"
+                  }
+               >
+                  {active ? "Active" : "Disabled"}
+               </Badge>
+            );
+         },
       },
       {
          id: "amount",
@@ -214,7 +291,11 @@ const RidersPage = () => {
                      <DropdownMenuSeparator />
                      <DropdownMenuItem
                         onClick={() =>
-                           setConfirmToggle({ open: true, riderId: rider.id })
+                           setConfirmToggle({
+                              open: true,
+                              riderId: rider.id,
+                              newState: !rider.active,
+                           })
                         }
                      >
                         {rider.active ? "Disable rider" : "Enable rider"}
@@ -239,19 +320,68 @@ const RidersPage = () => {
       },
    ];
 
-   const table = useReactTable({
-      data: riders,
-      columns,
-      getCoreRowModel: getCoreRowModel(),
-   });
+   // derive filtered and paginated list
+   const uniqueVehicles = useMemo(
+      () => ["all", ...vehiclesList.filter(Boolean)],
+      [vehiclesList]
+   );
+
+   const filteredRiders = useMemo(() => {
+      let list = (riders || []).slice();
+      // search by name or phone
+      if (search) {
+         const q = search.toLowerCase();
+         list = list.filter((r: any) => {
+            return (
+               String(r.full_name || "")
+                  .toLowerCase()
+                  .includes(q) ||
+               String(r.phone || "")
+                  .toLowerCase()
+                  .includes(q)
+            );
+         });
+      }
+      // status filter
+      if (statusFilter && statusFilter !== "All") {
+         const wantActive = statusFilter === "Active";
+         list = list.filter((r: any) => Boolean(r.active) === wantActive);
+      }
+      // vehicle filter
+      if (vehicleFilter && vehicleFilter !== "all") {
+         list = list.filter(
+            (r: any) => String(r.vehicle) === String(vehicleFilter)
+         );
+      }
+      return list;
+   }, [riders, search, statusFilter, vehicleFilter]);
+
+   const totalCount = filteredRiders.length;
+   const totalPages = Math.max(1, Math.ceil(totalCount / limit));
+   const paginated = useMemo(() => {
+      const start = (page - 1) * limit;
+      return filteredRiders.slice(start, start + limit);
+   }, [filteredRiders, page, limit]);
+
+   // When the visible page of riders changes, fetch their latest assignments in bulk.
+   useEffect(() => {
+      const ids = paginated.map((r: any) => r.id).filter(Boolean);
+      fetchLatestAssignmentsForPage(ids);
+   }, [paginated]);
+
+   const rangeStart = totalCount === 0 ? 0 : (page - 1) * limit + 1;
+   const rangeEnd = Math.min(totalCount, page * limit);
+
+   // Note: DataTable component for riders creates its own react-table instance
+   // when passed `columns` and `data`. We pass `paginated` below.
 
    if (isLoading) return <div className="p-6">Loading riders...</div>;
    if (isError)
       return <div className="p-6 text-red-500">Failed to load riders.</div>;
 
    return (
-      <ScrollArea className="h-[calc(100vh-2rem)] p-6 pb-20">
-         <div>
+      <div className="bg-surface-secondary h-[calc(100vh-5rem)] overflow-auto">
+         <div className="px-5 sm:px-10 py-10 max-w-full">
             {/* Header styled like OrdersMetrics */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-7 sm:gap-2 mb-6">
                <div className="flex flex-col">
@@ -275,12 +405,12 @@ const RidersPage = () => {
                </div>
             </div>
 
-            {/* Top amount card + Metrics Cards styled like OrdersMetrics */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6 mb-6">
+            {/* Top Rider card + other Metrics Cards styled like OrdersMetrics */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6 mb-6 max-w-full">
                <Card className="relative">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                      <h3 className="text-lg text-[#23272E] font-semibold">
-                        Top Amount
+                        Top Rider
                      </h3>
                      <div>
                         <DropdownMenu>
@@ -296,7 +426,10 @@ const RidersPage = () => {
                            </DropdownMenuTrigger>
                            <DropdownMenuContent align="end">
                               <DropdownMenuItem
-                                 onClick={() => refetch && refetch()}
+                                 onClick={() => {
+                                    refetch && refetch();
+                                    fetchTopRider();
+                                 }}
                               >
                                  Refresh
                               </DropdownMenuItem>
@@ -305,16 +438,19 @@ const RidersPage = () => {
                      </div>
                   </CardHeader>
                   <CardContent>
-                     <div className="space-y-2 flex items-end gap-2">
-                        <div className="text-3xl font-bold text-[#023337]">
-                           {topAmount !== null
-                              ? `${topAmount.toLocaleString()} RWF`
-                              : "—"}
+                     {topRider ? (
+                        <div className="flex items-center gap-3">
+                           <UserAvatarProfile
+                              user={{
+                                 fullName: topRider.full_name || "Unnamed",
+                                 subTitle: topRider.phone || "",
+                              }}
+                              showInfo
+                           />
                         </div>
-                     </div>
-                     <div className="text-xs text-muted-foreground mt-2">
-                        All time
-                     </div>
+                     ) : (
+                        <div className="text-sm text-muted-foreground">—</div>
+                     )}
                   </CardContent>
                </Card>
                <Card className="relative">
@@ -465,18 +601,126 @@ const RidersPage = () => {
                      </p>
                   </div>
                   <div className="flex items-center gap-3">
+                     <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                           refetch && refetch();
+                           fetchTopRider();
+                        }}
+                     >
+                        Refresh
+                     </Button>
                      <Link href="/admin/riders/new">
                         <Button className="bg-orange-600 text-white">
-                           Export
+                           Add Rider
                         </Button>
                      </Link>
                   </div>
                </div>
 
-               <div className="-mx-5 md:mx-0 overflow-x-auto">
-                  <div className="min-w-[700px]">
-                     {/* ensures table can scroll on small screens */}
-                     <DataTable table={table} />
+               {/* Filters (re-using TableFilters component) */}
+               <TableFilters
+                  searchTerm={search}
+                  onSearchChange={(t) => {
+                     setSearch(t);
+                     setPage(1);
+                  }}
+                  categoryFilter={vehicleFilter || "all"}
+                  onCategoryChange={(v) => {
+                     setVehicleFilter(v === "all" ? undefined : v);
+                     setPage(1);
+                  }}
+                  uniqueCategories={uniqueVehicles}
+                  statusFilter={statusFilter.toLowerCase()}
+                  onStatusChange={(v) => {
+                     // v can be 'all' or 'active'|'disabled'|'inactive'
+                     const mapped =
+                        v === "all"
+                           ? "All"
+                           : v === "active"
+                           ? "Active"
+                           : v === "inactive"
+                           ? "Inactive"
+                           : "Disabled";
+                     setStatusFilter(mapped as any);
+                     setPage(1);
+                  }}
+                  uniqueStatuses={["all", "active", "disabled", "inactive"]}
+               />
+
+               {/* Table wrapper: make horizontally scrollable on small screens similar to OrdersTable */}
+               <div className="overflow-x-auto">
+                  <div className="flex flex-col gap-4">
+                     <DataTable
+                        columns={columns}
+                        data={paginated}
+                     />
+
+                     {/* Pagination controls (move inside min-w container so it stays visible on small screens) */}
+                     <div className="mt-0 flex items-center justify-between">
+                        <div className="text-sm text-muted-foreground">
+                           Showing {rangeStart} - {rangeEnd} of {totalCount}
+                        </div>
+                        <div className="flex items-center gap-2">
+                           <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => setPage(Math.max(1, page - 1))}
+                           >
+                              Prev
+                           </Button>
+                           <div className="flex items-center gap-1">
+                              {Array.from(
+                                 {
+                                    length: Math.max(
+                                       1,
+                                       Math.min(5, totalPages)
+                                    ),
+                                 },
+                                 (_, i) => {
+                                    const p = Math.min(
+                                       totalPages,
+                                       Math.max(1, page - 2 + i)
+                                    );
+                                    return (
+                                       <Button
+                                          size="sm"
+                                          key={p}
+                                          variant={
+                                             p === page ? "default" : "ghost"
+                                          }
+                                          onClick={() => setPage(p)}
+                                       >
+                                          {p}
+                                       </Button>
+                                    );
+                                 }
+                              )}
+                           </div>
+                           <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() =>
+                                 setPage(Math.min(totalPages, page + 1))
+                              }
+                           >
+                              Next
+                           </Button>
+                           <select
+                              value={String(limit)}
+                              onChange={(e) => {
+                                 setLimit(Number(e.target.value));
+                                 setPage(1);
+                              }}
+                              className="ml-2 border rounded px-2 py-1 text-sm"
+                           >
+                              <option value="5">5</option>
+                              <option value="10">10</option>
+                              <option value="25">25</option>
+                           </select>
+                        </div>
+                     </div>
                   </div>
                </div>
             </div>
@@ -508,8 +752,7 @@ const RidersPage = () => {
                refetch={refetch}
             />
          </div>
-         <ScrollBar orientation="horizontal" />
-      </ScrollArea>
+      </div>
    );
 };
 
@@ -553,8 +796,8 @@ function ToggleActiveController({ confirm, setConfirm, qc, refetch }: any) {
                      : "Change rider status"}
                </AlertDialogTitle>
                <p className="text-sm text-muted-foreground mt-1">
-                  Are you sure you want to change this rider&apos;s active
-                  status?
+                  Are you sure you want to{" "}
+                  {confirm?.newState ? "enable" : "disable"} this rider?
                </p>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -564,7 +807,8 @@ function ToggleActiveController({ confirm, setConfirm, qc, refetch }: any) {
                <AlertDialogAction
                   onClick={async () => {
                      if (!riderId) return;
-                     mutation.mutate({ riderId, newState: true });
+                     const newState = !!confirm?.newState;
+                     mutation.mutate({ riderId, newState });
                      setConfirm({ open: false });
                   }}
                >

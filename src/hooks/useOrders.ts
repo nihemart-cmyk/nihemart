@@ -150,9 +150,8 @@ export function useCreateOrder() {
 // Hook for updating order status
 export function useUpdateOrderStatus() {
    const queryClient = useQueryClient();
-
    return useMutation({
-      mutationFn: ({
+      mutationFn: async ({
          id,
          status,
          additionalFields,
@@ -160,22 +159,36 @@ export function useUpdateOrderStatus() {
          id: string;
          status: OrderStatus;
          additionalFields?: Partial<Order>;
-      }) => updateOrderStatus(id, status, additionalFields),
+      }) => {
+         // Call server API which uses service role key to perform status change
+         const res = await fetch("/api/orders/update-status", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id, status, additionalFields }),
+         });
+         if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            throw new Error(
+               body?.error || `Failed to update status: ${res.status}`
+            );
+         }
+         const updated = await res.json();
+         return updated as Order;
+      },
       onSuccess: (updatedOrder) => {
          // Update the specific order in cache
          queryClient.setQueryData(
             orderKeys.detail(updatedOrder.id),
             updatedOrder
          );
-
          // Invalidate order lists to refetch
          queryClient.invalidateQueries({ queryKey: orderKeys.lists() });
-
-         // Invalidate stats if admin
+         // Invalidate stats
          queryClient.invalidateQueries({ queryKey: orderKeys.stats() });
       },
       onError: (error) => {
          console.error("Failed to update order status:", error);
+         throw error;
       },
    });
 }

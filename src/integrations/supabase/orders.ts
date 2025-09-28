@@ -284,7 +284,7 @@ export async function respondToRefundRequest(
             .select(
                "id, quantity, product_id, product_variation_id, refund_status"
             )
-            .eq("order_id", existing.id);
+            .eq("order_id", existing.order_id);
          if (itemsErr) {
             console.warn(
                "Failed to fetch order items for restock after full-order refund:",
@@ -365,7 +365,7 @@ export async function respondToRefundRequest(
                const { error: updErr } = await sb
                   .from("order_items")
                   .update({ refund_status: "approved", refund_requested: true })
-                  .eq("order_id", existing.id);
+                  .eq("order_id", existing.order_id);
                if (updErr)
                   console.warn(
                      "Failed to update order_items refund_status after full-order refund:",

@@ -15,6 +15,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
+   Dialog,
+   DialogContent,
+   DialogHeader,
+   DialogTitle,
+   DialogDescription,
+   DialogFooter,
+} from "@/components/ui/dialog";
+import {
    Select,
    SelectContent,
    SelectItem,
@@ -29,7 +37,7 @@ import { OrderStatus } from "@/types/orders";
 
 const Orders = () => {
    const { t } = useLanguage();
-   const { isLoggedIn } = useAuth();
+   const { isLoggedIn, user, hasRole } = useAuth();
    const router = useRouter();
 
    const [filters, setFilters] = useState({
@@ -38,7 +46,14 @@ const Orders = () => {
       page: 1,
    });
 
-   const { useUserOrders } = useOrders();
+   const {
+      useUserOrders,
+      updateOrderStatus,
+      useRequestRefundOrder,
+      useCancelRefundRequestOrder,
+   } = useOrders();
+   const requestOrderRefund = useRequestRefundOrder();
+   const cancelOrderRefund = useCancelRefundRequestOrder();
 
    const {
       data: ordersData,
@@ -59,6 +74,13 @@ const Orders = () => {
          direction: "desc",
       },
    });
+
+   // Refund dialog state
+   const [refundDialogOpen, setRefundDialogOpen] = useState(false);
+   const [refundTargetOrder, setRefundTargetOrder] = useState<string | null>(
+      null
+   );
+   const [refundReasonInput, setRefundReasonInput] = useState("");
 
    // Redirect if not logged in
    if (!isLoggedIn) {
@@ -282,21 +304,154 @@ const Orders = () => {
                                  Customer: {order.customer_first_name}{" "}
                                  {order.customer_last_name}
                               </div>
-                              <Button
-                                 variant="outline"
-                                 size="sm"
-                                 onClick={() =>
-                                    router.push(`/orders/${order.id}`)
-                                 }
-                              >
-                                 <Eye className="h-4 w-4 mr-2" />
-                                 View Details
-                              </Button>
+                              <div className="flex items-center gap-2 justify-end">
+                                 <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() =>
+                                       router.push(`/orders/${order.id}`)
+                                    }
+                                 >
+                                    <Eye className="h-4 w-4 mr-2" />
+                                    View Details
+                                 </Button>
+
+                                 {/* Cancel Order (owner or admin) */}
+                                 {(user?.id === order.user_id ||
+                                    hasRole("admin")) &&
+                                    ["pending", "processing"].includes(
+                                       order.status || ""
+                                    ) && (
+                                       <Button
+                                          size="sm"
+                                          variant="destructive"
+                                          onClick={async () => {
+                                             try {
+                                                await updateOrderStatus.mutateAsync(
+                                                   {
+                                                      id: order.id,
+                                                      status: "cancelled",
+                                                   }
+                                                );
+                                             } catch (err) {
+                                                console.error(err);
+                                             }
+                                          }}
+                                       >
+                                          Cancel
+                                       </Button>
+                                    )}
+
+                                 {/* Request full refund: only within 24h after delivered and visible to owner/admin */}
+                                 {order.status === "delivered" &&
+                                    order.delivered_at &&
+                                    (user?.id === order.user_id ||
+                                       hasRole("admin")) &&
+                                    (() => {
+                                       const deliveredAt = new Date(
+                                          order.delivered_at
+                                       ).getTime();
+                                       const within24h =
+                                          Date.now() - deliveredAt <=
+                                          24 * 60 * 60 * 1000;
+                                       if (!within24h) return null;
+                                       if (
+                                          order.refund_status === "requested"
+                                       ) {
+                                          return (
+                                             <Button
+                                                size="sm"
+                                                onClick={async () => {
+                                                   try {
+                                                      await cancelOrderRefund.mutateAsync(
+                                                         order.id
+                                                      );
+                                                   } catch (err) {
+                                                      console.error(err);
+                                                   }
+                                                }}
+                                             >
+                                                Cancel Refund
+                                             </Button>
+                                          );
+                                       }
+
+                                       return (
+                                          <Button
+                                             size="sm"
+                                             variant="outline"
+                                             onClick={() => {
+                                                setRefundTargetOrder(order.id);
+                                                setRefundReasonInput("");
+                                                setRefundDialogOpen(true);
+                                             }}
+                                          >
+                                             Request Refund
+                                          </Button>
+                                       );
+                                    })()}
+                              </div>
                            </div>
                         </CardContent>
                      </Card>
                   ))}
                </div>
+
+               {/* Refund Dialog */}
+               <Dialog
+                  open={refundDialogOpen}
+                  onOpenChange={setRefundDialogOpen}
+               >
+                  <DialogContent>
+                     <DialogHeader>
+                        <DialogTitle>Request Full-order Refund</DialogTitle>
+                        <DialogDescription>
+                           Please provide a reason for requesting a full refund
+                           for this order.
+                        </DialogDescription>
+                     </DialogHeader>
+                     <div className="mt-4">
+                        <textarea
+                           value={refundReasonInput}
+                           onChange={(e) =>
+                              setRefundReasonInput(e.target.value)
+                           }
+                           className="w-full p-2 border rounded"
+                           rows={4}
+                           placeholder="Reason for refund"
+                        />
+                     </div>
+                     <DialogFooter>
+                        <div className="flex gap-2">
+                           <Button
+                              variant="outline"
+                              onClick={() => setRefundDialogOpen(false)}
+                           >
+                              Cancel
+                           </Button>
+                           <Button
+                              onClick={async () => {
+                                 if (!refundTargetOrder) return;
+                                 if (!refundReasonInput) return;
+                                 try {
+                                    await requestOrderRefund.mutateAsync({
+                                       orderId: refundTargetOrder,
+                                       reason: refundReasonInput,
+                                    });
+                                    setRefundDialogOpen(false);
+                                    setRefundTargetOrder(null);
+                                    setRefundReasonInput("");
+                                 } catch (err) {
+                                    console.error(err);
+                                 }
+                              }}
+                           >
+                              Submit Request
+                           </Button>
+                        </div>
+                     </DialogFooter>
+                  </DialogContent>
+               </Dialog>
 
                {/* Pagination */}
                {ordersData && ordersData.count > 10 && (

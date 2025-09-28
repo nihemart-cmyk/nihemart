@@ -32,8 +32,9 @@ export function OrderDetailsDialog({
    const { useRequestRefundOrder, useCancelRefundRequestOrder } = useOrders();
    const requestOrderRefund = useRequestRefundOrder();
    const cancelOrderRefund = useCancelRefundRequestOrder();
-   const { user } = useAuth();
+   const { user, hasRole } = useAuth();
    const isOwner = user?.id === order.user_id;
+   const isAdmin = typeof hasRole === "function" ? hasRole("admin") : false;
    const [loadingItemId, setLoadingItemId] = useState<string | null>(null);
    const customerName =
       `${order.customer_first_name} ${order.customer_last_name}`.trim();
@@ -228,8 +229,8 @@ export function OrderDetailsDialog({
                            <p>Total</p>
                            <p>{order.total.toLocaleString()} RWF</p>
                         </div>
-                        {/* Full order refund actions - only visible to the order owner (not admins viewing other orders) */}
-                        {isOwner && (
+                        {/* Full order refund actions - only visible to the order owner and hidden for admins */}
+                        {isOwner && !isAdmin && (
                            <div className="mt-4 space-x-2">
                               {!order.refund_status && (
                                  <Button
