@@ -12,6 +12,7 @@ type Notification = {
    created_at: string;
    read?: boolean;
    meta?: any;
+   type?: string;
 };
 
 type NotificationsContextValue = {
@@ -216,6 +217,19 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
             meta: row.meta,
             created_at: row.created_at,
             read: row.read,
+            type:
+               (row.type as string) ||
+               (() => {
+                  try {
+                     const meta =
+                        typeof row.meta === "string"
+                           ? JSON.parse(row.meta)
+                           : row.meta || {};
+                     return meta?.type || meta?.event || undefined;
+                  } catch (e) {
+                     return undefined;
+                  }
+               })(),
          };
 
          setNotifications((prev) => {

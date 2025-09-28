@@ -36,6 +36,9 @@ import {
    User,
    Calendar,
    Hash,
+   MessageCircle,
+   AlertCircle,
+   RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -86,10 +89,12 @@ const OrderDetails = () => {
    // Loading state
    if (isLoading) {
       return (
-         <div className="container mx-auto px-4 py-8">
+         <div className="container mx-auto px-3 sm:px-4 py-6 sm:py-8 max-w-[90vw]">
             <div className="flex items-center justify-center py-12">
-               <Loader2 className="h-8 w-8 animate-spin" />
-               <span className="ml-2">Loading order details...</span>
+               <Loader2 className="h-8 w-8 animate-spin text-orange-500" />
+               <span className="ml-2 text-sm sm:text-base">
+                  Loading order details...
+               </span>
             </div>
          </div>
       );
@@ -98,15 +103,20 @@ const OrderDetails = () => {
    // Error state
    if (error || !order) {
       return (
-         <div className="container mx-auto px-4 py-8">
-            <div className="text-center py-12">
-               <Package className="h-24 w-24 text-muted-foreground mx-auto mb-6" />
-               <h1 className="text-3xl font-bold mb-4">Order Not Found</h1>
-               <p className="text-muted-foreground mb-8">
-                  The order you&aps;re looking for doesn&aps;t exist or you
-                  don&aps;t have permission to view it.
+         <div className="container mx-auto px-3 sm:px-4 py-6 sm:py-8 max-w-4xl">
+            <div className="text-center py-8 sm:py-12">
+               <Package className="h-16 w-16 sm:h-24 sm:w-24 text-muted-foreground mx-auto mb-4 sm:mb-6" />
+               <h1 className="text-2xl sm:text-3xl font-bold mb-3 sm:mb-4">
+                  Order Not Found
+               </h1>
+               <p className="text-muted-foreground mb-6 sm:mb-8 text-sm sm:text-base px-4">
+                  The order you&apos;re looking for doesn&apos;t exist or you don&apos;t have
+                  permission to view it.
                </p>
-               <Button onClick={() => router.push("/")}>
+               <Button
+                  onClick={() => router.push("/")}
+                  className="bg-orange-500 hover:bg-orange-600 text-white"
+               >
                   <ArrowLeft className="h-4 w-4 mr-2" />
                   Go Home
                </Button>
@@ -118,14 +128,19 @@ const OrderDetails = () => {
    // Check if user has permission to view this order
    if (!isAdmin && order.user_id !== user?.id) {
       return (
-         <div className="container mx-auto px-4 py-8">
-            <div className="text-center py-12">
-               <X className="h-24 w-24 text-red-500 mx-auto mb-6" />
-               <h1 className="text-3xl font-bold mb-4">Access Denied</h1>
-               <p className="text-muted-foreground mb-8">
+         <div className="container mx-auto px-3 sm:px-4 py-6 sm:py-8 max-w-4xl">
+            <div className="text-center py-8 sm:py-12">
+               <X className="h-16 w-16 sm:h-24 sm:w-24 text-red-500 mx-auto mb-4 sm:mb-6" />
+               <h1 className="text-2xl sm:text-3xl font-bold mb-3 sm:mb-4">
+                  Access Denied
+               </h1>
+               <p className="text-muted-foreground mb-6 sm:mb-8 text-sm sm:text-base px-4">
                   You don&apos;t have permission to view this order.
                </p>
-               <Button onClick={() => router.push("/")}>
+               <Button
+                  onClick={() => router.push("/")}
+                  className="bg-orange-500 hover:bg-orange-600 text-white"
+               >
                   <ArrowLeft className="h-4 w-4 mr-2" />
                   Go Home
                </Button>
@@ -171,7 +186,6 @@ const OrderDetails = () => {
    };
 
    // Build timeline entries from available timestamps and status.
-   // This ensures we always show a sensible timeline even if some fields are missing.
    const buildTimeline = () => {
       const entries: {
          key: string;
@@ -240,7 +254,7 @@ const OrderDetails = () => {
          });
       }
 
-      // Remove entries without dates except 'placed' (we still may want to show placed without date)
+      // Remove entries without dates except &apos;placed&apos; (we still may want to show placed without date)
       return entries.filter((e, idx) => (e.date ? true : e.key === "placed"));
    };
 
@@ -262,43 +276,9 @@ const OrderDetails = () => {
       }
    };
 
-   const generateWhatsAppMessage = () => {
-      const productDetails =
-         order.items
-            ?.map(
-               (item) =>
-                  `${item.product_name}${
-                     item.variation_name ? ` (${item.variation_name})` : ""
-                  } x${item.quantity} - ${item.total.toLocaleString()} RWF`
-            )
-            .join("\n") || "";
-
-      const message = `
-*Order Inquiry - #${order.order_number}*
-
-Hello, I have a question about my order:
-
-*Order Details:*
-Order Number: ${order.order_number}
-Status: ${(order.status || "unknown").toUpperCase()}
-Total: ${order.total.toLocaleString()} RWF
-
-*Products:*
-${productDetails}
-
-*Delivery Address:*
-${order.delivery_address}, ${order.delivery_city}
-
-Please let me know if you need any additional information.
-    `;
-      return encodeURIComponent(message);
-   };
-
-   const handleWhatsAppContact = () => {
-      const phoneNumber = "250784148374";
-      const message = generateWhatsAppMessage();
-      const url = `https://wa.me/${phoneNumber}?text=${message}`;
-      window.open(url, "_blank");
+   // Navigate to the contact page for support
+   const handleContactSupport = () => {
+      router.push("/contact");
    };
 
    const formatDate = (dateString: string) => {
@@ -312,98 +292,100 @@ Please let me know if you need any additional information.
    };
 
    return (
-      <div className="container mx-auto px-4 py-8">
-         <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8 gap-4">
-            <div className="flex items-start md:items-center space-x-4 w-full md:w-auto">
+      <div className="container mx-auto px-3 sm:px-4 py-6 sm:py-8 max-w-[90vw]">
+         {/* Header */}
+         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6 sm:mb-8">
+            <div className="flex items-center space-x-3 sm:space-x-4">
                <Button
                   variant="ghost"
-                  size="sm"
                   onClick={() => router.back()}
+                  className="p-1 sm:p-2 hover:bg-gray-100 h-8 w-8 sm:h-10 sm:w-10"
                >
-                  <ArrowLeft className="h-4 w-4 mr-2" />
-                  Back
+                  <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
                </Button>
                <div className="min-w-0">
-                  <h1 className="text-xl sm:text-2xl md:text-3xl font-bold truncate">
+                  <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold break-words">
                      Order #{order.order_number}
                   </h1>
-                  <p className="text-muted-foreground text-xs sm:text-sm">
+                  <p className="text-muted-foreground text-xs sm:text-sm mt-1">
                      Placed on {formatDate(order.created_at)}
                   </p>
                </div>
             </div>
 
-            <div className="flex items-center space-x-3 mt-3 md:mt-0 w-full md:w-auto justify-between md:justify-end">
-               <div className="flex items-center space-x-3">
-                  <Badge
-                     className={getStatusColor(order.status)}
-                     variant="secondary"
-                  >
-                     {getStatusIcon(order.status)}
-                     <span className="ml-2 capitalize hidden sm:inline">
-                        {order.status || "unknown"}
-                     </span>
-                  </Badge>
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 lg:w-auto">
+               <Badge
+                  className={`${getStatusColor(
+                     order.status
+                  )} text-white font-medium px-3 py-1`}
+                  variant="secondary"
+               >
+                  {getStatusIcon(order.status)}
+                  <span className="ml-2 capitalize">
+                     {order.status || "unknown"}
+                  </span>
+               </Badge>
 
-                  <Button
-                     variant="outline"
-                     size="sm"
-                     onClick={handleWhatsAppContact}
-                  >
-                     Contact Support
-                  </Button>
-               </div>
+               <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleContactSupport}
+                  className="border-green-300 text-green-600 hover:bg-green-50 text-xs sm:text-sm h-8 sm:h-9 whitespace-nowrap"
+               >
+                  <MessageCircle className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                  Contact Support
+               </Button>
             </div>
          </div>
 
-         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 space-y-6">
+         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+            <div className="xl:col-span-2 space-y-6">
                {/* Order Items */}
-               <Card>
-                  <CardHeader>
-                     <CardTitle className="flex items-center">
-                        <Package className="h-5 w-5 mr-2" />
+               <Card className="border-orange-200">
+                  <CardHeader className="bg-gradient-to-r from-orange-50 to-orange-25 py-4 sm:py-5">
+                     <CardTitle className="flex items-center text-orange-800 text-lg sm:text-xl">
+                        <Package className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
                         Order Items
                      </CardTitle>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="p-4 sm:p-6">
                      {order.items && order.items.length > 0 ? (
                         <div className="space-y-4">
                            {order.items.map((item) => (
                               <div
                                  key={item.id}
-                                 className="flex flex-col sm:flex-row justify-between items-start p-4 border rounded-lg"
+                                 className="flex flex-col lg:flex-row justify-between items-start p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
                               >
-                                 <div className="flex-1 w-full">
-                                    <h4 className="font-semibold">
+                                 <div className="flex-1 w-full lg:w-auto mb-3 lg:mb-0">
+                                    <h4 className="font-semibold text-sm sm:text-base break-words">
                                        {item.product_name}
                                     </h4>
                                     {item.variation_name && (
-                                       <p className="text-sm text-muted-foreground">
+                                       <p className="text-xs sm:text-sm text-muted-foreground">
                                           Variation: {item.variation_name}
                                        </p>
                                     )}
                                     {item.product_sku && (
-                                       <p className="text-sm text-muted-foreground">
+                                       <p className="text-xs sm:text-sm text-muted-foreground">
                                           SKU: {item.product_sku}
                                        </p>
                                     )}
-                                    <div className="flex items-center space-x-4 mt-2">
-                                       <span className="text-sm">
+                                    <div className="flex flex-wrap items-center gap-4 mt-2 text-xs sm:text-sm">
+                                       <span className="bg-gray-100 px-2 py-1 rounded">
                                           Qty: {item.quantity}
                                        </span>
-                                       <span className="text-sm">
-                                          Unit Price:{" "}
-                                          {item.price.toLocaleString()} RWF
+                                       <span className="bg-gray-100 px-2 py-1 rounded">
+                                          Unit: {item.price.toLocaleString()}{" "}
+                                          RWF
                                        </span>
                                     </div>
                                  </div>
-                                 <div className="text-right">
-                                    <p className="font-semibold">
+                                 <div className="flex flex-col items-start lg:items-end gap-2 w-full lg:w-auto">
+                                    <p className="font-semibold text-sm sm:text-base">
                                        {item.total.toLocaleString()} RWF
                                     </p>
 
-                                    <div className="mt-2 flex items-center justify-end space-x-2">
+                                    <div className="flex flex-wrap items-center gap-2">
                                        {/* Only allow the order owner (not admins) to request/cancel refunds for items */}
                                        {!isAdmin && isOwner ? (
                                           item.refund_status ? (
@@ -418,6 +400,7 @@ Please let me know if you need any additional information.
                                                          ? "destructive"
                                                          : "secondary"
                                                    }
+                                                   className="text-xs"
                                                 >
                                                    {item.refund_status
                                                       .charAt(0)
@@ -451,10 +434,11 @@ Please let me know if you need any additional information.
                                                          unrejectingItemId ===
                                                          item.id
                                                       }
+                                                      className="text-xs h-7"
                                                    >
                                                       {unrejectingItemId ===
                                                       item.id ? (
-                                                         <Loader2 className="h-4 w-4 animate-spin" />
+                                                         <Loader2 className="h-3 w-3 animate-spin" />
                                                       ) : (
                                                          "Cancel"
                                                       )}
@@ -467,12 +451,17 @@ Please let me know if you need any additional information.
                                                 variant={
                                                    order.status === "delivered"
                                                       ? "outline"
-                                                      : "destructive"
+                                                      : "outline"
                                                 }
                                                 onClick={() => {
                                                    setRejectingItemId(item.id);
                                                    setRejectDialogOpen(true);
                                                 }}
+                                                className={`text-xs h-7 ${
+                                                   order.status === "delivered"
+                                                      ? "border-green-300 text-green-600 hover:bg-green-50"
+                                                      : "border-red-300 text-red-600 hover:bg-red-50"
+                                                }`}
                                              >
                                                 {order.status === "delivered"
                                                    ? "Request Refund"
@@ -486,40 +475,48 @@ Please let me know if you need any additional information.
                            ))}
                         </div>
                      ) : (
-                        <p className="text-muted-foreground">
-                           No items found for this order.
-                        </p>
+                        <div className="text-center py-8">
+                           <Package className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                           <p className="text-muted-foreground">
+                              No items found for this order.
+                           </p>
+                        </div>
                      )}
                   </CardContent>
                </Card>
 
                {/* Order Timeline */}
-               <Card>
-                  <CardHeader>
-                     <CardTitle>Order Timeline</CardTitle>
+               <Card className="border-orange-200">
+                  <CardHeader className="bg-gradient-to-r from-orange-50 to-orange-25 py-4 sm:py-5">
+                     <CardTitle className="text-orange-800 text-lg sm:text-xl">
+                        Order Timeline
+                     </CardTitle>
                   </CardHeader>
-                  <CardContent>
+                  <CardContent className="p-4 sm:p-6">
                      {buildTimeline().length > 0 ? (
                         <div className="space-y-4">
-                           {buildTimeline().map((entry) => (
+                           {buildTimeline().map((entry, index) => (
                               <div
                                  key={entry.key}
-                                 className="flex items-start space-x-3"
+                                 className="flex items-start space-x-4"
                               >
-                                 <div className="flex-shrink-0">
+                                 <div className="flex-shrink-0 relative">
                                     <div
                                        className={`w-8 h-8 ${
                                           entry.color || "bg-gray-400"
-                                       } rounded-full flex items-center justify-center`}
+                                       } rounded-full flex items-center justify-center shadow-sm`}
                                     >
                                        {entry.icon}
                                     </div>
+                                    {index < buildTimeline().length - 1 && (
+                                       <div className="absolute top-8 left-4 w-px h-6 bg-gray-300" />
+                                    )}
                                  </div>
-                                 <div>
-                                    <p className="font-semibold">
+                                 <div className="min-w-0 flex-1">
+                                    <p className="font-semibold text-sm sm:text-base">
                                        {entry.title}
                                     </p>
-                                    <p className="text-sm text-muted-foreground">
+                                    <p className="text-xs sm:text-sm text-muted-foreground">
                                        {entry.date
                                           ? formatDate(entry.date)
                                           : "Date not available"}
@@ -529,9 +526,12 @@ Please let me know if you need any additional information.
                            ))}
                         </div>
                      ) : (
-                        <p className="text-muted-foreground">
-                           No timeline data available for this order.
-                        </p>
+                        <div className="text-center py-8">
+                           <Clock className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                           <p className="text-muted-foreground">
+                              No timeline data available for this order.
+                           </p>
+                        </div>
                      )}
                   </CardContent>
                </Card>
@@ -539,21 +539,23 @@ Please let me know if you need any additional information.
 
             <div className="space-y-6">
                {/* Order Summary */}
-               <Card>
-                  <CardHeader>
-                     <CardTitle>Order Summary</CardTitle>
+               <Card className="border-orange-200">
+                  <CardHeader className="bg-gradient-to-r from-orange-50 to-orange-25 py-4 sm:py-5">
+                     <CardTitle className="text-orange-800 text-lg sm:text-xl">
+                        Order Summary
+                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-3">
-                     <div className="flex justify-between">
+                  <CardContent className="p-4 sm:p-6 space-y-3">
+                     <div className="flex justify-between text-sm">
                         <span>Subtotal</span>
                         <span>{order.subtotal.toLocaleString()} RWF</span>
                      </div>
-                     <div className="flex justify-between">
+                     <div className="flex justify-between text-sm">
                         <span>Tax/Transport</span>
                         <span>{(order.tax || 0).toLocaleString()} RWF</span>
                      </div>
                      <Separator />
-                     <div className="flex justify-between font-bold text-lg">
+                     <div className="flex justify-between font-bold text-base sm:text-lg">
                         <span>Total</span>
                         <span>{order.total.toLocaleString()} RWF</span>
                      </div>
@@ -561,52 +563,62 @@ Please let me know if you need any additional information.
                </Card>
 
                {/* Customer Information */}
-               <Card>
-                  <CardHeader>
-                     <CardTitle>Customer Information</CardTitle>
+               <Card className="border-orange-200">
+                  <CardHeader className="bg-gradient-to-r from-orange-50 to-orange-25 py-4 sm:py-5">
+                     <CardTitle className="text-orange-800 text-lg sm:text-xl">
+                        Customer Information
+                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-3">
-                     <div className="flex items-center space-x-2">
-                        <User className="h-4 w-4 text-muted-foreground" />
-                        <span>
+                  <CardContent className="p-4 sm:p-6 space-y-3">
+                     <div className="flex items-center space-x-3">
+                        <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <span className="text-sm break-words">
                            {order.customer_first_name}{" "}
                            {order.customer_last_name}
                         </span>
                      </div>
-                     <div className="flex items-center space-x-2">
-                        <Mail className="h-4 w-4 text-muted-foreground" />
-                        <span>{order.customer_email}</span>
+                     <div className="flex items-center space-x-3">
+                        <Mail className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <span className="text-sm break-words">
+                           {order.customer_email}
+                        </span>
                      </div>
                      {order.customer_phone && (
-                        <div className="flex items-center space-x-2">
-                           <Phone className="h-4 w-4 text-muted-foreground" />
-                           <span>{order.customer_phone}</span>
+                        <div className="flex items-center space-x-3">
+                           <Phone className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                           <span className="text-sm break-words">
+                              {order.customer_phone}
+                           </span>
                         </div>
                      )}
                   </CardContent>
                </Card>
 
                {/* Delivery Information */}
-               <Card>
-                  <CardHeader>
-                     <CardTitle>Delivery Information</CardTitle>
+               <Card className="border-orange-200">
+                  <CardHeader className="bg-gradient-to-r from-orange-50 to-orange-25 py-4 sm:py-5">
+                     <CardTitle className="text-orange-800 text-lg sm:text-xl">
+                        Delivery Information
+                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-3">
-                     <div className="flex items-start space-x-2">
-                        <MapPin className="h-4 w-4 text-muted-foreground mt-1" />
-                        <div>
-                           <p>{order.delivery_address}</p>
-                           <p className="text-muted-foreground">
+                  <CardContent className="p-4 sm:p-6 space-y-3">
+                     <div className="flex items-start space-x-3">
+                        <MapPin className="h-4 w-4 text-muted-foreground mt-1 flex-shrink-0" />
+                        <div className="min-w-0">
+                           <p className="text-sm break-words">
+                              {order.delivery_address}
+                           </p>
+                           <p className="text-muted-foreground text-sm break-words">
                               {order.delivery_city}
                            </p>
                         </div>
                      </div>
                      {order.delivery_notes && (
-                        <div>
-                           <p className="text-sm font-semibold">
+                        <div className="pt-2 border-t">
+                           <p className="text-sm font-semibold mb-1">
                               Delivery Notes:
                            </p>
-                           <p className="text-sm text-muted-foreground">
+                           <p className="text-sm text-muted-foreground break-words">
                               {order.delivery_notes}
                            </p>
                         </div>
@@ -616,13 +628,15 @@ Please let me know if you need any additional information.
 
                {/* Shared Order Actions (show to owner and admins) */}
                {(isAdmin || isOwner) && (
-                  <Card>
-                     <CardHeader>
-                        <CardTitle>Order Actions</CardTitle>
+                  <Card className="border-orange-200">
+                     <CardHeader className="bg-gradient-to-r from-orange-50 to-orange-25 py-4 sm:py-5">
+                        <CardTitle className="text-orange-800 text-lg sm:text-xl">
+                           Order Actions
+                        </CardTitle>
                      </CardHeader>
-                     <CardContent>
-                        <div className="space-y-2">
-                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                     <CardContent className="p-4 sm:p-6">
+                        <div className="space-y-3">
+                           <div className="grid grid-cols-1 gap-2">
                               {/* Admin status controls */}
                               {isAdmin && order.status === "pending" && (
                                  <Button
@@ -631,12 +645,14 @@ Please let me know if you need any additional information.
                                        handleStatusUpdate("processing")
                                     }
                                     disabled={isUpdatingStatus}
+                                    className="bg-blue-500 hover:bg-blue-600 text-white text-xs sm:text-sm h-8 sm:h-9"
                                  >
                                     {isUpdatingStatus ? (
-                                       <Loader2 className="h-4 w-4 animate-spin" />
+                                       <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin mr-2" />
                                     ) : (
-                                       "Mark Processing"
+                                       <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
                                     )}
+                                    Mark Processing
                                  </Button>
                               )}
 
@@ -647,12 +663,14 @@ Please let me know if you need any additional information.
                                        handleStatusUpdate("shipped")
                                     }
                                     disabled={isUpdatingStatus}
+                                    className="bg-purple-500 hover:bg-purple-600 text-white text-xs sm:text-sm h-8 sm:h-9"
                                  >
                                     {isUpdatingStatus ? (
-                                       <Loader2 className="h-4 w-4 animate-spin" />
+                                       <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin mr-2" />
                                     ) : (
-                                       "Mark Shipped"
+                                       <Truck className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
                                     )}
+                                    Mark Shipped
                                  </Button>
                               )}
 
@@ -663,12 +681,14 @@ Please let me know if you need any additional information.
                                        handleStatusUpdate("delivered")
                                     }
                                     disabled={isUpdatingStatus}
+                                    className="bg-green-500 hover:bg-green-600 text-white text-xs sm:text-sm h-8 sm:h-9"
                                  >
                                     {isUpdatingStatus ? (
-                                       <Loader2 className="h-4 w-4 animate-spin" />
+                                       <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin mr-2" />
                                     ) : (
-                                       "Mark Delivered"
+                                       <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
                                     )}
+                                    Mark Delivered
                                  </Button>
                               )}
 
@@ -679,7 +699,7 @@ Please let me know if you need any additional information.
                                  ) && (
                                     <Button
                                        size="sm"
-                                       variant="destructive"
+                                       variant="outline"
                                        onClick={async () => {
                                           try {
                                              setIsUpdatingStatus(true);
@@ -687,7 +707,6 @@ Please let me know if you need any additional information.
                                                 "cancelled"
                                              );
                                              toast.success("Order cancelled");
-                                             // if owner, keep existing redirect behavior handled below
                                           } catch (e) {
                                              // handled by mutation
                                           } finally {
@@ -695,7 +714,9 @@ Please let me know if you need any additional information.
                                           }
                                        }}
                                        disabled={isUpdatingStatus}
+                                       className="border-red-300 text-red-600 hover:bg-red-50 text-xs sm:text-sm h-8 sm:h-9"
                                     >
+                                       <X className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
                                        Cancel Order
                                     </Button>
                                  )}
@@ -716,7 +737,7 @@ Please let me know if you need any additional information.
 
                                  if (within24h && refundNotRequested) {
                                     return (
-                                       <div>
+                                       <div className="pt-2 border-t">
                                           <Button
                                              size="sm"
                                              variant="outline"
@@ -739,7 +760,9 @@ Please let me know if you need any additional information.
                                                    // mutation handles toast
                                                 }
                                              }}
+                                             className="border-green-300 text-green-600 hover:bg-green-50 text-xs sm:text-sm h-8 sm:h-9 w-full"
                                           >
+                                             <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
                                              Request Full Refund
                                           </Button>
                                        </div>
@@ -748,9 +771,10 @@ Please let me know if you need any additional information.
                                  // If refund already requested, allow cancelling the refund request for owner
                                  if (!refundNotRequested && isOwner) {
                                     return (
-                                       <div>
+                                       <div className="pt-2 border-t">
                                           <Button
                                              size="sm"
+                                             variant="outline"
                                              onClick={async () => {
                                                 try {
                                                    await cancelOrderRefund.mutateAsync(
@@ -763,7 +787,9 @@ Please let me know if you need any additional information.
                                                    // handled by mutation
                                                 }
                                              }}
+                                             className="border-yellow-300 text-yellow-600 hover:bg-yellow-50 text-xs sm:text-sm h-8 sm:h-9 w-full"
                                           >
+                                             <X className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
                                              Cancel Refund Request
                                           </Button>
                                        </div>
@@ -779,11 +805,13 @@ Please let me know if you need any additional information.
 
                {/* Owner Controls: allow order owners to cancel their own orders when pending/processing */}
                {!isAdmin && isOwner && (
-                  <Card>
-                     <CardHeader>
-                        <CardTitle>Order Actions</CardTitle>
+                  <Card className="border-orange-200">
+                     <CardHeader className="bg-gradient-to-r from-orange-50 to-orange-25 py-4 sm:py-5">
+                        <CardTitle className="text-orange-800 text-lg sm:text-xl">
+                           Order Actions
+                        </CardTitle>
                      </CardHeader>
-                     <CardContent>
+                     <CardContent className="p-4 sm:p-6">
                         <div className="space-y-2">
                            {order.status &&
                               ["pending", "processing"].includes(
@@ -792,11 +820,13 @@ Please let me know if you need any additional information.
                                  <>
                                     <Button
                                        size="sm"
-                                       variant="destructive"
+                                       variant="outline"
                                        onClick={() =>
                                           setShowCancelConfirm(true)
                                        }
+                                       className="border-red-300 text-red-600 hover:bg-red-50 text-xs sm:text-sm h-8 sm:h-9 w-full"
                                     >
+                                       <X className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
                                        Cancel Order
                                     </Button>
 
@@ -834,7 +864,7 @@ Please let me know if you need any additional information.
 
                                           <div className="mt-4 flex justify-end space-x-2">
                                              <Button
-                                                variant="ghost"
+                                                variant="outline"
                                                 onClick={() =>
                                                    setShowCancelConfirm(false)
                                                 }
@@ -866,6 +896,7 @@ Please let me know if you need any additional information.
                                                       );
                                                    }
                                                 }}
+                                                className="bg-red-500 hover:bg-red-600"
                                              >
                                                 Yes, cancel order
                                              </Button>
@@ -886,7 +917,7 @@ Please let me know if you need any additional information.
             open={rejectDialogOpen}
             onOpenChange={(v: boolean) => setRejectDialogOpen(v)}
          >
-            <DialogContent>
+            <DialogContent className="max-w-md">
                <DialogHeader>
                   <DialogTitle>Request Refund</DialogTitle>
                   <DialogDescription>
@@ -900,25 +931,25 @@ Please let me know if you need any additional information.
                      value={rejectReason}
                      onChange={(e) => setRejectReason(e.target.value)}
                      placeholder="Enter rejection reason"
-                     className="w-full"
+                     className="w-full border-gray-300 focus:border-orange-500 focus:ring-orange-500 text-sm"
                   />
                </div>
 
                <DialogFooter>
-                  <div className="flex justify-end space-x-2">
+                  <div className="flex justify-end space-x-2 w-full">
                      <Button
-                        variant="ghost"
+                        variant="outline"
                         onClick={() => {
                            setRejectDialogOpen(false);
                            setRejectReason("");
                            setRejectingItemId(null);
                         }}
                         disabled={isRejecting}
+                        className="flex-1"
                      >
                         Cancel
                      </Button>
                      <Button
-                        variant="destructive"
                         onClick={async () => {
                            if (!rejectingItemId) return;
                            setIsRejecting(true);
@@ -938,12 +969,12 @@ Please let me know if you need any additional information.
                            }
                         }}
                         disabled={isRejecting || !rejectReason}
+                        className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"
                      >
                         {isRejecting ? (
-                           <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                           "Confirm"
-                        )}
+                           <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        ) : null}
+                        {isRejecting ? "Requesting..." : "Confirm Request"}
                      </Button>
                   </div>
                </DialogFooter>

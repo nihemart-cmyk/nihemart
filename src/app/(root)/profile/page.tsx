@@ -1,22 +1,43 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { User, Edit, Save, X } from "lucide-react";
+import { 
+   User, 
+   Edit, 
+   Save, 
+   X, 
+   ShoppingBag, 
+   Package, 
+   TrendingUp, 
+   Clock,
+   Bell,
+   ArrowRight,
+   MapPin,
+   Mail,
+   Phone,
+   Calendar,
+   CreditCard,
+   Award,
+   Star,
+   ArrowLeft
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { useOrders } from "@/hooks/useOrders";
 import { useNotifications } from "@/contexts/NotificationsContext";
+import { useRouter } from "next/navigation";
 
 const Profile = () => {
    const { t } = useLanguage();
    const { user, loading } = useAuth();
+   const router = useRouter();
    const [isEditing, setIsEditing] = useState(false);
    const [formData, setFormData] = useState({
       fullName: "",
@@ -26,32 +47,28 @@ const Profile = () => {
       city: "",
    });
    const [profileLoading, setProfileLoading] = useState(true);
-   // notifications from context
-   const { notifications, markAsRead, clear } = useNotifications();
-   const [localNotifications, setLocalNotifications] = useState<any[]>([]);
+   const { notifications } = useNotifications();
    const { useUserOrders } = useOrders();
+   
+   // Get comprehensive order data for stats
    const {
       data: ordersData,
       isLoading: ordersLoading,
-      isError: ordersError,
    } = useUserOrders({
-      pagination: { page: 1, limit: 10 },
+      pagination: { page: 1, limit: 100 }, // Get more orders for better stats
       sort: { column: "created_at", direction: "desc" },
    });
 
    useEffect(() => {
-      setLocalNotifications(notifications);
-   }, [notifications]);
-
-   useEffect(() => {
       const load = async () => {
          if (!user) return setProfileLoading(false);
-         // Try to fetch profile
+         
          const { data, error } = await supabase
             .from("profiles")
             .select("full_name, phone, address, city")
             .eq("id", user.id)
             .maybeSingle();
+            
          if (!error && data) {
             setFormData({
                fullName: data?.full_name || "",
@@ -62,7 +79,6 @@ const Profile = () => {
             });
             setProfileLoading(false);
          } else if (!error && !data) {
-            // No profile row, create one
             const { error: insertError } = await supabase
                .from("profiles")
                .insert({
@@ -105,113 +121,183 @@ const Profile = () => {
          return;
       }
       toast.success("Profile updated");
-      // Refresh orders cache (best-effort) by invalidating via fetch: if useOrders is present we can refetch
-      try {
-         // If there are orders, refetch by calling the hook's query function indirectly via window.location.reload for a simple refresh
-         // (we avoid importing queryClient here to keep changes small). This ensures the Orders tab shows latest data.
-         // Prefer not to hard reload the page unless necessary: only refetch if ordersData exists
-         if (ordersData) {
-            // noop - react-query will keep data fresh based on its own cache/staleTime
-         }
-      } catch (e) {
-         // ignore
-      }
       setIsEditing(false);
    };
 
    const handleCancel = () => {
       setIsEditing(false);
    };
+
+   // Calculate stats from orders data
+   const calculateStats = () => {
+      if (!ordersData?.data) return {
+         totalOrders: 0,
+         totalSpent: 0,
+         pendingOrders: 0,
+         completedOrders: 0,
+         averageOrder: 0,
+         recentOrders: []
+      };
+
+      const orders = ordersData.data;
+      const totalOrders = orders.length;
+      const totalSpent = orders.reduce((sum, order) => sum + Number(order.total || 0), 0);
+      const pendingOrders = orders.filter(order => 
+         ['pending', 'processing', 'shipped'].includes(order.status || '')
+      ).length;
+      const completedOrders = orders.filter(order => order.status === 'delivered').length;
+      const averageOrder = totalOrders > 0 ? totalSpent / totalOrders : 0;
+      const recentOrders = orders.slice(0, 3);
+
+      return {
+         totalOrders,
+         totalSpent,
+         pendingOrders,
+         completedOrders,
+         averageOrder,
+         recentOrders
+      };
+   };
+
+   const stats = calculateStats();
+   const unreadNotifications = notifications.filter(n => !n.read).length;
+
+   const getStatusBadge = (status?: string) => {
+      if (!status) return <Badge variant="secondary">Unknown</Badge>;
+
+      const badgeConfig = {
+         pending: { variant: "secondary", color: "bg-yellow-100 text-yellow-800 border-yellow-200" },
+         processing: { variant: "default", color: "bg-blue-100 text-blue-800 border-blue-200" },
+         shipped: { variant: "secondary", color: "bg-purple-100 text-purple-800 border-purple-200" },
+         delivered: { variant: "default", color: "bg-green-100 text-green-800 border-green-200" },
+         cancelled: { variant: "destructive", color: "bg-red-100 text-red-800 border-red-200" },
+      };
+
+      const config = badgeConfig[status as keyof typeof badgeConfig];
+      
+      return (
+         <Badge
+            variant={config?.variant as any || "secondary"}
+            className={`${config?.color || "bg-gray-100 text-gray-800"} font-medium text-xs`}
+         >
+            {status.charAt(0).toUpperCase() + status.slice(1)}
+         </Badge>
+      );
+   };
+
    if (loading || profileLoading) {
       return (
-         <div className="flex items-center justify-center min-h-[60vh]">
-            <span className="text-lg text-muted-foreground">
-               Loading profile...
-            </span>
+         <div className="container mx-auto px-3 sm:px-4 py-6 sm:py-8 max-w-[90vw]">
+            <div className="flex items-center justify-center min-h-[60vh]">
+               <div className="text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mx-auto mb-4"></div>
+                  <span className="text-sm sm:text-base text-muted-foreground">
+                     Loading profile...
+                  </span>
+               </div>
+            </div>
          </div>
       );
    }
 
    return (
-      <div className="container mx-auto px-4 py-8">
-         <div className="max-w-4xl mx-auto">
-            <div className="flex items-center justify-between mb-8">
-               <h1 className="text-3xl font-bold">{t("nav.profile")}</h1>
-               {!isEditing && (
-                  <Button onClick={() => setIsEditing(true)}>
-                     <Edit className="h-4 w-4 mr-2" />
-                     Edit Profile
-                  </Button>
-               )}
-            </div>
-
-            <Tabs
-               defaultValue="personal"
-               className="w-full"
-            >
-               <TabsList className="grid w-full grid-cols-3">
-                  <TabsTrigger value="personal">Personal Info</TabsTrigger>
-                  <TabsTrigger value="orders">Order History</TabsTrigger>
-                  <TabsTrigger value="settings">Notifications</TabsTrigger>
-               </TabsList>
-
-               <TabsContent
-                  value="personal"
-                  className="mt-6"
+      <div className="container mx-auto px-3 sm:px-4 py-6 sm:py-8 max-w-[90vw]">
+         {/* Header */}
+         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 sm:mb-8">
+            <div className="flex items-center space-x-3 sm:space-x-4">
+               <Button
+                  variant="ghost"
+                  onClick={() => router.back()}
+                  className="p-1 sm:p-2 hover:bg-gray-100 h-8 w-8 sm:h-10 sm:w-10"
                >
-                  <Card>
-                     <CardHeader>
-                        <CardTitle>Personal Information</CardTitle>
-                     </CardHeader>
-                     <CardContent className="space-y-6">
-                        <div className="flex items-center space-x-4 mb-6">
-                           <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center">
-                              <User className="h-10 w-10 text-primary" />
-                           </div>
-                           <div>
-                              <h3 className="text-xl font-semibold">
-                                 {formData.fullName}
-                              </h3>
-                              <p className="text-muted-foreground">
-                                 {formData.email}
-                              </p>
+                  <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5" />
+               </Button>
+               <div>
+                  <h1 className="text-2xl sm:text-3xl font-bold">{t("nav.profile")}</h1>
+                  <p className="text-gray-600 mt-1 text-sm sm:text-base">Manage your account and view your activity</p>
+               </div>
+            </div>
+            {!isEditing && (
+               <Button 
+                  onClick={() => setIsEditing(true)}
+                  className="bg-orange-500 hover:bg-orange-600 text-white text-sm sm:text-base h-9 sm:h-10 w-full sm:w-auto"
+               >
+                  <Edit className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                  Edit Profile
+               </Button>
+            )}
+         </div>
+
+         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+            {/* Profile Info - Takes 2 columns on xl screens */}
+            <div className="xl:col-span-2 space-y-6">
+               {/* Profile Card */}
+               <Card className="border-orange-200">
+                  <CardHeader className="bg-gradient-to-r from-orange-50 to-orange-25 py-6">
+                     <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                        <div className="w-16 h-16 sm:w-20 sm:h-20 bg-orange-100 rounded-full flex items-center justify-center flex-shrink-0">
+                           <User className="h-8 w-8 sm:h-10 sm:w-10 text-orange-600" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                           <h2 className="text-xl sm:text-2xl font-bold text-orange-800 break-words">
+                              {formData.fullName || 'Your Name'}
+                           </h2>
+                           <p className="text-orange-600 text-sm sm:text-base break-words mt-1">
+                              {formData.email}
+                           </p>
+                           <div className="flex flex-wrap items-center gap-2 mt-2">
+                              <Badge className="bg-orange-100 text-orange-800 text-xs">
+                                 <Calendar className="h-3 w-3 mr-1" />
+                                 Member since {new Date(user?.created_at || '').toLocaleDateString('en-US', { 
+                                    year: 'numeric', 
+                                    month: 'short' 
+                                 })}
+                              </Badge>
+                              {stats.completedOrders >= 5 && (
+                                 <Badge className="bg-green-100 text-green-800 text-xs">
+                                    <Star className="h-3 w-3 mr-1" />
+                                    Loyal Customer
+                                 </Badge>
+                              )}
                            </div>
                         </div>
+                     </div>
+                  </CardHeader>
+                  <CardContent className="p-4 sm:p-6">
+                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+                        <div>
+                           <Label htmlFor="fullName" className="text-sm font-medium text-gray-700">Full Name</Label>
+                           <Input
+                              id="fullName"
+                              value={formData.fullName}
+                              onChange={(e) =>
+                                 setFormData({
+                                    ...formData,
+                                    fullName: e.target.value,
+                                 })
+                              }
+                              disabled={!isEditing}
+                              className="border-gray-300 focus:border-orange-500 focus:ring-orange-500 text-sm h-10 mt-1"
+                           />
+                        </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                           <div>
-                              <Label htmlFor="fullName">Full Name</Label>
-                              <Input
-                                 id="fullName"
-                                 value={formData.fullName}
-                                 onChange={(e) =>
-                                    setFormData({
-                                       ...formData,
-                                       fullName: e.target.value,
-                                    })
-                                 }
-                                 disabled={!isEditing}
-                              />
-                           </div>
-
-                           <div>
-                              <Label htmlFor="email">Email</Label>
+                        <div>
+                           <Label htmlFor="email" className="text-sm font-medium text-gray-700">Email</Label>
+                           <div className="relative mt-1">
                               <Input
                                  id="email"
                                  type="email"
                                  value={formData.email}
-                                 onChange={(e) =>
-                                    setFormData({
-                                       ...formData,
-                                       email: e.target.value,
-                                    })
-                                 }
-                                 disabled={!isEditing}
+                                 disabled={true}
+                                 className="border-gray-300 text-sm h-10 bg-gray-50"
                               />
+                              <Mail className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                            </div>
+                        </div>
 
-                           <div>
-                              <Label htmlFor="phone">Phone</Label>
+                        <div>
+                           <Label htmlFor="phone" className="text-sm font-medium text-gray-700">Phone</Label>
+                           <div className="relative mt-1">
                               <Input
                                  id="phone"
                                  value={formData.phone}
@@ -222,11 +308,16 @@ const Profile = () => {
                                     })
                                  }
                                  disabled={!isEditing}
+                                 className="border-gray-300 focus:border-orange-500 focus:ring-orange-500 text-sm h-10"
+                                 placeholder="Your phone number"
                               />
+                              <Phone className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                            </div>
+                        </div>
 
-                           <div>
-                              <Label htmlFor="city">City</Label>
+                        <div>
+                           <Label htmlFor="city" className="text-sm font-medium text-gray-700">City</Label>
+                           <div className="relative mt-1">
                               <Input
                                  id="city"
                                  value={formData.city}
@@ -237,288 +328,252 @@ const Profile = () => {
                                     })
                                  }
                                  disabled={!isEditing}
+                                 className="border-gray-300 focus:border-orange-500 focus:ring-orange-500 text-sm h-10"
+                                 placeholder="Your city"
                               />
-                           </div>
-
-                           <div className="md:col-span-2">
-                              <Label htmlFor="address">Address</Label>
-                              <Input
-                                 id="address"
-                                 value={formData.address}
-                                 onChange={(e) =>
-                                    setFormData({
-                                       ...formData,
-                                       address: e.target.value,
-                                    })
-                                 }
-                                 disabled={!isEditing}
-                              />
+                              <MapPin className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                            </div>
                         </div>
 
-                        {isEditing && (
-                           <div className="flex space-x-4">
-                              <Button onClick={handleSave}>
-                                 <Save className="h-4 w-4 mr-2" />
-                                 Save Changes
-                              </Button>
-                              <Button
-                                 variant="outline"
-                                 onClick={handleCancel}
-                              >
-                                 <X className="h-4 w-4 mr-2" />
-                                 Cancel
-                              </Button>
-                           </div>
-                        )}
-                     </CardContent>
-                  </Card>
-               </TabsContent>
-
-               <TabsContent
-                  value="orders"
-                  className="mt-6"
-               >
-                  <Card>
-                     <CardHeader>
-                        <CardTitle>Recent Orders</CardTitle>
-                     </CardHeader>
-                     <CardContent>
-                        {ordersLoading ? (
-                           <div className="text-center py-8">
-                              <p>Loading orders...</p>
-                           </div>
-                        ) : ordersError ? (
-                           <div className="text-center py-8 text-muted-foreground">
-                              <p>Error loading orders.</p>
-                           </div>
-                        ) : !ordersData?.data ||
-                          ordersData.data.length === 0 ? (
-                           <div className="text-center py-8 text-muted-foreground">
-                              <p>No recent orders found.</p>
-                              <Button
-                                 className="mt-4"
-                                 variant="outline"
-                              >
-                                 Start Shopping
-                              </Button>
-                           </div>
-                        ) : (
-                           <div className="space-y-4">
-                              {ordersData.data.map((order: any) => (
-                                 <div
-                                    key={order.id}
-                                    className="p-4 border rounded"
-                                 >
-                                    <div className="flex justify-between items-center">
-                                       <div>
-                                          <div className="font-medium">
-                                             Order #{order.order_number}
-                                          </div>
-                                          <div className="text-sm text-muted-foreground">
-                                             {new Date(
-                                                order.created_at
-                                             ).toLocaleString()}
-                                          </div>
-                                       </div>
-                                       <div className="text-right">
-                                          <div className="font-semibold">
-                                             {Number(
-                                                order.total
-                                             ).toLocaleString()}{" "}
-                                             RWF
-                                          </div>
-                                          <div className="text-sm text-muted-foreground">
-                                             {order.delivery_city || "-"}
-                                          </div>
-                                       </div>
-                                    </div>
-                                    <div className="mt-3">
-                                       {order.items &&
-                                       order.items.length > 0 ? (
-                                          order.items.map((item: any) => (
-                                             <div
-                                                key={item.id}
-                                                className="flex justify-between items-center py-2 border-t"
-                                             >
-                                                <div>
-                                                   <div className="font-medium">
-                                                      {item.product_name}
-                                                   </div>
-                                                   <div className="text-sm text-muted-foreground">
-                                                      Qty: {item.quantity}
-                                                   </div>
-                                                </div>
-                                                <div className="font-medium">
-                                                   {Number(
-                                                      item.total
-                                                   ).toLocaleString()}{" "}
-                                                   RWF
-                                                </div>
-                                             </div>
-                                          ))
-                                       ) : (
-                                          <div className="py-2 text-muted-foreground">
-                                             No items found
-                                          </div>
-                                       )}
-                                    </div>
-                                 </div>
-                              ))}
-                           </div>
-                        )}
-                     </CardContent>
-                  </Card>
-               </TabsContent>
-
-               <TabsContent
-                  value="settings"
-                  className="mt-6"
-               >
-                  <Card>
-                     <CardHeader>
-                        <CardTitle>Notifications</CardTitle>
-                     </CardHeader>
-                     <CardContent className="space-y-4">
-                        <div className="flex items-center justify-between">
-                           <div>
-                              <p className="text-sm text-muted-foreground">
-                                 Your recent notifications
-                              </p>
-                           </div>
-                           <div className="flex items-center space-x-2">
-                              <Button
-                                 variant="outline"
-                                 size="sm"
-                                 onClick={async () => {
-                                    try {
-                                       // mark all unread notifications as read via API
-                                       const ids = notifications
-                                          .filter((n) => !n.read)
-                                          .map((n) => n.id);
-                                       if (ids.length === 0) return;
-                                       await fetch(
-                                          `/api/notifications/mark-read`,
-                                          {
-                                             method: "POST",
-                                             headers: {
-                                                "Content-Type":
-                                                   "application/json",
-                                             },
-                                             body: JSON.stringify({ ids }),
-                                          }
-                                       );
-                                       // optimistic update
-                                       setLocalNotifications((prev) =>
-                                          prev.map((p) => ({
-                                             ...p,
-                                             read: true,
-                                          }))
-                                       );
-                                    } catch (e) {
-                                       console.error(e);
-                                    }
-                                 }}
-                              >
-                                 Mark all read
-                              </Button>
-                              <Button
-                                 variant="ghost"
-                                 size="sm"
-                                 onClick={() => setLocalNotifications([])}
-                              >
-                                 Clear
-                              </Button>
-                           </div>
+                        <div className="sm:col-span-2">
+                           <Label htmlFor="address" className="text-sm font-medium text-gray-700">Address</Label>
+                           <Input
+                              id="address"
+                              value={formData.address}
+                              onChange={(e) =>
+                                 setFormData({
+                                    ...formData,
+                                    address: e.target.value,
+                                 })
+                              }
+                              disabled={!isEditing}
+                              className="border-gray-300 focus:border-orange-500 focus:ring-orange-500 text-sm h-10 mt-1"
+                              placeholder="Your address"
+                           />
                         </div>
+                     </div>
 
-                        {/* Notifications list */}
-                        <div className="divide-y max-h-96 overflow-auto">
-                           {localNotifications.length === 0 && (
-                              <div className="py-8 text-center text-muted-foreground">
-                                 No notifications
-                              </div>
-                           )}
-                           {localNotifications.map((n) => (
+                     {isEditing && (
+                        <div className="flex flex-col sm:flex-row gap-2 mt-6 pt-4 border-t">
+                           <Button 
+                              onClick={handleSave}
+                              className="bg-orange-500 hover:bg-orange-600 text-white text-sm h-9 order-1 sm:order-1"
+                           >
+                              <Save className="h-4 w-4 mr-2" />
+                              Save Changes
+                           </Button>
+                           <Button
+                              variant="outline"
+                              onClick={handleCancel}
+                              className="border-gray-300 text-gray-700 hover:bg-gray-50 text-sm h-9 order-2 sm:order-2"
+                           >
+                              <X className="h-4 w-4 mr-2" />
+                              Cancel
+                           </Button>
+                        </div>
+                     )}
+                  </CardContent>
+               </Card>
+
+               {/* Recent Orders */}
+               <Card className="border-orange-200">
+                  <CardHeader className="bg-gradient-to-r from-orange-50 to-orange-25 py-4 sm:py-5">
+                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                        <CardTitle className="text-orange-800 text-lg sm:text-xl">Recent Orders</CardTitle>
+                        <Button 
+                           variant="outline" 
+                           size="sm"
+                           onClick={() => router.push('/orders')}
+                           className="border-orange-300 text-orange-600 hover:bg-orange-50 text-xs sm:text-sm h-8 sm:h-9 w-full sm:w-auto"
+                        >
+                           View All Orders
+                           <ArrowRight className="h-3 w-3 sm:h-4 sm:w-4 ml-1 sm:ml-2" />
+                        </Button>
+                     </div>
+                  </CardHeader>
+                  <CardContent className="p-4 sm:p-6">
+                     {ordersLoading ? (
+                        <div className="text-center py-8">
+                           <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-500 mx-auto mb-3"></div>
+                           <p className="text-sm text-gray-600">Loading orders...</p>
+                        </div>
+                     ) : stats.recentOrders.length === 0 ? (
+                        <div className="text-center py-8">
+                           <ShoppingBag className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                           <h3 className="text-base font-medium text-gray-900 mb-2">No orders yet</h3>
+                           <p className="text-gray-600 mb-4 text-sm">Start shopping to see your orders here!</p>
+                           <Button 
+                              onClick={() => router.push('/')}
+                              className="bg-orange-500 hover:bg-orange-600 text-white text-sm h-9"
+                           >
+                              Start Shopping
+                           </Button>
+                        </div>
+                     ) : (
+                        <div className="space-y-4">
+                           {stats.recentOrders.map((order: any) => (
                               <div
-                                 key={n.id}
-                                 className={`p-4 hover:bg-surface-secondary flex items-start justify-between gap-4 ${
-                                    n.read ? "opacity-60" : ""
-                                 }`}
+                                 key={order.id}
+                                 className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer"
+                                 onClick={() => router.push(`/orders/${order.id}`)}
                               >
-                                 <div>
-                                    <div className="text-sm font-semibold">
-                                       {n.title}
-                                    </div>
-                                    {n.body && (
-                                       <div className="text-xs text-muted-foreground mt-1">
-                                          {n.body}
+                                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3">
+                                    <div className="min-w-0 flex-1">
+                                       <div className="flex flex-wrap items-center gap-2 mb-2">
+                                          <span className="font-medium text-sm sm:text-base">
+                                             Order #{order.order_number}
+                                          </span>
+                                          {getStatusBadge(order.status)}
                                        </div>
-                                    )}
-                                    <div className="text-xxs text-muted-foreground mt-2">
-                                       {new Date(n.created_at).toLocaleString()}
+                                       <div className="text-xs sm:text-sm text-muted-foreground">
+                                          {new Date(order.created_at).toLocaleDateString('en-US', {
+                                             year: 'numeric',
+                                             month: 'short',
+                                             day: 'numeric'
+                                          })}
+                                       </div>
+                                    </div>
+                                    <div className="text-right">
+                                       <div className="font-semibold text-sm sm:text-base">
+                                          {Number(order.total).toLocaleString()} RWF
+                                       </div>
+                                       <div className="text-xs sm:text-sm text-muted-foreground">
+                                          {order.delivery_city || "-"}
+                                       </div>
                                     </div>
                                  </div>
-                                 <div className="flex flex-col items-end gap-2">
-                                    {!n.read && (
-                                       <Button
-                                          size="sm"
-                                          onClick={async () => {
-                                             try {
-                                                await fetch(
-                                                   `/api/notifications/mark-read`,
-                                                   {
-                                                      method: "POST",
-                                                      headers: {
-                                                         "Content-Type":
-                                                            "application/json",
-                                                      },
-                                                      body: JSON.stringify({
-                                                         ids: [n.id],
-                                                      }),
-                                                   }
-                                                );
-                                                setLocalNotifications((prev) =>
-                                                   prev.map((p) =>
-                                                      p.id === n.id
-                                                         ? { ...p, read: true }
-                                                         : p
-                                                   )
-                                                );
-                                             } catch (e) {
-                                                console.error(e);
-                                                setLocalNotifications((prev) =>
-                                                   prev.map((p) =>
-                                                      p.id === n.id
-                                                         ? { ...p, read: true }
-                                                         : p
-                                                   )
-                                                );
-                                             }
-                                          }}
-                                       >
-                                          Mark read
-                                       </Button>
-                                    )}
-                                    <Button
-                                       variant="ghost"
-                                       size="sm"
-                                       onClick={() =>
-                                          setLocalNotifications((prev) =>
-                                             prev.filter((p) => p.id !== n.id)
-                                          )
-                                       }
-                                    >
-                                       Dismiss
-                                    </Button>
-                                 </div>
+                                 {order.items && order.items.length > 0 && (
+                                    <div className="mt-3 pt-3 border-t">
+                                       <p className="text-xs sm:text-sm text-gray-600">
+                                          {order.items.length} item{order.items.length !== 1 ? 's' : ''} • 
+                                          {order.items[0]?.product_name}
+                                          {order.items.length > 1 && ` +${order.items.length - 1} more`}
+                                       </p>
+                                    </div>
+                                 )}
                               </div>
                            ))}
                         </div>
-                     </CardContent>
-                  </Card>
-               </TabsContent>
-            </Tabs>
+                     )}
+                  </CardContent>
+               </Card>
+            </div>
+
+            {/* Stats Sidebar */}
+            <div className="space-y-6">
+               {/* Quick Stats */}
+               <Card className="border-orange-200">
+                  <CardHeader className="bg-gradient-to-r from-orange-50 to-orange-25 py-4 sm:py-5">
+                     <CardTitle className="text-orange-800 text-lg sm:text-xl">Your Stats</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-4 sm:p-6 space-y-4">
+                     <div className="grid grid-cols-2 gap-4">
+                        <div className="text-center p-3 bg-blue-50 rounded-lg">
+                           <ShoppingBag className="h-6 w-6 text-blue-600 mx-auto mb-2" />
+                           <div className="text-lg sm:text-xl font-bold text-blue-900">{stats.totalOrders}</div>
+                           <div className="text-xs text-blue-600">Total Orders</div>
+                        </div>
+                        <div className="text-center p-3 bg-green-50 rounded-lg">
+                           <CreditCard className="h-6 w-6 text-green-600 mx-auto mb-2" />
+                           <div className="text-lg sm:text-xl font-bold text-green-900">
+                              {(stats.totalSpent / 1000).toFixed(0)}K
+                           </div>
+                           <div className="text-xs text-green-600">Total Spent (RWF)</div>
+                        </div>
+                        <div className="text-center p-3 bg-yellow-50 rounded-lg">
+                           <Clock className="h-6 w-6 text-yellow-600 mx-auto mb-2" />
+                           <div className="text-lg sm:text-xl font-bold text-yellow-900">{stats.pendingOrders}</div>
+                           <div className="text-xs text-yellow-600">Active Orders</div>
+                        </div>
+                        <div className="text-center p-3 bg-purple-50 rounded-lg">
+                           <Package className="h-6 w-6 text-purple-600 mx-auto mb-2" />
+                           <div className="text-lg sm:text-xl font-bold text-purple-900">{stats.completedOrders}</div>
+                           <div className="text-xs text-purple-600">Completed</div>
+                        </div>
+                     </div>
+                     
+                     {stats.totalOrders > 0 && (
+                        <div className="pt-4 border-t">
+                           <div className="flex items-center justify-between mb-2">
+                              <span className="text-sm text-gray-600">Average Order Value</span>
+                              <TrendingUp className="h-4 w-4 text-green-500" />
+                           </div>
+                           <div className="text-lg font-bold text-gray-900">
+                              {stats.averageOrder.toLocaleString()} RWF
+                           </div>
+                        </div>
+                     )}
+                  </CardContent>
+               </Card>
+
+               {/* Notifications Summary */}
+               <Card className="border-orange-200">
+                  <CardHeader className="bg-gradient-to-r from-orange-50 to-orange-25 py-4 sm:py-5">
+                     <div className="flex items-center justify-between">
+                        <CardTitle className="text-orange-800 text-lg sm:text-xl">Notifications</CardTitle>
+                        {unreadNotifications > 0 && (
+                           <Badge className="bg-red-500 text-white text-xs">
+                              {unreadNotifications}
+                           </Badge>
+                        )}
+                     </div>
+                  </CardHeader>
+                  <CardContent className="p-4 sm:p-6">
+                     <div className="text-center py-4">
+                        <Bell className="h-8 w-8 text-gray-400 mx-auto mb-3" />
+                        <div className="text-sm text-gray-600 mb-4">
+                           {unreadNotifications > 0 
+                              ? `You have ${unreadNotifications} unread notification${unreadNotifications !== 1 ? 's' : ''}`
+                              : notifications.length > 0
+                              ? 'All notifications read'
+                              : 'No notifications yet'
+                           }
+                        </div>
+                        <Button 
+                           variant="outline" 
+                           size="sm"
+                           onClick={() => router.push('/notifications')}
+                           className="border-orange-300 text-orange-600 hover:bg-orange-50 text-sm h-9 w-full"
+                        >
+                           View Notifications
+                           <ArrowRight className="h-4 w-4 ml-2" />
+                        </Button>
+                     </div>
+                  </CardContent>
+               </Card>
+
+               {/* Quick Actions */}
+               <Card className="border-orange-200">
+                  <CardHeader className="bg-gradient-to-r from-orange-50 to-orange-25 py-4 sm:py-5">
+                     <CardTitle className="text-orange-800 text-lg sm:text-xl">Quick Actions</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-4 sm:p-6 space-y-3">
+                     <Button 
+                        onClick={() => router.push('/addresses')}
+                        variant="outline" 
+                        className="w-full border-gray-300 text-gray-700 hover:bg-gray-50 text-sm h-9"
+                     >
+                        <MapPin className="h-4 w-4 mr-2" />
+                        Manage Addresses
+                     </Button>
+                     <Button 
+                        onClick={() => router.push('/orders')}
+                        variant="outline" 
+                        className="w-full border-gray-300 text-gray-700 hover:bg-gray-50 text-sm h-9"
+                     >
+                        <Package className="h-4 w-4 mr-2" />
+                        Order History
+                     </Button>
+                     <Button 
+                        onClick={() => router.push('/')}
+                        className="w-full bg-orange-500 hover:bg-orange-600 text-white text-sm h-9"
+                     >
+                        <ShoppingBag className="h-4 w-4 mr-2" />
+                        Continue Shopping
+                     </Button>
+                  </CardContent>
+               </Card>
+            </div>
          </div>
       </div>
    );
