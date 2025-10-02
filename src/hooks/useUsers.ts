@@ -1,4 +1,6 @@
-import { useState, useCallback } from "react";
+"use client";
+
+import { useState, useCallback, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 export type AppRole = "admin" | "user";
@@ -59,6 +61,17 @@ export function useUsers() {
       });
       setUsers(users);
       setLoading(false);
+   }, []);
+
+   // Auto-fetch when the hook is used in a client component so multiple
+   // components don't need to call fetchUsers manually. This keeps the UX
+   // simpler: components that need users will mount the hook and get data.
+   useEffect(() => {
+      // Only fetch if we haven't loaded users yet
+      if ((users && users.length === 0) || !users) {
+         fetchUsers();
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
    }, []);
 
    // Update user role

@@ -11,6 +11,8 @@ export interface OrderBase {
    status: OrderStatus;
    subtotal: number;
    tax?: number;
+   /** Payment method identifier, e.g. 'cash_on_delivery' */
+   payment_method?: string;
    total: number;
    currency?: string;
    customer_email: string;

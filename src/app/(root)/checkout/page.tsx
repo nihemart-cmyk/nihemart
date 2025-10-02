@@ -140,6 +140,11 @@ const Checkout = () => {
       null
    );
    const [isSavingAddress, setIsSavingAddress] = useState(false);
+   // Payment method state (default to Cash on Delivery)
+   const [paymentMethod, setPaymentMethod] =
+      useState<string>("cash_on_delivery");
+   // Orders enabled flag (null = loading)
+   const [ordersEnabled, setOrdersEnabled] = useState<boolean | null>(null);
 
    // Enhanced phone formatting function
    const formatPhoneInput = (input: string) => {
@@ -254,6 +259,28 @@ const Checkout = () => {
       }
    }, [formData.address, selectedAddress]);
 
+   // Fetch orders_enabled flag so checkout can disable ordering when admin toggles it
+   useEffect(() => {
+      let mounted = true;
+      (async () => {
+         try {
+            const res = await fetch("/api/admin/settings/orders-enabled");
+            if (!res.ok) {
+               if (mounted) setOrdersEnabled(true); // default to enabled on error
+               return;
+            }
+            const j = await res.json();
+            if (mounted) setOrdersEnabled(Boolean(j.enabled));
+         } catch (err) {
+            console.warn("Failed to fetch orders_enabled flag:", err);
+            if (mounted) setOrdersEnabled(true);
+         }
+      })();
+      return () => {
+         mounted = false;
+      };
+   }, []);
+
    // Keep local orderItems in sync with cart context
    useEffect(() => {
       try {
@@ -341,7 +368,7 @@ const Checkout = () => {
    const sectorFee = selectedSectorObj
       ? (sectorsFees as any)[selectedSectorObj.sct_name]
       : undefined;
-   const transport = sectorFee ?? 3000;
+   const transport = sectorFee ?? 2000;
    const total = subtotal + transport;
 
    // Determine if the selected location is Kigali
@@ -487,6 +514,16 @@ const Checkout = () => {
       setIsSubmitting(true);
       setErrors({});
 
+      // Block creation early if orders are disabled
+      if (ordersEnabled === false) {
+         toast.error(
+            t("checkout.ordersDisabledMessage") ||
+               "Ordering is currently disabled. Please try later."
+         );
+         setIsSubmitting(false);
+         return;
+      }
+
       try {
          const derivedCity = deriveCity();
 
@@ -548,6 +585,14 @@ const Checkout = () => {
             }),
          };
 
+         // Attach payment method after creation to avoid excess property checks
+         if (paymentMethod) {
+            try {
+               (orderData.order as any).payment_method = paymentMethod;
+            } catch (e) {
+               // ignore
+            }
+         }
          if (formData.delivery_notes) {
             orderData.order.delivery_notes = formData.delivery_notes;
          }
@@ -1348,6 +1393,32 @@ Total: ${total.toLocaleString()} RWF
                            <p className="text-xs sm:text-sm text-gray-600">
                               {t("checkout.selectPaymentMethod")}
                            </p>
+                           {/* Simple payment method selector - default COD */}
+                           <div className="mt-3">
+                              <fieldset className="space-y-2">
+                                 <legend className="sr-only">
+                                    Payment method
+                                 </legend>
+                                 <label className="flex items-center space-x-2 cursor-pointer">
+                                    <input
+                                       type="radio"
+                                       name="payment_method"
+                                       value="cash_on_delivery"
+                                       checked={
+                                          paymentMethod === "cash_on_delivery"
+                                       }
+                                       onChange={() =>
+                                          setPaymentMethod("cash_on_delivery")
+                                       }
+                                       className="w-4 h-4"
+                                    />
+                                    <span className="text-sm text-gray-800">
+                                       {t("checkout.cashOnDelivery") ||
+                                          "Cash on Delivery"}
+                                    </span>
+                                 </label>
+                              </fieldset>
+                           </div>
                         </div>
                      </CollapsibleContent>
                   </Collapsible>
@@ -1484,6 +1555,12 @@ Total: ${total.toLocaleString()} RWF
 
                         {/* Order buttons */}
                         <div className="pt-1">
+                           {ordersEnabled === false && (
+                              <div className="mb-3 p-3 rounded bg-yellow-50 border border-yellow-200 text-yellow-900 text-sm">
+                                 {t("checkout.ordersDisabledBanner") ||
+                                    "Ordering is currently disabled by the admin."}
+                              </div>
+                           )}
                            {isKigali ? (
                               isLoggedIn ? (
                                  <Button

@@ -1,5 +1,5 @@
 "use client";
-import { FC, useState } from "react";
+import { FC, useEffect, useState } from "react";
 import { DataTable } from "./data-table";
 import { columns } from "./columns";
 import { AnimatedBackground } from "../ui/animated-background";
@@ -146,6 +146,27 @@ const OrdersTable: FC<OrdersTableProps> = () => {
       sampleOrderIds: orders.slice(0, 10).map((o) => o.id),
    });
 
+   // Fetch orders_enabled to show banner in admin list
+   const [ordersEnabled, setOrdersEnabled] = useState<boolean | null>(null);
+   useEffect(() => {
+      let mounted = true;
+      (async () => {
+         try {
+            const res = await fetch("/api/admin/settings/orders-enabled");
+            if (!res.ok) throw new Error("Failed to load setting");
+            const j = await res.json();
+            if (!mounted) return;
+            setOrdersEnabled(Boolean(j.enabled));
+         } catch (err) {
+            console.warn("Failed to load orders_enabled setting", err);
+            if (mounted) setOrdersEnabled(true);
+         }
+      })();
+      return () => {
+         mounted = false;
+      };
+   }, []);
+
    const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       setSearch(e.target.value);
       setPage(1);
@@ -203,6 +224,12 @@ const OrdersTable: FC<OrdersTableProps> = () => {
 
    return (
       <div className="p-5 rounded-2xl bg-white mt-10">
+         {ordersEnabled === false && (
+            <div className="mb-4 p-3 rounded-md bg-yellow-50 border border-yellow-200 text-yellow-800">
+               Ordering is currently disabled. Customers will not be able to
+               place orders.
+            </div>
+         )}
          <div className="flex gap-5 justify-between flex-col 2xl:flex-row pb-8">
             <div className="hidden md:block rounded-[8px] h-fit py-2 px-3 bg-[#E8F6FB] p-[2px] relative">
                <AnimatedBackground

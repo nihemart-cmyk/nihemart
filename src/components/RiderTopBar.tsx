@@ -19,8 +19,7 @@ import { DropdownMenuGroup } from "@radix-ui/react-dropdown-menu";
 import { LogOut, Menu, Settings, User } from "lucide-react";
 import { useRouter } from "next13-progressbar";
 import { useEffect, useState } from "react";
-import { fetchRiderByUserId } from "@/integrations/supabase/riders";
-import { useRiderAssignments } from "@/hooks/useRiders";
+import { useRiderAssignments, useRiderByUserId } from "@/hooks/useRiders";
 import NotificationsBell from "@/components/NotificationsBell";
 import { FC } from "react";
 import RiderSidebar from "./RiderSidebar";
@@ -51,21 +50,20 @@ const RiderTopBar: FC<TopBarProps> = (props) => {
       toast.success("Logged out successfully");
    };
 
-   const [rider, setRider] = useState<any | null>(null);
-   useEffect(() => {
-      if (!user) return;
-      fetchRiderByUserId(user.id)
-         .then(setRider)
-         .catch(() => null);
-   }, [user]);
-
+   // Use central rider query so UI updates when rider profile is updated elsewhere
+   const { data: rider } = useRiderByUserId(user?.id);
    const { data: assignments = [] } = useRiderAssignments(rider?.id);
 
    // Get user initials for avatar
    const getUserInitials = () => {
       const name = rider?.full_name || user?.email || "R";
       if (rider?.full_name) {
-         return name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
+         return name
+            .split(" ")
+            .map((n: string) => n[0])
+            .join("")
+            .toUpperCase()
+            .slice(0, 2);
       }
       return name[0].toUpperCase();
    };
@@ -106,12 +104,14 @@ const RiderTopBar: FC<TopBarProps> = (props) => {
                   {props.title}
                </h3>
             )}
-            <Badge className={cn(
-               "flex items-center gap-2 px-3 py-2 rounded-full font-medium text-sm transition-all duration-200",
-               rider?.active 
-                  ? "bg-green-50 text-green-700 border-green-200 hover:bg-green-100" 
-                  : "bg-red-50 text-red-700 border-red-200 hover:bg-red-100"
-            )}>
+            <Badge
+               className={cn(
+                  "flex items-center gap-2 px-3 py-2 rounded-full font-medium text-sm transition-all duration-200",
+                  rider?.active
+                     ? "bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
+                     : "bg-red-50 text-red-700 border-red-200 hover:bg-red-100"
+               )}
+            >
                <div
                   className={cn(
                      "h-2 w-2 rounded-full",
@@ -169,7 +169,7 @@ const RiderTopBar: FC<TopBarProps> = (props) => {
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuGroup>
-                     <DropdownMenuItem 
+                     <DropdownMenuItem
                         onClick={() => router.push("/rider/settings")}
                         className="cursor-pointer hover:bg-gray-50"
                      >
@@ -178,7 +178,7 @@ const RiderTopBar: FC<TopBarProps> = (props) => {
                      </DropdownMenuItem>
                   </DropdownMenuGroup>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem 
+                  <DropdownMenuItem
                      onClick={handleLogout}
                      className="cursor-pointer hover:bg-red-50 text-red-600 focus:text-red-600"
                   >

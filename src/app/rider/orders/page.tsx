@@ -446,7 +446,7 @@ const Page = () => {
    return (
       <div className="min-h-screen bg-gradient-to-br from-orange-50 to-blue-50">
          <ScrollArea className="h-[calc(100vh-2rem)]">
-            <div className="container mx-auto p-6">
+            <div className="mx-auto p-6">
                <div className="mb-6">
                   <Link
                      href="/rider"
