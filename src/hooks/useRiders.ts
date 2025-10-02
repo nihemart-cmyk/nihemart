@@ -133,14 +133,16 @@ export function useRespondToAssignment() {
 export function useRiderAssignments(riderId?: string) {
    return useQuery({
       queryKey: riderKeys.assignments(riderId || ""),
+      // If riderId is not provided or empty, disable the query entirely to avoid
+      // making requests from admin/user pages that import this hook.
       queryFn: async () => {
+         if (!riderId) return [] as any[];
+
          // If running in the browser prefer the server-side API route which uses the
          // service role to include joined order items even when RLS would block direct joins.
          if (typeof window !== "undefined") {
             const res = await fetch(
-               `/api/rider/assignments?riderId=${encodeURIComponent(
-                  riderId || ""
-               )}`
+               `/api/rider/assignments?riderId=${encodeURIComponent(riderId)}`
             );
             if (!res.ok) {
                const json = await res.json().catch(() => ({}));
@@ -151,9 +153,22 @@ export function useRiderAssignments(riderId?: string) {
          }
 
          // On the server or when the API is not available, fall back to direct supabase call
-         return getAssignmentsForRider(riderId || "");
+         return getAssignmentsForRider(riderId);
       },
-      enabled: !!riderId,
+      // ensure the query is disabled when riderId is falsy OR when not on the
+      // rider portal path (prevents admin/user pages from triggering the
+      // rider assignments API accidentally).
+      enabled:
+         Boolean(riderId) &&
+         typeof window !== "undefined" &&
+         (window.location.pathname || "").startsWith("/rider"),
+      // Safety: don't retry on failure (prevents infinite retry loops)
+      retry: false,
+      // Avoid aggressive refetching when window focus or reconnects occur
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      // Keep data fresh for a short time in case of transient UI updates
+      staleTime: 1000 * 10, // 10s
    });
 }
 

@@ -65,6 +65,34 @@ export default async function handler(
             } catch (e) {
                console.error("Failed to upsert role for imported rider:", e);
             }
+
+            // Ensure profile exists with provided metadata for immediate access
+            if (createdUserId) {
+               try {
+                  const { error: profileErr } = await supabase
+                     .from("profiles")
+                     .upsert(
+                        [
+                           {
+                              id: createdUserId,
+                              full_name: full_name || null,
+                              phone: phone || null,
+                           },
+                        ],
+                        { onConflict: "id" }
+                     );
+                  if (profileErr)
+                     console.error(
+                        "Failed to upsert profile for imported rider:",
+                        profileErr
+                     );
+               } catch (e) {
+                  console.error(
+                     "Error upserting profile for imported rider:",
+                     e
+                  );
+               }
+            }
          }
 
          // If the row already contains a user id, ensure the user_roles mapping

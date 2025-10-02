@@ -19,6 +19,24 @@ export default async function handler(
    req: NextApiRequest,
    res: NextApiResponse
 ) {
+   // Simple in-memory cache to avoid repeated expensive DB aggregation when the
+   // endpoint is hammered. TTL is short because values change as orders are
+   // delivered, but caching for a few seconds protects the DB from request
+   // storms while preserving near-real-time metrics.
+   // Note: this uses module-level memory; in a multi-instance production
+   // deployment you'd prefer an external cache (Redis) but this is a low-risk
+   // mitigation for dev and single-instance deployments.
+   const TTL_MS = 15 * 1000; // 15 seconds
+   // @ts-ignore module level cache
+   if (!(global as any).__topAmountCache) {
+      // @ts-ignore
+      (global as any).__topAmountCache = { ts: 0, data: null };
+   }
+   // @ts-ignore
+   const cache = (global as any).__topAmountCache;
+   if (Date.now() - cache.ts < TTL_MS && cache.data) {
+      return res.status(200).json(cache.data);
+   }
    if (req.method !== "GET")
       return res.status(405).json({ error: "Method not allowed" });
    if (!supabase)
@@ -75,11 +93,16 @@ export default async function handler(
       }
 
       // If we couldn't compute a top rider, return a sensible fallback amount
-      if (!topRiderId && topAmount === 0) {
-         return res.status(200).json({ topRiderId: null, topAmount: 25000 });
-      }
+      const result =
+         !topRiderId && topAmount === 0
+            ? { topRiderId: null, topAmount: 25000 }
+            : { topRiderId, topAmount };
 
-      return res.status(200).json({ topRiderId, topAmount });
+      // Update cache before returning
+      cache.ts = Date.now();
+      cache.data = result;
+
+      return res.status(200).json(result);
    } catch (err: any) {
       console.error("top-amount failed", err);
       return res.status(500).json({ error: err?.message || String(err) });

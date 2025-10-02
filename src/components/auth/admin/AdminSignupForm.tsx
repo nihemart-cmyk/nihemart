@@ -32,6 +32,7 @@ interface AdminSignupFormProps {}
 const AdminSignupForm: FC<AdminSignupFormProps> = ({}) => {
    const [showPassword, setShowPassword] = useState<boolean>(false);
    const [googleLoading, setGoogleLoading] = useState(false);
+   const [phoneDisplay, setPhoneDisplay] = useState<string>("");
    const { signUp } = useAuth();
    // Google sign-up handler (same as sign-in)
    const handleGoogleSignUp = async () => {
@@ -62,6 +63,69 @@ const AdminSignupForm: FC<AdminSignupFormProps> = ({}) => {
          rememberMe: false,
       },
    });
+
+   // Format phone input similar to checkout: allow +250XXXXXXXXX or 07XXXXXXXX
+   const formatPhoneInput = (input: string) => {
+      const cleaned = input.replace(/[^\d+]/g, "");
+
+      if (cleaned.startsWith("+250")) {
+         const digits = cleaned.slice(4);
+         if (digits.length <= 3) return `+250 ${digits}`;
+         if (digits.length <= 6)
+            return `+250 ${digits.slice(0, 3)} ${digits.slice(3)}`;
+         return `+250 ${digits.slice(0, 3)} ${digits.slice(
+            3,
+            6
+         )} ${digits.slice(6, 9)}`;
+      }
+
+      if (cleaned.startsWith("07")) {
+         const digits = cleaned;
+         if (digits.length <= 3) return digits;
+         if (digits.length <= 6)
+            return `${digits.slice(0, 3)} ${digits.slice(3)}`;
+         return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(
+            6,
+            10
+         )}`;
+      }
+
+      return cleaned;
+   };
+
+   const normalizePhone = (raw: string) => {
+      if (!raw) return raw;
+      const digits = raw.replace(/[^\d]/g, "");
+      if (digits.length === 10 && digits.startsWith("07"))
+         return `+250${digits.slice(1)}`;
+      if (digits.length === 12 && digits.startsWith("250")) return `+${digits}`;
+      if (raw.startsWith("+250")) return raw.replace(/[^\d+]/g, "");
+      return raw;
+   };
+
+   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const input = e.target.value;
+      const formatted = formatPhoneInput(input);
+
+      // Enforce max length for recognized patterns
+      if (formatted.startsWith("+250")) {
+         if (formatted.replace(/[^\d]/g, "").length <= 12) {
+            setPhoneDisplay(formatted);
+            form.setValue("phoneNumber", normalizePhone(formatted));
+         }
+      } else if (formatted.startsWith("07")) {
+         if (formatted.replace(/[^\d]/g, "").length <= 10) {
+            setPhoneDisplay(formatted);
+            form.setValue("phoneNumber", normalizePhone(formatted));
+         }
+      } else {
+         // allow typing until reasonable limit
+         if (input.length <= 15) {
+            setPhoneDisplay(formatted);
+            form.setValue("phoneNumber", normalizePhone(formatted));
+         }
+      }
+   };
 
    const onSubmit = async (formData: TAdminSignupSchema) => {
       if (formData.password !== formData.confirmPassword) {
@@ -172,7 +236,12 @@ const AdminSignupForm: FC<AdminSignupFormProps> = ({}) => {
                                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
                                  <Input
                                     placeholder="+250784148374"
-                                    {...field}
+                                    value={phoneDisplay || field.value || ""}
+                                    onChange={(e) => {
+                                       handlePhoneChange(e);
+                                       // keep react-hook-form field in sync for other updates
+                                       field.onChange(e);
+                                    }}
                                     className="pl-10 border-gray-400 placeholder:text-gray-400 h-12 rounded-xl"
                                  />
                               </div>

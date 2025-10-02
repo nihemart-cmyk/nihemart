@@ -50,6 +50,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                setUser(user);
                if (user) {
                   await fetchRoles(user.id);
+                  // Ensure profile row exists on the server using service-role
+                  try {
+                     const userMetadata: any = user.user_metadata || {};
+                     fetch("/api/auth/upsert-profile", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                           userId: user.id,
+                           full_name: userMetadata.full_name || null,
+                           phone: userMetadata.phone || null,
+                        }),
+                     }).catch((e) => console.warn("upsert-profile failed:", e));
+                  } catch (e) {
+                     // ignore
+                  }
                }
 
                // Clean the URL to remove code/hash to avoid re-processing on reload
@@ -88,6 +103,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
          if (session?.user) {
             // fetchRoles is guarded internally to dedupe concurrent calls
             await fetchRoles(session.user.id);
+            // Ensure profile row is present via server API
+            try {
+               const um: any = session.user.user_metadata || {};
+               fetch("/api/auth/upsert-profile", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                     userId: session.user.id,
+                     full_name: um.full_name || null,
+                     phone: um.phone || null,
+                  }),
+               }).catch((e) => console.warn("upsert-profile failed:", e));
+            } catch (e) {
+               // ignore
+            }
          } else {
             setRoles(new Set());
          }

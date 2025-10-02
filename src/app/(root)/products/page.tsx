@@ -234,9 +234,9 @@ function ProductListingComponent() {
                     {c.name}
                   </label>
                 </div>
-                <span className="text-xs text-gray-500">
+                {/* <span className="text-xs text-gray-500">
                   ({c.products_count})
-                </span>
+                </span> */}
               </div>
             ))}
           </div>
@@ -397,38 +397,66 @@ function ProductListingComponent() {
                                 className="object-cover rounded-lg"
                               />
                             </div>
-                            <div className="absolute top-2 right-2">
+                            {/* <div className="absolute top-2 flex justify-between">
+                              <span className="inline-block bg-brand-orange text-white text-xs font-bold rounded-full px-2 py-0.5 mr-auto">
+                                {product?.price.toLocaleString("en-US", {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                })}{" "}
+                                frw
+                              </span>
                               <WishlistButton
                                 productId={product.id}
                                 size="sm"
                                 variant="ghost"
                                 className="bg-white/90 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-110 p-2 rounded-full"
                               />
+                            </div> */}
+                            <div className="absolute z-20 left-3 top-3">
+                              {/* <span className="bg-red-500 text-white text-xs font-bold px-4 py-1 rounded-full shadow-md tracking-widest">
+        HOT
+      </span> */}
+                              <span className="inline-block bg-brand-orange text-white text-xs font-bold rounded-full px-2 py-0.5 mr-auto">
+                                RWF{" "}
+                                {product?.price.toLocaleString("en-US", {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                })}{" "}
+                              </span>
+                            </div>
+                            {/* Wishlist button */}
+                            <div className="absolute z-20 right-3 top-3">
+                              <WishlistButton
+                                productId={product.id}
+                                size="sm"
+                                variant="ghost"
+                                className="bg-white/80 backdrop-blur-sm hover:bg-white shadow-sm"
+                              />
                             </div>
                           </div>
                           <div className="space-y-2">
-                            <h3 className="font-semibold text-gray-900 text-sm md:text-lg ">
+                            <h3 className="font-semibold text-gray-900 text-sm md:text-lg truncate">
                               {product?.name}
                             </h3>
-                            <p className="text-sm text-gray-900 truncate">
+                            {/* <p className="text-sm text-gray-900 truncate">
                               {product?.short_description}
-                            </p>
+                            </p> */}
                             {/* <p className="text-sm text-gray-500">
                               {product?.brand || "Generic"}
                             </p> */}
-                            <div className="flex items-center space-x-1">
+                            {/* <div className="flex items-center space-x-1">
                               {renderStars(product?.average_rating)}
                               <span className="text-sm text-gray-500 ml-2">
                                 ({product?.review_count || 0})
                               </span>
-                            </div>
-                            <p className="text-lg md:text-xl font-bold text-gray-900">
+                            </div> */}
+                            {/* <p className="text-lg md:text-xl font-bold text-gray-900">
                               {product?.price.toLocaleString("en-US", {
                                 minimumFractionDigits: 2,
                                 maximumFractionDigits: 2,
                               })}{" "}
                               frw
-                            </p>
+                            </p> */}
                             <div className="flex space-x-2 pt-3">
                               <Button
                                 onClick={(e) => handleAddToCart(e, product)}

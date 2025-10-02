@@ -142,7 +142,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             typeof window !== "undefined"
                ? `${window.location.origin}/signin`
                : "/signin";
-         const { error } = await supabase.auth.signUp({
+         const { error, data } = await supabase.auth.signUp({
             email,
             password,
             options: {
@@ -150,6 +150,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                data: { full_name: fullName, phone },
             },
          });
+
+         // If the SDK returns the created user (some flows may), call the
+         // server API to upsert the profile by user id. This is a best-effort
+         // extra step; the DB trigger should normally handle syncing metadata
+         // into `profiles`, but this helps when the trigger didn't run yet.
+         try {
+            const userId = (data as any)?.user?.id;
+            if (userId && typeof window !== "undefined") {
+               fetch("/api/auth/upsert-profile", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ userId, full_name: fullName, phone }),
+               }).catch((e) =>
+                  console.warn("upsert-profile request failed:", e)
+               );
+            }
+         } catch (e) {
+            // ignore
+         }
+
          return { error: error?.message ?? null };
       } catch (error) {
          return { error: "An unexpected error occurred" };

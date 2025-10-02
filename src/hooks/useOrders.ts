@@ -39,8 +39,16 @@ export function useUserOrders(options: OrderQueryOptions = {}) {
 
    console.log("useUserOrders hook:", { user, isLoggedIn, options });
 
+   // Include the options in the query key so changes to filters/pagination/sort
+   // cause React Query to refetch the user's orders. We keep the user id as
+   // the first part of the key to scope results to the logged-in user.
+   const key = orderKeys.userOrders(user?.id || "");
+   // Append a stable, serializable representation of options so complex
+   // objects are part of the key and React Query can differentiate queries.
+   const keyWithOptions = [...key, { ...(options || {}) }];
+
    return useQuery({
-      queryKey: orderKeys.userOrders(user?.id || ""),
+      queryKey: keyWithOptions,
       queryFn: () => fetchUserOrders(options, user?.id),
       enabled: isLoggedIn && !!user,
       staleTime: 1000 * 60 * 5, // 5 minutes
@@ -150,9 +158,8 @@ export function useCreateOrder() {
 // Hook for updating order status
 export function useUpdateOrderStatus() {
    const queryClient = useQueryClient();
-
    return useMutation({
-      mutationFn: ({
+      mutationFn: async ({
          id,
          status,
          additionalFields,
@@ -160,22 +167,105 @@ export function useUpdateOrderStatus() {
          id: string;
          status: OrderStatus;
          additionalFields?: Partial<Order>;
-      }) => updateOrderStatus(id, status, additionalFields),
+      }) => {
+         // Call server API which uses service role key to perform status change
+         const res = await fetch("/api/orders/update-status", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id, status, additionalFields }),
+         });
+         if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            throw new Error(
+               body?.error || `Failed to update status: ${res.status}`
+            );
+         }
+         const updated = await res.json();
+         return updated as Order;
+      },
+      // Optimistic update: immediately reflect status change in any cached
+      // lists/details so the UI updates without a full reload.
+      onMutate: async ({ id, status, additionalFields }) => {
+         // Cancel any in-flight order queries under the orders namespace so we
+         // can perform an optimistic update safely across all list/detail caches.
+         await queryClient.cancelQueries({ queryKey: orderKeys.all });
+
+         // Capture all queries so we can rollback if needed. We intentionally
+         // capture the full set under the QueryClient to find user-specific
+         // list caches (e.g. userOrders) as well as admin lists.
+         const previousQueries = queryClient.getQueriesData({});
+
+         // Iterate over every cached query and update any entries that contain
+         // the target order either as a single order object or within a
+         // paginated `data` array. This is intentionally generic so it covers
+         // `orderKeys.userOrders(...)`, `orderKeys.list(options)` and other
+         // shapes the app may store.
+         for (const [key, data] of previousQueries) {
+            try {
+               if (!data) continue;
+
+               // If this is a single order detail
+               const asOrder = data as any;
+               if (asOrder && asOrder.id === id) {
+                  const updated = {
+                     ...asOrder,
+                     ...(additionalFields || {}),
+                     status,
+                  };
+                  queryClient.setQueryData(key, updated);
+                  continue;
+               }
+
+               // If this is a paginated list with `.data` array
+               if (asOrder && Array.isArray(asOrder.data)) {
+                  const updatedList = { ...asOrder } as any;
+                  updatedList.data = asOrder.data.map((o: any) =>
+                     o && o.id === id
+                        ? { ...o, ...(additionalFields || {}), status }
+                        : o
+                  );
+                  queryClient.setQueryData(key, updatedList);
+               }
+            } catch (e) {}
+         }
+
+         return { previousQueries };
+      },
       onSuccess: (updatedOrder) => {
-         // Update the specific order in cache
-         queryClient.setQueryData(
-            orderKeys.detail(updatedOrder.id),
-            updatedOrder
-         );
-
-         // Invalidate order lists to refetch
+         // Update the specific order in cache with server response
+         try {
+            queryClient.setQueryData(
+               orderKeys.detail(updatedOrder.id),
+               updatedOrder
+            );
+         } catch (e) {}
+         // Invalidate order lists to refetch authoritative data
          queryClient.invalidateQueries({ queryKey: orderKeys.lists() });
-
-         // Invalidate stats if admin
+         // Invalidate stats
          queryClient.invalidateQueries({ queryKey: orderKeys.stats() });
       },
-      onError: (error) => {
+      onError: (error, variables, context: any) => {
+         // rollback optimistic updates using the captured previousQueries
+         if (context?.previousQueries) {
+            for (const [key, data] of context.previousQueries) {
+               try {
+                  queryClient.setQueryData(key, data);
+               } catch (e) {}
+            }
+         }
          console.error("Failed to update order status:", error);
+      },
+      onSettled: (data, error, vars) => {
+         // Ensure lists and details are refreshed
+         try {
+            queryClient.invalidateQueries({ queryKey: orderKeys.lists() });
+            queryClient.invalidateQueries({ queryKey: orderKeys.stats() });
+            if (data?.id) {
+               queryClient.invalidateQueries({
+                  queryKey: orderKeys.detail(data.id),
+               });
+            }
+         } catch (e) {}
       },
    });
 }

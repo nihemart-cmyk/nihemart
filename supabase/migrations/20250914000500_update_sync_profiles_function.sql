@@ -5,10 +5,16 @@
 create or replace function public.sync_profile_from_auth()
 returns trigger
 language plpgsql
+security definer
+set search_path = public
 as $$
 begin
   begin
     -- Try to upsert a minimal profile row using metadata when available.
+    -- Run as SECURITY DEFINER with search_path=public so this function can
+    -- write to public.profiles regardless of the role that inserted into
+    -- auth.users (eg. anon or service role). Keep resilient exception
+    -- handling so user creation does not fail if profile upsert fails.
     insert into public.profiles (id, full_name, phone)
     values (
       new.id,
