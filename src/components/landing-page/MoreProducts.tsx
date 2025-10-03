@@ -39,9 +39,9 @@ const ProductCard = ({ product }: { product: StoreProduct }) => (
       {/* <span className="bg-red-500 text-white text-xs font-bold px-4 py-1 rounded-full shadow-md tracking-widest">
         HOT
       </span> */}
-      <span className="inline-block bg-brand-orange text-white text-xs font-bold rounded-full px-2 py-0.5 mr-auto">
+      {/* <span className="inline-block bg-brand-orange text-white text-xs font-bold rounded-full px-2 py-0.5 mr-auto">
         RWF {product.price.toLocaleString()}
-      </span>
+      </span> */}
     </div>
     {/* Wishlist button */}
     <div className="absolute z-20 right-3 top-3">
@@ -85,13 +85,16 @@ const ProductCard = ({ product }: { product: StoreProduct }) => (
         </span>
       </div> */}
       {/* Product Name */}
+      <span className="text-orange-500 text-lg md:text-xl font-bold">
+        RWF {product.price.toLocaleString()}
+      </span>
       <h4 className="font-bold text-gray-900 text-base md:text-lg line-clamp-2 truncate">
         {product.name}
       </h4>
       {/* Description */}
-      <p className="text-xs md:text-sm text-gray-600 line-clamp-2">
+      {/* <p className="text-xs md:text-sm text-gray-600 line-clamp-2">
         {product?.short_description}
-      </p>
+      </p> */}
     </div>
   </div>
 );
