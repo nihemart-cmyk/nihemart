@@ -33,7 +33,8 @@ export default async function handler(
       email,
       password,
       active,
-      notes,
+      image_url,
+      location,
    } = req.body;
    try {
       let createdUserId = user_id || null;
@@ -118,9 +119,8 @@ export default async function handler(
          vehicle,
          user_id: createdUserId,
          active: typeof active === "boolean" ? active : true,
-         // allow storing arbitrary notes about the rider
-         // @ts-ignore: notes column may exist in schema
-         notes: notes || null,
+         image_url: image_url || null,
+         location: location || null,
       });
 
       // For debugging: return any user_roles rows for the createdUserId so callers

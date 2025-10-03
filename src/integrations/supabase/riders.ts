@@ -29,6 +29,8 @@ export interface Rider {
    phone?: string | null;
    vehicle?: string | null;
    active?: boolean;
+   image_url?: string | null;
+   location?: string | null;
    created_at?: string;
    updated_at?: string;
 }

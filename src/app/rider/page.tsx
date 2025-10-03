@@ -15,12 +15,14 @@ import {
    Package,
    Target,
    Navigation,
+   CheckCircle,
+   XCircle,
+   DollarSign,
 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { fetchRiderByUserId } from "@/integrations/supabase/riders";
 import { useRiderAssignments } from "@/hooks/useRiders";
-import { RiderAnalytics } from "@/components/rider/RiderAnalytics";
 
 interface StatsCardProps {
    title: string;
@@ -255,6 +257,27 @@ const Dashboard = () => {
       (a: any) => a.status === "assigned"
    ).length;
 
+   const accepted = assignments.filter(
+      (a: any) => a.status === "accepted"
+   ).length;
+   const rejected = assignments.filter(
+      (a: any) =>
+         a.status === "rejected" ||
+         a.status === "declined" ||
+         a.status === "cancelled"
+   ).length;
+
+   const earned = assignments.reduce((sum: number, a: any) => {
+      const isDone = a.status === "completed" || a.status === "delivered";
+      if (!isDone) return sum;
+      const order =
+         a.orders || a.order || (a.order_id ? { id: a.order_id } : null);
+      const amount = order?.total ?? order?.subtotal ?? a.amount ?? 0;
+      const parsed =
+         typeof amount === "string" ? parseFloat(amount) : Number(amount || 0);
+      return sum + (isNaN(parsed) ? 0 : parsed);
+   }, 0);
+
    const recent = assignments.slice(0, 5).map((a: any) => {
       const order =
          a.orders || a.order || (a.order_id ? { id: a.order_id } : null);
@@ -267,6 +290,78 @@ const Dashboard = () => {
          status: a.status || order?.status || "-",
       };
    });
+
+   // Derived metrics for today's analytics
+   const now = new Date();
+   const isSameDay = (d: Date) =>
+      d.getFullYear() === now.getFullYear() &&
+      d.getMonth() === now.getMonth() &&
+      d.getDate() === now.getDate();
+
+   const parseDate = (value: any): Date | null => {
+      if (!value) return null;
+      const d = new Date(value);
+      return isNaN(d.getTime()) ? null : d;
+   };
+
+   const todaysAssignments = assignments.filter((a: any) => {
+      const order = a.orders || a.order || null;
+      const timestamps = [
+         a.delivered_at,
+         a.completed_at,
+         a.updated_at,
+         a.created_at,
+         order?.delivered_at,
+         order?.completed_at,
+         order?.updated_at,
+         order?.created_at,
+      ]
+         .map(parseDate)
+         .filter(Boolean) as Date[];
+      const ts = timestamps[0];
+      if (!ts) return false;
+      return isSameDay(ts);
+   });
+
+   const todaysTotal = todaysAssignments.reduce((sum: number, a: any) => {
+      const isDone = a.status === "completed" || a.status === "delivered";
+      if (!isDone) return sum;
+      const order =
+         a.orders || a.order || (a.order_id ? { id: a.order_id } : null);
+      const amount = order?.total ?? order?.subtotal ?? a.amount ?? 0;
+      const parsed =
+         typeof amount === "string" ? parseFloat(amount) : Number(amount || 0);
+      return sum + (isNaN(parsed) ? 0 : parsed);
+   }, 0);
+
+   const peakHour = (() => {
+      const hoursCount: Record<string, number> = {};
+      todaysAssignments.forEach((a: any) => {
+         const order = a.orders || a.order || null;
+         const timestamps = [
+            a.delivered_at,
+            a.completed_at,
+            a.updated_at,
+            a.created_at,
+            order?.delivered_at,
+            order?.completed_at,
+            order?.updated_at,
+            order?.created_at,
+         ]
+            .map(parseDate)
+            .filter(Boolean) as Date[];
+         const ts = timestamps[0];
+         if (!ts) return;
+         const hour = ts.getHours();
+         hoursCount[hour] = (hoursCount[hour] || 0) + 1;
+      });
+      const top = Object.entries(hoursCount).sort((a, b) => b[1] - a[1])[0];
+      if (!top) return "-";
+      const h = Number(top[0]);
+      return `${String(h).padStart(2, "0")}:00`;
+   })();
+
+   const averageRating = rider?.average_rating || rider?.rating || "4.8";
 
    if (!isLoggedIn) {
       return (
@@ -347,7 +442,94 @@ const Dashboard = () => {
 
                   {/* Analytics and Recent Deliveries */}
                   <div className="lg:col-span-2 space-y-6 sm:space-y-8">
-                     <RiderAnalytics />
+                     <Card className="border-0 shadow-lg">
+                        <CardHeader className="pb-4">
+                           <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                              <Navigation className="w-4 h-4 sm:w-5 sm:h-5 text-orange-500" />
+                              Delivery Analytics
+                           </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
+                              <StatsCard
+                                 title="Accepted"
+                                 value={`${accepted}`}
+                                 change={"0"}
+                                 icon={CheckCircle}
+                                 gradient="bg-gradient-to-br from-blue-500 to-blue-600"
+                              />
+                              <StatsCard
+                                 title="Rejected"
+                                 value={`${rejected}`}
+                                 change={"0"}
+                                 icon={XCircle}
+                                 gradient="bg-gradient-to-br from-red-500 to-red-600"
+                              />
+                              <StatsCard
+                                 title="Earned"
+                                 value={`RWF ${earned.toLocaleString()}`}
+                                 change={"0"}
+                                 icon={DollarSign}
+                                 gradient="bg-gradient-to-br from-emerald-500 to-emerald-600"
+                              />
+                              {/* Transparent cards with gradient borders */}
+                              <div className="p-[1px] rounded-xl bg-gradient-to-r from-orange-500 to-pink-600">
+                                 <div className="rounded-[11px] bg-white dark:bg-gray-950 p-4 sm:p-6 h-full">
+                                    <div className="flex items-center justify-between">
+                                       <div className="space-y-1">
+                                          <p className="text-gray-500 text-xs sm:text-sm">
+                                             Today&apos;s total
+                                          </p>
+                                          <p className="text-xl sm:text-2xl font-bold text-gray-900">
+                                             RWF {todaysTotal.toLocaleString()}
+                                          </p>
+                                       </div>
+                                       <div className="p-2 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
+                                          <DollarSign className="w-5 h-5 text-orange-600" />
+                                       </div>
+                                    </div>
+                                 </div>
+                              </div>
+                              <div className="p-[1px] rounded-xl bg-gradient-to-r from-blue-500 to-cyan-600">
+                                 <div className="rounded-[11px] bg-white dark:bg-gray-950 p-4 sm:p-6 h-full">
+                                    <div className="flex items-center justify-between">
+                                       <div className="space-y-1">
+                                          <p className="text-gray-500 text-xs sm:text-sm">
+                                             Peak hour
+                                          </p>
+                                          <p className="text-xl sm:text-2xl font-bold text-gray-900">
+                                             {peakHour}
+                                          </p>
+                                       </div>
+                                       <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                                          <Clock className="w-5 h-5 text-blue-600" />
+                                       </div>
+                                    </div>
+                                 </div>
+                              </div>
+                              <div className="p-[1px] rounded-xl bg-gradient-to-r from-purple-500 to-fuchsia-600">
+                                 <div className="rounded-[11px] bg-white dark:bg-gray-950 p-4 sm:p-6 h-full">
+                                    <div className="flex items-center justify-between">
+                                       <div className="space-y-1">
+                                          <p className="text-gray-500 text-xs sm:text-sm">
+                                             Average rating
+                                          </p>
+                                          <p className="text-xl sm:text-2xl font-bold text-gray-900">
+                                             {averageRating}
+                                          </p>
+                                       </div>
+                                       <div className="p-2 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                                          <Star
+                                             className="w-5 h-5 text-purple-600"
+                                             fill="currentColor"
+                                          />
+                                       </div>
+                                    </div>
+                                 </div>
+                              </div>
+                           </div>
+                        </CardContent>
+                     </Card>
 
                      <Card className="border-0 shadow-lg">
                         <CardHeader className="pb-4">
