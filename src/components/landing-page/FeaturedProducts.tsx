@@ -145,9 +145,9 @@ const FeaturedProducts: FC<FeaturedProductsProps> = ({}) => {
                         {/* <span className="bg-red-500 text-white text-[10px] font-bold px-6 py-1 rounded shadow-md tracking-widest drop-shadow-lg">
                           HOT
                         </span> */}
-                        <span className="inline-block bg-brand-orange text-white text-xs font-bold rounded-full px-2 py-0.5 ml-auto">
+                        {/* <span className="inline-block bg-brand-orange text-white text-xs font-bold rounded-full px-2 py-0.5 ml-auto">
                           RWF {product.price.toLocaleString()}
-                        </span>
+                        </span> */}
                       </div>
                     </div>
                     {/* Product Image */}
@@ -183,14 +183,17 @@ const FeaturedProducts: FC<FeaturedProductsProps> = ({}) => {
                         </span>
                       </div> */}
                       {/* Product Name */}
+                      <span className="text-orange-500 text-lg md:text-xl font-bold">
+                          RWF {product.price.toLocaleString()}
+                        </span>
                       <h4 className="font-bold text-gray-900 text-base md:text-lg truncate">
                         {product.name}
                       </h4>
                       {/* Description */}
-                      <p className="text-xs md:text-sm text-gray-600 line-clamp-2 relative">
+                      {/* <p className="text-xs md:text-sm text-gray-600 line-clamp-2 relative">
                         {product?.short_description}
                         <span className="absolute bottom-0 right-0 w-8 h-4 bg-gradient-to-l from-white/90 to-transparent pointer-events-none" />
-                      </p>
+                      </p> */}
                       <div className="flex-1" />
                     </div>
                   </div>

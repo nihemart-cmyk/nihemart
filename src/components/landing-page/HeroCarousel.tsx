@@ -1,6 +1,6 @@
 "use client";
 
-import { carousel1, carousel2 } from "@/assets";
+import { carousel1, carousel2, carousel3, carousel4 } from "@/assets";
 import {
   Carousel,
   CarouselContent,
@@ -28,19 +28,19 @@ const carouselContent = [
     buttonText: "Shop speakers",
   },
   {
-    image: carousel1,
-    heading: "Earbuds",
+    image: carousel3,
+    heading: "Pay later",
     description: "You like it? We bring it to you.",
     buttonText: "Shop earbuds",
   },
   {
-    image: carousel2,
+    image: carousel4,
     heading: "Accessories",
     description: "Yes we know, our prices are low.",
     buttonText: "Shop accessories",
   },
   {
-    image: carousel1,
+    image: carousel2,
     heading: "Bundles",
     description: "Buy gifts, home appliances, kids products, watches, necklaces, etc with us.",
     buttonText: "Shop bundles",
