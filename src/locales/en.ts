@@ -230,6 +230,7 @@ export const en: Record<string, string> = {
 
    // Common
    "common.save": "Save",
+   "common.saving": "Saving...",
    "common.cancel": "Cancel",
    "common.edit": "Edit",
    "common.delete": "Delete",

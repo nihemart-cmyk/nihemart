@@ -204,6 +204,7 @@ export const rw: Record<string, string> = {
 
    // Common
    "common.save": "Bika",
+   "common.saving": "Birimo kubikwa...",
    "common.cancel": "Hagarika",
    "common.edit": "Hindura",
    "common.delete": "Siba",
