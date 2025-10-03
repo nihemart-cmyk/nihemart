@@ -9,6 +9,16 @@ import {
    DropdownMenuSeparator,
    DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
+import {
+   AlertDialog,
+   AlertDialogAction,
+   AlertDialogCancel,
+   AlertDialogContent,
+   AlertDialogDescription,
+   AlertDialogFooter,
+   AlertDialogHeader,
+   AlertDialogTitle,
+} from "../ui/alert-dialog";
 import { Dot, MoreHorizontal } from "lucide-react";
 import { Button } from "../ui/button";
 import { Checkbox } from "../ui/checkbox";
@@ -20,14 +30,13 @@ import Image from "next/image";
 import { momoIcon } from "@/assets";
 import { Icons } from "../icons";
 import { useState } from "react";
+import { toast } from "sonner";
 import { CustomerDetailsDialog } from "./CustomerDetailsDialog";
 import { OrderDetailsDialog } from "./OrderDetailsDialog";
 import { AssignRiderDialog } from "./AssignRiderDialog";
 import { ManageRefundDialog } from "./ManageRefundDialog";
 import { useOrders } from "@/hooks/useOrders";
 import { useAuth } from "@/hooks/useAuth";
-
-// Import the Supabase Order type
 import { Order, OrderStatus } from "@/types/orders";
 
 const Status = ({ status }: { status: Order["status"] }) => {
@@ -264,6 +273,7 @@ export const columns: ColumnDef<Order>[] = [
       size: 10,
       cell: ({ row }) => {
          const order = row.original;
+         const { updateOrderStatus } = useOrders();
          const hasRefund =
             (Array.isArray(order.items) &&
                order.items.some((it) => it.refund_status === "requested")) ||
@@ -274,8 +284,28 @@ export const columns: ColumnDef<Order>[] = [
          const [showOrderDetails, setShowOrderDetails] = useState(false);
          const [showAssignDialog, setShowAssignDialog] = useState(false);
          const [showManageRefund, setShowManageRefund] = useState(false);
+         const [showCancelAlert, setShowCancelAlert] = useState(false);
+         const [isCancelling, setIsCancelling] = useState(false);
          const refundItem =
             order.items?.find((it) => !!it.refund_status) || null;
+
+         const handleCancelOrder = async () => {
+            setIsCancelling(true);
+            try {
+               await updateOrderStatus.mutateAsync({
+                  id: order.id,
+                  status: "cancelled",
+               } as any);
+               toast.success("Order cancelled successfully");
+               setShowCancelAlert(false);
+            } catch (err: any) {
+               toast.error(
+                  err?.message || "Failed to cancel order"
+               );
+            } finally {
+               setIsCancelling(false);
+            }
+         };
 
          return (
             <>
@@ -325,6 +355,16 @@ export const columns: ColumnDef<Order>[] = [
                            Assign to rider
                         </DropdownMenuItem>
                      )}
+                     {isAdmin &&
+                        (order.status === "pending" ||
+                           order.status === "processing") && (
+                           <DropdownMenuItem
+                              onClick={() => setShowCancelAlert(true)}
+                              className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                           >
+                              Cancel Order
+                           </DropdownMenuItem>
+                        )}
                   </DropdownMenuContent>
                </DropdownMenu>
 
@@ -359,6 +399,30 @@ export const columns: ColumnDef<Order>[] = [
                   onOpenChange={setShowAssignDialog}
                   orderId={order.id}
                />
+
+               <AlertDialog open={showCancelAlert} onOpenChange={setShowCancelAlert}>
+                  <AlertDialogContent>
+                     <AlertDialogHeader>
+                        <AlertDialogTitle>Cancel Order</AlertDialogTitle>
+                        <AlertDialogDescription>
+                           Are you sure you want to cancel order #{order.order_number || order.id}? 
+                           This action cannot be undone and will set the order status to &quot;cancelled&quot;.
+                        </AlertDialogDescription>
+                     </AlertDialogHeader>
+                     <AlertDialogFooter>
+                        <AlertDialogCancel disabled={isCancelling}>
+                           No, keep order
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                           onClick={handleCancelOrder}
+                           disabled={isCancelling}
+                           className="bg-red-600 hover:bg-red-700 text-white"
+                        >
+                           {isCancelling ? "Cancelling..." : "Yes, cancel order"}
+                        </AlertDialogAction>
+                     </AlertDialogFooter>
+                  </AlertDialogContent>
+               </AlertDialog>
             </>
          );
       },

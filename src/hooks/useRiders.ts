@@ -5,8 +5,10 @@ import {
    assignOrderToRider,
    respondToAssignment,
    getAssignmentsForRider,
+   fetchRiderByUserId,
    type Rider,
 } from "@/integrations/supabase/riders";
+import { useAuth } from "@/hooks/useAuth";
 
 export const riderKeys = {
    all: ["riders"] as const,
@@ -63,9 +65,34 @@ export function useUpdateRider() {
             throw new Error(json.error || "Failed to update rider");
          }
          const json = await res.json();
+         // Invalidate lists and the per-user rider cache so UI updates in realtime
          qc.invalidateQueries({ queryKey: riderKeys.lists() });
+         try {
+            const updated = json.rider as any;
+            // The shared query key uses the auth user id (user_id) not the riders row id
+            if (updated && updated.user_id) {
+               qc.invalidateQueries({
+                  queryKey: ["rider", "byUser", updated.user_id],
+               });
+            }
+         } catch (e) {
+            // best-effort
+         }
          return json.rider;
       },
+   });
+}
+
+export function useRiderByUserId(userId?: string) {
+   return useQuery({
+      queryKey: ["rider", "byUser", userId || ""],
+      queryFn: async () => {
+         if (!userId) return null;
+         const r = await fetchRiderByUserId(userId);
+         return r;
+      },
+      enabled: Boolean(userId),
+      staleTime: 1000 * 10,
    });
 }
 
@@ -131,6 +158,8 @@ export function useRespondToAssignment() {
 }
 
 export function useRiderAssignments(riderId?: string) {
+   const { session } = useAuth();
+
    return useQuery({
       queryKey: riderKeys.assignments(riderId || ""),
       // If riderId is not provided or empty, disable the query entirely to avoid
@@ -141,8 +170,16 @@ export function useRiderAssignments(riderId?: string) {
          // If running in the browser prefer the server-side API route which uses the
          // service role to include joined order items even when RLS would block direct joins.
          if (typeof window !== "undefined") {
+            // Require an auth token to call the rider endpoint
+            const token = session?.access_token;
+            const headers: Record<string, string> = {
+               "Content-Type": "application/json",
+            };
+            if (token) headers["Authorization"] = `Bearer ${token}`;
+
             const res = await fetch(
-               `/api/rider/assignments?riderId=${encodeURIComponent(riderId)}`
+               `/api/rider/assignments?riderId=${encodeURIComponent(riderId)}`,
+               { headers }
             );
             if (!res.ok) {
                const json = await res.json().catch(() => ({}));
@@ -157,11 +194,12 @@ export function useRiderAssignments(riderId?: string) {
       },
       // ensure the query is disabled when riderId is falsy OR when not on the
       // rider portal path (prevents admin/user pages from triggering the
-      // rider assignments API accidentally).
+      // rider assignments API accidentally). Also ensure we have an access token.
       enabled:
          Boolean(riderId) &&
          typeof window !== "undefined" &&
-         (window.location.pathname || "").startsWith("/rider"),
+         (window.location.pathname || "").startsWith("/rider") &&
+         !!session?.access_token,
       // Safety: don't retry on failure (prevents infinite retry loops)
       retry: false,
       // Avoid aggressive refetching when window focus or reconnects occur

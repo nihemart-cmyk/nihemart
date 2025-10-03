@@ -1,72 +1,72 @@
 export const rw: Record<string, string> = {
-  // Navigation
-  "nav.home": "Ahabanza",
-  "nav.products": "Ibicuruzwa",
-  "nav.about": "Ibyerekeye Twe",
-  "nav.contact": "Twandikire",
-  "nav.cart": "Agatebo",
-  "nav.wishlist": "Ibyo nakunze",
-  "nav.orders": "Komande",
-  "nav.profile": "Umwirondoro",
-  "nav.admin": "Admin",
-  "nav.login": "Injira",
-  "nav.register": "Iyandikishe",
-  "nav.logout": "Sohoka",
-  "nav.howToBuy": "Uko Bagura",
-  "nav.notifications": "Ubutumwa",
-  "nav.returns": "Gusubiza ibicuruzwa",
+   // Navigation
+   "nav.home": "Ahabanza",
+   "nav.products": "Ibicuruzwa",
+   "nav.about": "Ibyerekeye Twe",
+   "nav.contact": "Twandikire",
+   "nav.cart": "Agatebo",
+   "nav.wishlist": "Ibyo nakunze",
+   "nav.orders": "Komande",
+   "nav.profile": "Umwirondoro",
+   "nav.admin": "Admin",
+   "nav.login": "Injira",
+   "nav.register": "Iyandikishe",
+   "nav.logout": "Sohoka",
+   "nav.howToBuy": "Uko Bagura",
+   "nav.notifications": "Ubutumwa",
+   "nav.returns": "Gusubiza ibicuruzwa",
 
-  returnTitle: "Politiki y'Ukugarura no Gusubiza Amafaranga",
-  returnHero:
-    "Turashaka ko wishimira kugura kwawe. Nyamuneka soma politiki yacu y'ukugarura no gusubiza amafaranga kugira ngo wumve ibisobanuro by'ibikubiye muri yo.",
-  termsTitle: "Amategeko yo Gusubiza Ibicuruzwa",
-  termsCondition1Title: "Uburenganzira bwo Gusubiza Ibicuruzwa",
-  termsCondition1Desc:
-    "Urashobora gusubiza ibicuruzwa mu gihe cy'iminsi 30 uhereye ku itariki yo kubitanga, niba bibitswe neza kandi bitaravumburwa.",
-  termsCondition2Title: "Ibicuruzwa Bidashobora Gusubizwa",
-  termsCondition2Desc:
-    "Bimwe mu bicuruzwa nk'ibikoresho bipfa vuba, ibicuruzwa byihariye, n'imyenda yo mu bwoko bw'imbere ntibishobora gusubizwa.",
-  termsCondition3Title: "Imiterere y'Ibicuruzwa",
-  termsCondition3Desc:
-    "Ibicuruzwa bigaruwe bigomba kuba bitarakoreshwa, bifite ibirango by'ubwoko bwabyo, packaging y'ibanze, n'ibindi bikoresho byose.",
-  termsCondition4Title: "Uburyo bwo Gusubiza Ibicuruzwa",
-  termsCondition4Desc:
-    "Kugira ngo utangire igikorwa cyo gusubiza, nyamuneka twandikire itsinda ryacu ry'ubufasha n'ibikorwa by'ibicuruzwa byawe.",
-  termsCondition5Title: "Ikiguzi cyo Kohereza Ibicuruzwa",
-  termsCondition5Desc:
-    "Ikiguzi cyo gusubiza ibicuruzwa kizatangwa n'umuguzi, uretse igihe ibicuruzwa byaba byangiritse cyangwa byangiritse mu buryo bw'amakosa.",
-  refundTitle: "Politiki yo Gusubiza Amafaranga",
-  refundCondition1Title: "Uburenganzira bwo Gusubiza Amafaranga",
-  refundCondition1Desc:
-    "Gusubizwa amafaranga birashoboka ku bicuruzwa byasubijwe mu gihe cy'iminsi 30 nyuma yo kugura, kandi bihura n'amategeko yacu yo gusubiza ibicuruzwa.",
-  refundCondition2Title: "Uburyo bwo Gusubiza Amafaranga",
-  refundCondition2Desc:
-    "Gusubizwa amafaranga bizakorwa ku buryo bwo kwishyura bwakoreshejwe mu gihe cyo kugura.",
-  refundCondition3Title: "Igihe cyo Gukora Gusubiza Amafaranga",
-  refundCondition3Desc:
-    "Gusubizwa amafaranga bikenera iminsi 5-7 y'akazi nyuma y'uko tumenye ibicuruzwa byasubijwe.",
-  contactTitle: "Twandikire Itsinda ry'Ubuvuzi",
-  contactDesc:
-    "Niba ufite ikibazo cyangwa ukaba ukeneye ubufasha ku birebana n'ukugarura no gusubiza amafaranga, turagutumiye ko wahamagara itsinda ryacu ry'ubufasha.",
-  supportEmailLabel: "Imeyili y'Ubuvuzi",
+   returnTitle: "Politiki y'Ukugarura no Gusubiza Amafaranga",
+   returnHero:
+      "Turashaka ko wishimira kugura kwawe. Nyamuneka soma politiki yacu y'ukugarura no gusubiza amafaranga kugira ngo wumve ibisobanuro by'ibikubiye muri yo.",
+   termsTitle: "Amategeko yo Gusubiza Ibicuruzwa",
+   termsCondition1Title: "Uburenganzira bwo Gusubiza Ibicuruzwa",
+   termsCondition1Desc:
+      "Urashobora gusubiza ibicuruzwa mu gihe cy'iminsi 30 uhereye ku itariki yo kubitanga, niba bibitswe neza kandi bitaravumburwa.",
+   termsCondition2Title: "Ibicuruzwa Bidashobora Gusubizwa",
+   termsCondition2Desc:
+      "Bimwe mu bicuruzwa nk'ibikoresho bipfa vuba, ibicuruzwa byihariye, n'imyenda yo mu bwoko bw'imbere ntibishobora gusubizwa.",
+   termsCondition3Title: "Imiterere y'Ibicuruzwa",
+   termsCondition3Desc:
+      "Ibicuruzwa bigaruwe bigomba kuba bitarakoreshwa, bifite ibirango by'ubwoko bwabyo, packaging y'ibanze, n'ibindi bikoresho byose.",
+   termsCondition4Title: "Uburyo bwo Gusubiza Ibicuruzwa",
+   termsCondition4Desc:
+      "Kugira ngo utangire igikorwa cyo gusubiza, nyamuneka twandikire itsinda ryacu ry'ubufasha n'ibikorwa by'ibicuruzwa byawe.",
+   termsCondition5Title: "Ikiguzi cyo Kohereza Ibicuruzwa",
+   termsCondition5Desc:
+      "Ikiguzi cyo gusubiza ibicuruzwa kizatangwa n'umuguzi, uretse igihe ibicuruzwa byaba byangiritse cyangwa byangiritse mu buryo bw'amakosa.",
+   refundTitle: "Politiki yo Gusubiza Amafaranga",
+   refundCondition1Title: "Uburenganzira bwo Gusubiza Amafaranga",
+   refundCondition1Desc:
+      "Gusubizwa amafaranga birashoboka ku bicuruzwa byasubijwe mu gihe cy'iminsi 30 nyuma yo kugura, kandi bihura n'amategeko yacu yo gusubiza ibicuruzwa.",
+   refundCondition2Title: "Uburyo bwo Gusubiza Amafaranga",
+   refundCondition2Desc:
+      "Gusubizwa amafaranga bizakorwa ku buryo bwo kwishyura bwakoreshejwe mu gihe cyo kugura.",
+   refundCondition3Title: "Igihe cyo Gukora Gusubiza Amafaranga",
+   refundCondition3Desc:
+      "Gusubizwa amafaranga bikenera iminsi 5-7 y'akazi nyuma y'uko tumenye ibicuruzwa byasubijwe.",
+   contactTitle: "Twandikire Itsinda ry'Ubuvuzi",
+   contactDesc:
+      "Niba ufite ikibazo cyangwa ukaba ukeneye ubufasha ku birebana n'ukugarura no gusubiza amafaranga, turagutumiye ko wahamagara itsinda ryacu ry'ubufasha.",
+   supportEmailLabel: "Imeyili y'Ubuvuzi",
 
-  // Homepage
-  "home.hero.title": "Murakaza neza kuri NiheMart",
-  "home.hero.learnmore": "Menya byinshi",
-  "home.hero.subtitle": "Isoko rya mbere ryo kuri Murandasi mu Rwanda",
-  "home.hero.cta": "Tangira Kugura",
-  "home.featured": "Ibicuruzwa Bigezweho",
-  "home.premium": "Ibicuruzwa byiza bigezweho ku biciro byiza",
-  "home.categories": "Ibyiciro bihari",
-  "home.categories.description":
-    "Bona neza ibyo ukeneye byose mu byiciro bitandukanye",
-  "home.viewall": "Reba ibicuruzwa byose",
-  "home.customers": "Ibyo abakiriya bavuga",
-  "home.customers.description":
-    "Soma ibyo abakiriya bacu banyuzwe bavuga kuri serivisi Nihemart itanga",
-  "home.new": "Ibije vuba",
-  "home.more": "Ibindi Ukunda",
-  "home.under": "Ibicuruzwa biri munsi ya",
+   // Homepage
+   "home.hero.title": "Murakaza neza kuri NiheMart",
+   "home.hero.learnmore": "Menya byinshi",
+   "home.hero.subtitle": "Isoko rya mbere ryo kuri Murandasi mu Rwanda",
+   "home.hero.cta": "Tangira Kugura",
+   "home.featured": "Ibicuruzwa Bigezweho",
+   "home.premium": "Ibicuruzwa byiza bigezweho ku biciro byiza",
+   "home.categories": "Ibyiciro bihari",
+   "home.categories.description":
+      "Bona neza ibyo ukeneye byose mu byiciro bitandukanye",
+   "home.viewall": "Reba ibicuruzwa byose",
+   "home.customers": "Ibyo abakiriya bavuga",
+   "home.customers.description":
+      "Soma ibyo abakiriya bacu banyuzwe bavuga kuri serivisi Nihemart itanga",
+   "home.new": "Ibije vuba",
+   "home.more": "Ibindi Ukunda",
+   "home.under": "Ibicuruzwa biri munsi ya",
 
    // Products
    "products.title": "Ibicuruzwa",
@@ -114,6 +114,11 @@ export const rw: Record<string, string> = {
       "Tanga amabwiriza yihariye ku buryo ushaka ko komande yawe itegurwa kandi itangwa.",
    "checkout.selectPaymentMethod":
       "Hitamo uburyo bwo kwishyura kuri iyi komande.",
+   // Payment option labels
+   "checkout.cashOnDelivery": "Amafaranga kugeze aho (Cash on Delivery)",
+   "checkout.ordersDisabledMessage":
+      "Kwishyura ubu byahagaritswe. Nyamuneka gerageza nyuma.",
+   "checkout.ordersDisabledBanner": "Kwishyura ubu byahagaritswe n'umuyobozi.",
    "checkout.processing": "Birimo gutunganya komande...",
    "checkout.orderViaWhatsApp": "Tumiza ukoresheje WhatsApp",
    "checkout.contactPhoneLabel": "Telefoni y'itumanaho:",
@@ -285,29 +290,29 @@ export const rw: Record<string, string> = {
    "contact.faq4.a":
       "Yego, itsinda ryacu rishobora kugufasha mu Cyongereza no mu Kinyarwanda.",
 
-  //  how to buy
-  "howToBuy.title": "Uburyo bwo Kugura",
-  "howToBuy.subtitle":
-    "Kugura kuri twe ni byihuse, byoroshye kandi bitekanye. Kurikiza izi ntambwe zoroshye ugure ibyo wifuza.",
-  "howToBuy.step1.title": "Shakisha Ibicuruzwa",
-  "howToBuy.step1.desc":
-    "Reba ibyiciro byinshi by'ibicuruzwa kandi ukoreshe akabuto ko gushakisha cyangwa amafilteri kugira ngo ubone ibyo ushaka vuba.",
-  "howToBuy.step2.title": "Shyira mu Gatebo",
-  "howToBuy.step2.desc":
-    "Nimara kubona igicuruzwa ukunda, kanda 'Shyira mu Gatebo'. Ushobora kugenzura cyangwa guhindura igatebo cyawe igihe cyose mbere yo kwishyura.",
-  "howToBuy.step3.title": "Komeza Kugura",
-  "howToBuy.step3.desc":
-    "Jya mu gatebo hanyuma ukande 'Kugura'. Uzabazwa amakuru yo gutanga no kwemeza ibyo wasabye.",
-  "howToBuy.step4.title": "Kwishyura Neza",
-  "howToBuy.step4.desc":
-    "Hitamo uburyo bwo kwishyura ushaka. Twemera Mobile Money, amakarita ya Credit, n'amafaranga mu gihe cyo gutanga.",
-  "howToBuy.step5.title": "Gutangwa",
-  "howToBuy.step5.desc":
-    "Icare neza kandi uruhuke! Ibicuruzwa byawe bizakugeraho mu gihe cyagenwe.",
-  "howToBuy.ctaTitle": "Witeguye gutangira kugura?",
-  "howToBuy.ctaSubtitle":
-    "Shakisha ibicuruzwa byiza kandi wishimire uburyo bworoshye bwo kugura. Igicuruzwa cyawe gikurikira kiri hafi gukanda rimwe gusa.",
-  "howToBuy.ctaButton": "Tangira Kugura",
+   //  how to buy
+   "howToBuy.title": "Uburyo bwo Kugura",
+   "howToBuy.subtitle":
+      "Kugura kuri twe ni byihuse, byoroshye kandi bitekanye. Kurikiza izi ntambwe zoroshye ugure ibyo wifuza.",
+   "howToBuy.step1.title": "Shakisha Ibicuruzwa",
+   "howToBuy.step1.desc":
+      "Reba ibyiciro byinshi by'ibicuruzwa kandi ukoreshe akabuto ko gushakisha cyangwa amafilteri kugira ngo ubone ibyo ushaka vuba.",
+   "howToBuy.step2.title": "Shyira mu Gatebo",
+   "howToBuy.step2.desc":
+      "Nimara kubona igicuruzwa ukunda, kanda 'Shyira mu Gatebo'. Ushobora kugenzura cyangwa guhindura igatebo cyawe igihe cyose mbere yo kwishyura.",
+   "howToBuy.step3.title": "Komeza Kugura",
+   "howToBuy.step3.desc":
+      "Jya mu gatebo hanyuma ukande 'Kugura'. Uzabazwa amakuru yo gutanga no kwemeza ibyo wasabye.",
+   "howToBuy.step4.title": "Kwishyura Neza",
+   "howToBuy.step4.desc":
+      "Hitamo uburyo bwo kwishyura ushaka. Twemera Mobile Money, amakarita ya Credit, n'amafaranga mu gihe cyo gutanga.",
+   "howToBuy.step5.title": "Gutangwa",
+   "howToBuy.step5.desc":
+      "Icare neza kandi uruhuke! Ibicuruzwa byawe bizakugeraho mu gihe cyagenwe.",
+   "howToBuy.ctaTitle": "Witeguye gutangira kugura?",
+   "howToBuy.ctaSubtitle":
+      "Shakisha ibicuruzwa byiza kandi wishimire uburyo bworoshye bwo kugura. Igicuruzwa cyawe gikurikira kiri hafi gukanda rimwe gusa.",
+   "howToBuy.ctaButton": "Tangira Kugura",
 
    // About Page
    "about.title": "Ibyerekeye NiheMart",

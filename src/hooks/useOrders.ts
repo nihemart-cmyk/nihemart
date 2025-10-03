@@ -109,6 +109,26 @@ export function useCreateOrder() {
             throw new Error("Invalid order data structure");
          }
          try {
+            // Check if orders are enabled (server-side setting)
+            try {
+               const resp = await fetch("/api/admin/settings/orders-enabled");
+               if (resp.ok) {
+                  const j = await resp.json();
+                  const enabled = Boolean(j.enabled);
+                  // If orders are disabled and this is not an external order, block
+                  if (!enabled && !orderData.order.is_external) {
+                     const e: any = new Error(
+                        "Ordering is currently disabled by the admin. Please try again later."
+                     );
+                     e.code = "ORDERS_DISABLED";
+                     throw e;
+                  }
+               }
+            } catch (flagErr) {
+               // If the check fails, log and continue — fail open so checkout isn't blocked by transient errors
+               console.warn("Failed to verify orders_enabled flag:", flagErr);
+            }
+
             const result = await createOrder(orderData);
             console.log(
                "Regular Order Mutation - integrations.createOrder returned:",

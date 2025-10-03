@@ -9,14 +9,23 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import {
    Dialog,
-   DialogTrigger,
    DialogContent,
    DialogHeader,
    DialogFooter,
    DialogTitle,
    DialogDescription,
-   DialogClose,
 } from "@/components/ui/dialog";
+import {
+   AlertDialog,
+   AlertDialogContent,
+   AlertDialogHeader,
+   AlertDialogTitle,
+   AlertDialogDescription,
+   AlertDialogFooter,
+   AlertDialogAction,
+   AlertDialogCancel,
+   AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -35,9 +44,7 @@ import {
    Phone,
    User,
    Calendar,
-   Hash,
    MessageCircle,
-   AlertCircle,
    RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -76,17 +83,14 @@ const OrderDetails = () => {
    const isOwner = user?.id === order?.user_id;
    const isAdmin = hasRole("admin");
 
-   // mutations for order-level actions
    const requestOrderRefund = useRequestRefundOrder();
    const cancelOrderRefund = useCancelRefundRequestOrder();
 
-   // Redirect if not logged in
    if (!isLoggedIn) {
       router.push("/signin?redirect=/orders/" + orderId);
       return null;
    }
 
-   // Loading state
    if (isLoading) {
       return (
          <div className="container mx-auto px-3 sm:px-4 py-6 sm:py-8 max-w-[90vw]">
@@ -100,7 +104,6 @@ const OrderDetails = () => {
       );
    }
 
-   // Error state
    if (error || !order) {
       return (
          <div className="container mx-auto px-3 sm:px-4 py-6 sm:py-8 max-w-4xl">
@@ -110,8 +113,8 @@ const OrderDetails = () => {
                   Order Not Found
                </h1>
                <p className="text-muted-foreground mb-6 sm:mb-8 text-sm sm:text-base px-4">
-                  The order you&apos;re looking for doesn&apos;t exist or you don&apos;t have
-                  permission to view it.
+                  The order you&apos;re looking for doesn&apos;t exist or you
+                  don&apos;t have permission to view it.
                </p>
                <Button
                   onClick={() => router.push("/")}
@@ -125,7 +128,6 @@ const OrderDetails = () => {
       );
    }
 
-   // Check if user has permission to view this order
    if (!isAdmin && order.user_id !== user?.id) {
       return (
          <div className="container mx-auto px-3 sm:px-4 py-6 sm:py-8 max-w-4xl">
@@ -185,7 +187,6 @@ const OrderDetails = () => {
       }
    };
 
-   // Build timeline entries from available timestamps and status.
    const buildTimeline = () => {
       const entries: {
          key: string;
@@ -195,7 +196,6 @@ const OrderDetails = () => {
          icon?: any;
       }[] = [];
 
-      // Always include order placed
       entries.push({
          key: "placed",
          title: "Order Placed",
@@ -204,7 +204,6 @@ const OrderDetails = () => {
          icon: <Calendar className="h-4 w-4 text-white" />,
       });
 
-      // Processing
       if (
          order.status === "processing" ||
          order.status === "shipped" ||
@@ -213,14 +212,12 @@ const OrderDetails = () => {
          entries.push({
             key: "processing",
             title: "Order Processing",
-            // processed_at may not exist on the order object in all schemas; fall back to updated_at
             date: (order as any).processed_at || order.updated_at,
             color: "bg-blue-500",
             icon: <Package className="h-4 w-4 text-white" />,
          });
       }
 
-      // Shipped
       if (order.status === "shipped" || order.status === "delivered") {
          entries.push({
             key: "shipped",
@@ -231,7 +228,6 @@ const OrderDetails = () => {
          });
       }
 
-      // Delivered
       if (order.status === "delivered") {
          entries.push({
             key: "delivered",
@@ -242,20 +238,17 @@ const OrderDetails = () => {
          });
       }
 
-      // Cancelled
       if (order.status === "cancelled") {
          entries.push({
             key: "cancelled",
             title: "Order Cancelled",
-            // cancelled_at may not exist in all schemas; use updated_at as fallback
             date: (order as any).cancelled_at || order.updated_at,
             color: "bg-red-500",
             icon: <X className="h-4 w-4 text-white" />,
          });
       }
 
-      // Remove entries without dates except &apos;placed&apos; (we still may want to show placed without date)
-      return entries.filter((e, idx) => (e.date ? true : e.key === "placed"));
+      return entries.filter((e) => (e.date ? true : e.key === "placed"));
    };
 
    const handleStatusUpdate = async (newStatus: string) => {
@@ -276,7 +269,6 @@ const OrderDetails = () => {
       }
    };
 
-   // Navigate to the contact page for support
    const handleContactSupport = () => {
       router.push("/contact");
    };
@@ -293,7 +285,6 @@ const OrderDetails = () => {
 
    return (
       <div className="container mx-auto px-3 sm:px-4 py-6 sm:py-8 max-w-[90vw]">
-         {/* Header */}
          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6 sm:mb-8">
             <div className="flex items-center space-x-3 sm:space-x-4">
                <Button
@@ -340,7 +331,6 @@ const OrderDetails = () => {
 
          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
             <div className="xl:col-span-2 space-y-6">
-               {/* Order Items */}
                <Card className="border-orange-200">
                   <CardHeader className="bg-gradient-to-r from-orange-50 to-orange-25 py-4 sm:py-5">
                      <CardTitle className="flex items-center text-orange-800 text-lg sm:text-xl">
@@ -386,7 +376,6 @@ const OrderDetails = () => {
                                     </p>
 
                                     <div className="flex flex-wrap items-center gap-2">
-                                       {/* Only allow the order owner (not admins) to request/cancel refunds for items */}
                                        {!isAdmin && isOwner ? (
                                           item.refund_status ? (
                                              <>
@@ -448,11 +437,7 @@ const OrderDetails = () => {
                                           ) : (
                                              <Button
                                                 size="sm"
-                                                variant={
-                                                   order.status === "delivered"
-                                                      ? "outline"
-                                                      : "outline"
-                                                }
+                                                variant="outline"
                                                 onClick={() => {
                                                    setRejectingItemId(item.id);
                                                    setRejectDialogOpen(true);
@@ -485,7 +470,6 @@ const OrderDetails = () => {
                   </CardContent>
                </Card>
 
-               {/* Order Timeline */}
                <Card className="border-orange-200">
                   <CardHeader className="bg-gradient-to-r from-orange-50 to-orange-25 py-4 sm:py-5">
                      <CardTitle className="text-orange-800 text-lg sm:text-xl">
@@ -538,7 +522,6 @@ const OrderDetails = () => {
             </div>
 
             <div className="space-y-6">
-               {/* Order Summary */}
                <Card className="border-orange-200">
                   <CardHeader className="bg-gradient-to-r from-orange-50 to-orange-25 py-4 sm:py-5">
                      <CardTitle className="text-orange-800 text-lg sm:text-xl">
@@ -562,7 +545,6 @@ const OrderDetails = () => {
                   </CardContent>
                </Card>
 
-               {/* Customer Information */}
                <Card className="border-orange-200">
                   <CardHeader className="bg-gradient-to-r from-orange-50 to-orange-25 py-4 sm:py-5">
                      <CardTitle className="text-orange-800 text-lg sm:text-xl">
@@ -594,7 +576,6 @@ const OrderDetails = () => {
                   </CardContent>
                </Card>
 
-               {/* Delivery Information */}
                <Card className="border-orange-200">
                   <CardHeader className="bg-gradient-to-r from-orange-50 to-orange-25 py-4 sm:py-5">
                      <CardTitle className="text-orange-800 text-lg sm:text-xl">
@@ -626,7 +607,6 @@ const OrderDetails = () => {
                   </CardContent>
                </Card>
 
-               {/* Shared Order Actions (show to owner and admins) */}
                {(isAdmin || isOwner) && (
                   <Card className="border-orange-200">
                      <CardHeader className="bg-gradient-to-r from-orange-50 to-orange-25 py-4 sm:py-5">
@@ -637,7 +617,6 @@ const OrderDetails = () => {
                      <CardContent className="p-4 sm:p-6">
                         <div className="space-y-3">
                            <div className="grid grid-cols-1 gap-2">
-                              {/* Admin status controls */}
                               {isAdmin && order.status === "pending" && (
                                  <Button
                                     size="sm"
@@ -692,37 +671,92 @@ const OrderDetails = () => {
                                  </Button>
                               )}
 
-                              {/* Cancel order button available to admins and owners when pending/processing */}
                               {order.status &&
                                  ["pending", "processing"].includes(
                                     order.status
                                  ) && (
-                                    <Button
-                                       size="sm"
-                                       variant="outline"
-                                       onClick={async () => {
-                                          try {
-                                             setIsUpdatingStatus(true);
-                                             await handleStatusUpdate(
-                                                "cancelled"
-                                             );
-                                             toast.success("Order cancelled");
-                                          } catch (e) {
-                                             // handled by mutation
-                                          } finally {
-                                             setIsUpdatingStatus(false);
-                                          }
-                                       }}
-                                       disabled={isUpdatingStatus}
-                                       className="border-red-300 text-red-600 hover:bg-red-50 text-xs sm:text-sm h-8 sm:h-9"
+                                    <AlertDialog
+                                       open={showCancelConfirm}
+                                       onOpenChange={setShowCancelConfirm}
                                     >
-                                       <X className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
-                                       Cancel Order
-                                    </Button>
+                                       <AlertDialogTrigger asChild>
+                                          <Button
+                                             size="sm"
+                                             variant="outline"
+                                             className="border-red-300 text-red-600 hover:bg-red-50 text-xs sm:text-sm h-8 sm:h-9"
+                                             disabled={isUpdatingStatus}
+                                          >
+                                             <X className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
+                                             Cancel Order
+                                          </Button>
+                                       </AlertDialogTrigger>
+
+                                       <AlertDialogContent className="max-w-md">
+                                          <AlertDialogHeader>
+                                             <AlertDialogTitle>
+                                                Confirm Cancel Order
+                                             </AlertDialogTitle>
+                                             <AlertDialogDescription>
+                                                Cancelling this order will set
+                                                its status to &quot;cancelled&quot;. This
+                                                action cannot be undone. Are you
+                                                sure you want to proceed?
+                                             </AlertDialogDescription>
+                                          </AlertDialogHeader>
+
+                                          <div className="mt-2 px-1">
+                                             <label className="flex items-center gap-2 text-sm">
+                                                <Checkbox
+                                                   checked={redirectAfterCancel}
+                                                   onCheckedChange={(v) =>
+                                                      setRedirectAfterCancel(
+                                                         !!v
+                                                      )
+                                                   }
+                                                />
+                                                Redirect to home after
+                                                cancelling
+                                             </label>
+                                          </div>
+
+                                          <AlertDialogFooter>
+                                             <AlertDialogCancel>
+                                                Close
+                                             </AlertDialogCancel>
+                                             <AlertDialogAction
+                                                onClick={async () => {
+                                                   setShowCancelConfirm(false);
+                                                   if (isUpdatingStatus) return;
+                                                   setIsUpdatingStatus(true);
+                                                   try {
+                                                      await handleStatusUpdate(
+                                                         "cancelled"
+                                                      );
+                                                      toast.success(
+                                                         "Order cancelled"
+                                                      );
+                                                      if (redirectAfterCancel) {
+                                                         router.push("/");
+                                                      }
+                                                   } catch (err) {
+                                                      console.error(err);
+                                                      toast.error(
+                                                         "Failed to cancel order"
+                                                      );
+                                                   } finally {
+                                                      setIsUpdatingStatus(false);
+                                                   }
+                                                }}
+                                                className="bg-red-600 hover:bg-red-700 text-white"
+                                             >
+                                                Confirm Cancel
+                                             </AlertDialogAction>
+                                          </AlertDialogFooter>
+                                       </AlertDialogContent>
+                                    </AlertDialog>
                                  )}
                            </div>
 
-                           {/* Full-order refund request (owner/admin) - only within 24 hours of delivery and if not already requested */}
                            {order.status === "delivered" &&
                               order.delivered_at &&
                               (() => {
@@ -768,7 +802,6 @@ const OrderDetails = () => {
                                        </div>
                                     );
                                  }
-                                 // If refund already requested, allow cancelling the refund request for owner
                                  if (!refundNotRequested && isOwner) {
                                     return (
                                        <div className="pt-2 border-t">
@@ -802,127 +835,24 @@ const OrderDetails = () => {
                      </CardContent>
                   </Card>
                )}
-
-               {/* Owner Controls: allow order owners to cancel their own orders when pending/processing */}
-               {!isAdmin && isOwner && (
-                  <Card className="border-orange-200">
-                     <CardHeader className="bg-gradient-to-r from-orange-50 to-orange-25 py-4 sm:py-5">
-                        <CardTitle className="text-orange-800 text-lg sm:text-xl">
-                           Order Actions
-                        </CardTitle>
-                     </CardHeader>
-                     <CardContent className="p-4 sm:p-6">
-                        <div className="space-y-2">
-                           {order.status &&
-                              ["pending", "processing"].includes(
-                                 order.status
-                              ) && (
-                                 <>
-                                    <Button
-                                       size="sm"
-                                       variant="outline"
-                                       onClick={() =>
-                                          setShowCancelConfirm(true)
-                                       }
-                                       className="border-red-300 text-red-600 hover:bg-red-50 text-xs sm:text-sm h-8 sm:h-9 w-full"
-                                    >
-                                       <X className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
-                                       Cancel Order
-                                    </Button>
-
-                                    {/* Confirmation dialog for order owner cancel */}
-                                    <Dialog
-                                       open={showCancelConfirm}
-                                       onOpenChange={setShowCancelConfirm}
-                                    >
-                                       <DialogContent className="max-w-md">
-                                          <DialogHeader>
-                                             <DialogTitle>
-                                                Confirm Cancel Order
-                                             </DialogTitle>
-                                             <DialogDescription>
-                                                Are you sure you want to cancel
-                                                this order? This action cannot
-                                                be undone.
-                                             </DialogDescription>
-                                          </DialogHeader>
-
-                                          <div className="mt-4 flex items-center gap-3 px-2">
-                                             <Checkbox
-                                                checked={redirectAfterCancel}
-                                                onCheckedChange={(v) =>
-                                                   setRedirectAfterCancel(
-                                                      Boolean(v)
-                                                   )
-                                                }
-                                             />
-                                             <span className="text-sm">
-                                                Also redirect to Orders page
-                                                after cancel
-                                             </span>
-                                          </div>
-
-                                          <div className="mt-4 flex justify-end space-x-2">
-                                             <Button
-                                                variant="outline"
-                                                onClick={() =>
-                                                   setShowCancelConfirm(false)
-                                                }
-                                             >
-                                                No, keep order
-                                             </Button>
-                                             <Button
-                                                variant="destructive"
-                                                onClick={async () => {
-                                                   try {
-                                                      setIsUpdatingStatus(true);
-                                                      await handleStatusUpdate(
-                                                         "cancelled"
-                                                      );
-                                                      setShowCancelConfirm(
-                                                         false
-                                                      );
-                                                      toast.success(
-                                                         "Order cancelled"
-                                                      );
-                                                      if (redirectAfterCancel) {
-                                                         router.push("/orders");
-                                                      }
-                                                   } catch (e) {
-                                                      // handled by mutation
-                                                   } finally {
-                                                      setIsUpdatingStatus(
-                                                         false
-                                                      );
-                                                   }
-                                                }}
-                                                className="bg-red-500 hover:bg-red-600"
-                                             >
-                                                Yes, cancel order
-                                             </Button>
-                                          </div>
-                                       </DialogContent>
-                                    </Dialog>
-                                 </>
-                              )}
-                        </div>
-                     </CardContent>
-                  </Card>
-               )}
             </div>
          </div>
 
-         {/* Reject Reason Dialog */}
          <Dialog
             open={rejectDialogOpen}
             onOpenChange={(v: boolean) => setRejectDialogOpen(v)}
          >
             <DialogContent className="max-w-md">
                <DialogHeader>
-                  <DialogTitle>Request Refund</DialogTitle>
+                  <DialogTitle>
+                     {order?.status === "delivered"
+                        ? "Request Refund"
+                        : "Request Reject"}
+                  </DialogTitle>
                   <DialogDescription>
-                     Provide a reason for requesting a refund for this item. The
-                     admin will review your request.
+                     {order?.status === "delivered"
+                        ? "Provide a reason for requesting a refund for this item. The admin will review your request."
+                        : "Provide a reason for rejecting this item. The admin will review your request."}
                   </DialogDescription>
                </DialogHeader>
 
@@ -930,7 +860,11 @@ const OrderDetails = () => {
                   <Textarea
                      value={rejectReason}
                      onChange={(e) => setRejectReason(e.target.value)}
-                     placeholder="Enter rejection reason"
+                     placeholder={
+                        order?.status === "delivered"
+                           ? "Enter refund reason"
+                           : "Enter rejection reason"
+                     }
                      className="w-full border-gray-300 focus:border-orange-500 focus:ring-orange-500 text-sm"
                   />
                </div>
@@ -958,7 +892,11 @@ const OrderDetails = () => {
                                  orderItemId: rejectingItemId,
                                  reason: rejectReason,
                               });
-                              toast.success("Refund requested");
+                              toast.success(
+                                 order?.status === "delivered"
+                                    ? "Refund requested"
+                                    : "Reject requested"
+                              );
                               setRejectDialogOpen(false);
                               setRejectReason("");
                               setRejectingItemId(null);
@@ -974,7 +912,13 @@ const OrderDetails = () => {
                         {isRejecting ? (
                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
                         ) : null}
-                        {isRejecting ? "Requesting..." : "Confirm Request"}
+                        {isRejecting
+                           ? order?.status === "delivered"
+                              ? "Requesting..."
+                              : "Requesting..."
+                           : order?.status === "delivered"
+                           ? "Request Refund"
+                           : "Request Reject"}
                      </Button>
                   </div>
                </DialogFooter>

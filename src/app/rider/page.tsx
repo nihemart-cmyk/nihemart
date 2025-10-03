@@ -1,9 +1,7 @@
 "use client";
-import { RiderAnalytics } from "@/components/rider/RiderAnalytics";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import {
    Box,
    Clock,
@@ -16,13 +14,13 @@ import {
    Users,
    Package,
    Target,
-   Award,
    Navigation,
 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { fetchRiderByUserId } from "@/integrations/supabase/riders";
 import { useRiderAssignments } from "@/hooks/useRiders";
+import { RiderAnalytics } from "@/components/rider/RiderAnalytics";
 
 interface StatsCardProps {
    title: string;
@@ -59,26 +57,28 @@ const StatsCard: React.FC<StatsCardProps> = ({
 }) => (
    <Card className="overflow-hidden border-0 shadow-lg hover:shadow-xl transition-all duration-300 group">
       <CardContent className="p-0">
-         <div className={`${gradient} p-6 text-white relative`}>
+         <div className={`${gradient} p-4 sm:p-6 text-white relative`}>
             <div className="flex items-center justify-between">
-               <div className="space-y-2">
-                  <p className="text-white/80 text-sm font-medium">{title}</p>
-                  <p className="text-3xl font-bold">{value}</p>
+               <div className="space-y-1 sm:space-y-2">
+                  <p className="text-white/80 text-xs sm:text-sm font-medium">
+                     {title}
+                  </p>
+                  <p className="text-2xl sm:text-3xl font-bold">{value}</p>
                   {change && (
                      <div className="flex items-center gap-1">
                         {Number(change) < 0 ? (
-                           <TrendingDown className="w-4 h-4 text-white/80" />
+                           <TrendingDown className="w-3 h-3 sm:w-4 sm:h-4 text-white/80" />
                         ) : (
-                           <TrendingUp className="w-4 h-4 text-white/80" />
+                           <TrendingUp className="w-3 h-3 sm:w-4 sm:h-4 text-white/80" />
                         )}
-                        <span className="text-sm text-white/80">
+                        <span className="text-xs sm:text-sm text-white/80">
                            {change}% vs last week
                         </span>
                      </div>
                   )}
                </div>
-               <div className="p-3 bg-white/20 rounded-xl backdrop-blur-sm group-hover:scale-110 transition-transform duration-300">
-                  <Icon className="w-7 h-7 text-white" />
+               <div className="p-2 sm:p-3 bg-white/20 rounded-xl backdrop-blur-sm group-hover:scale-110 transition-transform duration-300">
+                  <Icon className="w-5 h-5 sm:w-7 sm:h-7 text-white" />
                </div>
             </div>
             <div className="absolute -right-6 -bottom-6 w-24 h-24 bg-white/10 rounded-full"></div>
@@ -98,27 +98,35 @@ const ActiveRiderCard: React.FC<ActiveRiderProps> = ({
 }) => (
    <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300">
       <CardHeader className="pb-4">
-         <CardTitle className="text-lg font-semibold text-gray-800">Your Profile</CardTitle>
+         <CardTitle className="text-base sm:text-lg font-semibold text-gray-800">
+            Your Profile
+         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-6">
-         <div className="flex items-start gap-4">
-            <div className="relative">
-               <div className="w-16 h-16 bg-gradient-to-br from-orange-400 to-orange-600 rounded-xl flex items-center justify-center shadow-lg">
-                  <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
-                     <Users className="w-5 h-5 text-orange-500" />
+      <CardContent className="space-y-4 sm:space-y-6">
+         <div className="flex items-start gap-3 sm:gap-4">
+            <div className="relative flex-shrink-0">
+               <div className="w-14 h-14 sm:w-16 sm:h-16 bg-gradient-to-br from-orange-400 to-orange-600 rounded-xl flex items-center justify-center shadow-lg">
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 bg-white rounded-full flex items-center justify-center">
+                     <Users className="w-4 h-4 sm:w-5 sm:h-5 text-orange-500" />
                   </div>
                </div>
-               <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-white ${
-                  status === "Active" ? "bg-green-500" : "bg-red-500"
-               }`}></div>
+               <div
+                  className={`absolute -bottom-1 -right-1 w-4 h-4 sm:w-5 sm:h-5 rounded-full border-2 border-white ${
+                     status === "Active" ? "bg-green-500" : "bg-red-500"
+                  }`}
+               ></div>
             </div>
-            <div className="flex-1">
-               <h3 className="font-bold text-xl text-gray-900">{name}</h3>
-               <p className="text-gray-500 text-sm">ID: #{id}</p>
-               <Badge 
-                  className={`mt-2 ${
-                     status === "Active" 
-                        ? "bg-green-100 text-green-700 hover:bg-green-100" 
+            <div className="flex-1 min-w-0">
+               <h3 className="font-bold text-lg sm:text-xl text-gray-900 truncate">
+                  {name}
+               </h3>
+               <p className="text-gray-500 text-xs sm:text-sm truncate">
+                  ID: #{id}
+               </p>
+               <Badge
+                  className={`mt-2 text-xs ${
+                     status === "Active"
+                        ? "bg-green-100 text-green-700 hover:bg-green-100"
                         : "bg-red-100 text-red-700 hover:bg-red-100"
                   }`}
                >
@@ -127,35 +135,44 @@ const ActiveRiderCard: React.FC<ActiveRiderProps> = ({
             </div>
          </div>
 
-         <div className="grid grid-cols-2 gap-4">
-            <div className="bg-gray-50 rounded-lg p-4 text-center">
-               <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-lg mx-auto mb-2">
-                  <Package className="w-4 h-4 text-blue-600" />
+         <div className="grid grid-cols-2 gap-3 sm:gap-4">
+            <div className="bg-gray-50 rounded-lg p-3 sm:p-4 text-center">
+               <div className="flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 bg-blue-100 rounded-lg mx-auto mb-2">
+                  <Package className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600" />
                </div>
-               <p className="text-2xl font-bold text-gray-900">{deliveries}</p>
-               <p className="text-sm text-gray-500">Total Deliveries</p>
+               <p className="text-xl sm:text-2xl font-bold text-gray-900">
+                  {deliveries}
+               </p>
+               <p className="text-xs sm:text-sm text-gray-500">
+                  Total Deliveries
+               </p>
             </div>
-            <div className="bg-gray-50 rounded-lg p-4 text-center">
-               <div className="flex items-center justify-center w-8 h-8 bg-yellow-100 rounded-lg mx-auto mb-2">
-                  <Star className="w-4 h-4 text-yellow-600" fill="currentColor" />
+            <div className="bg-gray-50 rounded-lg p-3 sm:p-4 text-center">
+               <div className="flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 bg-yellow-100 rounded-lg mx-auto mb-2">
+                  <Star
+                     className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-yellow-600"
+                     fill="currentColor"
+                  />
                </div>
-               <p className="text-2xl font-bold text-gray-900">{rating}</p>
-               <p className="text-sm text-gray-500">Rating</p>
+               <p className="text-xl sm:text-2xl font-bold text-gray-900">
+                  {rating}
+               </p>
+               <p className="text-xs sm:text-sm text-gray-500">Rating</p>
             </div>
          </div>
 
          <div className="space-y-3">
             <div className="flex items-center gap-3 text-gray-600">
-               <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <MapPin className="w-4 h-4" />
+               <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                </div>
-               <span className="text-sm">{location}</span>
+               <span className="text-xs sm:text-sm truncate">{location}</span>
             </div>
             <div className="flex items-center gap-3 text-gray-600">
-               <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <Clock className="w-4 h-4" />
+               <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                </div>
-               <span className="text-sm">Last active: Now</span>
+               <span className="text-xs sm:text-sm">Last active: Now</span>
             </div>
          </div>
       </CardContent>
@@ -171,16 +188,18 @@ const RecentDelivery: React.FC<RecentDeliveryProps> = ({
    status,
 }) => (
    <Card className="border-0 bg-gray-50 hover:bg-gray-100 transition-all duration-200 hover:shadow-md">
-      <CardContent className="p-4">
-         <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4 flex-1">
-               <div className="w-12 h-12 bg-gradient-to-br from-orange-400 to-orange-600 rounded-lg flex items-center justify-center shadow-sm">
-                  <Package className="w-5 h-5 text-white" />
+      <CardContent className="p-3 sm:p-4">
+         <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+            <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
+               <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-orange-400 to-orange-600 rounded-lg flex items-center justify-center shadow-sm flex-shrink-0">
+                  <Package className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                </div>
-               <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-1">
-                     <span className="font-semibold text-gray-900">#{id}</span>
-                     <Badge 
+               <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
+                     <span className="font-semibold text-sm sm:text-base text-gray-900">
+                        #{id}
+                     </span>
+                     <Badge
                         className={`text-xs ${
                            status === "completed" || status === "delivered"
                               ? "bg-green-100 text-green-700 hover:bg-green-100"
@@ -192,18 +211,22 @@ const RecentDelivery: React.FC<RecentDeliveryProps> = ({
                         {status}
                      </Badge>
                   </div>
-                  <p className="text-sm text-gray-600 mb-1">{name}</p>
+                  <p className="text-xs sm:text-sm text-gray-600 mb-1 truncate">
+                     {name}
+                  </p>
                   <div className="flex items-center gap-1 text-xs text-gray-500">
-                     <MapPin className="w-3 h-3" />
-                     <span className="truncate max-w-xs">{location}</span>
+                     <MapPin className="w-3 h-3 flex-shrink-0" />
+                     <span className="truncate">{location}</span>
                   </div>
                </div>
             </div>
-            <div className="text-right space-y-1">
-               <p className="font-bold text-gray-900">RWF {amount}</p>
+            <div className="flex items-center justify-between sm:flex-col sm:items-end sm:justify-start sm:text-right sm:space-y-1 flex-shrink-0">
+               <p className="font-bold text-sm sm:text-base text-gray-900 whitespace-nowrap">
+                  RWF {amount}
+               </p>
                <div className="flex items-center gap-1 text-xs text-gray-500">
                   <Clock className="w-3 h-3" />
-                  <span>{time} ago</span>
+                  <span className="whitespace-nowrap">{time} ago</span>
                </div>
             </div>
          </div>
@@ -214,7 +237,7 @@ const RecentDelivery: React.FC<RecentDeliveryProps> = ({
 const Dashboard = () => {
    const { user, isLoggedIn } = useAuth();
    const [rider, setRider] = useState<any | null>(null);
-   
+
    useEffect(() => {
       if (!user) return;
       fetchRiderByUserId(user.id)
@@ -247,11 +270,15 @@ const Dashboard = () => {
 
    if (!isLoggedIn) {
       return (
-         <div className="min-h-screen bg-gradient-to-br from-orange-50 to-blue-50 flex items-center justify-center">
-            <Card className="p-8 text-center">
+         <div className="min-h-screen bg-gradient-to-br from-orange-50 to-blue-50 flex items-center justify-center p-4">
+            <Card className="p-6 sm:p-8 text-center max-w-md w-full">
                <CardContent>
-                  <h2 className="text-xl font-semibold mb-2">Please Sign In</h2>
-                  <p className="text-gray-600">You need to sign in to access your dashboard.</p>
+                  <h2 className="text-lg sm:text-xl font-semibold mb-2">
+                     Please Sign In
+                  </h2>
+                  <p className="text-sm sm:text-base text-gray-600">
+                     You need to sign in to access your dashboard.
+                  </p>
                </CardContent>
             </Card>
          </div>
@@ -261,17 +288,19 @@ const Dashboard = () => {
    return (
       <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-blue-50">
          <ScrollArea className="h-[calc(100vh-2rem)]">
-            <div className="container mx-auto p-6">
+            <div className="mx-auto p-3 sm:p-4 md:p-6 max-w-7xl">
                {/* Welcome Section */}
-               <div className="mb-8">
-                  <h1 className="text-3xl font-bold text-gray-900 mb-2">
+               <div className="mb-6 sm:mb-8">
+                  <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
                      Welcome back, {rider?.full_name || user?.email || "Rider"}!
                   </h1>
-                  <p className="text-gray-600">Here&apos;s your delivery overview for today.</p>
+                  <p className="text-sm sm:text-base text-gray-600">
+                     Here&apos;s your delivery overview for today.
+                  </p>
                </div>
 
                {/* Stats Cards */}
-               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6 mb-6 sm:mb-8">
                   <StatsCard
                      title="Status"
                      value={rider?.active ? "Active" : "Inactive"}
@@ -303,7 +332,7 @@ const Dashboard = () => {
                </div>
 
                {/* Main Content */}
-               <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
                   {/* Profile Card */}
                   <div className="lg:col-span-1">
                      <ActiveRiderCard
@@ -317,13 +346,13 @@ const Dashboard = () => {
                   </div>
 
                   {/* Analytics and Recent Deliveries */}
-                  <div className="lg:col-span-2 space-y-8">
+                  <div className="lg:col-span-2 space-y-6 sm:space-y-8">
                      <RiderAnalytics />
-                     
+
                      <Card className="border-0 shadow-lg">
-                        <CardHeader>
-                           <CardTitle className="flex items-center gap-2">
-                              <Navigation className="w-5 h-5 text-orange-500" />
+                        <CardHeader className="pb-4">
+                           <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                              <Navigation className="w-4 h-4 sm:w-5 sm:h-5 text-orange-500" />
                               Recent Deliveries
                            </CardTitle>
                         </CardHeader>
@@ -348,8 +377,10 @@ const Dashboard = () => {
                               </div>
                            ) : (
                               <div className="text-center py-8 text-gray-500">
-                                 <Package className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                                 <p>No recent deliveries</p>
+                                 <Package className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-3 opacity-50" />
+                                 <p className="text-sm sm:text-base">
+                                    No recent deliveries
+                                 </p>
                               </div>
                            )}
                         </CardContent>

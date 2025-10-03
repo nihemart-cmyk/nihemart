@@ -239,7 +239,9 @@ export function OrderDetailsDialog({
                                        setShowOrderRefundDialog(true)
                                     }
                                  >
-                                    Request full order refund
+                                    {order.status === "delivered"
+                                       ? "Request full order refund"
+                                       : "Request full order reject"}
                                  </Button>
                               )}
                               {order.refund_status === "requested" && (
@@ -276,7 +278,11 @@ export function OrderDetailsDialog({
                   >
                      <DialogContent className="max-w-md">
                         <DialogHeader>
-                           <DialogTitle>Request full order refund</DialogTitle>
+                           <DialogTitle>
+                              {order.status === "delivered"
+                                 ? "Request full order refund"
+                                 : "Request full order reject"}
+                           </DialogTitle>
                         </DialogHeader>
                         <div className="p-4">
                            <p className="text-sm text-muted-foreground mb-2">
@@ -318,8 +324,10 @@ export function OrderDetailsDialog({
                               >
                                  {orderLoading ? (
                                     <Loader2 className="h-4 w-4 animate-spin" />
-                                 ) : (
+                                 ) : order.status === "delivered" ? (
                                     "Request refund"
+                                 ) : (
+                                    "Request reject"
                                  )}
                               </Button>
                            </div>

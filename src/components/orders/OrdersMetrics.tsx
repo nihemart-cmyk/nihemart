@@ -18,6 +18,7 @@ import {
 import { useOrders } from "@/hooks/useOrders";
 import { Order } from "@/types/orders";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
 interface OrderMetric {
    title: string;
@@ -148,6 +149,44 @@ export default function OrdersMetrics() {
 
    const orderMetrics = getOrderMetrics();
 
+   // Orders enabled toggle
+   const [ordersEnabled, setOrdersEnabled] = useState<boolean | null>(null);
+   const [toggling, setToggling] = useState(false);
+
+   const fetchOrdersEnabled = async () => {
+      try {
+         const res = await fetch("/api/admin/settings/orders-enabled");
+         if (!res.ok) throw new Error("Failed to fetch setting");
+         const json = await res.json();
+         setOrdersEnabled(Boolean(json.enabled));
+      } catch (err) {
+         console.warn("Failed to load orders_enabled setting", err);
+         setOrdersEnabled(true);
+      }
+   };
+
+   useEffect(() => {
+      fetchOrdersEnabled();
+   }, []);
+
+   const toggleOrders = async (next: boolean) => {
+      setToggling(true);
+      try {
+         const res = await fetch("/api/admin/settings/orders-enabled", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ enabled: next }),
+         });
+         if (!res.ok) throw new Error("Failed to update setting");
+         const json = await res.json();
+         setOrdersEnabled(Boolean(json.enabled));
+      } catch (err) {
+         console.error("Failed to toggle orders setting", err);
+      } finally {
+         setToggling(false);
+      }
+   };
+
    if (isError) {
       return (
          <div className="space-y-6">
@@ -209,6 +248,25 @@ export default function OrdersMetrics() {
                <Link href="/admin/orders/external">
                   <Button variant="outline">External Orders</Button>
                </Link>
+               {/* Orders enable/disable toggle */}
+               <Button
+                  variant={ordersEnabled ? "destructive" : "ghost"}
+                  onClick={() => toggleOrders(!Boolean(ordersEnabled))}
+                  disabled={toggling || ordersEnabled === null}
+                  className={
+                     ordersEnabled === false
+                        ? "bg-green-500 hover:bg-green-600 text-white"
+                        : undefined
+                  }
+               >
+                  {toggling ? (
+                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : ordersEnabled ? (
+                     "Disable Orders"
+                  ) : (
+                     "Enable Orders"
+                  )}
+               </Button>
             </div>
          </div>
 

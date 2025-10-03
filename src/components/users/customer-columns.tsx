@@ -22,6 +22,8 @@ export interface Customer {
    orderCount: number;
    totalSpend: number;
    status: "Active" | "Inactive" | "VIP";
+   // raw role as returned by backend (e.g. 'admin', 'user', 'rider')
+   role?: string;
    totalOrders: number;
    completedOrders: number;
    cancelledOrders: number;
@@ -92,10 +94,12 @@ export const createCustomerColumns = (
       accessorKey: "totalSpend",
       header: () => <div>Total Spend</div>,
       cell: ({ row }) => {
-         const amount = parseFloat(row.getValue("totalSpend"));
-         const formatted = new Intl.NumberFormat("en-US", {
+         const amount = Number(row.getValue("totalSpend") || 0);
+         // Use Rwandan Franc (RWF) formatting. Keep locale as en-RW for consistency.
+         const formatted = new Intl.NumberFormat("en-RW", {
             style: "currency",
-            currency: "USD",
+            currency: "RWF",
+            maximumFractionDigits: 0,
          }).format(amount);
          return <div>{formatted}</div>;
       },
