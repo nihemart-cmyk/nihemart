@@ -19,21 +19,18 @@ export type Database = {
                created_at: string;
                icon_url: string | null;
                id: string;
-               link: string | null;
                name: string;
             };
             Insert: {
                created_at?: string;
                icon_url?: string | null;
                id?: string;
-               link?: string | null;
                name: string;
             };
             Update: {
                created_at?: string;
                icon_url?: string | null;
                id?: string;
-               link?: string | null;
                name?: string;
             };
             Relationships: [];

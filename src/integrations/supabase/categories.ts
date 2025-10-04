@@ -6,14 +6,12 @@ export interface Category {
   id: string;
   name: string;
   icon_url?: string | null;
-  link?: string | null;
   products_count?: number;
 }
 
 export interface CategoryInput {
   name: string;
   icon_url?: string | null;
-  link?: string | null;
 }
 
 export interface CategoryQueryOptions {
