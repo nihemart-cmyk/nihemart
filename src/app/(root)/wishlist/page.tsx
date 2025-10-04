@@ -70,7 +70,7 @@ export default function WishlistPage() {
         <p className="text-gray-600 mt-2">
           {wishlistItems.length === 0
             ? t("wishlist.empty")
-            : `${wishlistItems.length} ${t("wishlist.itemsInWishlist", { count: wishlistItems.length })}`}
+            : `${wishlistItems.length} ${t("wishlist.itemsInWishlist")}`}
         </p>
       </div>
 
@@ -116,7 +116,7 @@ export default function WishlistPage() {
 
                   <div className="flex items-center justify-between mb-4">
                     <span className="text-xl font-bold text-orange-600">
-                      {t("wishlist.price", { price: item.product.price.toLocaleString() })}
+                      {t(`wishlist.price.${item.product.price.toLocaleString()}`)}
                     </span>
                   </div>
 
