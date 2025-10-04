@@ -9,29 +9,29 @@ const page: FC<pageProps> = ({}) => {
   return (
     <div className="flex min-h-screen flex-col lg:flex-row">
       {/* Left Side (Always Visible) */}
-      <div className="w-full lg:flex-[0.5] px-5 sm:px-10 py-8 flex items-center justify-center">
+      <div className="w-full lg:flex-[0.5] px-5 sm:px-10 flex items-center justify-center">
         <div className="w-full max-w-md sm:max-w-lg mx-auto">
-          <div className="w-full relative h-40 sm:h-60 flex items-center justify-center">
+          <div className="w-full relative flex items-center justify-center">
             <div
-              className="absolute z-10 inset-0"
-              style={{
-                background:
-                  "radial-gradient(circle,rgba(54, 169, 236, 0) 10%, rgba(255, 255, 255, 1) 60%)",
-              }}
+              className="mt-5"
+              // style={{
+              //   background:
+              //     "radial-gradient(circle,rgba(54, 169, 236, 0) 10%, rgba(255, 255, 255, 1) 60%)",
+              // }}
             ></div>
-            <Image
+            {/* <Image
               src={"/Pattern.png"}
               alt="pattern"
               fill
               className="object-cover"
-            />
+            /> */}
             <Image
               src={logo}
-              alt="ilead logo"
+              alt="logo"
               priority
-              height={50}
-              width={200}
-              className="mt-5 sm:mt-10 max-w-[150px] sm:max-w-[200px] object-contain z-20"
+              height={100}
+              width={100}
+              className="m-auto"
             />
           </div>
           <AdminSignupForm />
@@ -45,7 +45,7 @@ const page: FC<pageProps> = ({}) => {
           style={{ backgroundImage: "url(/bg-Illustration1.png)" }}
         >
           <h2 className="px-5 py-4 text-white text-5xl lg:text-7xl font-bold text-center">
-            Nihemart Dashboard
+            Nihemart
           </h2>
           <Image
             src={"/auth-page-girl.png"}

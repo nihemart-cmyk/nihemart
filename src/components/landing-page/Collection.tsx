@@ -87,42 +87,58 @@ const Collection: FC<CollectionProps> = ({}) => {
           {t("home.categories")}
         </h1>
         <div
-          className="flex overflow-x-scroll scroll-smooth gap-2 scrollbar-hidden"
+          className="flex overflow-x-scroll scroll-smooth gap-2 md:gap-3 scrollbar-hidden"
           ref={sliderRef}
           onScroll={handleSliderScroll}
         >
           {loading
-            ? Array(6)
+            ? Array(8)
                 .fill(0)
                 .map((_, i) => (
                   <div
                     key={i}
-                    className="w-80 shrink-0 aspect-[9/12] bg-gray-200 rounded-2xl animate-pulse"
+                    className="w-60 h-60 shrink-0 aspect-[9/12] bg-gray-200 rounded-2xl animate-pulse"
                   />
                 ))
             : categories.map((category) => (
+                // <Link
+                //   href={`/products?categories=${category.id}`}
+                //   key={category.id}
+                //   className="w-60 h-60 shrink-0 aspect-[9/12] border-2 border-blue-100 rounded-lg overflow-hidden group flex flex-col items-center justify-around gap-2"
+                // >
                 <Link
                   href={`/products?categories=${category.id}`}
                   key={category.id}
-                  className="block md:w-80 w-32 shrink-0 aspect-[9/12] bg-blue-100 rounded-2xl overflow-hidden relative group"
+                  className="w-60 h-60 border-2 border-blue-100 rounded-lg aspect-[9/12] shrink-0 flex flex-col items-center group"
                 >
+                  {/* <Image
+                    src={category.icon_url || "/placeholder.svg"}
+                    alt={category.name}
+                    width={150}
+                    height={150}
+                    className="group-hover:scale-105 transition-transform duration-300 w-[50%]"
+                  /> */}
                   <Image
                     src={category.icon_url || "/placeholder.svg"}
                     alt={category.name}
-                    fill
-                    className="absolute object-contain z-0 group-hover:scale-105 transition-transform duration-300 p-5"
+                    width={150}
+                    height={150}
+                    className="m-auto group-hover:scale-105 transition-transform duration-300"
                   />
-                  <div className="relative w-full z-10 h-full bg-gradient-to-t from-black/80 from-0% to-transparent to-70% flex flex-col justify-end text-white md:px-5 px-1 text-center md:text-left pb-5">
-                    <h4 className="md:text-2xl text-lg font-semibold truncate w-full">
-                      {category.name}
-                    </h4>
-                    <div className="hidden md:flex items-center justify-between mt-1">
+                  {/* <div className="relative w-full z-10 h-full flex flex-col justify-end text-gray-700 md:px-5 px-1 text-center md:text-left pb-2"> */}
+                  {/* <h4 className="text-lg font-semibold truncate w-[50%]">
+                    {category.name}
+                  </h4> */}
+                  <h4 className="mb-2 group-hover:text-gray-800">
+                    {category.name}
+                  </h4>
+                  {/* <div className="hidden md:flex items-center justify-between mt-1">
                       <p className="text-sm opacity-80">
                         Check out all our products
                       </p>
                       <ArrowRight className="group-hover:translate-x-1 transition-transform" />
-                    </div>
-                  </div>
+                    </div> */}
+                  {/* </div> */}
                 </Link>
               ))}
         </div>
