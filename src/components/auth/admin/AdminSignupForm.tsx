@@ -103,29 +103,29 @@ const AdminSignupForm: FC<AdminSignupFormProps> = ({}) => {
       return raw;
    };
 
-   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const input = e.target.value;
-      const formatted = formatPhoneInput(input);
+   // const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+   //    const input = e.target.value;
+   //    const formatted = formatPhoneInput(input);
 
-      // Enforce max length for recognized patterns
-      if (formatted.startsWith("+250")) {
-         if (formatted.replace(/[^\d]/g, "").length <= 12) {
-            setPhoneDisplay(formatted);
-            form.setValue("phoneNumber", normalizePhone(formatted));
-         }
-      } else if (formatted.startsWith("07")) {
-         if (formatted.replace(/[^\d]/g, "").length <= 10) {
-            setPhoneDisplay(formatted);
-            form.setValue("phoneNumber", normalizePhone(formatted));
-         }
-      } else {
-         // allow typing until reasonable limit
-         if (input.length <= 15) {
-            setPhoneDisplay(formatted);
-            form.setValue("phoneNumber", normalizePhone(formatted));
-         }
-      }
-   };
+   //    // Enforce max length for recognized patterns
+   //    if (formatted.startsWith("+250")) {
+   //       if (formatted.replace(/[^\d]/g, "").length <= 12) {
+   //          setPhoneDisplay(formatted);
+   //          form.setValue("phoneNumber", normalizePhone(formatted));
+   //       }
+   //    } else if (formatted.startsWith("07")) {
+   //       if (formatted.replace(/[^\d]/g, "").length <= 10) {
+   //          setPhoneDisplay(formatted);
+   //          form.setValue("phoneNumber", normalizePhone(formatted));
+   //       }
+   //    } else {
+   //       // allow typing until reasonable limit
+   //       if (input.length <= 15) {
+   //          setPhoneDisplay(formatted);
+   //          form.setValue("phoneNumber", normalizePhone(formatted));
+   //       }
+   //    }
+   // };
 
    const onSubmit = async (formData: TAdminSignupSchema) => {
       if (formData.password !== formData.confirmPassword) {
@@ -137,7 +137,7 @@ const AdminSignupForm: FC<AdminSignupFormProps> = ({}) => {
          formData.fullName,
          formData.email,
          formData.password,
-         formData.phoneNumber
+         // formData.phoneNumber
       );
 
       if (error) {
