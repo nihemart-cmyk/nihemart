@@ -101,20 +101,35 @@ const Collection: FC<CollectionProps> = ({}) => {
                   />
                 ))
             : categories.map((category) => (
+                // <Link
+                //   href={`/products?categories=${category.id}`}
+                //   key={category.id}
+                //   className="w-60 h-60 shrink-0 aspect-[9/12] border-2 border-blue-100 rounded-lg overflow-hidden group flex flex-col items-center justify-around gap-2"
+                // >
                 <Link
                   href={`/products?categories=${category.id}`}
                   key={category.id}
-                  className="w-60 h-60 shrink-0 aspect-[9/12] border-2 border-blue-100 rounded-lg overflow-hidden group flex flex-col items-center justify-around gap-2"
+                  className="w-60 h-60 border-2 border-blue-100 rounded-lg aspect-[9/12] shrink-0 flex flex-col items-center group"
                 >
+                  {/* <Image
+                    src={category.icon_url || "/placeholder.svg"}
+                    alt={category.name}
+                    width={150}
+                    height={150}
+                    className="group-hover:scale-105 transition-transform duration-300 w-[50%]"
+                  /> */}
                   <Image
                     src={category.icon_url || "/placeholder.svg"}
                     alt={category.name}
-                    // width={150}
-                    // height={150}
-                    className="group-hover:scale-105 transition-transform duration-300 w-[50%]"
+                    width={150}
+                    height={150}
+                    className="m-auto group-hover:scale-105 transition-transform duration-300"
                   />
                   {/* <div className="relative w-full z-10 h-full flex flex-col justify-end text-gray-700 md:px-5 px-1 text-center md:text-left pb-2"> */}
-                  <h4 className="text-lg font-semibold truncate w-[50%]">
+                  {/* <h4 className="text-lg font-semibold truncate w-[50%]">
+                    {category.name}
+                  </h4> */}
+                  <h4 className="mb-2 group-hover:text-gray-800">
                     {category.name}
                   </h4>
                   {/* <div className="hidden md:flex items-center justify-between mt-1">
