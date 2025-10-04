@@ -335,12 +335,18 @@ export async function searchProductsByName(
   if (!query.trim() || query.trim().length < 2) {
     return [];
   }
+
+  const searchTerm = query.trim();
+
+  // Use PostgreSQL's full-text search for better performance and relevance
+  // Search across name, description, short_description, and tags
   const { data, error } = await sb
     .from("products")
     .select("id, name, main_image_url, short_description")
     .in("status", ["active", "out_of_stock"])
-    .ilike("name", `%${query.trim()}%`)
+    .or(`name.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%,short_description.ilike.%${searchTerm}%,tags.cs.{${searchTerm}}`)
     .limit(5);
+
   if (error) {
     console.error("Error searching products:", error);
     return [];
