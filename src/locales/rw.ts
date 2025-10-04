@@ -315,6 +315,21 @@ export const rw: Record<string, string> = {
       "Shakisha ibicuruzwa byiza kandi wishimire uburyo bworoshye bwo kugura. Igicuruzwa cyawe gikurikira kiri hafi gukanda rimwe gusa.",
    "howToBuy.ctaButton": "Tangira Kugura",
 
+   // Wishlist
+   "wishlist.title": "Urutonde rw'ibyo wakunze",
+  "wishlist.empty": "Ntakintu kiri mu rutonde rw'ibyo wakunze",
+  "wishlist.itemsInWishlist": "{count} igicuruzwa{count > 1 ? 's' : ''} mu rutonde rwawe rw'ibyo wakunze",
+  "wishlist.emptyTitle": "Urutonde rwawe rw'ibyo wakunze rurimo ubusa",
+  "wishlist.emptyDesc": "Tangira kongeramo ibicuruzwa ukunda mu rutonde rw'ibyo wakunze",
+  "wishlist.browseProducts": "Reba Ibicuruzwa",
+  "wishlist.addedToCart": "Byongewe mu gatebo!",
+  "wishlist.failedAddToCart": "Byanze kongera mu gatebo",
+  "wishlist.removedFromWishlist": "Byakuwe mu rutonde rw'ibyo wakunze",
+  "wishlist.failedRemoveFromWishlist": "Byanze gukura mu rutonde rw'ibyo wakunze",
+  "wishlist.price": "RWF {igiciro}",
+  "wishlist.adding": "Birimo kongerwa...",
+  "wishlist.addToCart": "Ongera mu Gatebo",
+
    // About Page
    "about.title": "Ibyerekeye NiheMart",
    "about.hero":

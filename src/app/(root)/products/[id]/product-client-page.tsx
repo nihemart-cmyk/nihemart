@@ -276,6 +276,7 @@ export default function ProductClientPage({
                 <button
                   key={index}
                   onClick={() => setSelectedImageIndex(index)}
+                  title={`Select image ${index + 1}`}
                   className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 ${
                     selectedImageIndex === index
                       ? "border-orange-500"
@@ -638,7 +639,7 @@ export default function ProductClientPage({
                       ))}
                     </div>
                     <p className="font-bold text-orange-600">
-                      €{p.price.toFixed(2)}
+                      FRW {p.price.toFixed(2)}
                     </p>
                   </CardContent>
                 </Card>

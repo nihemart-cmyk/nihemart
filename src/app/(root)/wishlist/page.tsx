@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { useState } from "react";
 import Image from "next/image";
@@ -10,8 +10,10 @@ import { useWishlist } from "@/contexts/WishlistContext";
 import { useCart } from "@/contexts/CartContext";
 import { toast } from "sonner";
 import MaxWidthWrapper from "@/components/MaxWidthWrapper";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 export default function WishlistPage() {
+  const { t } = useLanguage();  // Use the language context for translations
   const { wishlistItems, removeFromWishlist, isLoading } = useWishlist();
   const { addItem } = useCart();
   const [addingToCart, setAddingToCart] = useState<string | null>(null);
@@ -29,9 +31,9 @@ export default function WishlistPage() {
       };
 
       addItem(itemToAdd);
-      toast.success("Added to cart!");
+      toast.success(t("wishlist.addedToCart"));
     } catch (error) {
-      toast.error("Failed to add to cart");
+      toast.error(t("wishlist.failedAddToCart"));
     } finally {
       setAddingToCart(null);
     }
@@ -40,8 +42,9 @@ export default function WishlistPage() {
   const handleRemoveFromWishlist = async (productId: string) => {
     try {
       await removeFromWishlist(productId);
+      toast.success(t("wishlist.removedFromWishlist"));
     } catch (error) {
-      toast.error("Failed to remove from wishlist");
+      toast.error(t("wishlist.failedRemoveFromWishlist"));
     }
   };
 
@@ -49,7 +52,7 @@ export default function WishlistPage() {
     return (
       <MaxWidthWrapper className="py-8">
         <div className="text-center">
-          <h1 className="text-3xl font-bold mb-8">My Wishlist</h1>
+          <h1 className="text-3xl font-bold mb-8">{t("wishlist.title")}</h1>
           <div className="animate-pulse space-y-4">
             {[...Array(3)].map((_, i) => (
               <div key={i} className="h-32 bg-gray-200 rounded-lg"></div>
@@ -63,12 +66,11 @@ export default function WishlistPage() {
   return (
     <MaxWidthWrapper className="py-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">My Wishlist</h1>
+        <h1 className="text-3xl font-bold text-gray-900">{t("wishlist.title")}</h1>
         <p className="text-gray-600 mt-2">
           {wishlistItems.length === 0
-            ? "Your wishlist is empty"
-            : `${wishlistItems.length} item${wishlistItems.length === 1 ? '' : 's'} in your wishlist`
-          }
+            ? t("wishlist.empty")
+            : `${wishlistItems.length} ${t("wishlist.itemsInWishlist", { count: wishlistItems.length })}`}
         </p>
       </div>
 
@@ -76,13 +78,13 @@ export default function WishlistPage() {
         <div className="text-center py-16">
           <Heart className="h-16 w-16 text-gray-300 mx-auto mb-4" />
           <h2 className="text-xl font-semibold text-gray-600 mb-2">
-            Your wishlist is empty
+            {t("wishlist.emptyTitle")}
           </h2>
           <p className="text-gray-500 mb-6">
-            Start adding items you love to your wishlist
+            {t("wishlist.emptyDesc")}
           </p>
           <Button asChild>
-            <Link href="/products">Browse Products</Link>
+            <Link href="/products">{t("wishlist.browseProducts")}</Link>
           </Button>
         </div>
       ) : (
@@ -114,7 +116,7 @@ export default function WishlistPage() {
 
                   <div className="flex items-center justify-between mb-4">
                     <span className="text-xl font-bold text-orange-600">
-                      RWF {item.product.price.toLocaleString()}
+                      {t("wishlist.price", { price: item.product.price.toLocaleString() })}
                     </span>
                   </div>
 
@@ -125,7 +127,7 @@ export default function WishlistPage() {
                       className="flex-1 bg-orange-600 hover:bg-orange-700"
                     >
                       <ShoppingCart className="h-4 w-4 mr-2" />
-                      {addingToCart === item.product.id ? "Adding..." : "Add to Cart"}
+                      {addingToCart === item.product.id ? t("wishlist.adding") : t("wishlist.addToCart")}
                     </Button>
 
                     <Button
