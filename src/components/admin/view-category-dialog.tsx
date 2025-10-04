@@ -74,7 +74,7 @@ export default function ViewCategoryDialog({
             {subcategories.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
                 <p>No subcategories found for this category.</p>
-                <p className="text-sm">Click "Add Subcategory" to create one.</p>
+                <p className="text-sm">Click &quot;Add Subcategory&quot; to create one.</p>
               </div>
             ) : (
               <div className="space-y-2">
