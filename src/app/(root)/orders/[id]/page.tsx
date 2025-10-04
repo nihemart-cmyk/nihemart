@@ -72,6 +72,9 @@ const OrderDetails = () => {
    const [rejectReason, setRejectReason] = useState("");
    const [rejectingItemId, setRejectingItemId] = useState<string | null>(null);
    const [isRejecting, setIsRejecting] = useState(false);
+   const [fullRefundDialogOpen, setFullRefundDialogOpen] = useState(false);
+   const [fullRefundReason, setFullRefundReason] = useState("");
+   const [isRequestingFullRefund, setIsRequestingFullRefund] = useState(false);
    const requestRefund = useRequestRefundItem();
    const cancelRefund = useCancelRefundRequestItem();
    const respondRefund = useRespondRefundRequest();
@@ -391,12 +394,26 @@ const OrderDetails = () => {
                                                    }
                                                    className="text-xs"
                                                 >
-                                                   {item.refund_status
-                                                      .charAt(0)
-                                                      .toUpperCase() +
+                                                   {item.refund_status ===
+                                                   "approved" ? (
+                                                      <>
+                                                         <CheckCircle className="h-3 w-3 mr-1" />
+                                                         Refund Approved
+                                                      </>
+                                                   ) : item.refund_status ===
+                                                     "rejected" ? (
+                                                      <>
+                                                         <X className="h-3 w-3 mr-1" />
+                                                         Refund Rejected
+                                                      </>
+                                                   ) : (
+                                                      item.refund_status
+                                                         .charAt(0)
+                                                         .toUpperCase() +
                                                       item.refund_status.slice(
                                                          1
-                                                      )}
+                                                      )
+                                                   )}
                                                 </Badge>
                                                 {item.refund_status ===
                                                    "requested" && (
@@ -698,7 +715,8 @@ const OrderDetails = () => {
                                              </AlertDialogTitle>
                                              <AlertDialogDescription>
                                                 Cancelling this order will set
-                                                its status to &quot;cancelled&quot;. This
+                                                its status to
+                                                &quot;cancelled&quot;. This
                                                 action cannot be undone. Are you
                                                 sure you want to proceed?
                                              </AlertDialogDescription>
@@ -744,7 +762,9 @@ const OrderDetails = () => {
                                                          "Failed to cancel order"
                                                       );
                                                    } finally {
-                                                      setIsUpdatingStatus(false);
+                                                      setIsUpdatingStatus(
+                                                         false
+                                                      );
                                                    }
                                                 }}
                                                 className="bg-red-600 hover:bg-red-700 text-white"
@@ -775,25 +795,9 @@ const OrderDetails = () => {
                                           <Button
                                              size="sm"
                                              variant="outline"
-                                             onClick={async () => {
-                                                const reason = window.prompt(
-                                                   "Please enter a reason for the full-order refund:"
-                                                );
-                                                if (!reason) return;
-                                                try {
-                                                   await requestOrderRefund.mutateAsync(
-                                                      {
-                                                         orderId: order.id,
-                                                         reason,
-                                                      }
-                                                   );
-                                                   toast.success(
-                                                      "Refund requested"
-                                                   );
-                                                } catch (err) {
-                                                   // mutation handles toast
-                                                }
-                                             }}
+                                             onClick={() =>
+                                                setFullRefundDialogOpen(true)
+                                             }
                                              className="border-green-300 text-green-600 hover:bg-green-50 text-xs sm:text-sm h-8 sm:h-9 w-full"
                                           >
                                              <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
@@ -802,6 +806,42 @@ const OrderDetails = () => {
                                        </div>
                                     );
                                  }
+
+                                 // Show approved message if refund is approved
+                                 if (
+                                    order.refund_status === "approved" &&
+                                    isOwner
+                                 ) {
+                                    return (
+                                       <div className="pt-2 border-t">
+                                          <div className="flex items-center justify-center p-3 bg-green-50 border border-green-200 rounded-lg">
+                                             <CheckCircle className="h-4 w-4 text-green-600 mr-2" />
+                                             <span className="text-green-700 font-medium text-sm">
+                                                Refund Approved - Processing
+                                                within 24 hours
+                                             </span>
+                                          </div>
+                                       </div>
+                                    );
+                                 }
+
+                                 // Show rejected message if refund is rejected
+                                 if (
+                                    order.refund_status === "rejected" &&
+                                    isOwner
+                                 ) {
+                                    return (
+                                       <div className="pt-2 border-t">
+                                          <div className="flex items-center justify-center p-3 bg-red-50 border border-red-200 rounded-lg">
+                                             <X className="h-4 w-4 text-red-600 mr-2" />
+                                             <span className="text-red-700 font-medium text-sm">
+                                                Refund Request Rejected
+                                             </span>
+                                          </div>
+                                       </div>
+                                    );
+                                 }
+
                                  if (!refundNotRequested && isOwner) {
                                     return (
                                        <div className="pt-2 border-t">
@@ -837,6 +877,77 @@ const OrderDetails = () => {
                )}
             </div>
          </div>
+
+         {/* Full Order Refund Dialog */}
+         <Dialog
+            open={fullRefundDialogOpen}
+            onOpenChange={(v: boolean) => setFullRefundDialogOpen(v)}
+         >
+            <DialogContent className="max-w-md">
+               <DialogHeader>
+                  <DialogTitle>Request Full Order Refund</DialogTitle>
+                  <DialogDescription>
+                     Provide a reason for requesting a refund for this entire
+                     order. The admin will review your request.
+                  </DialogDescription>
+               </DialogHeader>
+
+               <div className="mt-2">
+                  <Textarea
+                     value={fullRefundReason}
+                     onChange={(e) => setFullRefundReason(e.target.value)}
+                     placeholder="Enter refund reason"
+                     className="w-full border-gray-300 focus:border-orange-500 focus:ring-orange-500 text-sm"
+                  />
+               </div>
+
+               <DialogFooter>
+                  <div className="flex justify-end space-x-2 w-full">
+                     <Button
+                        variant="outline"
+                        onClick={() => {
+                           setFullRefundDialogOpen(false);
+                           setFullRefundReason("");
+                        }}
+                        disabled={isRequestingFullRefund}
+                        className="flex-1"
+                     >
+                        Cancel
+                     </Button>
+                     <Button
+                        onClick={async () => {
+                           if (!fullRefundReason.trim()) return;
+                           setIsRequestingFullRefund(true);
+                           try {
+                              await requestOrderRefund.mutateAsync({
+                                 orderId: order.id,
+                                 reason: fullRefundReason,
+                              });
+                              toast.success("Full order refund requested");
+                              setFullRefundDialogOpen(false);
+                              setFullRefundReason("");
+                           } catch (err) {
+                              // mutation handles toast on error
+                           } finally {
+                              setIsRequestingFullRefund(false);
+                           }
+                        }}
+                        disabled={
+                           isRequestingFullRefund || !fullRefundReason.trim()
+                        }
+                        className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"
+                     >
+                        {isRequestingFullRefund ? (
+                           <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        ) : null}
+                        {isRequestingFullRefund
+                           ? "Requesting..."
+                           : "Request Refund"}
+                     </Button>
+                  </div>
+               </DialogFooter>
+            </DialogContent>
+         </Dialog>
 
          <Dialog
             open={rejectDialogOpen}

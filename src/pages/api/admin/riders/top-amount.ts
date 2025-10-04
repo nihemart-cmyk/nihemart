@@ -43,60 +43,53 @@ export default async function handler(
       return res.status(500).json({ error: "Supabase not configured" });
 
    try {
-      // Query orders that have been delivered or shipped, and include
-      // their order_assignments so we can attribute totals to riders.
-      const { data: orders, error } = await supabase
-         .from("orders")
-         .select("id, total, status, order_assignments(order_id, rider_id)")
-         .in("status", ["delivered", "shipped"]);
+      // Query completed assignments to count successful deliveries per rider
+      const { data: assignments, error } = await supabase
+         .from("order_assignments")
+         .select("rider_id, status, orders:orders(id, status)")
+         .eq("status", "completed");
 
       if (error) throw error;
 
-      // Sum totals per rider.
-      const totals: Record<string, number> = {};
-      // Debug: log how many orders we fetched
+      // Count successful deliveries per rider
+      const deliveryCounts: Record<string, number> = {};
       console.debug(
          `top-amount: fetched ${
-            Array.isArray(orders) ? orders.length : 0
-         } orders`
+            Array.isArray(assignments) ? assignments.length : 0
+         } completed assignments`
       );
-      for (const order of (orders || []) as any[]) {
-         // Debug sample of order shape on first iteration
-         if (Object.keys(totals).length === 0) {
-            console.debug("top-amount: sample order", order);
-         }
-         const amount = Number(order.total || 0);
-         if (!Number.isFinite(amount) || amount <= 0) continue;
 
-         // Related assignments for this order (may be an array or a single object)
-         const assigns = Array.isArray(order.order_assignments)
-            ? order.order_assignments
-            : order.order_assignments
-            ? [order.order_assignments]
-            : [];
+      for (const assignment of (assignments || []) as any[]) {
+         const riderId = assignment.rider_id;
+         const order = assignment.orders;
 
-         for (const a of assigns) {
-            const riderId = a?.rider_id;
-            if (!riderId) continue;
-            totals[riderId] = (totals[riderId] || 0) + amount;
+         if (!riderId || !order) continue;
+
+         // Only count if the order is also delivered
+         if (order.status === "delivered") {
+            deliveryCounts[riderId] = (deliveryCounts[riderId] || 0) + 1;
          }
       }
 
-      // Find top rider
+      // Find top rider by delivery count
       let topRiderId: string | null = null;
-      let topAmount = 0;
-      for (const [riderId, amt] of Object.entries(totals)) {
-         if (amt > topAmount) {
-            topAmount = amt;
+      let topDeliveryCount = 0;
+      for (const [riderId, count] of Object.entries(deliveryCounts)) {
+         if (count > topDeliveryCount) {
+            topDeliveryCount = count;
             topRiderId = riderId;
          }
       }
 
-      // If we couldn't compute a top rider, return a sensible fallback amount
+      // If we couldn't compute a top rider, return a sensible fallback
       const result =
-         !topRiderId && topAmount === 0
-            ? { topRiderId: null, topAmount: 25000 }
-            : { topRiderId, topAmount };
+         !topRiderId && topDeliveryCount === 0
+            ? { topRiderId: null, topAmount: 0, deliveryCount: 0 }
+            : {
+                 topRiderId,
+                 topAmount: topDeliveryCount,
+                 deliveryCount: topDeliveryCount,
+              };
 
       // Update cache before returning
       cache.ts = Date.now();

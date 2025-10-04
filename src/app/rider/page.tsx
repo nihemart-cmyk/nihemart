@@ -18,11 +18,20 @@ import {
    CheckCircle,
    XCircle,
    DollarSign,
+   Calendar,
 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { fetchRiderByUserId } from "@/integrations/supabase/riders";
 import { useRiderAssignments } from "@/hooks/useRiders";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import {
+   Popover,
+   PopoverContent,
+   PopoverTrigger,
+} from "@/components/ui/popover";
+import { format } from "date-fns";
+import { Button } from "@/components/ui/button";
 
 interface StatsCardProps {
    title: string;
@@ -239,6 +248,10 @@ const RecentDelivery: React.FC<RecentDeliveryProps> = ({
 const Dashboard = () => {
    const { user, isLoggedIn } = useAuth();
    const [rider, setRider] = useState<any | null>(null);
+   const [selectedDate, setSelectedDate] = useState<Date | undefined>(
+      new Date()
+   );
+   const [calendarOpen, setCalendarOpen] = useState(false);
 
    useEffect(() => {
       if (!user) return;
@@ -272,9 +285,12 @@ const Dashboard = () => {
       if (!isDone) return sum;
       const order =
          a.orders || a.order || (a.order_id ? { id: a.order_id } : null);
-      const amount = order?.total ?? order?.subtotal ?? a.amount ?? 0;
+      // Get delivery fee from order.tax field instead of total amount
+      const deliveryFee = order?.tax ?? a.delivery_fee ?? a.fee ?? 0;
       const parsed =
-         typeof amount === "string" ? parseFloat(amount) : Number(amount || 0);
+         typeof deliveryFee === "string"
+            ? parseFloat(deliveryFee)
+            : Number(deliveryFee || 0);
       return sum + (isNaN(parsed) ? 0 : parsed);
    }, 0);
 
@@ -285,18 +301,18 @@ const Dashboard = () => {
          id: order?.id || a.order_id,
          name: order?.customer_name || order?.name || "Customer",
          location: order?.delivery_address || a.location || "-",
-         amount: order?.total || order?.subtotal || a.amount || "-",
+         amount: order?.tax || a.delivery_fee || a.fee || "-", // Show delivery fee instead of total
          time: "-",
          status: a.status || order?.status || "-",
       };
    });
 
-   // Derived metrics for today's analytics
-   const now = new Date();
+   // Derived metrics for selected date analytics
+   const filterDate = selectedDate || new Date();
    const isSameDay = (d: Date) =>
-      d.getFullYear() === now.getFullYear() &&
-      d.getMonth() === now.getMonth() &&
-      d.getDate() === now.getDate();
+      d.getFullYear() === filterDate.getFullYear() &&
+      d.getMonth() === filterDate.getMonth() &&
+      d.getDate() === filterDate.getDate();
 
    const parseDate = (value: any): Date | null => {
       if (!value) return null;
@@ -304,7 +320,7 @@ const Dashboard = () => {
       return isNaN(d.getTime()) ? null : d;
    };
 
-   const todaysAssignments = assignments.filter((a: any) => {
+   const selectedDateAssignments = assignments.filter((a: any) => {
       const order = a.orders || a.order || null;
       const timestamps = [
          a.delivered_at,
@@ -323,20 +339,26 @@ const Dashboard = () => {
       return isSameDay(ts);
    });
 
-   const todaysTotal = todaysAssignments.reduce((sum: number, a: any) => {
-      const isDone = a.status === "completed" || a.status === "delivered";
-      if (!isDone) return sum;
-      const order =
-         a.orders || a.order || (a.order_id ? { id: a.order_id } : null);
-      const amount = order?.total ?? order?.subtotal ?? a.amount ?? 0;
-      const parsed =
-         typeof amount === "string" ? parseFloat(amount) : Number(amount || 0);
-      return sum + (isNaN(parsed) ? 0 : parsed);
-   }, 0);
+   const selectedDateTotal = selectedDateAssignments.reduce(
+      (sum: number, a: any) => {
+         const isDone = a.status === "completed" || a.status === "delivered";
+         if (!isDone) return sum;
+         const order =
+            a.orders || a.order || (a.order_id ? { id: a.order_id } : null);
+         // Get delivery fee from order.tax field instead of total amount
+         const deliveryFee = order?.tax ?? a.delivery_fee ?? a.fee ?? 0;
+         const parsed =
+            typeof deliveryFee === "string"
+               ? parseFloat(deliveryFee)
+               : Number(deliveryFee || 0);
+         return sum + (isNaN(parsed) ? 0 : parsed);
+      },
+      0
+   );
 
    const peakHour = (() => {
       const hoursCount: Record<string, number> = {};
-      todaysAssignments.forEach((a: any) => {
+      selectedDateAssignments.forEach((a: any) => {
          const order = a.orders || a.order || null;
          const timestamps = [
             a.delivered_at,
@@ -444,33 +466,83 @@ const Dashboard = () => {
                   <div className="lg:col-span-2 space-y-6 sm:space-y-8">
                      <Card className="border-0 shadow-lg">
                         <CardHeader className="pb-4">
-                           <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
-                              <Navigation className="w-4 h-4 sm:w-5 sm:h-5 text-orange-500" />
-                              Delivery Analytics
-                           </CardTitle>
+                           <div className="flex items-center justify-between">
+                              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                                 <Navigation className="w-4 h-4 sm:w-5 sm:h-5 text-orange-500" />
+                                 Delivery Analytics
+                              </CardTitle>
+                              <Popover
+                                 open={calendarOpen}
+                                 onOpenChange={setCalendarOpen}
+                              >
+                                 <PopoverTrigger asChild>
+                                    <Button
+                                       variant="outline"
+                                       className="justify-start text-left font-normal h-9 px-3"
+                                    >
+                                       <Calendar className="mr-2 h-4 w-4" />
+                                       {selectedDate ? (
+                                          format(selectedDate, "PPP")
+                                       ) : (
+                                          <span>Pick a date</span>
+                                       )}
+                                    </Button>
+                                 </PopoverTrigger>
+                                 <PopoverContent
+                                    className="w-auto p-0"
+                                    align="end"
+                                 >
+                                    <CalendarComponent
+                                       mode="single"
+                                       selected={selectedDate}
+                                       onSelect={(date) => {
+                                          setSelectedDate(date);
+                                          setCalendarOpen(false);
+                                       }}
+                                       initialFocus
+                                       captionLayout="dropdown"
+                                       fromYear={2020}
+                                       toYear={2025}
+                                       className="rounded-md border shadow-sm"
+                                    />
+                                 </PopoverContent>
+                              </Popover>
+                           </div>
                         </CardHeader>
                         <CardContent>
                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4 md:gap-6">
                               <StatsCard
                                  title="Accepted"
-                                 value={`${accepted}`}
+                                 value={`${
+                                    selectedDateAssignments.filter(
+                                       (a: any) => a.status === "accepted"
+                                    ).length
+                                 }`}
                                  change={"0"}
                                  icon={CheckCircle}
                                  gradient="bg-gradient-to-br from-blue-500 to-blue-600"
                               />
                               <StatsCard
                                  title="Rejected"
-                                 value={`${rejected}`}
+                                 value={`${
+                                    selectedDateAssignments.filter(
+                                       (a: any) => a.status === "rejected"
+                                    ).length
+                                 }`}
                                  change={"0"}
                                  icon={XCircle}
                                  gradient="bg-gradient-to-br from-red-500 to-red-600"
                               />
                               <StatsCard
-                                 title="Earned"
-                                 value={`RWF ${earned.toLocaleString()}`}
+                                 title="Completed"
+                                 value={`${
+                                    selectedDateAssignments.filter(
+                                       (a: any) => a.status === "completed"
+                                    ).length
+                                 }`}
                                  change={"0"}
-                                 icon={DollarSign}
-                                 gradient="bg-gradient-to-br from-emerald-500 to-emerald-600"
+                                 icon={CheckCircle}
+                                 gradient="bg-gradient-to-br from-green-500 to-green-600"
                               />
                               {/* Transparent cards with gradient borders */}
                               <div className="p-[1px] rounded-xl bg-gradient-to-r from-orange-500 to-pink-600">
@@ -478,10 +550,14 @@ const Dashboard = () => {
                                     <div className="flex items-center justify-between">
                                        <div className="space-y-1">
                                           <p className="text-gray-500 text-xs sm:text-sm">
-                                             Today&apos;s total
+                                             {selectedDate
+                                                ? format(selectedDate, "MMM dd")
+                                                : "Today"}
+                                             &apos;s total
                                           </p>
                                           <p className="text-xl sm:text-2xl font-bold text-gray-900">
-                                             RWF {todaysTotal.toLocaleString()}
+                                             RWF{" "}
+                                             {selectedDateTotal.toLocaleString()}
                                           </p>
                                        </div>
                                        <div className="p-2 bg-orange-50 dark:bg-orange-900/20 rounded-lg">

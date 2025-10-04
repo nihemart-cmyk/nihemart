@@ -28,17 +28,17 @@ import { fetchRiderByUserId } from "@/integrations/supabase/riders";
 import { useRiderAssignments, useRespondToAssignment } from "@/hooks/useRiders";
 import { fetchOrderById } from "@/integrations/supabase/orders";
 import { OrderDetailsDialog } from "@/components/orders/OrderDetailsDialog";
-import { 
-   MoreHorizontal, 
-   Search, 
-   ArrowLeft, 
+import {
+   MoreHorizontal,
+   Search,
+   ArrowLeft,
    Package,
    MapPin,
    Clock,
    CheckCircle,
    XCircle,
    Loader2,
-   Filter
+   Filter,
 } from "lucide-react";
 
 const Page = () => {
@@ -80,9 +80,11 @@ const Page = () => {
       try {
          await respond.mutateAsync({ assignmentId, status });
          // Provide a nice toast for success
-         if (status === "accepted") toast.success("Assignment accepted successfully!");
+         if (status === "accepted")
+            toast.success("Assignment accepted successfully!");
          else if (status === "rejected") toast.success("Assignment rejected");
-         else if (status === "completed") toast.success("Order marked as delivered!");
+         else if (status === "completed")
+            toast.success("Order marked as delivered!");
       } catch (err: any) {
          console.error(err);
          const msg =
@@ -114,29 +116,16 @@ const Page = () => {
             a.location ||
             a.address ||
             "-";
-         let amount: number | null = null;
+         let deliveryFee: number | null = null;
          if (order) {
-            if (typeof order.total === "number") amount = order.total;
-            else if (order.items && Array.isArray(order.items)) {
-               const itemsTotal = order.items.reduce(
-                  (s: number, it: any) => s + (Number(it.total) || 0),
-                  0
-               );
-               if (itemsTotal) amount = itemsTotal;
-            }
-            if (amount == null && typeof order.subtotal === "number") {
-               const tax = typeof order.tax === "number" ? order.tax : 0;
-               amount = order.subtotal + tax;
-            }
+            // Get delivery fee from order.tax field
+            if (typeof order.tax === "number") deliveryFee = order.tax;
          }
-         if (amount == null) {
-            if (typeof a.amount === "number") amount = a.amount;
-            else if (typeof a.total === "number") amount = a.total;
-            else if (
-               typeof a.amount === "string" &&
-               !Number.isNaN(Number(a.amount))
-            )
-               amount = Number(a.amount);
+         if (deliveryFee == null) {
+            // Fallback to assignment data if available
+            if (typeof a.delivery_fee === "number")
+               deliveryFee = a.delivery_fee;
+            else if (typeof a.fee === "number") deliveryFee = a.fee;
          }
 
          return {
@@ -146,7 +135,7 @@ const Page = () => {
                ? `#${order.order_number}`
                : `#${a.order_id}`,
             location,
-            amount,
+            deliveryFee,
             status: a.status,
             assignedAt: a.assigned_at,
          };
@@ -192,7 +181,9 @@ const Page = () => {
                   <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
                      <Package className="w-4 h-4 text-orange-600" />
                   </div>
-                  <span className="font-semibold text-gray-900">{info.getValue()}</span>
+                  <span className="font-semibold text-gray-900">
+                     {info.getValue()}
+                  </span>
                </div>
             ),
             size: 150,
@@ -209,8 +200,8 @@ const Page = () => {
             ),
             size: 250,
          }),
-         columnHelper.accessor("amount", {
-            header: "Amount",
+         columnHelper.accessor("deliveryFee", {
+            header: "Delivery Fee",
             cell: (info) => {
                const v = info.getValue();
                return (
@@ -226,7 +217,7 @@ const Page = () => {
             cell: (info) => {
                const row = info.row.original;
                const a = row.assignment;
-               
+
                if (a.status === "assigned") {
                   return (
                      <div className="flex gap-2">
@@ -251,7 +242,7 @@ const Page = () => {
                      </div>
                   );
                }
-               
+
                if (a.status === "accepted") {
                   return (
                      <Button
@@ -265,15 +256,22 @@ const Page = () => {
                      </Button>
                   );
                }
-               
+
                // Status badges for completed states
                const statusConfig = {
-                  rejected: { color: "bg-red-100 text-red-700", label: "Rejected" },
-                  completed: { color: "bg-green-100 text-green-700", label: "Delivered" },
+                  rejected: {
+                     color: "bg-red-100 text-red-700",
+                     label: "Rejected",
+                  },
+                  completed: {
+                     color: "bg-green-100 text-green-700",
+                     label: "Delivered",
+                  },
                };
-               
-               const config = statusConfig[a.status as keyof typeof statusConfig];
-               
+
+               const config =
+                  statusConfig[a.status as keyof typeof statusConfig];
+
                if (config) {
                   return (
                      <Badge className={`${config.color} hover:${config.color}`}>
@@ -281,9 +279,12 @@ const Page = () => {
                      </Badge>
                   );
                }
-               
+
                return (
-                  <Badge variant="outline" className="text-gray-600">
+                  <Badge
+                     variant="outline"
+                     className="text-gray-600"
+                  >
                      {a.status}
                   </Badge>
                );
@@ -400,9 +401,12 @@ const Page = () => {
    // Stats calculation
    const stats = useMemo(() => {
       const total = assignments?.length || 0;
-      const assigned = assignments?.filter((a: any) => a.status === "assigned").length || 0;
-      const accepted = assignments?.filter((a: any) => a.status === "accepted").length || 0;
-      const completed = assignments?.filter((a: any) => a.status === "completed").length || 0;
+      const assigned =
+         assignments?.filter((a: any) => a.status === "assigned").length || 0;
+      const accepted =
+         assignments?.filter((a: any) => a.status === "accepted").length || 0;
+      const completed =
+         assignments?.filter((a: any) => a.status === "completed").length || 0;
       return { total, assigned, accepted, completed };
    }, [assignments]);
 
@@ -411,8 +415,12 @@ const Page = () => {
          <div className="min-h-screen bg-gradient-to-br from-orange-50 to-blue-50 flex items-center justify-center p-6">
             <Card className="w-full max-w-md">
                <CardContent className="pt-6 text-center">
-                  <h2 className="text-xl font-semibold mb-2">Authentication Required</h2>
-                  <p className="text-gray-600">Please sign in to view your assigned orders.</p>
+                  <h2 className="text-xl font-semibold mb-2">
+                     Authentication Required
+                  </h2>
+                  <p className="text-gray-600">
+                     Please sign in to view your assigned orders.
+                  </p>
                </CardContent>
             </Card>
          </div>
@@ -435,8 +443,12 @@ const Page = () => {
          <div className="min-h-screen bg-gradient-to-br from-orange-50 to-blue-50 flex items-center justify-center p-6">
             <Card className="w-full max-w-md">
                <CardContent className="pt-6 text-center">
-                  <h2 className="text-xl font-semibold mb-2">No Rider Profile</h2>
-                  <p className="text-gray-600">No rider profile found for your account.</p>
+                  <h2 className="text-xl font-semibold mb-2">
+                     No Rider Profile
+                  </h2>
+                  <p className="text-gray-600">
+                     No rider profile found for your account.
+                  </p>
                </CardContent>
             </Card>
          </div>
@@ -466,8 +478,12 @@ const Page = () => {
                               <Package className="w-5 h-5 text-blue-600" />
                            </div>
                            <div>
-                              <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
-                              <p className="text-sm text-gray-500">Total Orders</p>
+                              <p className="text-2xl font-bold text-gray-900">
+                                 {stats.total}
+                              </p>
+                              <p className="text-sm text-gray-500">
+                                 Total Orders
+                              </p>
                            </div>
                         </div>
                      </CardContent>
@@ -479,7 +495,9 @@ const Page = () => {
                               <Clock className="w-5 h-5 text-yellow-600" />
                            </div>
                            <div>
-                              <p className="text-2xl font-bold text-gray-900">{stats.assigned}</p>
+                              <p className="text-2xl font-bold text-gray-900">
+                                 {stats.assigned}
+                              </p>
                               <p className="text-sm text-gray-500">Pending</p>
                            </div>
                         </div>
@@ -492,8 +510,12 @@ const Page = () => {
                               <CheckCircle className="w-5 h-5 text-orange-600" />
                            </div>
                            <div>
-                              <p className="text-2xl font-bold text-gray-900">{stats.accepted}</p>
-                              <p className="text-sm text-gray-500">In Progress</p>
+                              <p className="text-2xl font-bold text-gray-900">
+                                 {stats.accepted}
+                              </p>
+                              <p className="text-sm text-gray-500">
+                                 In Progress
+                              </p>
                            </div>
                         </div>
                      </CardContent>
@@ -505,7 +527,9 @@ const Page = () => {
                               <CheckCircle className="w-5 h-5 text-green-600" />
                            </div>
                            <div>
-                              <p className="text-2xl font-bold text-gray-900">{stats.completed}</p>
+                              <p className="text-2xl font-bold text-gray-900">
+                                 {stats.completed}
+                              </p>
                               <p className="text-sm text-gray-500">Completed</p>
                            </div>
                         </div>
@@ -513,21 +537,24 @@ const Page = () => {
                   </Card>
                </div>
 
-               <Tabs defaultValue="orders" className="space-y-6">
+               <Tabs
+                  defaultValue="orders"
+                  className="space-y-6"
+               >
                   <TabsList className="bg-white border border-gray-200 shadow-sm">
-                     <TabsTrigger 
-                        value="orders" 
+                     <TabsTrigger
+                        value="orders"
                         className="data-[state=active]:bg-orange-500 data-[state=active]:text-white"
                      >
                         Orders
                      </TabsTrigger>
-                     <TabsTrigger 
+                     <TabsTrigger
                         value="statistics"
                         className="data-[state=active]:bg-orange-500 data-[state=active]:text-white"
                      >
                         Statistics
                      </TabsTrigger>
-                     <TabsTrigger 
+                     <TabsTrigger
                         value="settings"
                         className="data-[state=active]:bg-orange-500 data-[state=active]:text-white"
                      >
@@ -544,7 +571,8 @@ const Page = () => {
                                     Assigned Orders
                                  </CardTitle>
                                  <p className="text-sm text-gray-500 mt-1">
-                                    Manage your delivery assignments and track progress
+                                    Manage your delivery assignments and track
+                                    progress
                                  </p>
                               </div>
                               <div className="relative w-full sm:w-80">
@@ -564,20 +592,23 @@ const Page = () => {
                               <div className="flex justify-center items-center py-16">
                                  <div className="flex items-center gap-3">
                                     <Loader2 className="w-6 h-6 animate-spin text-orange-500" />
-                                    <span className="text-gray-600">Loading your assignments...</span>
+                                    <span className="text-gray-600">
+                                       Loading your assignments...
+                                    </span>
                                  </div>
                               </div>
                            ) : filteredData.length === 0 ? (
                               <div className="text-center py-16">
                                  <Package className="w-16 h-16 mx-auto text-gray-300 mb-4" />
                                  <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                                    {search ? "No matching orders" : "No orders assigned"}
+                                    {search
+                                       ? "No matching orders"
+                                       : "No orders assigned"}
                                  </h3>
                                  <p className="text-gray-500">
-                                    {search 
-                                       ? "Try adjusting your search terms" 
-                                       : "New delivery assignments will appear here"
-                                    }
+                                    {search
+                                       ? "Try adjusting your search terms"
+                                       : "New delivery assignments will appear here"}
                                  </p>
                               </div>
                            ) : (
@@ -615,7 +646,8 @@ const Page = () => {
                                  Statistics Coming Soon
                               </h3>
                               <p className="text-gray-500">
-                                 Detailed analytics and performance metrics will be available here.
+                                 Detailed analytics and performance metrics will
+                                 be available here.
                               </p>
                            </div>
                         </CardContent>
@@ -633,7 +665,8 @@ const Page = () => {
                                  Settings Coming Soon
                               </h3>
                               <p className="text-gray-500">
-                                 Rider preferences and configuration options will be available here.
+                                 Rider preferences and configuration options
+                                 will be available here.
                               </p>
                            </div>
                         </CardContent>

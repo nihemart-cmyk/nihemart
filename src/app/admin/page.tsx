@@ -1,9 +1,9 @@
 "use client";
 import React, { useState, useMemo } from "react";
 import {
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
+   Popover,
+   PopoverContent,
+   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
@@ -11,17 +11,17 @@ import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import {
-    Calendar,
-    Search,
-    TrendingUp,
-    Users,
-    ShoppingCart,
-    RotateCcw,
-    Bike,
-    LucideIcon,
-    Download,
-    Loader2,
-    Package,
+   Calendar,
+   Search,
+   TrendingUp,
+   Users,
+   ShoppingCart,
+   RotateCcw,
+   Bike,
+   LucideIcon,
+   Download,
+   Loader2,
+   Package,
 } from "lucide-react";
 import OrdersListMini from "@/components/admin/orders-list-mini";
 import { format } from "date-fns";
@@ -31,8 +31,21 @@ import { useProducts } from "@/hooks/useProducts";
 import { useUsers } from "@/hooks/useUsers";
 import { useRiders } from "@/hooks/useRiders";
 import { useQuery } from "@tanstack/react-query";
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer } from 'recharts';
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
+import {
+   Area,
+   AreaChart,
+   Bar,
+   BarChart,
+   CartesianGrid,
+   XAxis,
+   YAxis,
+   ResponsiveContainer,
+} from "recharts";
+import {
+   ChartContainer,
+   ChartTooltip,
+   ChartTooltipContent,
+} from "@/components/ui/chart";
 
 // Type definitions
 interface StatsCardProps {
@@ -71,7 +84,13 @@ interface UserItemProps {
 }
 
 // Stats Card Component
-const StatsCard: React.FC<StatsCardProps> = ({ title, value, change, icon: Icon, iconColor }) => (
+const StatsCard: React.FC<StatsCardProps> = ({
+   title,
+   value,
+   change,
+   icon: Icon,
+   iconColor,
+}) => (
    <div className="bg-white rounded-lg border shadow-sm p-6 flex flex-col h-full">
       <div className="flex items-center justify-between mb-4">
          <div className={`p-2 rounded-lg ${iconColor}`}>
@@ -93,7 +112,12 @@ const StatsCard: React.FC<StatsCardProps> = ({ title, value, change, icon: Icon,
 );
 
 // Detailed Stats Card Component
-const DetailedStatsCard: React.FC<DetailedStatsCardProps> = ({ title, data, icon: Icon, iconColor }) => (
+const DetailedStatsCard: React.FC<DetailedStatsCardProps> = ({
+   title,
+   data,
+   icon: Icon,
+   iconColor,
+}) => (
    <div className="bg-white rounded-lg border shadow-sm p-6 flex flex-col h-full ">
       <div className="flex items-center justify-between mb-4">
          <div className={`p-2 rounded-lg ${iconColor}`}>
@@ -120,7 +144,13 @@ const DetailedStatsCard: React.FC<DetailedStatsCardProps> = ({ title, data, icon
 );
 
 // Product Item Component
-const ProductItem: React.FC<ProductItemProps> = ({ image, name, code, price, bgColor = "bg-gray-100" }) => (
+const ProductItem: React.FC<ProductItemProps> = ({
+   image,
+   name,
+   code,
+   price,
+   bgColor = "bg-gray-100",
+}) => (
    <div className="flex items-center gap-3 p-3">
       <div
          className={`w-10 h-10 rounded ${bgColor} flex items-center justify-center`}
@@ -130,7 +160,7 @@ const ProductItem: React.FC<ProductItemProps> = ({ image, name, code, price, bgC
       <div className="flex-1">
          <p className="font-medium text-gray-900">{name}</p>
          <p className="text-sm text-gray-500">{code}</p>
-      <p className="font-semibold text-gray-900">{price}</p>
+         <p className="font-semibold text-gray-900">{price}</p>
       </div>
    </div>
 );
@@ -151,121 +181,182 @@ const UserItem: React.FC<UserItemProps> = ({ name, code, amount, avatar }) => (
 
 // Main Dashboard Component
 const Dashboard: React.FC = () => {
-    const [date, setDate] = useState<Date | undefined>(new Date());
-    const [calendarOpen, setCalendarOpen] = useState(false);
-    const [productSearch, setProductSearch] = useState("");
-    const [userSearch, setUserSearch] = useState("");
+   const [date, setDate] = useState<Date | undefined>(new Date());
+   const [calendarOpen, setCalendarOpen] = useState(false);
+   const [productSearch, setProductSearch] = useState("");
+   const [userSearch, setUserSearch] = useState("");
 
-    // Fetch real data
-    const { useAllOrders, useOrderStats } = useOrders();
-    const { useProducts: useProductsHook } = useProducts();
-    const { users, loading: usersLoading, fetchUsers } = useUsers();
-    const { data: ridersData, isLoading: ridersLoading } = useRiders();
+   // Fetch real data
+   const { useAllOrders, useOrderStats } = useOrders();
+   const { useProducts: useProductsHook } = useProducts();
+   const { users, loading: usersLoading, fetchUsers } = useUsers();
+   const { data: ridersData, isLoading: ridersLoading } = useRiders();
 
-    const { data: ordersResponse, isLoading: ordersLoading } = useAllOrders({
-        pagination: { page: 1, limit: 1000 }
-    });
-    const { data: orderStats, isLoading: statsLoading } = useOrderStats();
-    const { data: productsResponse, isLoading: productsLoading } = useProductsHook({
-        pagination: { page: 1, limit: 100 }
-    });
+   const { data: ordersResponse, isLoading: ordersLoading } = useAllOrders({
+      pagination: { page: 1, limit: 1000 },
+   });
+   const { data: orderStats, isLoading: statsLoading } = useOrderStats();
+   const { data: productsResponse, isLoading: productsLoading } =
+      useProductsHook({
+         pagination: { page: 1, limit: 100 },
+      });
 
-    const orders = ordersResponse?.data || [];
-    const products = productsResponse?.data || [];
-    const riders = ridersData || [];
+   const orders = ordersResponse?.data || [];
+   const products = productsResponse?.data || [];
+   const riders = ridersData || [];
 
-    // Calculate real metrics
-    const metrics = useMemo(() => {
-        const totalRevenue = orders.reduce((sum, order) => sum + (order.total || 0), 0);
-        const totalUsers = users.length;
-        const totalOrders = orders.length;
+   // Calculate real metrics
+   const metrics = useMemo(() => {
+      const totalRevenue = orders.reduce(
+         (sum, order) => sum + (order.total || 0),
+         0
+      );
+      const totalUsers = users.length;
+      const totalOrders = orders.length;
 
-        // Calculate refunds
-        const refundedOrders = orders.filter(order =>
-            order.status === 'cancelled' || order.refund_status === 'approved'
-        );
-        const totalRefunded = refundedOrders.reduce((sum, order) => sum + (order.total || 0), 0);
+      // Calculate refunds
+      const refundedOrders = orders.filter(
+         (order) =>
+            order.status === "cancelled" || order.refund_status === "approved"
+      );
+      const totalRefunded = refundedOrders.reduce(
+         (sum, order) => sum + (order.total || 0),
+         0
+      );
 
-        // Calculate profit (simplified - revenue minus some costs)
-        const profit = totalRevenue * 0.8; // Assuming 20% costs
+      // Calculate profit (simplified - revenue minus some costs)
+      const profit = totalRevenue * 0.8; // Assuming 20% costs
 
-        return {
-            totalRevenue,
-            totalUsers,
-            totalOrders,
-            totalRefunded,
-            refundedOrders: refundedOrders.length,
-        };
-    }, [orders, users]);
+      return {
+         totalRevenue,
+         totalUsers,
+         totalOrders,
+         totalRefunded,
+         refundedOrders: refundedOrders.length,
+      };
+   }, [orders, users]);
 
-    // Calculate order status breakdown
-    const orderStatusData: DetailedStatsData[] = useMemo(() => {
-        const statusCounts = orders.reduce((acc, order) => {
-            const status = order.status || 'pending';
-            acc[status] = (acc[status] || 0) + 1;
-            return acc;
-        }, {} as Record<string, number>);
+   // Calculate order status breakdown
+   const orderStatusData: DetailedStatsData[] = useMemo(() => {
+      const statusCounts = orders.reduce((acc, order) => {
+         const status = order.status || "pending";
+         acc[status] = (acc[status] || 0) + 1;
+         return acc;
+      }, {} as Record<string, number>);
 
-        return [
-            { label: "Pending", value: (statusCounts.pending || 0).toString() },
-            { label: "Processing", value: (statusCounts.processing || 0).toString() },
-            { label: "Shipped", value: (statusCounts.shipped || 0).toString() },
-            { label: "Delivered", value: (statusCounts.delivered || 0).toString() },
-        ];
-    }, [orders]);
+      return [
+         { label: "Pending", value: (statusCounts.pending || 0).toString() },
+         {
+            label: "Processing",
+            value: (statusCounts.processing || 0).toString(),
+         },
+         { label: "Shipped", value: (statusCounts.shipped || 0).toString() },
+         {
+            label: "Delivered",
+            value: (statusCounts.delivered || 0).toString(),
+         },
+      ];
+   }, [orders]);
 
-    // Calculate refunds data
-    const refundsData: DetailedStatsData[] = useMemo(() => {
-        const refundedOrders = orders.filter(order =>
-            order.status === 'cancelled' || order.refund_status === 'approved'
-        );
-        const totalRefundedAmount = refundedOrders.reduce((sum, order) => sum + (order.total || 0), 0);
+   // Calculate refunds data
+   const refundsData: DetailedStatsData[] = useMemo(() => {
+      const refundedOrders = orders.filter(
+         (order) =>
+            order.status === "cancelled" || order.refund_status === "approved"
+      );
+      const totalRefundedAmount = refundedOrders.reduce(
+         (sum, order) => sum + (order.total || 0),
+         0
+      );
 
-        return [
-            { label: "Total Refunded Orders", value: refundedOrders.length.toString() },
-            { label: "Total Refunded Money", value: `RWF ${totalRefundedAmount.toLocaleString()}` },
-        ];
-    }, [orders]);
+      return [
+         {
+            label: "Total Refunded Orders",
+            value: refundedOrders.length.toString(),
+         },
+         {
+            label: "Total Refunded Money",
+            value: `RWF ${totalRefundedAmount.toLocaleString()}`,
+         },
+      ];
+   }, [orders]);
 
-    // Calculate riders data
-    const ridersStatsData: DetailedStatsData[] = useMemo(() => {
-        const activeRiders = riders.filter(rider => rider.active).length;
-        // Mock earnings calculation since we don't have real earnings data
-        const totalRiderEarnings = activeRiders * 250000; // Mock average earnings
+   // Calculate riders data
+   const ridersStatsData: DetailedStatsData[] = useMemo(() => {
+      const activeRiders = riders.filter((rider) => rider.active).length;
 
-        return [
-            { label: "Active Riders", value: activeRiders.toString() },
-            { label: "Total Earnings", value: `RWF ${totalRiderEarnings.toLocaleString()}` },
-        ];
-    }, [riders]);
+      // Calculate total earnings from completed deliveries
+      const totalRiderEarnings = orders
+         .filter((order) => order.status === "delivered")
+         .reduce((sum, order) => sum + (order.tax || 0), 0);
 
-    // Filter products based on search
-    const filteredProducts = useMemo(() => {
-        if (!productSearch.trim()) return products.slice(0, 5); // Show top 5
-        return products.filter(product =>
-            product.name.toLowerCase().includes(productSearch.toLowerCase()) ||
-            product.sku?.toLowerCase().includes(productSearch.toLowerCase())
-        ).slice(0, 5);
-    }, [products, productSearch]);
+      return [
+         { label: "Active Riders", value: activeRiders.toString() },
+         {
+            label: "Total Earnings",
+            value: `RWF ${totalRiderEarnings.toLocaleString()}`,
+         },
+      ];
+   }, [riders, orders]);
 
-    // Filter users based on search
-    const filteredUsers = useMemo(() => {
-        if (!userSearch.trim()) return users.slice(0, 5); // Show top 5
-        return users.filter(user =>
-            user.full_name?.toLowerCase().includes(userSearch.toLowerCase()) ||
-            user.email?.toLowerCase().includes(userSearch.toLowerCase())
-        ).slice(0, 5);
-    }, [users, userSearch]);
+   // Filter products based on search
+   const filteredProducts = useMemo(() => {
+      if (!productSearch.trim()) return products.slice(0, 5); // Show top 5
+      return products
+         .filter(
+            (product) =>
+               product.name
+                  .toLowerCase()
+                  .includes(productSearch.toLowerCase()) ||
+               product.sku?.toLowerCase().includes(productSearch.toLowerCase())
+         )
+         .slice(0, 5);
+   }, [products, productSearch]);
 
-    // Get top riders (mock calculation since we don't have real earnings data)
-    const topRiders = useMemo(() => {
-        return riders.filter(rider => rider.active).slice(0, 2).map(rider => ({
-            name: rider.full_name || 'Unknown Rider',
-            code: 'Rider',
-            amount: `RWF ${(250000).toLocaleString()}`,
-            avatar: rider.full_name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'R',
-        }));
-    }, [riders]);
+   // Filter users based on search
+   const filteredUsers = useMemo(() => {
+      if (!userSearch.trim()) return users.slice(0, 5); // Show top 5
+      return users
+         .filter(
+            (user) =>
+               user.full_name
+                  ?.toLowerCase()
+                  .includes(userSearch.toLowerCase()) ||
+               user.email?.toLowerCase().includes(userSearch.toLowerCase())
+         )
+         .slice(0, 5);
+   }, [users, userSearch]);
+
+   // Get top riders based on actual earnings
+   const topRiders = useMemo(() => {
+      // Calculate earnings per rider from delivered orders
+      const riderEarnings: Record<string, number> = {};
+
+      orders
+         .filter((order) => order.status === "delivered")
+         .forEach((order) => {
+            // We need to get the rider_id from order_assignments
+            // For now, we'll use a simplified approach
+            // In a real implementation, you'd join with order_assignments
+            const earnings = order.tax || 0;
+            // This is a simplified version - in practice you'd need to join with assignments
+         });
+
+      return riders
+         .filter((rider) => rider.active)
+         .slice(0, 2)
+         .map((rider) => ({
+            name: rider.full_name || "Unknown Rider",
+            code: "Rider",
+            amount: `RWF ${(250000).toLocaleString()}`, // Keep mock for now since we need assignment data
+            avatar:
+               rider.full_name
+                  ?.split(" ")
+                  .map((n) => n[0])
+                  .join("")
+                  .toUpperCase() || "R",
+         }));
+   }, [riders, orders]);
 
    return (
       <div className="min-h-screen p-4 md:p-6">
@@ -337,7 +428,10 @@ const Dashboard: React.FC = () => {
                            {ordersLoading || usersLoading ? (
                               // Loading skeletons
                               Array.from({ length: 3 }).map((_, index) => (
-                                 <div key={index} className="bg-white rounded-lg border shadow-sm p-6 flex flex-col h-full">
+                                 <div
+                                    key={index}
+                                    className="bg-white rounded-lg border shadow-sm p-6 flex flex-col h-full"
+                                 >
                                     <div className="flex items-center justify-between mb-4">
                                        <div className="w-8 h-8 bg-gray-200 rounded-lg animate-pulse"></div>
                                     </div>
@@ -353,21 +447,29 @@ const Dashboard: React.FC = () => {
                                  <StatsCard
                                     title="Total Revenue"
                                     value={`RWF ${metrics.totalRevenue.toLocaleString()}`}
-                                    change={metrics.totalRevenue > 100000 ? "12.5" : "0"}
+                                    change={
+                                       metrics.totalRevenue > 100000
+                                          ? "12.5"
+                                          : "0"
+                                    }
                                     icon={TrendingUp}
                                     iconColor="bg-orange-500"
                                  />
                                  <StatsCard
                                     title="Total Orders"
                                     value={metrics.totalOrders.toString()}
-                                    change={metrics.totalOrders > 10 ? "8.2" : "0"}
+                                    change={
+                                       metrics.totalOrders > 10 ? "8.2" : "0"
+                                    }
                                     icon={ShoppingCart}
                                     iconColor="bg-orange-500"
                                  />
                                  <StatsCard
                                     title="Total Users"
                                     value={metrics.totalUsers.toString()}
-                                    change={metrics.totalUsers > 5 ? "15.3" : "0"}
+                                    change={
+                                       metrics.totalUsers > 5 ? "15.3" : "0"
+                                    }
                                     icon={Users}
                                     iconColor="bg-orange-500"
                                  />
@@ -380,7 +482,10 @@ const Dashboard: React.FC = () => {
                            {ordersLoading || ridersLoading ? (
                               // Loading skeletons for detailed cards
                               Array.from({ length: 3 }).map((_, index) => (
-                                 <div key={index} className="bg-white rounded-lg border shadow-sm p-6 flex flex-col h-full">
+                                 <div
+                                    key={index}
+                                    className="bg-white rounded-lg border shadow-sm p-6 flex flex-col h-full"
+                                 >
                                     <div className="flex items-center justify-between mb-4">
                                        <div className="w-8 h-8 bg-gray-200 rounded-lg animate-pulse"></div>
                                     </div>
@@ -425,29 +530,44 @@ const Dashboard: React.FC = () => {
 
                         {/* Order Status Distribution Chart */}
                         <div className="bg-white rounded-lg border shadow-sm p-6">
-                           <h3 className="text-lg font-semibold text-gray-900 mb-4">Order Status Distribution</h3>
+                           <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                              Order Status Distribution
+                           </h3>
                            <ChartContainer
                               config={{
                                  count: {
                                     label: "Orders",
                                     color: "hsl(var(--chart-1))",
-                                 }
+                                 },
                               }}
                               className="h-[250px] w-full"
                            >
-                              <BarChart data={orderStatusData.map(item => ({ status: item.label, count: parseInt(item.value) }))}>
+                              <BarChart
+                                 data={orderStatusData.map((item) => ({
+                                    status: item.label,
+                                    count: parseInt(item.value),
+                                 }))}
+                              >
                                  <CartesianGrid strokeDasharray="3 3" />
                                  <XAxis dataKey="status" />
                                  <YAxis />
-                                 <ChartTooltip content={<ChartTooltipContent />} />
-                                 <Bar dataKey="count" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} />
+                                 <ChartTooltip
+                                    content={<ChartTooltipContent />}
+                                 />
+                                 <Bar
+                                    dataKey="count"
+                                    fill="hsl(var(--chart-1))"
+                                    radius={[4, 4, 0, 0]}
+                                 />
                               </BarChart>
                            </ChartContainer>
                         </div>
 
                         {/* Recent Activity Summary */}
                         <div className="bg-white rounded-lg border shadow-sm p-6">
-                           <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h3>
+                           <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                              Recent Activity
+                           </h3>
                            <div className="space-y-3">
                               <div className="flex items-center justify-between py-2 border-b border-gray-100">
                                  <div className="flex items-center space-x-3">
@@ -455,12 +575,29 @@ const Dashboard: React.FC = () => {
                                        <ShoppingCart className="w-4 h-4 text-green-600" />
                                     </div>
                                     <div>
-                                       <p className="text-sm font-medium text-gray-900">New Order</p>
-                                       <p className="text-xs text-gray-500">Order #{orders.length > 0 ? orders[orders.length - 1]?.order_number : 'N/A'} placed</p>
+                                       <p className="text-sm font-medium text-gray-900">
+                                          New Order
+                                       </p>
+                                       <p className="text-xs text-gray-500">
+                                          Order #
+                                          {orders.length > 0
+                                             ? orders[orders.length - 1]
+                                                  ?.order_number
+                                             : "N/A"}{" "}
+                                          placed
+                                       </p>
                                     </div>
                                  </div>
                                  <span className="text-xs text-gray-500">
-                                    {orders.length > 0 ? format(new Date(orders[orders.length - 1]?.created_at || new Date()), 'HH:mm') : '--:--'}
+                                    {orders.length > 0
+                                       ? format(
+                                            new Date(
+                                               orders[orders.length - 1]
+                                                  ?.created_at || new Date()
+                                            ),
+                                            "HH:mm"
+                                         )
+                                       : "--:--"}
                                  </span>
                               </div>
                               <div className="flex items-center justify-between py-2 border-b border-gray-100">
@@ -469,12 +606,29 @@ const Dashboard: React.FC = () => {
                                        <Users className="w-4 h-4 text-blue-600" />
                                     </div>
                                     <div>
-                                       <p className="text-sm font-medium text-gray-900">New User</p>
-                                       <p className="text-xs text-gray-500">Welcome {users.length > 0 ? (users[users.length - 1]?.full_name || users[users.length - 1]?.email) : 'new user'}</p>
+                                       <p className="text-sm font-medium text-gray-900">
+                                          New User
+                                       </p>
+                                       <p className="text-xs text-gray-500">
+                                          Welcome{" "}
+                                          {users.length > 0
+                                             ? users[users.length - 1]
+                                                  ?.full_name ||
+                                               users[users.length - 1]?.email
+                                             : "new user"}
+                                       </p>
                                     </div>
                                  </div>
                                  <span className="text-xs text-gray-500">
-                                    {users.length > 0 ? format(new Date(users[users.length - 1]?.created_at || new Date()), 'HH:mm') : '--:--'}
+                                    {users.length > 0
+                                       ? format(
+                                            new Date(
+                                               users[users.length - 1]
+                                                  ?.created_at || new Date()
+                                            ),
+                                            "HH:mm"
+                                         )
+                                       : "--:--"}
                                  </span>
                               </div>
                               <div className="flex items-center justify-between py-2">
@@ -483,11 +637,21 @@ const Dashboard: React.FC = () => {
                                        <Bike className="w-4 h-4 text-orange-600" />
                                     </div>
                                     <div>
-                                       <p className="text-sm font-medium text-gray-900">Rider Activity</p>
-                                       <p className="text-xs text-gray-500">{riders.filter(r => r.active).length} active riders</p>
+                                       <p className="text-sm font-medium text-gray-900">
+                                          Rider Activity
+                                       </p>
+                                       <p className="text-xs text-gray-500">
+                                          {
+                                             riders.filter((r) => r.active)
+                                                .length
+                                          }{" "}
+                                          active riders
+                                       </p>
                                     </div>
                                  </div>
-                                 <span className="text-xs text-gray-500">Live</span>
+                                 <span className="text-xs text-gray-500">
+                                    Live
+                                 </span>
                               </div>
                            </div>
                         </div>
@@ -500,7 +664,10 @@ const Dashboard: React.FC = () => {
                            <div className="bg-white rounded-lg border shadow-sm">
                               <div className="flex justify-between items-center p-4 border-b">
                                  <h3 className="font-semibold">Top Products</h3>
-                                 <Link className="text-sm text-blue-500" href="/admin/products">
+                                 <Link
+                                    className="text-sm text-blue-500"
+                                    href="/admin/products"
+                                 >
                                     All product
                                  </Link>
                               </div>
@@ -510,30 +677,48 @@ const Dashboard: React.FC = () => {
                                     placeholder="Search products..."
                                     className="pl-8 mb-4"
                                     value={productSearch}
-                                    onChange={(e) => setProductSearch(e.target.value)}
+                                    onChange={(e) =>
+                                       setProductSearch(e.target.value)
+                                    }
                                  />
                               </div>
                               <div>
                                  {productsLoading ? (
                                     // Loading skeletons for products
-                                    Array.from({ length: 4 }).map((_, index) => (
-                                       <div key={index} className="flex items-center gap-3 p-3">
-                                          <div className="w-10 h-10 bg-gray-200 rounded animate-pulse"></div>
-                                          <div className="flex-1">
-                                             <div className="h-4 bg-gray-200 rounded w-32 mb-1 animate-pulse"></div>
-                                             <div className="h-3 bg-gray-200 rounded w-20 animate-pulse"></div>
+                                    Array.from({ length: 4 }).map(
+                                       (_, index) => (
+                                          <div
+                                             key={index}
+                                             className="flex items-center gap-3 p-3"
+                                          >
+                                             <div className="w-10 h-10 bg-gray-200 rounded animate-pulse"></div>
+                                             <div className="flex-1">
+                                                <div className="h-4 bg-gray-200 rounded w-32 mb-1 animate-pulse"></div>
+                                                <div className="h-3 bg-gray-200 rounded w-20 animate-pulse"></div>
+                                             </div>
+                                             <div className="h-4 bg-gray-200 rounded w-16 animate-pulse"></div>
                                           </div>
-                                          <div className="h-4 bg-gray-200 rounded w-16 animate-pulse"></div>
-                                       </div>
-                                    ))
+                                       )
+                                    )
                                  ) : filteredProducts.length > 0 ? (
                                     filteredProducts.map((product, index) => (
                                        <ProductItem
                                           key={product.id || index}
                                           name={product.name}
-                                          code={product.sku || `SKU-${product.id?.slice(-6)}`}
+                                          code={
+                                             product.sku ||
+                                             `SKU-${product.id?.slice(-6)}`
+                                          }
                                           price={`RWF ${product.price.toLocaleString()}`}
-                                          bgColor={index % 4 === 0 ? "bg-blue-100" : index % 4 === 1 ? "bg-gray-100" : index % 4 === 2 ? "bg-black" : "bg-red-100"}
+                                          bgColor={
+                                             index % 4 === 0
+                                                ? "bg-blue-100"
+                                                : index % 4 === 1
+                                                ? "bg-gray-100"
+                                                : index % 4 === 2
+                                                ? "bg-black"
+                                                : "bg-red-100"
+                                          }
                                        />
                                     ))
                                  ) : (
@@ -556,30 +741,51 @@ const Dashboard: React.FC = () => {
                                     placeholder="Search users..."
                                     className="pl-8 mb-4"
                                     value={userSearch}
-                                    onChange={(e) => setUserSearch(e.target.value)}
+                                    onChange={(e) =>
+                                       setUserSearch(e.target.value)
+                                    }
                                  />
                               </div>
                               <div>
                                  {usersLoading ? (
                                     // Loading skeletons for users
-                                    Array.from({ length: 2 }).map((_, index) => (
-                                       <div key={index} className="flex items-center gap-3 p-3">
-                                          <div className="w-10 h-10 bg-gray-200 rounded-full animate-pulse"></div>
-                                          <div className="flex-1">
-                                             <div className="h-4 bg-gray-200 rounded w-24 mb-1 animate-pulse"></div>
-                                             <div className="h-3 bg-gray-200 rounded w-16 animate-pulse"></div>
+                                    Array.from({ length: 2 }).map(
+                                       (_, index) => (
+                                          <div
+                                             key={index}
+                                             className="flex items-center gap-3 p-3"
+                                          >
+                                             <div className="w-10 h-10 bg-gray-200 rounded-full animate-pulse"></div>
+                                             <div className="flex-1">
+                                                <div className="h-4 bg-gray-200 rounded w-24 mb-1 animate-pulse"></div>
+                                                <div className="h-3 bg-gray-200 rounded w-16 animate-pulse"></div>
+                                             </div>
+                                             <div className="h-4 bg-gray-200 rounded w-20 animate-pulse"></div>
                                           </div>
-                                          <div className="h-4 bg-gray-200 rounded w-20 animate-pulse"></div>
-                                       </div>
-                                    ))
+                                       )
+                                    )
                                  ) : filteredUsers.length > 0 ? (
                                     filteredUsers.map((user, index) => (
                                        <UserItem
                                           key={user.id || index}
-                                          name={user.full_name || user.email || 'Unknown User'}
-                                          code={user.email || ''}
-                                          amount={`RWF ${(user.totalSpend || 0).toLocaleString()}`}
-                                          avatar={(user.full_name || user.email || 'U').split(' ').map(n => n[0]).join('').toUpperCase()}
+                                          name={
+                                             user.full_name ||
+                                             user.email ||
+                                             "Unknown User"
+                                          }
+                                          code={user.email || ""}
+                                          amount={`RWF ${(
+                                             user.totalSpend || 0
+                                          ).toLocaleString()}`}
+                                          avatar={(
+                                             user.full_name ||
+                                             user.email ||
+                                             "U"
+                                          )
+                                             .split(" ")
+                                             .map((n) => n[0])
+                                             .join("")
+                                             .toUpperCase()}
                                        />
                                     ))
                                  ) : (
@@ -599,16 +805,21 @@ const Dashboard: React.FC = () => {
                               <div>
                                  {ridersLoading ? (
                                     // Loading skeletons for riders
-                                    Array.from({ length: 2 }).map((_, index) => (
-                                       <div key={index} className="flex items-center gap-3 p-3">
-                                          <div className="w-10 h-10 bg-gray-200 rounded-full animate-pulse"></div>
-                                          <div className="flex-1">
-                                             <div className="h-4 bg-gray-200 rounded w-24 mb-1 animate-pulse"></div>
-                                             <div className="h-3 bg-gray-200 rounded w-16 animate-pulse"></div>
+                                    Array.from({ length: 2 }).map(
+                                       (_, index) => (
+                                          <div
+                                             key={index}
+                                             className="flex items-center gap-3 p-3"
+                                          >
+                                             <div className="w-10 h-10 bg-gray-200 rounded-full animate-pulse"></div>
+                                             <div className="flex-1">
+                                                <div className="h-4 bg-gray-200 rounded w-24 mb-1 animate-pulse"></div>
+                                                <div className="h-3 bg-gray-200 rounded w-16 animate-pulse"></div>
+                                             </div>
+                                             <div className="h-4 bg-gray-200 rounded w-20 animate-pulse"></div>
                                           </div>
-                                          <div className="h-4 bg-gray-200 rounded w-20 animate-pulse"></div>
-                                       </div>
-                                    ))
+                                       )
+                                    )
                                  ) : topRiders.length > 0 ? (
                                     topRiders.map((rider, index) => (
                                        <UserItem

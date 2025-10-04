@@ -138,11 +138,10 @@ const TopBar: FC<TopBarProps> = (props) => {
                      <DropdownMenuSeparator />
                      <DropdownMenuGroup>
                         <DropdownMenuItem
-                           onClick={() => router.push("/admin/profile")}
+                           onClick={() => router.push("/admin/settings")}
                         >
-                           Profile
+                           Settings
                         </DropdownMenuItem>
-                        <DropdownMenuItem>Settings</DropdownMenuItem>
                      </DropdownMenuGroup>
                      <DropdownMenuSeparator />
                      <DropdownMenuItem onClick={handleLogout}>

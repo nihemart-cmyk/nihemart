@@ -113,19 +113,26 @@ const RidersPage = () => {
    const [page, setPage] = useState(1);
    const [limit, setLimit] = useState(10);
 
-   // fetch top rider (who delivered the most orders / amount)
+   // fetch top rider (who has the most successful deliveries)
    const [topRider, setTopRider] = useState<any | null>(null);
    const fetchTopRider = async () => {
       try {
          const res = await fetch("/api/admin/riders/top-amount");
-         if (!res.ok) throw new Error("Failed to fetch top rider");
+         if (!res.ok) {
+            console.error("Top rider API failed:", res.status, res.statusText);
+            throw new Error("Failed to fetch top rider");
+         }
          const d = await res.json();
-         // API returns { topRiderId, topAmount }
+         console.log("Top rider data received:", d);
+         // API returns { topRiderId, topAmount, deliveryCount }
          if (d && d.topRiderId) {
             // fetch rider details
             const r = riders.find((x: any) => x.id === d.topRiderId);
             if (r) {
-               setTopRider({ ...r, deliveredAmount: d.topAmount });
+               setTopRider({
+                  ...r,
+                  deliveredCount: d.deliveryCount || d.topAmount,
+               });
             } else {
                // fallback to server API to fetch rider row by id
                const rr = await fetch(
@@ -135,12 +142,12 @@ const RidersPage = () => {
                   const jr = await rr.json();
                   setTopRider({
                      ...(jr.rider || {}),
-                     deliveredAmount: d.topAmount,
+                     deliveredCount: d.deliveryCount || d.topAmount,
                   });
                } else {
                   setTopRider({
                      id: d.topRiderId,
-                     deliveredAmount: d.topAmount,
+                     deliveredCount: d.deliveryCount || d.topAmount,
                   });
                }
             }
@@ -194,6 +201,12 @@ const RidersPage = () => {
    const EarningsCell = ({ row }: any) => {
       const riderId = row.original.id;
       const amt = earningsMap[riderId] || 0;
+      console.log(
+         `EarningsCell for rider ${riderId}:`,
+         amt,
+         "earningsMap:",
+         earningsMap
+      );
       return (
          <div className="text-sm font-medium">{amt.toLocaleString()} RWF</div>
       );
@@ -397,11 +410,19 @@ const RidersPage = () => {
       (async () => {
          try {
             const res = await fetch("/api/admin/riders/earnings");
-            if (!res.ok) return;
+            if (!res.ok) {
+               console.error(
+                  "Earnings API failed:",
+                  res.status,
+                  res.statusText
+               );
+               return;
+            }
             const j = await res.json();
+            console.log("Earnings data received:", j);
             setEarningsMap(j.earnings || {});
          } catch (e) {
-            // best effort
+            console.error("Earnings fetch error:", e);
          }
       })();
    }, [refetch]);
@@ -476,14 +497,21 @@ const RidersPage = () => {
                   </CardHeader>
                   <CardContent>
                      {topRider ? (
-                        <div className="flex items-center gap-3">
-                           <UserAvatarProfile
-                              user={{
-                                 fullName: topRider.full_name || "Unnamed",
-                                 subTitle: topRider.phone || "",
-                              }}
-                              showInfo
-                           />
+                        <div className="space-y-2">
+                           <div className="flex items-center gap-3">
+                              <UserAvatarProfile
+                                 user={{
+                                    fullName: topRider.full_name || "Unnamed",
+                                    subTitle: topRider.phone || "",
+                                 }}
+                                 showInfo
+                              />
+                           </div>
+                           <div className="text-sm text-muted-foreground">
+                              {topRider.deliveredCount || 0} successful
+                              deliveries
+                           </div>
+                         
                         </div>
                      ) : (
                         <div className="text-sm text-muted-foreground">—</div>

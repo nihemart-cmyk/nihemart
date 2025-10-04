@@ -31,7 +31,8 @@ export default async function handler(
       const { data, error } = await supabase
          .from("order_assignments")
          .select("rider_id, status, orders:orders(id, status, tax)")
-         .order("assigned_at", { ascending: false });
+         .eq("status", "completed");
+
       if (error) return res.status(500).json({ error: error.message || error });
 
       const earnings: Record<string, number> = {};
@@ -39,10 +40,12 @@ export default async function handler(
          const rid = row.rider_id;
          const order = row.orders;
          if (!rid || !order) return;
-         const delivered =
-            order.status === "delivered" || row.status === "completed";
+
+         // Only count earnings for completed assignments with delivered orders
+         const isDelivered = order.status === "delivered";
          const fee = Number(order.tax) || 0;
-         if (delivered && fee > 0) {
+
+         if (isDelivered && fee > 0) {
             earnings[rid] = (earnings[rid] || 0) + fee;
          }
       });
