@@ -553,6 +553,8 @@ const Checkout = () => {
                   ""
                ).trim(),
                status: "pending" as const,
+               payment_method: paymentMethod || "cash_on_delivery",
+               delivery_notes: (formData.delivery_notes || "").trim() || undefined,
             },
             items: orderItems.map((item) => {
                const explicitProductId = (item as any).product_id as
@@ -585,14 +587,6 @@ const Checkout = () => {
             }),
          };
 
-         // Attach payment method after creation to avoid excess property checks
-         if (paymentMethod) {
-            try {
-               (orderData.order as any).payment_method = paymentMethod;
-            } catch (e) {
-               // ignore
-            }
-         }
          if (formData.delivery_notes) {
             orderData.order.delivery_notes = formData.delivery_notes;
          }

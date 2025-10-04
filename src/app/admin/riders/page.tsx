@@ -40,17 +40,36 @@ import { UserAvatarProfile } from "@/components/user-avatar-profile";
 import { Badge } from "@/components/ui/badge";
 import { MoreHorizontal } from "lucide-react";
 import { PlusCircle, TrendingUp, TrendingDown } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 const AssignOrderToRiderDialog = dynamic(
    () => import("@/components/riders/AssignOrderToRiderDialog")
 );
+const EditMediaDialog = dynamic(
+   () => import("@/components/riders/EditRiderMediaDialog")
+);
+const RiderDetailsDialog = dynamic(
+   () => import("@/components/riders/RiderDetailsDialog")
+);
 
 const RidersPage = () => {
+   const { hasRole, session } = (useAuth as any)?.() || {
+      hasRole: undefined,
+      session: undefined,
+   };
    const { data, isLoading, isError, refetch } = useRiders();
    const assign = useAssignOrder();
    const [dialogOpen, setDialogOpen] = useState(false);
    const [activeRiderId, setActiveRiderId] = useState<string | null>(null);
    const qc = useQueryClient();
+   const [mediaDialog, setMediaDialog] = useState<{
+      open: boolean;
+      rider: any | null;
+   }>({ open: false, rider: null });
+   const [detailsDialog, setDetailsDialog] = useState<{
+      open: boolean;
+      riderId: string | null;
+   }>({ open: false, riderId: null });
 
    // confirmation dialogs state
    const [confirmToggle, setConfirmToggle] = useState<{
@@ -149,6 +168,7 @@ const RidersPage = () => {
    const [latestAssignmentsMap, setLatestAssignmentsMap] = useState<
       Record<string, any>
    >({});
+   const [earningsMap, setEarningsMap] = useState<Record<string, number>>({});
 
    // Fetch batched latest assignment for the riders currently shown on the page.
    const fetchLatestAssignmentsForPage = async (riderIds: string[]) => {
@@ -171,33 +191,15 @@ const RidersPage = () => {
       }
    };
 
-   const LatestAssignment = ({ row }: any) => {
+   const EarningsCell = ({ row }: any) => {
       const riderId = row.original.id;
-      const latest = latestAssignmentsMap[riderId];
-      const order = latest?.orders;
+      const amt = earningsMap[riderId] || 0;
       return (
-         <div className="text-sm">
-            {order ? (
-               <div className="font-medium">
-                  {order.total?.toLocaleString?.() || order.total} RWF
-               </div>
-            ) : (
-               <div className="text-muted-foreground">—</div>
-            )}
-         </div>
+         <div className="text-sm font-medium">{amt.toLocaleString()} RWF</div>
       );
    };
 
-   const AddressCell = ({ row }: any) => {
-      const riderId = row.original.id;
-      const latest = latestAssignmentsMap[riderId];
-      const order = latest?.orders;
-      return (
-         <div className="text-sm text-text-secondary max-w-sm truncate">
-            {order?.delivery_address || "—"}
-         </div>
-      );
-   };
+   // Removed AddressCell per request
 
    const columns: ColumnDef<any>[] = [
       {
@@ -222,9 +224,10 @@ const RidersPage = () => {
          cell: ({ row }) => {
             const name = String(row.getValue("full_name") || "Unnamed");
             const phone = String(row.original.phone || "");
+            const imageUrl = String(row.original.image_url || "");
             return (
                <UserAvatarProfile
-                  user={{ fullName: name, subTitle: phone }}
+                  user={{ fullName: name, subTitle: phone, imageUrl }}
                   showInfo
                />
             );
@@ -253,15 +256,20 @@ const RidersPage = () => {
          },
       },
       {
-         id: "amount",
-         header: "AMOUNT",
-         cell: ({ row }) => <LatestAssignment row={row} />,
+         id: "earnings",
+         header: "EARNINGS",
+         cell: ({ row }) => <EarningsCell row={row} />,
       },
       {
-         id: "address",
-         header: "ADDRESS",
-         cell: ({ row }) => <AddressCell row={row} />,
+         accessorKey: "location",
+         header: "LOCATION",
+         cell: ({ row }) => (
+            <div className="text-sm text-text-secondary max-w-sm truncate">
+               {String(row.original.location || "—")}
+            </div>
+         ),
       },
+      // Address column removed per request
       {
          id: "actions",
          header: "",
@@ -281,6 +289,14 @@ const RidersPage = () => {
                   <DropdownMenuContent align="end">
                      <DropdownMenuLabel>Actions</DropdownMenuLabel>
                      <DropdownMenuItem
+                        onClick={() =>
+                           setDetailsDialog({ open: true, riderId: rider.id })
+                        }
+                     >
+                        View details
+                     </DropdownMenuItem>
+                     <DropdownMenuSeparator />
+                     <DropdownMenuItem
                         onClick={() => openAssignDialog(rider.id)}
                         disabled={rider.active === false}
                      >
@@ -288,6 +304,13 @@ const RidersPage = () => {
                            ? "Cannot assign (inactive)"
                            : "Assign to order"}
                      </DropdownMenuItem>
+                     {hasRole && hasRole("admin") && (
+                        <DropdownMenuItem
+                           onClick={() => setMediaDialog({ open: true, rider })}
+                        >
+                           Edit image/location
+                        </DropdownMenuItem>
+                     )}
                      <DropdownMenuSeparator />
                      <DropdownMenuItem
                         onClick={() =>
@@ -368,6 +391,20 @@ const RidersPage = () => {
       const ids = paginated.map((r: any) => r.id).filter(Boolean);
       fetchLatestAssignmentsForPage(ids);
    }, [paginated]);
+
+   // Fetch earnings map once after load and whenever refetch is triggered
+   useEffect(() => {
+      (async () => {
+         try {
+            const res = await fetch("/api/admin/riders/earnings");
+            if (!res.ok) return;
+            const j = await res.json();
+            setEarningsMap(j.earnings || {});
+         } catch (e) {
+            // best effort
+         }
+      })();
+   }, [refetch]);
 
    const rangeStart = totalCount === 0 ? 0 : (page - 1) * limit + 1;
    const rangeEnd = Math.min(totalCount, page * limit);
@@ -671,32 +708,27 @@ const RidersPage = () => {
                               Prev
                            </Button>
                            <div className="flex items-center gap-1">
-                              {Array.from(
-                                 {
-                                    length: Math.max(
-                                       1,
-                                       Math.min(5, totalPages)
-                                    ),
-                                 },
-                                 (_, i) => {
-                                    const p = Math.min(
-                                       totalPages,
-                                       Math.max(1, page - 2 + i)
-                                    );
-                                    return (
-                                       <Button
-                                          size="sm"
-                                          key={p}
-                                          variant={
-                                             p === page ? "default" : "ghost"
-                                          }
-                                          onClick={() => setPage(p)}
-                                       >
-                                          {p}
-                                       </Button>
-                                    );
-                                 }
-                              )}
+                              {Array.from({
+                                 length: Math.max(1, Math.min(5, totalPages)),
+                              }).map((_, i) => {
+                                 const p = Math.min(
+                                    totalPages,
+                                    Math.max(1, page - 2 + i)
+                                 );
+                                 const key = `${p}-${i}`;
+                                 return (
+                                    <Button
+                                       size="sm"
+                                       key={key}
+                                       variant={
+                                          p === page ? "default" : "ghost"
+                                       }
+                                       onClick={() => setPage(p)}
+                                    >
+                                       {p}
+                                    </Button>
+                                 );
+                              })}
                            </div>
                            <Button
                               size="sm"
@@ -733,6 +765,29 @@ const RidersPage = () => {
                   }}
                   riderId={activeRiderId}
                   onAssigned={onAssigned}
+               />
+            )}
+
+            {mediaDialog.open && (
+               <EditMediaDialog
+                  open={mediaDialog.open}
+                  rider={mediaDialog.rider}
+                  token={session?.access_token}
+                  onClose={() => setMediaDialog({ open: false, rider: null })}
+                  onSaved={() => {
+                     setMediaDialog({ open: false, rider: null });
+                     refetch && refetch();
+                  }}
+               />
+            )}
+
+            {detailsDialog.open && (
+               <RiderDetailsDialog
+                  open={detailsDialog.open}
+                  riderId={detailsDialog.riderId as string}
+                  onOpenChange={(o) =>
+                     !o && setDetailsDialog({ open: false, riderId: null })
+                  }
                />
             )}
 

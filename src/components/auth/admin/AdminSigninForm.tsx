@@ -176,9 +176,9 @@ const AdminSigninForm: FC<AdminSigninFormProps> = ({}) => {
    };
 
    return (
-      <Card className="w-full max-w-md mx-auto shadow-none border-0 mt-7">
+      <Card className="w-full max-w-md mx-auto shadow-none border-0 lg:mt-7">
          <CardHeader className="text-center">
-            <CardTitle className="text-3xl font-bold">Welcome Back !</CardTitle>
+            <CardTitle className="text-3xl font-bold">Welcome Back <span className="lg:hidden">to Nihemart</span>!</CardTitle>
          </CardHeader>
          <CardContent>
             <GoogleSignInButton

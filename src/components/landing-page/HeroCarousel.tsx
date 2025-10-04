@@ -1,6 +1,12 @@
 "use client";
 
-import { carousel1, carousel2, carousel3, carousel4 } from "@/assets";
+import {
+  carousel1,
+  carousel2,
+  carousel3,
+  carousel4,
+  carousel5,
+} from "@/assets";
 import {
   Carousel,
   CarouselContent,
@@ -13,37 +19,41 @@ import Autoplay from "embla-carousel-autoplay";
 import Image from "next/image";
 import { Button } from "../ui/button";
 import MaxWidthWrapper from "../MaxWidthWrapper";
+import Link from "next/link";
 
 const carouselContent = [
   {
     image: carousel1,
-    heading: "Headphones",
-    description: "Products you can't find anywhere else in Rwanda now delivered to you in 40 minutes.",
-    buttonText: "Shop headphones",
+    heading: "Rare Products",
+    description:
+      "Products you can't find in Rwanda now delivered to you in 40 minutes.",
+    buttonText: "Start Shopping now!",
   },
   {
     image: carousel2,
-    heading: "Easy access",
-    description: "Not in Kigali? It's okay, we deliver",
-    buttonText: "Shop speakers",
+    heading: "Easy Delivery",
+    description:
+      "If you are in province don't worry we deliver every one deserve access to our rare products",
+    buttonText: "Place your order now!",
   },
   {
     image: carousel3,
-    heading: "Pay later",
-    description: "You like it? We bring it to you.",
-    buttonText: "Shop earbuds",
+    heading: "Buy Now, Pay Later",
+    description: "You like it, we bring it, you pay later.",
+    buttonText: "Shop now",
   },
   {
     image: carousel4,
-    heading: "Accessories",
-    description: "Yes we know, our prices are low.",
-    buttonText: "Shop accessories",
+    heading: "Gifts & More",
+    description:
+      "Buy gifts home appliances, kids products, watches , necklaces, etc",
+    buttonText: "Explore gifts",
   },
   {
-    image: carousel2,
-    heading: "Bundles",
-    description: "Buy gifts, home appliances, kids products, watches, necklaces, etc with us.",
-    buttonText: "Shop bundles",
+    image: carousel5,
+    heading: "Low Prices",
+    description: "Yes we know, our prices are low.",
+    buttonText: "Browse products",
   },
 ];
 
@@ -74,12 +84,14 @@ export default function HeroCarousel() {
                           {slide.description}
                         </p>
                       </div>
-                      <Button
-                        className="bg-brand-orange text-white hover:bg-brand-orange/90 rounded-full w-full md:w-fit"
-                        size={"lg"}
-                      >
-                        {slide.buttonText}
-                      </Button>
+                      <Link href="/products">
+                        <Button
+                          className="bg-brand-orange text-white hover:bg-brand-orange/90 rounded-full w-full md:w-fit"
+                          size="lg"
+                        >
+                          {slide.buttonText}
+                        </Button>
+                      </Link>
                     </div>
                   </div>
                 </div>

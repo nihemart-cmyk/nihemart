@@ -57,10 +57,10 @@ const AdminSignupForm: FC<AdminSignupFormProps> = ({}) => {
       defaultValues: {
          email: "",
          fullName: "",
-         phoneNumber: "",
+         // phoneNumber: "",
          password: "",
          confirmPassword: "",
-         rememberMe: false,
+         // rememberMe: false,
       },
    });
 
@@ -152,7 +152,7 @@ const AdminSignupForm: FC<AdminSignupFormProps> = ({}) => {
    };
 
    return (
-      <Card className="w-full max-w-lg mx-auto shadow-none border-0 mt-7">
+      <Card className="w-full max-w-lg mx-auto shadow-none border-0">
          <CardHeader className="text-center">
             <CardTitle className="text-3xl font-bold">
                Welcome To Nihemart !
@@ -175,7 +175,7 @@ const AdminSignupForm: FC<AdminSignupFormProps> = ({}) => {
             <Form {...form}>
                <form
                   onSubmit={form.handleSubmit(onSubmit)}
-                  className="space-y-4"
+                  className="space-y-2"
                >
                   <FormField
                      control={form.control}
@@ -223,7 +223,7 @@ const AdminSignupForm: FC<AdminSignupFormProps> = ({}) => {
                      )}
                   />
 
-                  <FormField
+                  {/* <FormField
                      control={form.control}
                      name="phoneNumber"
                      render={({ field }) => (
@@ -249,7 +249,7 @@ const AdminSignupForm: FC<AdminSignupFormProps> = ({}) => {
                            <FormMessage />
                         </FormItem>
                      )}
-                  />
+                  /> */}
 
                   <FormField
                      control={form.control}
@@ -335,7 +335,7 @@ const AdminSignupForm: FC<AdminSignupFormProps> = ({}) => {
                      )}
                   />
 
-                  <div className="flex items-center justify-between">
+                  {/* <div className="flex items-center justify-between">
                      <FormField
                         control={form.control}
                         name="rememberMe"
@@ -361,7 +361,7 @@ const AdminSignupForm: FC<AdminSignupFormProps> = ({}) => {
                      >
                         Forgot Password?
                      </Link>
-                  </div>
+                  </div> */}
 
                   <Button
                      type="submit"

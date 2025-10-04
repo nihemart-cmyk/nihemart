@@ -14,9 +14,9 @@ export const AdminSignupSchema = z.object({
   fullName: z.string().min(2, {
     message: "Full name must be at least 2 characters long.",
   }),
-  phoneNumber: z.string().min(10, {
-    message: "Please enter a valid phone number.",
-  }),
+  // phoneNumber: z.string().min(10, {
+  //   message: "Please enter a valid phone number.",
+  // }),
   email: z.string().email({
     message: "Please enter a valid email address.",
   }),
@@ -26,7 +26,7 @@ export const AdminSignupSchema = z.object({
   confirmPassword: z.string().min(8, {
     message: "Passwords must match.",
   }),
-  rememberMe: z.boolean().optional(),
+  // rememberMe: z.boolean().optional(),
 });
 
 export type TAdminSigninSchema = z.infer<typeof AdminSigninSchema>;

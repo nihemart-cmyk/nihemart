@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
+// Removed image usage; using initials avatar instead
 import {
    User,
    Phone,
@@ -39,6 +40,17 @@ export default function RiderSettingsPage() {
    const [phone, setPhone] = React.useState("");
    const [vehicle, setVehicle] = React.useState("");
    const [active, setActive] = React.useState<boolean>(false);
+
+   const getInitials = (nameOrEmail: string) => {
+      if (!nameOrEmail) return "R";
+      const base = nameOrEmail.includes("@")
+         ? nameOrEmail.split("@")[0].replace(/[._-]+/g, " ")
+         : nameOrEmail;
+      const parts = base.trim().split(/\s+/).filter(Boolean);
+      if (parts.length === 0) return "R";
+      if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+   };
 
    // Initialize local form state from shared rider query
    useEffect(() => {
@@ -154,10 +166,15 @@ export default function RiderSettingsPage() {
                      <CardContent className="space-y-6">
                         <div className="flex items-start gap-4">
                            <div className="relative flex-shrink-0">
-                              <div className="w-16 h-16 bg-gradient-to-br from-orange-400 to-orange-600 rounded-xl flex items-center justify-center shadow-lg">
-                                 <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
-                                    <User className="w-5 h-5 text-orange-500" />
-                                 </div>
+                              <div className="w-16 h-16 rounded-xl shadow-lg bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center">
+                                 <span className="text-white text-xl font-semibold">
+                                    {getInitials(
+                                       fullName ||
+                                          rider?.full_name ||
+                                          user?.email ||
+                                          "Rider"
+                                    )}
+                                 </span>
                               </div>
                               <div
                                  className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-white ${
@@ -191,6 +208,14 @@ export default function RiderSettingsPage() {
                               </p>
                               <p className="text-sm font-medium text-gray-900 truncate">
                                  {user?.email}
+                              </p>
+                           </div>
+                           <div className="bg-gray-50 rounded-lg p-3">
+                              <p className="text-xs text-gray-500 mb-1">
+                                 Location
+                              </p>
+                              <p className="text-sm font-medium text-gray-900 truncate">
+                                 {rider?.location || "Not set"}
                               </p>
                            </div>
                            <div className="bg-gray-50 rounded-lg p-3">
@@ -367,8 +392,8 @@ export default function RiderSettingsPage() {
                                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                               </div>
                               <p className="text-xs text-blue-700">
-                                 You have unsaved changes. Click &quot;Save Changes&quot;
-                                 to update your profile.
+                                 You have unsaved changes. Click &quot;Save
+                                 Changes&quot; to update your profile.
                               </p>
                            </div>
                         )}
