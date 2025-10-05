@@ -169,6 +169,7 @@ export async function updateProductWithImages(
     variationsData: ProductVariationInput[],
     selectedMainImageIndex: number = 0
 ) {
+    console.log("updateProductWithImages called", { productId, productData, mainImagesLength: mainImages.length, variationsDataLength: variationsData.length });
     await sb.from("product_variations").delete().eq("product_id", productId);
     await sb
        .from("product_images")
@@ -311,21 +312,23 @@ export async function fetchProductForEdit(id: string) {
    return { product, mainImages, variations: variationsWithImages };
 }
 
-const buildProductQuery = (filters: ProductListPageFilters = {}) => {
-   let query = sb.from("products");
+const applyProductFilters = (
+   query: any,
+   filters: ProductListPageFilters = {}
+) => {
+   let q = query;
+
    if (filters.search && filters.search.trim()) {
       const term = `%${filters.search.trim()}%`;
-      query = query.or(
-         `name.ilike.${term},brand.ilike.${term},sku.ilike.${term}`
-      );
+      q = q.or(`name.ilike.${term},brand.ilike.${term},sku.ilike.${term}`);
    }
    if (filters.category && filters.category !== "all") {
-      query = query.eq("category_id", filters.category);
+      q = q.eq("category_id", filters.category);
    }
    if (filters.status && filters.status !== "all") {
-      query = query.eq("status", filters.status);
+      q = q.eq("status", filters.status);
    }
-   return query;
+   return q;
 };
 
 export async function fetchProductsPage({
@@ -333,25 +336,30 @@ export async function fetchProductsPage({
    pagination = { page: 1, limit: 10 },
    sort = { column: "created_at", direction: "desc" },
 }: ProductQueryOptions) {
-   let query = sb.from("products");
-   if (filters.search && filters.search.trim()) {
-      const term = `%${filters.search.trim()}%`;
-      query = query.or(`name.ilike.${term},brand.ilike.${term},sku.ilike.${term}`);
-   }
-   if (filters.category && filters.category !== "all") {
-      query = query.eq("category_id", filters.category);
-   }
-   if (filters.status && filters.status !== "all") {
-      query = query.eq("status", filters.status);
-   }
-   const { count, error: countError } = await query.select('id', { count: 'exact', head: true });
+   // Start the query chain with a select for count
+   let countQuery = sb
+      .from("products")
+      .select("id", { count: "exact", head: true });
+   // Apply all filters
+   countQuery = applyProductFilters(countQuery, filters);
+
+   const { count, error: countError } = await countQuery;
    if (countError) throw countError;
+
    const from = (pagination.page - 1) * pagination.limit;
    const to = from + pagination.limit - 1;
-   const { data, error } = await query
-      .select(`*, category:categories(id, name)`)
+
+   // Start the data query chain with a select
+   let dataQuery = sb
+      .from("products")
+      .select(`*, category:categories(id, name)`);
+   // Apply all filters again
+   dataQuery = applyProductFilters(dataQuery, filters);
+
+   const { data, error } = await dataQuery
       .order(sort.column, { ascending: sort.direction === "asc" })
       .range(from, to);
+
    if (error) throw error;
    return { data: data as Product[], count: count ?? 0 };
 }
@@ -361,11 +369,17 @@ export async function fetchAllProductsForExport({
    filters = {},
    sort = { column: "created_at", direction: "desc" },
 }: Omit<ProductQueryOptions, "pagination">) {
-   const query = buildProductQuery(filters);
+   // Start the query chain with a select
+   let query = sb
+      .from("products")
+      .select(`*, category:categories(id, name)`);
+   // Apply all filters
+   query = applyProductFilters(query, filters);
+
    const { data, error } = await query
-      .select(`*, category:categories(id, name)`)
       .order(sort.column, { ascending: sort.direction === "asc" })
       .limit(5000);
+
    if (error) throw error;
    return data as Product[];
 }
