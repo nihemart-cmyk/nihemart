@@ -59,7 +59,7 @@ const carouselContent = [
 
 export default function HeroCarousel() {
   return (
-    <MaxWidthWrapper size={"lg"} className="lg:my-20 my-5">
+    <MaxWidthWrapper size={"lg"} className="lg:my-14 my-3">
       <div className="relative">
         <Carousel opts={{ loop: true }} plugins={[Autoplay()]}>
           <CarouselContent>
@@ -80,7 +80,7 @@ export default function HeroCarousel() {
                         <h3 className="mt-auto text-3xl xs:text-5xl sm:text-6xl lg:text-7xl text-white font-semibold">
                           {slide.heading}
                         </h3>
-                        <p className="hidden md:block text-white text-base xs:text-lg">
+                        <p className="text-white text-base xs:text-lg">
                           {slide.description}
                         </p>
                       </div>

@@ -86,14 +86,14 @@ const FeaturedProducts: FC<FeaturedProductsProps> = ({}) => {
   }, [selectedCategoryId, loadingFilters]);
 
   return (
-    <MaxWidthWrapper size={"lg"} className="my-20">
-      <h3 className="text-4xl font-bold text-neutral-900 mb-5">
+    <MaxWidthWrapper size={"lg"} className="lg:my-14">
+      <h3 className="lg:text-4xl md:text-2xl text-xl font-bold text-neutral-900 mb-5">
         {t("home.under")} <span className="text-brand-orange">RWF 15,000</span>
       </h3>
       <div className="flex items-center flex-wrap gap-3 mb-8">
         <Button
           size={BUTTON_SIZE}
-          className="rounded-full"
+          className="rounded-full hidden md:block"
           variant={selectedCategoryId === "all" ? "default" : "secondary"}
           onClick={() => setSelectedCategoryId("all")}
         >
@@ -102,7 +102,7 @@ const FeaturedProducts: FC<FeaturedProductsProps> = ({}) => {
         {categories.map((cat) => (
           <Button
             size={BUTTON_SIZE}
-            className="rounded-full"
+            className="rounded-full hidden md:block"
             key={cat.id}
             variant={selectedCategoryId === cat.id ? "default" : "secondary"}
             onClick={() => setSelectedCategoryId(cat.id)}

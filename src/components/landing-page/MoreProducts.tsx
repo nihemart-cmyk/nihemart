@@ -165,13 +165,13 @@ const MoreProducts: FC<MoreProductsProps> = ({}) => {
   return (
     <div>
       <MaxWidthWrapper size={"lg"} className="">
-        <h3 className="text-4xl font-bold text-neutral-900 mb-5">
+        <h3 className="lg:text-4xl md:text-2xl text-xl font-bold text-neutral-900 mb-5">
           {t("home.featured")}
         </h3>
         <div className="flex items-center flex-wrap gap-3 mb-8">
           <Button
             size={ButtonSize}
-            className="rounded-full"
+            className="rounded-full hidden md:block"
             variant={selectedCategoryId === "all" ? "default" : "secondary"}
             onClick={() => setSelectedCategoryId("all")}
           >
@@ -180,7 +180,7 @@ const MoreProducts: FC<MoreProductsProps> = ({}) => {
           {categories.map((cat) => (
             <Button
               size={ButtonSize}
-              className="rounded-full"
+              className="rounded-full hidden md:block"
               key={cat.id}
               variant={selectedCategoryId === cat.id ? "default" : "secondary"}
               onClick={() => setSelectedCategoryId(cat.id)}
@@ -228,7 +228,8 @@ const MoreProducts: FC<MoreProductsProps> = ({}) => {
           </div>
         </div>
 
-        <h3 className="text-4xl font-bold text-neutral-900 mb-8 mt-20">
+        {/* NEW ARRIVALS */}
+        <h3 className="lg:text-4xl md:text-2xl text-xl font-bold text-neutral-900 mb-8 mt-20">
           {t("home.new")}
         </h3>
 
