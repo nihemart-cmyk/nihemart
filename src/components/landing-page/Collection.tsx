@@ -81,7 +81,7 @@ const Collection: FC<CollectionProps> = ({}) => {
   }, [loading, categories]);
 
   return (
-    <MaxWidthWrapper size={"lg"} className="lg:my-14">
+    <MaxWidthWrapper size={"lg"} className="">
       <div className="my-10 relative">
         <h1 className="lg:text-4xl md:text-2xl text-xl font-bold text-neutral-900 mb-5">
           {t("home.categories")}
