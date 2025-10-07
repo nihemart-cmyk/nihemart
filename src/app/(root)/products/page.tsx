@@ -29,6 +29,7 @@ import {
   Filter,
   Search,
   PackageSearch,
+  ShoppingCart,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -46,7 +47,7 @@ import Image from "next/image";
 import { useCart } from "@/contexts/CartContext";
 import { WishlistButton } from "@/components/ui/wishlist-button";
 
-const PAGE_LIMIT = 12;
+const PAGE_LIMIT = 32;
 
 function ProductListingComponent() {
   const router = useRouter();
@@ -66,7 +67,7 @@ function ProductListingComponent() {
     subcategories: parseAsArrayOf(parseAsString).withDefault([]),
   });
 
-  const debouncedSearchTerm = useDebounce(filters.q, 500);
+  const debouncedSearchTerm = useDebounce(filters.q, 300);
 
   const [expandedSections, setExpandedSections] = useState({
     category: true,
@@ -272,9 +273,9 @@ function ProductListingComponent() {
                     {sc.name}
                   </label>
                 </div>
-                <span className="text-xs text-gray-500">
+                {/* <span className="text-xs text-gray-500">
                   ({sc.products_count})
-                </span>
+                </span> */}
               </div>
             ))}
           </div>
@@ -287,7 +288,7 @@ function ProductListingComponent() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-orange-50">
-      <div className="container mx-auto px-2 md:px-4 py-6">
+      <div className="container mx-auto px-2 lg:px-4 py-6">
         <div className="flex gap-6">
           <div className="hidden lg:block w-80 flex-shrink-0">
             <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 sticky top-28">
@@ -371,7 +372,7 @@ function ProductListingComponent() {
                 </Button>
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-2 md:gap-5 mb-8">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-2 md:gap-5 mb-8">
                 {loading
                   ? Array.from({ length: PAGE_LIMIT }).map((_, i) => (
                       <Card
@@ -416,7 +417,7 @@ function ProductListingComponent() {
                               {/* <span className="bg-red-500 text-white text-xs font-bold px-4 py-1 rounded-full shadow-md tracking-widest">
         HOT
       </span> */}
-                              <span className="inline-block bg-brand-orange text-white text-xs font-bold rounded-full px-2 py-0.5 mr-auto">
+                              <span className="hidden md:inline-block bg-brand-orange text-white text-xs font-bold rounded-full px-2 py-0.5 mr-auto">
                                 RWF{" "}
                                 {product?.price.toLocaleString("en-US", {
                                   minimumFractionDigits: 2,
@@ -435,6 +436,13 @@ function ProductListingComponent() {
                             </div>
                           </div>
                           <div className="space-y-2">
+                            <p className="md:hidden font-bold text-orange-500 text-lg">
+                              {product?.price.toLocaleString("en-US", {
+                                minimumFractionDigits: 0,
+                                maximumFractionDigits: 0,
+                              })}{" "}
+                              frw
+                            </p>
                             <h3 className="font-semibold text-gray-900 text-sm md:text-lg truncate">
                               {product?.name}
                             </h3>
@@ -450,7 +458,7 @@ function ProductListingComponent() {
                                 ({product?.review_count || 0})
                               </span>
                             </div> */}
-                            {/* <p className="text-lg md:text-xl font-bold text-gray-900">
+                            {/* <p className="md:hidden text-lg md:text-xl font-bold text-gray-900">
                               {product?.price.toLocaleString("en-US", {
                                 minimumFractionDigits: 2,
                                 maximumFractionDigits: 2,
@@ -462,7 +470,12 @@ function ProductListingComponent() {
                                 onClick={(e) => handleAddToCart(e, product)}
                                 className="flex-1 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-md hover:shadow-lg transition-all duration-200"
                               >
-                                Add To Cart
+                                {/* <span className="block md:hidden">
+                                  <ShoppingCart className="w-5 h-5" />
+                                </span> */}
+                                <span className="">
+                                  Add To Cart
+                                </span>
                               </Button>
                             </div>
                           </div>

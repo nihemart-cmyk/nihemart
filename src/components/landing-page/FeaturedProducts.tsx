@@ -1,13 +1,4 @@
 "use client";
-import {
-  Carousel,
-  CarouselContent,
-  CarouselItem,
-  CarouselNext,
-  CarouselPrevious,
-} from "@/components/ui/carousel";
-import { ChevronLeft, ChevronRight, Eye, Star } from "lucide-react";
-import Image from "next/image";
 import { FC, useState, useEffect } from "react";
 import MaxWidthWrapper from "../MaxWidthWrapper";
 import { Button } from "../ui/button";
@@ -15,13 +6,13 @@ import { useMediaQuery } from "@/hooks/user-media-query";
 import {
   fetchProductsUnder15k,
   fetchStoreCategories,
-} from "@/integrations/supabase/store";
-import type {
   StoreProduct,
   StoreCategorySimple,
 } from "@/integrations/supabase/store";
 import Link from "next/link";
+import Image from "next/image";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { WishlistButton } from "../ui/wishlist-button";
 
 interface FeaturedProductsProps {}
 
@@ -32,6 +23,59 @@ const promos = [
   "5% ON NEW PRODUCTS",
 ];
 
+const ProductGridSkeleton = ({ count = 8 }: { count?: number }) => (
+  <div className="grid grid-cols-2 min-[500px]:grid-cols-3 min-[1000px]:grid-cols-4 xl:grid-cols-5 gap-5">
+    {Array.from({ length: count }).map((_, index) => (
+      <div
+        key={index}
+        className="shrink-0 aspect-[9/12] bg-gray-200 rounded-2xl animate-pulse"
+      />
+    ))}
+  </div>
+);
+
+const ProductCard = ({ product }: { product: StoreProduct }) => (
+  <Link
+    href={`/products/${product.id}`}
+    className="group flex flex-col bg-white rounded-2xl overflow-hidden shadow hover:shadow-xl transition-shadow duration-300 border border-gray-100 h-full relative"
+    aria-label={`View details for ${product.name}`}
+    tabIndex={0}
+  >
+    {/* Wishlist button */}
+    <div className="absolute z-20 right-3 top-3">
+      <WishlistButton
+        productId={product.id}
+        size="sm"
+        variant="ghost"
+        className="bg-white/80 backdrop-blur-sm hover:bg-white shadow-sm"
+      />
+    </div>
+    {/* Product Image */}
+    <div className="relative w-full aspect-[4/5] bg-gray-100">
+      <Image
+        src={product.main_image_url || "/placeholder.svg"}
+        alt={product.name}
+        fill
+        className="object-cover transition-transform duration-300 group-hover:scale-105"
+        sizes="(max-width: 640px) 100vw, 33vw"
+      />
+    </div>
+    {/* Card Content */}
+    <div className="flex flex-col flex-1 px-3 md:px-4 pt-3 pb-4 gap-2">
+      <span className="text-orange-500 text-lg md:text-xl font-bold">
+        RWF{" "}
+        {product?.price.toLocaleString("en-US", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}{" "}
+      </span>
+      <h4 className="font-bold text-gray-900 text-base md:text-lg line-clamp-2 truncate">
+        {product.name}
+      </h4>
+    </div>
+  </Link>
+);
+
 const FeaturedProducts: FC<FeaturedProductsProps> = ({}) => {
   const { t } = useLanguage();
 
@@ -40,9 +84,15 @@ const FeaturedProducts: FC<FeaturedProductsProps> = ({}) => {
   const [products, setProducts] = useState<StoreProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingFilters, setLoadingFilters] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [offset, setOffset] = useState(0);
+
+  const initialLimit = 10;
+  const loadMoreLimit = 8;
 
   const BUTTON_SIZE = useMediaQuery("(min-width: 768px)") ? "lg" : "sm";
 
+  // Load categories and initial products
   useEffect(() => {
     const loadInitialData = async () => {
       setLoading(true);
@@ -50,10 +100,11 @@ const FeaturedProducts: FC<FeaturedProductsProps> = ({}) => {
       try {
         const [cats, prods] = await Promise.all([
           fetchStoreCategories(),
-          fetchProductsUnder15k(),
+          fetchProductsUnder15k(undefined, { limit: initialLimit, offset: 0 }),
         ]);
         setCategories(cats);
         setProducts(prods);
+        setOffset(prods.length);
       } catch (error) {
         console.error("Failed to load featured products data:", error);
       } finally {
@@ -64,26 +115,43 @@ const FeaturedProducts: FC<FeaturedProductsProps> = ({}) => {
     loadInitialData();
   }, []);
 
+  // Filter products by category
   useEffect(() => {
-    // This effect only runs when a filter is clicked, not on initial load
     if (loadingFilters) return;
-
     const loadFilteredProducts = async () => {
       setLoading(true);
       try {
         const prods = await fetchProductsUnder15k(
-          selectedCategoryId === "all" ? undefined : selectedCategoryId
+          selectedCategoryId === "all" ? undefined : selectedCategoryId,
+          { limit: initialLimit, offset: 0 }
         );
         setProducts(prods);
+        setOffset(prods.length);
       } catch (error) {
         console.error("Failed to filter products:", error);
       } finally {
         setLoading(false);
       }
     };
-
     loadFilteredProducts();
   }, [selectedCategoryId, loadingFilters]);
+
+  // Load more products
+  const handleLoadMore = async () => {
+    setLoadingMore(true);
+    try {
+      const newProducts = await fetchProductsUnder15k(
+        selectedCategoryId === "all" ? undefined : selectedCategoryId,
+        { limit: loadMoreLimit, offset }
+      );
+      setProducts((prev) => [...prev, ...newProducts]);
+      setOffset((prev) => prev + newProducts.length);
+    } catch (error) {
+      console.error("Failed to fetch more products", error);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   return (
     <MaxWidthWrapper size={"lg"} className="lg:my-14">
@@ -112,109 +180,26 @@ const FeaturedProducts: FC<FeaturedProductsProps> = ({}) => {
         ))}
       </div>
 
-      <Carousel
-        opts={{ align: "start", loop: true }}
-        className="w-full mt-12 sm:mt-0"
-      >
-        <CarouselContent>
-          {loading ? (
-            Array.from({ length: 4 }).map((_, index) => (
-              <CarouselItem
-                key={index}
-                className="basis-[80%] sm:basis-1/2 lg:basis-1/3 xl:basis-1/5"
-              >
-                <div className="shrink-0 group aspect-[9/12] bg-gray-200 rounded-2xl animate-pulse" />
-              </CarouselItem>
-            ))
-          ) : products.length > 0 ? (
-            products.map((product) => (
-              <CarouselItem
-                key={product.id}
-                className="basis-[80%] sm:basis-1/2 lg:basis-1/3 xl:basis-1/4 mb-5"
-              >
-                <Link
-                  href={`/products/${product.id}`}
-                  className="group block h-full"
-                  aria-label={`View details for ${product.name}`}
-                  tabIndex={0}
-                >
-                  <div className="bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden flex flex-col h-full relative border border-gray-100">
-                    {/* Hot Ribbon (hidden on mobile for less clutter) */}
-                    <div className="absolute z-20 left-0 top-4">
-                      <div className="pl-2">
-                        {/* <span className="bg-red-500 text-white text-[10px] font-bold px-6 py-1 rounded shadow-md tracking-widest drop-shadow-lg">
-                          HOT
-                        </span> */}
-                        {/* <span className="inline-block bg-brand-orange text-white text-xs font-bold rounded-full px-2 py-0.5 ml-auto">
-                          RWF {product.price.toLocaleString()}
-                        </span> */}
-                      </div>
-                    </div>
-                    {/* Product Image */}
-                    <div className="relative w-full aspect-[4/5] bg-gradient-to-br from-blue-100 to-blue-50 overflow-hidden">
-                      <Image
-                        src={product.main_image_url || "/placeholder.svg"}
-                        alt={product.name}
-                        fill
-                        className="object-cover transition-transform duration-300 group-hover:scale-105"
-                        sizes="(max-width: 640px) 100vw, 33vw"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/10 via-transparent to-transparent pointer-events-none" />
-                    </div>
-                    {/* Card Content */}
-                    <div className="flex flex-col flex-1 px-3 md:px-4 pt-2 md:pt-3 pb-4 md:pb-5 gap-2">
-                      {/* Brand, Rating, Price */}
-                      {/* <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 mb-1">
-                        <span className="text-xs text-gray-500 font-semibold truncate max-w-[40%]">
-                          {product.brand || "New Arrival"}
-                        </span>
-                        {(product?.average_rating || null) && (
-                          <span className="flex items-center gap-1 bg-gray-100 rounded-full px-2 py-0.5 text-xs font-mono">
-                            <Star
-                              fill="#eab308"
-                              size={13}
-                              className="text-warning"
-                            />
-                            {product?.average_rating?.toFixed(1)}
-                          </span>
-                        )}
-                        <span className="inline-block bg-brand-orange text-white text-xs font-bold rounded-full px-2 py-0.5 ml-auto">
-                          RWF {product.price.toLocaleString()}
-                        </span>
-                      </div> */}
-                      {/* Product Name */}
-                      <span className="text-orange-500 text-lg md:text-xl font-bold">
-                          RWF {product.price.toLocaleString()}
-                        </span>
-                      <h4 className="font-bold text-gray-900 text-base md:text-lg truncate">
-                        {product.name}
-                      </h4>
-                      {/* Description */}
-                      {/* <p className="text-xs md:text-sm text-gray-600 line-clamp-2 relative">
-                        {product?.short_description}
-                        <span className="absolute bottom-0 right-0 w-8 h-4 bg-gradient-to-l from-white/90 to-transparent pointer-events-none" />
-                      </p> */}
-                      <div className="flex-1" />
-                    </div>
-                  </div>
-                </Link>
-              </CarouselItem>
-            ))
-          ) : (
-            <div className="w-full text-center py-10 col-span-full">
-              <p>No products found in this category.</p>
-            </div>
-          )}
-        </CarouselContent>
-        <CarouselPrevious
-          Icon={ChevronLeft}
-          className="-top-7 sm:-top-12 right-10 left-auto"
-        />
-        <CarouselNext
-          Icon={ChevronRight}
-          className="-top-7 sm:-top-12 left-auto right-0"
-        />
-      </Carousel>
+      {loading ? (
+        <ProductGridSkeleton count={8} />
+      ) : (
+        <>
+          <div className="grid grid-cols-2 min-[500px]:grid-cols-3 min-[1000px]:grid-cols-4 xl:grid-cols-5 gap-2 md:gap-5">
+            {products.map((product) => (
+              <ProductCard key={product.id} product={product} />
+            ))}
+          </div>
+          {/* <div className="flex justify-center mt-10">
+            <Button
+              onClick={handleLoadMore}
+              disabled={loadingMore}
+              className="px-6 py-3 rounded-full"
+            >
+              {loadingMore ? t("common.loading") : t("common.loadMore")}
+            </Button>
+          </div> */}
+        </>
+      )}
 
       <div className="bg-brand-orange mt-10 sm:mt-20 mb-16 sm:mb-24 text-white rounded-xl py-2 overflow-hidden">
         <div className="flex items-center">
