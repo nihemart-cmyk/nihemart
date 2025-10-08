@@ -26,27 +26,27 @@ const carouselContent = [
     image: carousel1,
     heading: "Rare Products",
     description:
-      "Products you can't find in Rwanda now delivered to you in 40 minutes.",
+      "Products you can't find in Rwanda now delivered to you in 40 minutes.",
     buttonText: "Start Shopping now!",
   },
   {
     image: carousel2,
     heading: "Easy Delivery",
     description:
-      "If you are in province don't worry we deliver every one deserve access to our rare products",
+      "If you are in province don't worry we deliver every one deserve access to our rare products",
     buttonText: "Place your order now!",
   },
   {
     image: carousel3,
     heading: "Buy Now, Pay Later",
-    description: "You like it, we bring it, you pay later.",
+    description: "You like it, we bring it, you pay later.",
     buttonText: "Shop now",
   },
   {
     image: carousel4,
     heading: "Gifts & More",
     description:
-      "Buy gifts home appliances, kids products, watches , necklaces, etc",
+      "Buy gifts home appliances, kids products, watches, necklaces, etc",
     buttonText: "Explore gifts",
   },
   {
@@ -59,13 +59,13 @@ const carouselContent = [
 
 export default function HeroCarousel() {
   return (
-    <MaxWidthWrapper size={"lg"} className="my-20">
+    <MaxWidthWrapper size={"lg"} className="lg:mt-10 my-3">
       <div className="relative">
         <Carousel opts={{ loop: true }} plugins={[Autoplay()]}>
-          <CarouselContent>
+          <CarouselContent className="mb-3">
             {carouselContent.map((slide, index) => (
-              <CarouselItem key={index} className="basis-[97%] sm:basis-[90%]">
-                <div className="relative h-[60vh] sm:h-[80vh] rounded-2xl overflow-hidden">
+              <CarouselItem key={index} className="basis-[100%] sm:basis-[90%]">
+                <div className="relative h-[60vh] sm:h-[70vh] md:h-[80vh] lg:h-[90vh] rounded-2xl overflow-hidden">
                   <Image
                     className="w-full h-full object-cover absolute inset-0 z-0"
                     alt="image"
@@ -74,19 +74,19 @@ export default function HeroCarousel() {
                     height={500}
                     width={980}
                   />
-                  <div className="relative h-full z-10 bg-gradient-to-t from-[#36A9EC] from-0% to-70% flex flex-col">
-                    <div className="mt-auto mb-36 px-10 sm:px-20 flex flex-col md:flex-row justify-between md:items-center gap-6 md:gap-5">
-                      <div className="flex flex-col xs:gap-2 md:gap-4">
-                        <h3 className="mt-auto text-3xl xs:text-5xl sm:text-6xl lg:text-7xl text-white font-semibold">
+                  <div className="relative h-full z-10 bg-gradient-to-t from-[#36A9EC] to-transparent flex flex-col p-4 md:p-10">
+                    <div className="mt-auto mb-12 sm:mb-20 px-5 sm:px-10 md:px-20 flex flex-col md:flex-row justify-between md:items-center gap-6 md:gap-10">
+                      <div className="flex flex-col gap-3 md:gap-4">
+                        <h3 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl text-white font-semibold">
                           {slide.heading}
                         </h3>
-                        <p className="text-white text-base xs:text-lg">
+                        <p className="text-white text-sm sm:text-lg md:text-xl">
                           {slide.description}
                         </p>
                       </div>
                       <Link href="/products">
                         <Button
-                          className="bg-brand-orange text-white hover:bg-brand-orange/90 rounded-full w-full md:w-fit"
+                          className="bg-brand-orange text-white hover:bg-brand-orange/90 rounded-full w-full sm:w-fit"
                           size="lg"
                         >
                           {slide.buttonText}

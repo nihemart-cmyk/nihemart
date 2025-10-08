@@ -48,7 +48,7 @@ const variationSchema = z.object({
 
 const productSchema = z.object({
     name: z.string().min(3, "Product name is required"),
-    description: z.string().optional(),
+    description: z.preprocess((val) => val === null || val === undefined || val === "" ? undefined : val, z.string().optional()),
     short_description: z.string().optional(),
     category_id: z.string().optional(),
     subcategory_id: z.string().optional(),
@@ -199,7 +199,9 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
     }, [quill, form, initialData]);
 
     const onSubmit: SubmitHandler<ProductFormData> = async (data) => {
+        console.log("onSubmit called", { isValid: form.formState.isValid, errors: form.formState.errors });
         const toastId = toast.loading(isEditMode ? "Updating product..." : "Creating product...");
+        console.log("Toast shown with id:", toastId);
         try {
             const productBaseData: ProductBase = {
                 name: data.name,
@@ -272,7 +274,7 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
                             <h1 className="text-2xl font-semibold">{isEditMode ? 'Edit Product' : 'Add a New Product'}</h1>
                             <div className="flex gap-3">
                                 <Button type="button" variant="outline" onClick={() => router.back()}>Discard</Button>
-                                <Button type="submit" className="bg-green-600 hover:bg-green-700" disabled={form.formState.isSubmitting}>{form.formState.isSubmitting ? "Saving..." : "Save Product"}</Button>
+                                <Button type="button" className="bg-green-600 hover:bg-green-700" disabled={form.formState.isSubmitting} onClick={() => { console.log("Save button clicked", { isValid: form.formState.isValid, errors: form.formState.errors }); form.handleSubmit(onSubmit)(); }}>{form.formState.isSubmitting ? "Saving..." : "Save Product"}</Button>
                             </div>
                         </div>
 

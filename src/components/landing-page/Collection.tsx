@@ -81,7 +81,7 @@ const Collection: FC<CollectionProps> = ({}) => {
   }, [loading, categories]);
 
   return (
-    <MaxWidthWrapper size={"lg"} className="my-20">
+    <MaxWidthWrapper size={"lg"} className="">
       <div className="my-10 relative">
         <h1 className="lg:text-4xl md:text-2xl text-xl font-bold text-neutral-900 mb-5">
           {t("home.categories")}
@@ -97,7 +97,7 @@ const Collection: FC<CollectionProps> = ({}) => {
                 .map((_, i) => (
                   <div
                     key={i}
-                    className="w-60 h-60 shrink-0 aspect-[9/12] bg-gray-200 rounded-2xl animate-pulse"
+                    className="w-56 md:w-60 h-60 shrink-0 aspect-[9/12] bg-gray-200 rounded-2xl animate-pulse"
                   />
                 ))
             : categories.map((category) => (
@@ -109,7 +109,7 @@ const Collection: FC<CollectionProps> = ({}) => {
                 <Link
                   href={`/products?categories=${category.id}`}
                   key={category.id}
-                  className="w-60 h-60 border-2 border-blue-100 rounded-lg aspect-[9/12] shrink-0 flex flex-col items-center group"
+                  className="w-60 h-60 border-2 border-blue-100 rounded-lg aspect-[9/10] shrink-0 flex flex-col items-center group"
                 >
                   {/* <Image
                     src={category.icon_url || "/placeholder.svg"}

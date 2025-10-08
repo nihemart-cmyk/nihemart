@@ -1,67 +1,148 @@
-import { ArrowRight } from 'lucide-react'
-import Link from 'next/link'
-import { FC } from 'react'
-import { Icons } from '../icons'
-import MaxWidthWrapper from '../MaxWidthWrapper'
-import { Button } from '../ui/button'
-import { Input } from '../ui/input'
+import Link from "next/link";
+import { FC } from "react";
+import { Icons } from "../icons";
+import MaxWidthWrapper from "../MaxWidthWrapper";
+import { Button } from "../ui/button";
+import { Input } from "../ui/input";
 
-interface FooterProps {
+interface FooterProps {}
 
-}
+const footerLinks = [
+  {
+    title: "Company",
+    links: [
+      { label: "About Us", href: "/about" },
+      { label: "Journal", href: "/journal" },
+      { label: "Careers", href: "/careers" },
+      { label: "Contact Us", href: "/contact" },
+      { label: "FAQs", href: "/faqs" },
+    ],
+  },
+  {
+    title: "Shop",
+    links: [
+      { label: "Headphones", href: "/category/headphones" },
+      { label: "Speakers", href: "/category/speakers" },
+      { label: "Charging Stations", href: "/category/charging-stations" },
+      { label: "Phones", href: "/category/phones" },
+      { label: "Portable Chargers", href: "/category/portable-chargers" },
+    ],
+  },
+  {
+    title: "Customer Service",
+    links: [
+      { label: "Help Center", href: "/help" },
+      { label: "Returns & Exchanges", href: "/returns" },
+      { label: "Shipping Info", href: "/shipping" },
+      { label: "Terms of Service", href: "/terms" },
+      { label: "Privacy Policy", href: "/privacy" },
+    ],
+  },
+];
 
-const Footer: FC<FooterProps> = ({ }) => {
-    return <div className='bg-black text-white'>
-        <MaxWidthWrapper size={'lg'} className='divide-y lg:divide-x divide-slate-800 grid lg:grid-cols-2 min-h-96'>
-            <div className="flex flex-col max-w-sm mx-auto pt-20 pb-5 gap-8">
-                <div>
-                    <h5 className='text-xl font-semibold mb-6'>Subscribe to our newsletter</h5>
-                    <div className="flex items-center gap-2 max-w-sm mb-2">
-                        <Input placeholder='Enter your email' className='bg-slate-900 border-slate-800 h-12 placeholder:text-xl md:text-lg' />
-                        <Button variant={'secondary'} className='h-12'><ArrowRight /></Button>
-                    </div>
-                    <p className='text-slate-400'>By subscribing, you agree to our responsible data use.</p>
-                </div>
-                <p className="mt-auto">©2025 Nihemart - Online Store</p>
+const socialLinks = [
+  {
+    icon: Icons.landingPage.instagram,
+    href: "https://instagram.com",
+    label: "Instagram",
+  },
+  {
+    icon: Icons.landingPage.facebook,
+    href: "https://facebook.com",
+    label: "Facebook",
+  },
+  {
+    icon: Icons.landingPage.tiktok,
+    href: "https://tiktok.com",
+    label: "TikTok",
+  },
+  {
+    icon: Icons.landingPage.youtube,
+    href: "https://youtube.com",
+    label: "YouTube",
+  },
+];
+
+const Footer: FC<FooterProps> = ({}) => {
+  return (
+    <footer className="bg-neutral-950 text-white pt-16 pb-8 mt-24 border-t border-neutral-800">
+      <MaxWidthWrapper size="lg" className="flex flex-col gap-12">
+        {/* Top: Newsletter & Social */}
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-8">
+          <div>
+            <h5 className="text-2xl font-semibold mb-3">Stay in the loop</h5>
+            <p className="text-neutral-400 mb-4 max-w-md">
+              Subscribe to our newsletter for exclusive offers, new arrivals,
+              and the latest updates.
+            </p>
+            <form className="flex gap-2 max-w-md">
+              <Input
+                type="email"
+                placeholder="Enter your email"
+                className="bg-neutral-900 border-neutral-800 h-12 placeholder:text-lg text-base"
+                required
+              />
+              <Button variant="secondary" className="h-12 px-6 font-semibold">
+                Subscribe
+              </Button>
+            </form>
+          </div>
+          <div className="flex flex-col items-start md:items-end gap-3">
+            <span className="font-semibold text-lg mb-1">Follow us</span>
+            <div className="flex gap-3">
+              {socialLinks.map(({ icon: Icon, href, label }) => (
+                <Link
+                  key={label}
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={label}
+                  className="hover:text-brand-orange transition-colors"
+                >
+                  <Icon className="h-7 w-7" />
+                </Link>
+              ))}
             </div>
-            <div className="flex flex-col justify-between pt-20 pb-5 lg:pl-20 gap-6">
-                <div className="flex justify-between">
-                    <div className="flex flex-col gap-3 font-bold text-3xl">
-                        <Link href={'#'} className='hover:text-slate-500 transition-colors'>About</Link>
-                        <Link href={'#'} className='hover:text-slate-500 transition-colors'>Journal</Link>
-                        <Link href={'#'} className='hover:text-slate-500 transition-colors'>FAQs</Link>
-                        <Link href={'#'} className='hover:text-slate-500 transition-colors'>Contact us</Link>
-                    </div>
-                    <div className="flex flex-col gap-2 text-slate-500 text-base">
-                        <Link href={'#'} className='hover:text-slate-200 transition-colors'>Headphones</Link>
-                        <Link href={'#'} className='hover:text-slate-200 transition-colors'>Speakers</Link>
-                        <Link href={'#'} className='hover:text-slate-200 transition-colors'>Charging stations</Link>
-                        <Link href={'#'} className='hover:text-slate-200 transition-colors'>Phones</Link>
-                        <Link href={'#'} className='hover:text-slate-200 transition-colors'>Portable charger</Link>
-                    </div>
-                </div>
-                <div className="flex items-center justify-between">
-                    <p>Privacy Policy</p>
-                    <div className="flex items-center gap-1">
-                        <Link href={"#"}>
-                            <Icons.landingPage.instagram className='h-8 w-8' />
-                        </Link>
-                        <Link href={"#"}>
-                            <Icons.landingPage.facebook className='h-8 w-8' />
-                        </Link>
-                        <Link href={"#"}>
-                        </Link>
-                        <Link href={"#"}>
-                            <Icons.landingPage.tiktok className='h-8 w-8' />
-                        </Link>
-                        <Link href={"#"}>
-                            <Icons.landingPage.youtube className='h-8 w-8' />
-                        </Link>
-                    </div>
-                </div>
+          </div>
+        </div>
+        {/* Middle: Links */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8 border-t border-neutral-800 pt-10">
+          {footerLinks.map((section) => (
+            <div key={section.title}>
+              <h6 className="text-lg font-bold mb-4">{section.title}</h6>
+              <ul className="space-y-3">
+                {section.links.map((link) => (
+                  <li key={link.label}>
+                    <Link
+                      href={link.href}
+                      className="text-neutral-300 hover:text-brand-orange transition-colors"
+                    >
+                      {link.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
             </div>
-        </MaxWidthWrapper>
-    </div>
-}
+          ))}
+        </div>
+        {/* Bottom: Copyright */}
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-t border-neutral-800 pt-8 text-neutral-400 text-sm">
+          <span>
+            © {new Date().getFullYear()} NiheMart. All rights reserved.
+          </span>
+          <div className="flex gap-4">
+            <Link href="/privacy" className="hover:text-brand-orange">
+              Privacy Policy
+            </Link>
+            <span className="hidden md:inline">|</span>
+            <Link href="/terms" className="hover:text-brand-orange">
+              Terms of Service
+            </Link>
+          </div>
+        </div>
+      </MaxWidthWrapper>
+    </footer>
+  );
+};
 
-export default Footer
+export default Footer;

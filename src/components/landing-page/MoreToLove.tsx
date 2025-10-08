@@ -211,7 +211,7 @@ const MoreToLove: FC<MoreToLoveProps> = ({}) => {
   return (
     <div className="mb-20">
       <MaxWidthWrapper size={"lg"} className="">
-        <h3 className="text-4xl font-bold text-neutral-900 mb-8">
+        <h3 className="lg:text-4xl md:text-2xl text-xl font-bold text-neutral-900 mb-8">
           {t("home.more")}
         </h3>
 
