@@ -93,6 +93,33 @@ export function useOrderStats() {
    });
 }
 
+// Hook for fetching refunded items (admin)
+export function useRefundedItems({
+   page = 1,
+   limit = 20,
+   refundStatus,
+}: { page?: number; limit?: number; refundStatus?: string } = {}) {
+   const { user, hasRole } = useAuth();
+
+   return useQuery({
+      queryKey: ["orders", "refunded", { page, limit, refundStatus }],
+      queryFn: async () => {
+         const q = new URLSearchParams();
+         q.set("page", String(page));
+         q.set("limit", String(limit));
+         if (refundStatus) q.set("refundStatus", refundStatus);
+         const res = await fetch(`/api/admin/refunds?${q.toString()}`);
+         if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            throw new Error(body?.error || "Failed to fetch refunded items");
+         }
+         return res.json();
+      },
+      enabled: !!user && hasRole("admin"),
+      staleTime: 0,
+   });
+}
+
 // Hook for creating orders
 export function useCreateOrder() {
    const queryClient = useQueryClient();
@@ -942,6 +969,13 @@ export function useOrders() {
       invalidateOrders: () => {
          queryClient.invalidateQueries({ queryKey: orderKeys.all });
       },
+
+      // Refunds
+      useRefundedItems: (opts?: {
+         page?: number;
+         limit?: number;
+         refundStatus?: string;
+      }) => useRefundedItems(opts || {}),
 
       prefetchOrder: (id: string) => {
          return queryClient.prefetchQuery({

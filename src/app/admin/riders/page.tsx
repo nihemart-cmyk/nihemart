@@ -111,7 +111,7 @@ const RidersPage = () => {
       undefined
    );
    const [page, setPage] = useState(1);
-   const [limit, setLimit] = useState(10);
+   const limit = 10; // fixed page size to match admin/orders
 
    // fetch top rider (who has the most successful deliveries)
    const [topRider, setTopRider] = useState<any | null>(null);
@@ -179,8 +179,10 @@ const RidersPage = () => {
 
    // Fetch batched latest assignment for the riders currently shown on the page.
    const fetchLatestAssignmentsForPage = async (riderIds: string[]) => {
-      if (!riderIds || riderIds.length === 0)
-         return setLatestAssignmentsMap({});
+      if (!riderIds || riderIds.length === 0) {
+         // Nothing to fetch — do not update state to avoid triggering re-renders
+         return;
+      }
       try {
          const res = await fetch(
             `/api/admin/rider-assignments?ids=${encodeURIComponent(
@@ -397,7 +399,7 @@ const RidersPage = () => {
    const paginated = useMemo(() => {
       const start = (page - 1) * limit;
       return filteredRiders.slice(start, start + limit);
-   }, [filteredRiders, page, limit]);
+   }, [filteredRiders, page]);
 
    // When the visible page of riders changes, fetch their latest assignments in bulk.
    useEffect(() => {
@@ -511,7 +513,6 @@ const RidersPage = () => {
                               {topRider.deliveredCount || 0} successful
                               deliveries
                            </div>
-                         
                         </div>
                      ) : (
                         <div className="text-sm text-muted-foreground">—</div>
@@ -731,7 +732,15 @@ const RidersPage = () => {
                            <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => setPage(Math.max(1, page - 1))}
+                              onClick={(e) => {
+                                 e.preventDefault();
+                                 setPage(Math.max(1, page - 1));
+                              }}
+                              className={
+                                 page === 1
+                                    ? "pointer-events-none opacity-50"
+                                    : ""
+                              }
                            >
                               Prev
                            </Button>
@@ -751,7 +760,10 @@ const RidersPage = () => {
                                        variant={
                                           p === page ? "default" : "ghost"
                                        }
-                                       onClick={() => setPage(p)}
+                                       onClick={(e) => {
+                                          e.preventDefault();
+                                          setPage(p);
+                                       }}
                                     >
                                        {p}
                                     </Button>
@@ -761,24 +773,18 @@ const RidersPage = () => {
                            <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() =>
-                                 setPage(Math.min(totalPages, page + 1))
+                              onClick={(e) => {
+                                 e.preventDefault();
+                                 setPage(Math.min(totalPages, page + 1));
+                              }}
+                              className={
+                                 page === totalPages
+                                    ? "pointer-events-none opacity-50"
+                                    : ""
                               }
                            >
                               Next
                            </Button>
-                           <select
-                              value={String(limit)}
-                              onChange={(e) => {
-                                 setLimit(Number(e.target.value));
-                                 setPage(1);
-                              }}
-                              className="ml-2 border rounded px-2 py-1 text-sm"
-                           >
-                              <option value="5">5</option>
-                              <option value="10">10</option>
-                              <option value="25">25</option>
-                           </select>
                         </div>
                      </div>
                   </div>
