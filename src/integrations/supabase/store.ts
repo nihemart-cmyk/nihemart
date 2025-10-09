@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { cache } from "react";
 
 const sb = supabase as any;
 
@@ -91,9 +92,7 @@ const applyStoreFilters = (
 ) => {
   let q = query.in("status", ["active", "out_of_stock"]);
 
-  if (search.trim()) {
-    q = q.or(`name.ilike.%${search.trim()}%,brand.ilike.%${search.trim()}%`);
-  }
+  // Apply category and subcategory filters
   if (filters.categories && filters.categories.length > 0) {
     q = q.in("category_id", filters.categories);
   }
@@ -103,10 +102,20 @@ const applyStoreFilters = (
   if (filters.rating) {
     q = q.gte("average_rating", filters.rating);
   }
+
+  // Apply search filter - use FTS if available, fallback to ILIKE
+  if (search.trim()) {
+    // Try FTS first, but since we need to combine with other filters,
+    // we'll use a more targeted approach
+    q = q.or(`name.ilike.%${search.trim()}%,brand.ilike.%${search.trim()}%,short_description.ilike.%${search.trim()}%`);
+  }
+
   return q;
 };
 
-export async function fetchStoreProducts(options: StoreQueryOptions) {
+export const fetchStoreProducts = cache(async (
+  options: StoreQueryOptions
+): Promise<{ data: StoreProduct[]; count: number }> => {
   // Start the query chain with a select
   let countQuery = sb
     .from("products")
@@ -137,13 +146,13 @@ export async function fetchStoreProducts(options: StoreQueryOptions) {
 
   if (error) throw error;
   return { data: data as StoreProduct[], count: count ?? 0 };
-}
+});
 
-export async function fetchStoreFilterData() {
+export const fetchStoreFilterData = cache(async (): Promise<{ categories: StoreCategory[] }> => {
   const { data, error } = await sb.rpc("get_categories_with_product_count");
   if (error) throw error;
   return { categories: data as StoreCategory[] };
-}
+});
 export async function fetchStoreSubcategories(categoryIds: string[] = []) {
   const { data, error } = await sb.rpc("get_subcategories_with_product_count", {
     parent_category_ids: categoryIds,
@@ -151,9 +160,7 @@ export async function fetchStoreSubcategories(categoryIds: string[] = []) {
   if (error) throw error;
   return { subcategories: data as StoreSubcategory[] };
 }
-export async function fetchStoreProductById(
-  id: string
-): Promise<ProductPageData | null> {
+export const fetchStoreProductById = cache(async (id: string): Promise<ProductPageData | null> => {
   const { data: product, error } = await sb
     .from("products")
     .select(
@@ -205,7 +212,7 @@ export async function fetchStoreProductById(
     reviews: (reviewsRes.data || []) as ProductReview[],
     similarProducts,
   };
-}
+});
 export async function createStoreReview(
   reviewData: ReviewBase,
   imageFile?: File
@@ -255,17 +262,17 @@ export async function createStoreReview(
   }
   return data as ProductReview;
 }
-export async function fetchStoreCategories(): Promise<StoreCategorySimple[]> {
+export const fetchStoreCategories = cache(async (): Promise<StoreCategorySimple[]> => {
   const { data, error } = await sb
     .from("categories")
     .select("id, name")
     .limit(8);
   if (error) throw error;
   return data || [];
-}
-export async function fetchProductsUnder15k(
+});
+export const fetchProductsUnder15k = cache(async (
   categoryId?: string
-): Promise<StoreProduct[]> {
+): Promise<StoreProduct[]> => {
   let query = sb
     .from("products")
     .select(
@@ -281,7 +288,7 @@ export async function fetchProductsUnder15k(
   const { data, error } = await query;
   if (error) throw error;
   return data as StoreProduct[];
-}
+});
 // export async function fetchLandingPageProducts({ categoryId, featured, limit }: { categoryId?: string, featured?: boolean, limit: number }): Promise<StoreProduct[]> {
 //     let query = sb.from('products').select('id, name, price, short_description, main_image_url, average_rating, brand, category:categories(id, name)').in('status', ['active', 'out_of_stock']).order('created_at', { ascending: false }).limit(limit);
 //     if (featured !== undefined) { query = query.eq('featured', featured); }
@@ -291,7 +298,7 @@ export async function fetchProductsUnder15k(
 //     return data as StoreProduct[];
 // }
 
-export async function fetchLandingPageProducts({
+export const fetchLandingPageProducts = cache(async ({
   categoryId,
   featured,
   limit,
@@ -301,7 +308,7 @@ export async function fetchLandingPageProducts({
   featured?: boolean;
   limit: number;
   offset?: number;
-}): Promise<StoreProduct[]> {
+}): Promise<StoreProduct[]> => {
   let query = sb
     .from("products")
     .select(
@@ -321,7 +328,7 @@ export async function fetchLandingPageProducts({
   const { data, error } = await query;
   if (error) throw error;
   return data as StoreProduct[];
-}
+});
 
 export interface SearchResult {
   id: string;
@@ -329,27 +336,46 @@ export interface SearchResult {
   main_image_url: string | null;
   short_description: string | null;
 }
-export async function searchProductsByName(
+export const searchProductsByName = cache(async (
   query: string
-): Promise<SearchResult[]> {
+): Promise<SearchResult[]> => {
   if (!query.trim() || query.trim().length < 2) {
     return [];
   }
 
   const searchTerm = query.trim();
 
-  // Use PostgreSQL's full-text search for better performance and relevance
-  // Search across name, description, short_description, and tags
-  const { data, error } = await sb
-    .from("products")
-    .select("id, name, main_image_url, short_description")
-    .in("status", ["active", "out_of_stock"])
-    .or(`name.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%,short_description.ilike.%${searchTerm}%,tags.cs.{${searchTerm}}`)
-    .limit(5);
+  // Use the new Full-Text Search RPC function for better relevance and ranking
+  const { data, error } = await sb.rpc('search_products_fts', {
+    search_term: searchTerm
+  });
 
   if (error) {
-    console.error("Error searching products:", error);
-    return [];
+    console.error("Error searching products with FTS:", error);
+    // Fallback to basic search if FTS is not available
+    const { data: fallbackData, error: fallbackError } = await sb
+      .from("products")
+      .select("id, name, main_image_url, short_description")
+      .in("status", ["active", "out_of_stock"])
+      .or(`name.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%,short_description.ilike.%${searchTerm}%,tags.cs.{${searchTerm}}`)
+      .limit(5);
+
+    if (fallbackError) {
+      console.error("Error with fallback search:", fallbackError);
+      return [];
+    }
+    return fallbackData as SearchResult[];
   }
+
   return data as SearchResult[];
-}
+});
+
+export const fetchAllProductIds = cache(async (): Promise<string[]> => {
+  const { data, error } = await sb
+    .from("products")
+    .select("id")
+    .in("status", ["active", "out_of_stock"]);
+
+  if (error) throw error;
+  return (data || []).map((product: { id: string }) => product.id);
+});

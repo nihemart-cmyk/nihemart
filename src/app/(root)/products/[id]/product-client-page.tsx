@@ -29,7 +29,7 @@ import type {
   ProductReview,
 } from "@/integrations/supabase/store";
 import { useCart } from "@/contexts/CartContext";
-import { cn } from "@/lib/utils";
+import { cn, optimizeImageUrl } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
 import { toast } from "sonner";
@@ -86,6 +86,17 @@ export default function ProductClientPage({
         Array.from(valueSet),
       ])
     );
+  }, [variations]);
+
+  useEffect(() => {
+    if (variations.length === 1) {
+      const attrs = Object.keys(variations[0].attributes);
+      if (attrs.length === 1) {
+        const attr = attrs[0];
+        const value = variations[0].attributes[attr];
+        setSelectedOptions({ [attr]: value });
+      }
+    }
   }, [variations]);
 
   const possibleVariants = useMemo(() => {
@@ -243,10 +254,15 @@ export default function ProductClientPage({
           <div className="space-y-4">
             <div className="relative aspect-square bg-white rounded-lg overflow-hidden">
               <Image
-                src={displayImages[selectedImageIndex] || "/placeholder.svg"}
+                src={optimizeImageUrl(
+                  displayImages[selectedImageIndex],
+                  { width: 800, height: 800, quality: 85 }
+                )}
                 alt={product.name}
                 fill
                 className="object-contain"
+                sizes="(max-width: 1024px) 100vw, 50vw"
+                quality={85}
               />
               <Button
                 variant="ghost"
@@ -284,11 +300,12 @@ export default function ProductClientPage({
                   }`}
                 >
                   <Image
-                    src={image}
+                    src={optimizeImageUrl(image, { width: 80, height: 80, quality: 70 })}
                     alt={`Thumbnail ${index + 1}`}
                     width={80}
                     height={80}
                     className="object-cover w-full h-full"
+                    quality={70}
                   />
                 </button>
               ))}
@@ -609,10 +626,12 @@ export default function ProductClientPage({
                   <CardContent className="p-4">
                     <div className="relative aspect-square mb-3 bg-gray-100 rounded-lg overflow-hidden">
                       <Image
-                        src={p.main_image_url || "/placeholder.svg"}
+                        src={optimizeImageUrl(p.main_image_url, { width: 200, height: 200, quality: 75 })}
                         alt={p.name}
                         fill
                         className="object-cover transition-transform"
+                        sizes="(max-width: 1024px) 50vw, 25vw"
+                        quality={75}
                       />
                       <div className="absolute top-2 right-2">
                         <WishlistButton

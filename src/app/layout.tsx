@@ -4,6 +4,7 @@ import "./globals.css";
 import Providers from "./Providers";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 import { Toaster } from "sonner";
+import TopProgressBar from "@/components/TopProgressBar";
 
 
 const geistSans = Geist({
@@ -31,6 +32,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <TopProgressBar />
         <Toaster richColors/>
         <Providers>{children}</Providers>
       </body>

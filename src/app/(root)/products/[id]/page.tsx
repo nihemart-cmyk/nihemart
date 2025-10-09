@@ -1,6 +1,21 @@
 import { notFound } from 'next/navigation';
-import { fetchStoreProductById } from '@/integrations/supabase/store';
+import { fetchStoreProductById, fetchAllProductIds } from '@/integrations/supabase/store';
 import ProductClientPage from './product-client-page';
+
+export const revalidate = 3600; // Revalidate every hour
+
+// Generate static params for all products
+export async function generateStaticParams() {
+  try {
+    const productIds = await fetchAllProductIds();
+    return productIds.map((id) => ({
+      id: id,
+    }));
+  } catch (error) {
+    console.error('Failed to generate static params for products:', error);
+    return [];
+  }
+}
 
 interface ProductPageProps {
   params: Promise<{ id: string }>;

@@ -30,7 +30,7 @@ import {
   Search,
   PackageSearch,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, optimizeImageUrl } from "@/lib/utils";
 import {
   fetchStoreProducts,
   fetchStoreFilterData,
@@ -81,8 +81,8 @@ function ProductListingComponent() {
       const { data, count } = await fetchStoreProducts({
         search: debouncedSearchTerm,
         filters: {
-          categories: filters.categories,
-          subcategories: filters.subcategories,
+          categories: filters.categories.length > 0 ? filters.categories : undefined,
+          subcategories: filters.subcategories.length > 0 ? filters.subcategories : undefined,
         },
         sort: {
           column: sortColumn,
@@ -290,8 +290,10 @@ function ProductListingComponent() {
       <div className="container mx-auto px-2 md:px-4 py-6">
         <div className="flex gap-6">
           <div className="hidden lg:block w-80 flex-shrink-0">
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-slate-200 sticky top-28">
-              <FilterContent />
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 sticky top-28 max-h-[calc(100vh-10rem)] overflow-y-auto">
+              <div className="p-6">
+                <FilterContent />
+              </div>
             </div>
           </div>
 
@@ -371,100 +373,69 @@ function ProductListingComponent() {
                 </Button>
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-2 md:gap-5 mb-8">
+              <div className="grid grid-cols-2 sm:grid-cols-3  xl:grid-cols-4 gap-3 md:gap-4 mb-8">
                 {loading
                   ? Array.from({ length: PAGE_LIMIT }).map((_, i) => (
                       <Card
                         key={i}
-                        className="animate-pulse bg-gray-200 h-96"
-                      ></Card>
+                        className="animate-pulse bg-gray-200 h-80 border-0"
+                      >
+                        <CardContent className="p-3">
+                          <div className="aspect-square bg-gray-300 rounded-lg mb-3"></div>
+                          <div className="h-4 bg-gray-300 rounded mb-2"></div>
+                          <div className="h-3 bg-gray-300 rounded w-3/4"></div>
+                        </CardContent>
+                      </Card>
                     ))
                   : products.map((product) => (
                       <Card
                         key={product.id}
                         onClick={() => router.push(`/products/${product?.id}`)}
-                        className="group hover:shadow-xl transition-all duration-300 hover:-translate-y-1 bg-white border-0 shadow-md cursor-pointer"
+                        className="group hover:shadow-xl transition-all duration-300 hover:-translate-y-1 bg-white border-0 shadow-md cursor-pointer overflow-hidden"
                       >
-                        <CardContent className="md:p-5 p-2">
-                          <div className="relative mb-4">
-                            <div className="bg-gradient-to-br from-slate-100 to-slate-200 rounded-xl p-4 aspect-square">
-                              <Image
-                                src={
-                                  product?.main_image_url || "/placeholder.svg"
-                                }
-                                alt={product?.name}
-                                fill
-                                className="object-cover rounded-lg"
-                              />
-                            </div>
-                            {/* <div className="absolute top-2 flex justify-between">
-                              <span className="inline-block bg-brand-orange text-white text-xs font-bold rounded-full px-2 py-0.5 mr-auto">
-                                {product?.price.toLocaleString("en-US", {
-                                  minimumFractionDigits: 2,
-                                  maximumFractionDigits: 2,
-                                })}{" "}
-                                frw
+                        <CardContent className="p-0">
+                          {/* Image Container */}
+                          <div className="relative aspect-square bg-gray-100">
+                            <Image
+                              src={optimizeImageUrl(
+                                product?.main_image_url,
+                                { width: 300, height: 300, quality: 80 }
+                              )}
+                              alt={product?.name}
+                              fill
+                              className="object-cover group-hover:scale-105 transition-transform duration-300"
+                              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+                              quality={80}
+                            />
+                            {/* Price Badge */}
+                            <div className="absolute top-2 left-2">
+                              <span className="inline-block bg-orange-500 text-white text-xs font-bold rounded-full px-2 py-1 shadow-md">
+                                RWF {product?.price.toLocaleString()}
                               </span>
+                            </div>
+                            {/* Wishlist Button */}
+                            <div className="absolute top-2 right-2">
                               <WishlistButton
                                 productId={product.id}
                                 size="sm"
                                 variant="ghost"
-                                className="bg-white/90 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-110 p-2 rounded-full"
-                              />
-                            </div> */}
-                            <div className="absolute z-20 left-3 top-3">
-                              {/* <span className="bg-red-500 text-white text-xs font-bold px-4 py-1 rounded-full shadow-md tracking-widest">
-        HOT
-      </span> */}
-                              <span className="inline-block bg-brand-orange text-white text-xs font-bold rounded-full px-2 py-0.5 mr-auto">
-                                RWF{" "}
-                                {product?.price.toLocaleString("en-US", {
-                                  minimumFractionDigits: 2,
-                                  maximumFractionDigits: 2,
-                                })}{" "}
-                              </span>
-                            </div>
-                            {/* Wishlist button */}
-                            <div className="absolute z-20 right-3 top-3">
-                              <WishlistButton
-                                productId={product.id}
-                                size="sm"
-                                variant="ghost"
-                                className="bg-white/80 backdrop-blur-sm hover:bg-white shadow-sm"
+                                className="bg-white/90 backdrop-blur-sm hover:bg-white shadow-sm rounded-full p-1.5"
                               />
                             </div>
                           </div>
-                          <div className="space-y-2">
-                            <h3 className="font-semibold text-gray-900 text-sm md:text-lg truncate">
+
+                          {/* Content */}
+                          <div className="p-3">
+                            <h3 className="font-semibold text-gray-900 text-sm line-clamp-2 mb-2 min-h-[2.5rem]">
                               {product?.name}
                             </h3>
-                            {/* <p className="text-sm text-gray-900 truncate">
-                              {product?.short_description}
-                            </p> */}
-                            {/* <p className="text-sm text-gray-500">
-                              {product?.brand || "Generic"}
-                            </p> */}
-                            {/* <div className="flex items-center space-x-1">
-                              {renderStars(product?.average_rating)}
-                              <span className="text-sm text-gray-500 ml-2">
-                                ({product?.review_count || 0})
-                              </span>
-                            </div> */}
-                            {/* <p className="text-lg md:text-xl font-bold text-gray-900">
-                              {product?.price.toLocaleString("en-US", {
-                                minimumFractionDigits: 2,
-                                maximumFractionDigits: 2,
-                              })}{" "}
-                              frw
-                            </p> */}
-                            <div className="flex space-x-2 pt-3">
-                              <Button
-                                onClick={(e) => handleAddToCart(e, product)}
-                                className="flex-1 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-md hover:shadow-lg transition-all duration-200"
-                              >
-                                Add To Cart
-                              </Button>
-                            </div>
+                            <Button
+                              onClick={(e) => handleAddToCart(e, product)}
+                              size="sm"
+                              className="w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-sm hover:shadow-md transition-all duration-200 text-xs"
+                            >
+                              Add To Cart
+                            </Button>
                           </div>
                         </CardContent>
                       </Card>
@@ -485,24 +456,77 @@ function ProductListingComponent() {
                 >
                   Previous
                 </Button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map(
-                  (p) => (
-                    <Button
-                      key={p}
-                      onClick={() => setFilters({ page: p })}
-                      variant={filters.page === p ? "default" : "outline"}
-                      size="sm"
-                      className={cn(
-                        "w-10 h-10",
-                        filters.page === p
-                          ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-md"
-                          : "hover:bg-orange-50"
-                      )}
-                    >
-                      {p}
-                    </Button>
-                  )
-                )}
+
+                {(() => {
+                  const pages = [];
+                  const delta = 2; // Number of pages to show around current page
+                  const range = [];
+                  const rangeWithDots = [];
+
+                  // Calculate range around current page
+                  const start = Math.max(2, filters.page - delta);
+                  const end = Math.min(totalPages - 1, filters.page + delta);
+
+                  // Always show first page
+                  if (totalPages >= 1) {
+                    range.push(1);
+                  }
+
+                  // Add pages around current page
+                  for (let i = start; i <= end; i++) {
+                    if (i !== 1 && i !== totalPages) {
+                      range.push(i);
+                    }
+                  }
+
+                  // Always show last page
+                  if (totalPages > 1) {
+                    range.push(totalPages);
+                  }
+
+                  // Remove duplicates and sort
+                  const uniqueRange = [...new Set(range)].sort((a, b) => a - b);
+
+                  // Add ellipsis where needed
+                  for (let i = 0; i < uniqueRange.length; i++) {
+                    const page = uniqueRange[i];
+                    rangeWithDots.push(page);
+
+                    // Add ellipsis if there's a gap
+                    if (i < uniqueRange.length - 1 && uniqueRange[i + 1] - page > 1) {
+                      rangeWithDots.push('...');
+                    }
+                  }
+
+                  return rangeWithDots.map((item, index) => {
+                    if (item === '...') {
+                      return (
+                        <span key={`ellipsis-${index}`} className="px-2 py-1 text-gray-500">
+                          ...
+                        </span>
+                      );
+                    }
+
+                    const pageNum = item as number;
+                    return (
+                      <Button
+                        key={pageNum}
+                        onClick={() => setFilters({ page: pageNum })}
+                        variant={filters.page === pageNum ? "default" : "outline"}
+                        size="sm"
+                        className={cn(
+                          "w-10 h-10",
+                          filters.page === pageNum
+                            ? "bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-md"
+                            : "hover:bg-orange-50"
+                        )}
+                      >
+                        {pageNum}
+                      </Button>
+                    );
+                  });
+                })()}
+
                 <Button
                   onClick={() =>
                     setFilters({ page: Math.min(totalPages, filters.page + 1) })

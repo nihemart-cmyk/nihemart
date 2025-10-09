@@ -16,6 +16,7 @@ import {
   fetchProductsUnder15k,
   fetchStoreCategories,
 } from "@/integrations/supabase/store";
+import { optimizeImageUrl } from "@/lib/utils";
 import type {
   StoreProduct,
   StoreCategorySimple,
@@ -153,7 +154,7 @@ const FeaturedProducts: FC<FeaturedProductsProps> = ({}) => {
                     {/* Product Image */}
                     <div className="relative w-full aspect-[4/5] bg-gradient-to-br from-blue-100 to-blue-50 overflow-hidden">
                       <Image
-                        src={product.main_image_url || "/placeholder.svg"}
+                        src={optimizeImageUrl(product.main_image_url, { width: 300, height: 400, quality: 80 })}
                         alt={product.name}
                         fill
                         className="object-cover transition-transform duration-300 group-hover:scale-105"

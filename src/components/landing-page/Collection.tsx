@@ -109,36 +109,18 @@ const Collection: FC<CollectionProps> = ({}) => {
                 <Link
                   href={`/products?categories=${category.id}`}
                   key={category.id}
-                  className="w-60 h-60 border-2 border-blue-100 rounded-lg aspect-[9/12] shrink-0 flex flex-col items-center group"
+                  className="w-60 h-60 border-2 border-blue-100 rounded-lg shrink-0 flex flex-col items-center justify-center group hover:border-orange-200 transition-colors"
                 >
-                  {/* <Image
-                    src={category.icon_url || "/placeholder.svg"}
-                    alt={category.name}
-                    width={150}
-                    height={150}
-                    className="group-hover:scale-105 transition-transform duration-300 w-[50%]"
-                  /> */}
                   <Image
                     src={category.icon_url || "/placeholder.svg"}
                     alt={category.name}
-                    width={150}
-                    height={150}
-                    className="m-auto group-hover:scale-105 transition-transform duration-300"
+                    width={120}
+                    height={120}
+                    className="group-hover:scale-105 transition-transform duration-300 mb-3"
                   />
-                  {/* <div className="relative w-full z-10 h-full flex flex-col justify-end text-gray-700 md:px-5 px-1 text-center md:text-left pb-2"> */}
-                  {/* <h4 className="text-lg font-semibold truncate w-[50%]">
-                    {category.name}
-                  </h4> */}
-                  <h4 className="mb-2 group-hover:text-gray-800">
+                  <h4 className="text-center font-medium text-gray-800 group-hover:text-orange-600 transition-colors px-2">
                     {category.name}
                   </h4>
-                  {/* <div className="hidden md:flex items-center justify-between mt-1">
-                      <p className="text-sm opacity-80">
-                        Check out all our products
-                      </p>
-                      <ArrowRight className="group-hover:translate-x-1 transition-transform" />
-                    </div> */}
-                  {/* </div> */}
                 </Link>
               ))}
         </div>
