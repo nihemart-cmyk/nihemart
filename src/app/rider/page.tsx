@@ -26,6 +26,13 @@ import { fetchRiderByUserId } from "@/integrations/supabase/riders";
 import { useRiderAssignments } from "@/hooks/useRiders";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import {
+   Select,
+   SelectTrigger,
+   SelectValue,
+   SelectContent,
+   SelectItem,
+} from "@/components/ui/select";
+import {
    Popover,
    PopoverContent,
    PopoverTrigger,
@@ -248,10 +255,8 @@ const RecentDelivery: React.FC<RecentDeliveryProps> = ({
 const Dashboard = () => {
    const { user, isLoggedIn } = useAuth();
    const [rider, setRider] = useState<any | null>(null);
-   const [selectedDate, setSelectedDate] = useState<Date | undefined>(
-      new Date()
-   );
-   const [calendarOpen, setCalendarOpen] = useState(false);
+   // replace calendar with timeframe selector for analytics
+   const [timeframe, setTimeframe] = useState<string>("7");
 
    useEffect(() => {
       if (!user) return;
@@ -294,7 +299,41 @@ const Dashboard = () => {
       return sum + (isNaN(parsed) ? 0 : parsed);
    }, 0);
 
-   const recent = assignments.slice(0, 5).map((a: any) => {
+   // Timeframe filtering: last N days (controlled by Select)
+   const parseDate = (value: any): Date | null => {
+      if (!value) return null;
+      const d = new Date(value);
+      return isNaN(d.getTime()) ? null : d;
+   };
+
+   const filteredAssignments = React.useMemo(() => {
+      const days = Number(timeframe) || 7;
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - days);
+      return assignments.filter((a: any) => {
+         const order = a.orders || a.order || null;
+         const timestamps = [
+            a.assigned_at,
+            a.delivered_at,
+            a.completed_at,
+            a.updated_at,
+            a.created_at,
+            order?.delivered_at,
+            order?.completed_at,
+            order?.updated_at,
+            order?.created_at,
+         ]
+            .map(parseDate)
+            .filter(Boolean) as Date[];
+         const ts = timestamps[0];
+         if (!ts) return false;
+         return ts >= cutoff;
+      });
+   }, [assignments, timeframe]);
+
+   const selectedDateAssignments = filteredAssignments;
+
+   const recent = filteredAssignments.slice(0, 5).map((a: any) => {
       const order =
          a.orders || a.order || (a.order_id ? { id: a.order_id } : null);
       return {
@@ -305,38 +344,6 @@ const Dashboard = () => {
          time: "-",
          status: a.status || order?.status || "-",
       };
-   });
-
-   // Derived metrics for selected date analytics
-   const filterDate = selectedDate || new Date();
-   const isSameDay = (d: Date) =>
-      d.getFullYear() === filterDate.getFullYear() &&
-      d.getMonth() === filterDate.getMonth() &&
-      d.getDate() === filterDate.getDate();
-
-   const parseDate = (value: any): Date | null => {
-      if (!value) return null;
-      const d = new Date(value);
-      return isNaN(d.getTime()) ? null : d;
-   };
-
-   const selectedDateAssignments = assignments.filter((a: any) => {
-      const order = a.orders || a.order || null;
-      const timestamps = [
-         a.delivered_at,
-         a.completed_at,
-         a.updated_at,
-         a.created_at,
-         order?.delivered_at,
-         order?.completed_at,
-         order?.updated_at,
-         order?.created_at,
-      ]
-         .map(parseDate)
-         .filter(Boolean) as Date[];
-      const ts = timestamps[0];
-      if (!ts) return false;
-      return isSameDay(ts);
    });
 
    const selectedDateTotal = selectedDateAssignments.reduce(
@@ -471,42 +478,27 @@ const Dashboard = () => {
                                  <Navigation className="w-4 h-4 sm:w-5 sm:h-5 text-orange-500" />
                                  Delivery Analytics
                               </CardTitle>
-                              <Popover
-                                 open={calendarOpen}
-                                 onOpenChange={setCalendarOpen}
-                              >
-                                 <PopoverTrigger asChild>
-                                    <Button
-                                       variant="outline"
-                                       className="justify-start text-left font-normal h-9 px-3"
-                                    >
-                                       <Calendar className="mr-2 h-4 w-4" />
-                                       {selectedDate ? (
-                                          format(selectedDate, "PPP")
-                                       ) : (
-                                          <span>Pick a date</span>
-                                       )}
-                                    </Button>
-                                 </PopoverTrigger>
-                                 <PopoverContent
-                                    className="w-auto p-0"
-                                    align="end"
+                              <div className="w-44">
+                                 <Select
+                                    value={timeframe}
+                                    onValueChange={setTimeframe}
                                  >
-                                    <CalendarComponent
-                                       mode="single"
-                                       selected={selectedDate}
-                                       onSelect={(date) => {
-                                          setSelectedDate(date);
-                                          setCalendarOpen(false);
-                                       }}
-                                       initialFocus
-                                       captionLayout="dropdown"
-                                       fromYear={2020}
-                                       toYear={2025}
-                                       className="rounded-md border shadow-sm"
-                                    />
-                                 </PopoverContent>
-                              </Popover>
+                                    <SelectTrigger>
+                                       <SelectValue placeholder="Last 7 days" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                       <SelectItem value="7">
+                                          Last 7 days
+                                       </SelectItem>
+                                       <SelectItem value="30">
+                                          Last 30 days
+                                       </SelectItem>
+                                       <SelectItem value="365">
+                                          Last 12 months
+                                       </SelectItem>
+                                    </SelectContent>
+                                 </Select>
+                              </div>
                            </div>
                         </CardHeader>
                         <CardContent>
@@ -550,10 +542,11 @@ const Dashboard = () => {
                                     <div className="flex items-center justify-between">
                                        <div className="space-y-1">
                                           <p className="text-gray-500 text-xs sm:text-sm">
-                                             {selectedDate
-                                                ? format(selectedDate, "MMM dd")
-                                                : "Today"}
-                                             &apos;s total
+                                             {timeframe === "7"
+                                                ? "Last 7 days total"
+                                                : timeframe === "30"
+                                                ? "Last 30 days total"
+                                                : "Last 12 months total"}
                                           </p>
                                           <p className="text-xl sm:text-2xl font-bold text-gray-900">
                                              RWF{" "}
