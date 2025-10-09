@@ -1,9 +1,9 @@
 import { createBrowserClient } from '@supabase/ssr';
 import type { Database } from "./types";
 
-const SUPABASE_URL = "https://rdyuozpgscgvbemnqpme.supabase.co";
+const SUPABASE_URL = "https://bxsbnejbjoqxiywrerjm.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY =
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJkeXVvenBnc2NndmJlbW5xcG1lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk5NzAwODYsImV4cCI6MjA3NTU0NjA4Nn0.OJ0bZLAJdMuUVjukOkufYGwu_iUbFomMVTlJ_zZNVDg";
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ4c2JuZWpiam9xeGl5d3JlcmptIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ4NDkxMDYsImV4cCI6MjA3MDQyNTEwNn0.IR-cLuij3jc9Yl_9jaj77TmpOJfUiyi81JeGLnMvWow";
 
 // Only use localStorage in the browser
 const isBrowser = typeof window !== "undefined";
