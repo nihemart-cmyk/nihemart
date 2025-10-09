@@ -20,6 +20,8 @@ const Cart = () => {
       subtotal,
       // transport,
    } = useCart();
+   // Calculate unique product count
+   const uniqueProductCount = items.length;
 
    const [isLoading, setIsLoading] = useState(true);
    const [updatingItem, setUpdatingItem] = useState<string | null>(null);
@@ -36,7 +38,7 @@ const Cart = () => {
 
    const handleUpdateQuantity = async (itemId: string, newQuantity: number) => {
       if (newQuantity < 1) return;
-      
+
       setUpdatingItem(itemId);
       try {
          await updateQuantity(itemId, newQuantity);
@@ -89,7 +91,10 @@ const Cart = () => {
                <p className="text-muted-foreground mb-6 sm:mb-8 text-sm sm:text-base">
                   {t("cart.addProducts")}
                </p>
-               <Button asChild className="bg-orange-500 hover:bg-orange-600 text-white text-sm sm:text-base">
+               <Button
+                  asChild
+                  className="bg-orange-500 hover:bg-orange-600 text-white text-sm sm:text-base"
+               >
                   <Link href={"/products"}>{t("cart.continue")}</Link>
                </Button>
             </div>
@@ -108,7 +113,8 @@ const Cart = () => {
             </p>
             <div className="flex items-center mt-2">
                <span className="text-sm text-gray-600 bg-orange-50 px-2 py-1 rounded-full">
-                  {itemsCount} item{itemsCount !== 1 ? 's' : ''} in cart
+                  {uniqueProductCount} product
+                  {uniqueProductCount !== 1 ? "s" : ""} in cart
                </span>
             </div>
          </div>
@@ -117,7 +123,10 @@ const Cart = () => {
             {/* Cart Items */}
             <div className="lg:col-span-2 space-y-4 sm:space-y-6">
                {items.map((item) => (
-                  <Card key={item.id} className="hover:shadow-md transition-shadow duration-200">
+                  <Card
+                     key={item.id}
+                     className="hover:shadow-md transition-shadow duration-200"
+                  >
                      <CardContent className="p-3 sm:p-4">
                         <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
                            {/* Image */}
@@ -127,7 +136,8 @@ const Cart = () => {
                                  alt={item.name}
                                  className="w-full h-32 sm:h-24 sm:w-24 object-cover rounded-md"
                                  onError={(e) => {
-                                    (e.target as HTMLImageElement).src = '/placeholder-image.jpg';
+                                    (e.target as HTMLImageElement).src =
+                                       "/placeholder-image.jpg";
                                  }}
                               />
                            </div>
@@ -145,20 +155,28 @@ const Cart = () => {
                                     </p>
                                  )}
                               </div>
-                              
+
                               {/* Price */}
                               <p className="font-bold text-orange-500 text-sm sm:text-base mb-3 sm:mb-4">
                                  {item.price.toLocaleString()} RWF
                               </p>
-                              
+
                               {/* Quantity & Remove */}
                               <div className="flex items-center justify-between">
                                  <div className="flex items-center space-x-2">
                                     <Button
                                        variant="outline"
                                        size="sm"
-                                       onClick={() => handleUpdateQuantity(item.id, item.quantity - 1)}
-                                       disabled={item.quantity <= 1 || updatingItem === item.id}
+                                       onClick={() =>
+                                          handleUpdateQuantity(
+                                             item.id,
+                                             item.quantity - 1
+                                          )
+                                       }
+                                       disabled={
+                                          item.quantity <= 1 ||
+                                          updatingItem === item.id
+                                       }
                                        className="h-8 w-8 sm:h-9 sm:w-9 p-0"
                                        aria-label="Decrease quantity"
                                     >
@@ -174,7 +192,12 @@ const Cart = () => {
                                     <Button
                                        variant="outline"
                                        size="sm"
-                                       onClick={() => handleUpdateQuantity(item.id, item.quantity + 1)}
+                                       onClick={() =>
+                                          handleUpdateQuantity(
+                                             item.id,
+                                             item.quantity + 1
+                                          )
+                                       }
                                        disabled={updatingItem === item.id}
                                        className="h-8 w-8 sm:h-9 sm:w-9 p-0"
                                        aria-label="Increase quantity"
@@ -186,7 +209,7 @@ const Cart = () => {
                                        )}
                                     </Button>
                                  </div>
-                                 
+
                                  <Button
                                     variant="outline"
                                     size="sm"
@@ -204,13 +227,16 @@ const Cart = () => {
                               </div>
                            </div>
                         </div>
-                        
+
                         {/* Item Total */}
                         <div className="mt-3 pt-3 border-t border-gray-100">
                            <div className="flex justify-between items-center">
-                              <span className="text-xs sm:text-sm text-gray-600">Item total:</span>
+                              <span className="text-xs sm:text-sm text-gray-600">
+                                 Item total:
+                              </span>
                               <span className="font-semibold text-sm sm:text-base text-gray-900">
-                                 {(item.price * item.quantity).toLocaleString()} RWF
+                                 {(item.price * item.quantity).toLocaleString()}{" "}
+                                 RWF
                               </span>
                            </div>
                         </div>
@@ -223,24 +249,35 @@ const Cart = () => {
             <div className="lg:sticky lg:top-4">
                <Card className="border border-gray-200 shadow-sm">
                   <CardContent className="p-4 sm:p-6 space-y-4 sm:space-y-6">
-                     <h3 className="text-lg font-semibold text-gray-900">Order Summary</h3>
+                     <h3 className="text-lg font-semibold text-gray-900">
+                        Order Summary
+                     </h3>
 
                      <div className="space-y-3">
                         <div className="flex justify-between text-sm sm:text-base">
-                           <span className="text-gray-600">Subtotal ({itemsCount} items)</span>
-                           <span className="font-medium">{subtotal.toLocaleString()} RWF</span>
+                           <span className="text-gray-600">
+                              Subtotal ({uniqueProductCount} product
+                              {uniqueProductCount !== 1 ? "s" : ""})
+                           </span>
+                           <span className="font-medium">
+                              {subtotal.toLocaleString()} RWF
+                           </span>
                         </div>
-                        
+
                         {/* <div className="flex justify-between text-sm sm:text-base">
                            <span className="text-gray-600">Transport fee</span>
                            <span>{transport.toLocaleString()} RWF</span>
                         </div> */}
-                        
+
                         <Separator />
-                        
+
                         <div className="flex justify-between font-bold text-base sm:text-lg">
-                           <span className="text-gray-900">{t("cart.total")}</span>
-                           <span className="text-orange-600">{total.toLocaleString()} RWF</span>
+                           <span className="text-gray-900">
+                              {t("cart.total")}
+                           </span>
+                           <span className="text-orange-600">
+                              {total.toLocaleString()} RWF
+                           </span>
                         </div>
                      </div>
 
@@ -250,9 +287,7 @@ const Cart = () => {
                            size="lg"
                            asChild
                         >
-                           <Link href={"/checkout"}>
-                              {t("cart.order")}
-                           </Link>
+                           <Link href={"/checkout"}>{t("cart.order")}</Link>
                         </Button>
 
                         <Button
@@ -260,17 +295,11 @@ const Cart = () => {
                            className="w-full border-gray-300 text-gray-700 hover:bg-gray-50 text-sm sm:text-base h-11 sm:h-12"
                            asChild
                         >
-                           <Link href={"/products"}>
-                              {t("cart.continue")}
-                           </Link>
+                           <Link href={"/products"}>{t("cart.continue")}</Link>
                         </Button>
                      </div>
-                     
-                  
                   </CardContent>
                </Card>
-               
-           
             </div>
          </div>
       </div>
