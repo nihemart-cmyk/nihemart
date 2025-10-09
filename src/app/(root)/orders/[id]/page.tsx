@@ -379,15 +379,7 @@ const OrderDetails = () => {
                                     </p>
 
                                     <div className="flex flex-wrap items-center gap-2">
-                                       {item.refund_status === "rejected" ? (
-                                          <Badge
-                                             variant="destructive"
-                                             className="text-xs"
-                                          >
-                                             <X className="h-3 w-3 mr-1" />
-                                             Rejected
-                                          </Badge>
-                                       ) : !isAdmin && isOwner ? (
+                                       {!isAdmin && isOwner ? (
                                           item.refund_status ? (
                                              <>
                                                 <Badge
@@ -395,6 +387,9 @@ const OrderDetails = () => {
                                                       item.refund_status ===
                                                       "approved"
                                                          ? "default"
+                                                         : item.refund_status ===
+                                                           "rejected"
+                                                         ? "destructive"
                                                          : "secondary"
                                                    }
                                                    className="text-xs"
@@ -404,6 +399,12 @@ const OrderDetails = () => {
                                                       <>
                                                          <CheckCircle className="h-3 w-3 mr-1" />
                                                          Refund Approved
+                                                      </>
+                                                   ) : item.refund_status ===
+                                                     "rejected" ? (
+                                                      <>
+                                                         <X className="h-3 w-3 mr-1" />
+                                                         Refund Rejected
                                                       </>
                                                    ) : (
                                                       item.refund_status
