@@ -12,7 +12,13 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Icons } from "./icons";
 import SidebarAnimatedBackground from "./admin/sidebar-animated-bg";
-import { BadgeDollarSign, ChevronDown, LogOut, Settings } from "lucide-react";
+import {
+   BadgeDollarSign,
+   ChevronDown,
+   LogOut,
+   Settings,
+   CornerUpLeft,
+} from "lucide-react";
 import { Button } from "./ui/button";
 
 interface NavItem {
@@ -91,6 +97,19 @@ const navItems: NavItem[] = [
             id: "3-3",
             title: "External orders",
             href: "/admin/orders/external",
+         },
+      ],
+   },
+   {
+      id: "3a",
+      title: "Refunds",
+      icon: CornerUpLeft,
+      subLinks: [
+         { id: "3a-1", title: "Refund Requests", href: "/admin/refunds" },
+         {
+            id: "3a-2",
+            title: "Refund History",
+            href: "/admin/refunds/history",
          },
       ],
    },

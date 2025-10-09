@@ -719,6 +719,147 @@ export async function fetchOrderById(id: string) {
    return data as Order | null;
 }
 
+// Fetch refunded / refund-requested order items for admin management
+export async function fetchRefundedItems({
+   refundStatus, // optional filter: 'requested' | 'approved' | 'rejected' | 'cancelled'
+   pagination,
+   sort = { column: "refund_requested_at", direction: "desc" },
+}: {
+   refundStatus?: string;
+   pagination?: { page: number; limit: number };
+   sort?: { column: string; direction: "asc" | "desc" };
+} = {}) {
+   // count query
+   let countQuery = sb
+      .from("order_items")
+      .select("id", { head: true, count: "exact" });
+   if (refundStatus) {
+      countQuery = countQuery.eq("refund_status", refundStatus);
+   } else {
+      // show any items with a non-null refund_status
+      countQuery = countQuery.neq("refund_status", null);
+   }
+
+   const { count, error: countError } = await countQuery;
+   if (countError) {
+      console.error("Error fetching refunded items count:", countError);
+      throw countError;
+   }
+
+   // list query: include related order and product information to display in admin UI
+   let listQuery = sb
+      .from("order_items")
+      .select(
+         `*, order:orders(id, order_number, customer_first_name, customer_last_name, customer_email, delivery_city, created_at), product:products(id, name, main_image_url), variation:product_variations(id, sku)`
+      );
+
+   if (refundStatus) {
+      listQuery = listQuery.eq("refund_status", refundStatus);
+   } else {
+      listQuery = listQuery.neq("refund_status", null);
+   }
+
+   // apply sorting
+   if (sort) {
+      try {
+         listQuery = listQuery.order(sort.column, {
+            ascending: sort.direction === "asc",
+         });
+      } catch (e) {
+         // ignore invalid sort column
+      }
+   }
+
+   // pagination
+   if (pagination) {
+      const from = (pagination.page - 1) * pagination.limit;
+      const to = from + pagination.limit - 1;
+      listQuery = listQuery.range(from, to);
+   }
+
+   const { data, error } = await listQuery;
+   if (error) {
+      console.error("Error fetching refunded order items:", error);
+      throw error;
+   }
+
+   return {
+      data: data as any[],
+      count: count || 0,
+   };
+}
+
+// Fetch aggregated refund metrics for admin dashboard (totals and recent monthly series)
+export async function fetchRefundedDataForDashboard() {
+   try {
+      // Totals by status from order_items
+      const { data: totalsRows, error: totalsErr } = await sb
+         .from("order_items")
+         .select("refund_status, count:id", { count: "exact" })
+         .neq("refund_status", null);
+
+      // If the above doesn't return buckets, fall back to simple counts
+      const totals = { requested: 0, approved: 0, rejected: 0 } as any;
+      if (!totalsErr && Array.isArray(totalsRows)) {
+         // PostgREST won't bucket by default here; perform a simple scan
+         const { data: rows, error: rowsErr } = await sb
+            .from("order_items")
+            .select("refund_status")
+            .neq("refund_status", null);
+         if (!rowsErr && Array.isArray(rows)) {
+            rows.forEach((r: any) => {
+               const s = r.refund_status || "requested";
+               if (s in totals) totals[s] = (totals[s] || 0) + 1;
+               else totals[s] = (totals[s] || 0) + 1;
+            });
+         }
+      } else {
+         // Conservative default
+      }
+
+      // Build a simple monthly series for the last 6 months
+      const months: string[] = [];
+      const series: any[] = [];
+      const now = new Date();
+      for (let i = 5; i >= 0; i--) {
+         const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+         const label = d.toLocaleString("default", { month: "short" });
+         months.push(label);
+         series.push({ month: label, requested: 0, approved: 0, rejected: 0 });
+      }
+
+      // Fetch recent refund events (last 6 months)
+      const since = new Date(
+         now.getFullYear(),
+         now.getMonth() - 5,
+         1
+      ).toISOString();
+      const { data: recentRows, error: recentErr } = await sb
+         .from("order_items")
+         .select("refund_status, refund_requested_at")
+         .gte("refund_requested_at", since)
+         .neq("refund_status", null);
+
+      if (!recentErr && Array.isArray(recentRows)) {
+         recentRows.forEach((r: any) => {
+            const dt = r.refund_requested_at
+               ? new Date(r.refund_requested_at)
+               : null;
+            if (!dt) return;
+            const label = dt.toLocaleString("default", { month: "short" });
+            const idx = series.findIndex((s) => s.month === label);
+            const status = r.refund_status || "requested";
+            if (idx >= 0) series[idx][status] = (series[idx][status] || 0) + 1;
+         });
+      }
+
+      return { totals, series };
+   } catch (err) {
+      console.error("fetchRefundedDataForDashboard error", err);
+      return { totals: { requested: 0, approved: 0, rejected: 0 }, series: [] };
+   }
+}
+
 // Create new order
 export async function createOrder({
    order,
