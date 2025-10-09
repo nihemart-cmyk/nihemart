@@ -9,6 +9,7 @@ import MarqueeBanner from "./MarqueeBanner";
 import { Icons } from "../icons";
 import { useMediaQuery } from "@/hooks/user-media-query";
 import { fetchLandingPageProducts } from "@/integrations/supabase/store";
+import { optimizeImageUrl } from "@/lib/utils";
 import type {
   StoreProduct,
   StoreCategorySimple,
@@ -60,7 +61,7 @@ const ProductCard = ({ product }: { product: StoreProduct }) => (
       tabIndex={0}
     >
       <Image
-        src={product.main_image_url || "/placeholder.svg"}
+        src={optimizeImageUrl(product.main_image_url, { width: 300, height: 400, quality: 80 })}
         alt={product.name}
         fill
         className="object-cover transition-transform duration-300 group-hover:scale-105"

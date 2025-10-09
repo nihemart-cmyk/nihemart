@@ -68,11 +68,15 @@ export default function HeroCarousel() {
                 <div className="relative h-[60vh] sm:h-[70vh] md:h-[80vh] lg:h-[90vh] rounded-2xl overflow-hidden">
                   <Image
                     className="w-full h-full object-cover absolute inset-0 z-0"
-                    alt="image"
-                    priority
+                    alt={slide.heading}
+                    priority={index === 0}
+                    loading={index === 0 ? "eager" : "lazy"}
                     src={slide.image}
-                    height={500}
-                    width={980}
+                    height={800}
+                    width={1200}
+                    quality={85}
+                    placeholder="blur"
+                    blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R+IRjWjBqO6O2mhP//Z"
                   />
                   <div className="relative h-full z-10 bg-gradient-to-t from-[#36A9EC] to-transparent flex flex-col p-4 md:p-10">
                     <div className="mt-auto mb-12 sm:mb-20 px-5 sm:px-10 md:px-20 flex flex-col md:flex-row justify-between md:items-center gap-6 md:gap-10">

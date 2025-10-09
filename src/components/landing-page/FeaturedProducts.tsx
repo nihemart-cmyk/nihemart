@@ -64,10 +64,7 @@ const ProductCard = ({ product }: { product: StoreProduct }) => (
     <div className="flex flex-col flex-1 px-3 md:px-4 pt-3 pb-4 gap-2">
       <span className="text-orange-500 text-lg md:text-xl font-bold">
         RWF{" "}
-        {product?.price.toLocaleString("en-US", {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        })}{" "}
+        {product?.price.toLocaleString()}{" "}
       </span>
       <h4 className="font-bold text-gray-900 text-base md:text-lg line-clamp-2 truncate">
         {product.name}
@@ -100,7 +97,7 @@ const FeaturedProducts: FC<FeaturedProductsProps> = ({}) => {
       try {
         const [cats, prods] = await Promise.all([
           fetchStoreCategories(),
-          fetchProductsUnder15k(undefined, { limit: initialLimit, offset: 0 }),
+          fetchProductsUnder15k(undefined),
         ]);
         setCategories(cats);
         setProducts(prods);
@@ -122,8 +119,7 @@ const FeaturedProducts: FC<FeaturedProductsProps> = ({}) => {
       setLoading(true);
       try {
         const prods = await fetchProductsUnder15k(
-          selectedCategoryId === "all" ? undefined : selectedCategoryId,
-          { limit: initialLimit, offset: 0 }
+          selectedCategoryId === "all" ? undefined : selectedCategoryId
         );
         setProducts(prods);
         setOffset(prods.length);
@@ -141,8 +137,7 @@ const FeaturedProducts: FC<FeaturedProductsProps> = ({}) => {
     setLoadingMore(true);
     try {
       const newProducts = await fetchProductsUnder15k(
-        selectedCategoryId === "all" ? undefined : selectedCategoryId,
-        { limit: loadMoreLimit, offset }
+        selectedCategoryId === "all" ? undefined : selectedCategoryId
       );
       setProducts((prev) => [...prev, ...newProducts]);
       setOffset((prev) => prev + newProducts.length);
