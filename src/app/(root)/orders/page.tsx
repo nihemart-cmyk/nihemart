@@ -11,6 +11,7 @@ import {
    Loader2,
    ArrowLeft,
    ShoppingBag,
+   CheckCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -446,19 +447,28 @@ const Orders = () => {
                                  {/* Request full refund: only within 24h after delivered and visible to owner/admin */}
                                  {order.status === "delivered" &&
                                     order.delivered_at &&
-                                    (user?.id === order.user_id || hasRole("admin")) &&
+                                    (user?.id === order.user_id ||
+                                       hasRole("admin")) &&
                                     (() => {
-                                       const deliveredAt = new Date(order.delivered_at).getTime();
-                                       const within24h = Date.now() - deliveredAt <= 24 * 60 * 60 * 1000;
+                                       const deliveredAt = new Date(
+                                          order.delivered_at
+                                       ).getTime();
+                                       const within24h =
+                                          Date.now() - deliveredAt <=
+                                          24 * 60 * 60 * 1000;
                                        if (!within24h) return null;
-                                       if (order.refund_status === "requested") {
+                                       if (
+                                          order.refund_status === "requested"
+                                       ) {
                                           return (
                                              <Button
                                                 size="sm"
                                                 variant="outline"
                                                 onClick={async () => {
                                                    try {
-                                                      await cancelOrderRefund.mutateAsync(order.id);
+                                                      await cancelOrderRefund.mutateAsync(
+                                                         order.id
+                                                      );
                                                    } catch (err) {
                                                       console.error(err);
                                                    }
@@ -472,7 +482,10 @@ const Orders = () => {
                                        // Do not show refund button if already refunded
                                        if (order.refund_status === "refunded") {
                                           return (
-                                             <Badge variant="default" className="text-xs bg-green-100 text-green-700">
+                                             <Badge
+                                                variant="default"
+                                                className="text-xs bg-green-100 text-green-700"
+                                             >
                                                 <CheckCircle className="h-3 w-3 mr-1" />
                                                 Refunded
                                              </Badge>

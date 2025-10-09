@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { cache } from "react";
 
 const sb = supabase as any;
 
@@ -20,7 +21,7 @@ export interface CategoryQueryOptions {
   limit?: number;
 }
 
-export async function fetchCategories({ search = '', page = 1, limit = 10 }: CategoryQueryOptions) {
+export const fetchCategories = cache(async ({ search = '', page = 1, limit = 10 }: CategoryQueryOptions) => {
   let query = sb
     .from('categories')
     .select('*, products(count)', { count: 'exact' });
@@ -37,14 +38,14 @@ export async function fetchCategories({ search = '', page = 1, limit = 10 }: Cat
   const { data, error, count } = await query;
 
   if (error) throw error;
-  
+
   const formattedData = data.map((cat: any) => ({
     ...cat,
     products_count: cat.products[0]?.count || 0,
   }));
 
   return { data: formattedData as Category[], count: count ?? 0 };
-}
+});
 
 export async function createCategory(categoryData: CategoryInput): Promise<Category> {
   const { data, error } = await sb
