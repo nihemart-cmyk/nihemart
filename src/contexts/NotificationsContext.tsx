@@ -45,30 +45,46 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
       let notificationsChannel: any = null;
       const addNotificationLocal = (n: Notification) => {
          setNotifications((prev) => [n, ...prev]);
-         // Improved, context-aware notification toast messages
-         let message = "";
-         switch (n.type) {
-            case "order":
-               message = n.body
-                  ? `Order Update: ${n.body}`
-                  : `You have a new order update.`;
-               break;
-            case "promotion":
-               message = n.body
-                  ? `Special Offer: ${n.body}`
-                  : `A new promotion is available!`;
-               break;
-            case "system":
-               message = n.body
-                  ? `System Alert: ${n.body}`
-                  : `There is a new system notification.`;
-               break;
-            default:
-               message = n.title
+         // Show concise toasts only for important customer-facing events.
+         try {
+            // Parse meta if present
+            const meta =
+               typeof n.meta === "string" ? JSON.parse(n.meta) : n.meta || {};
+
+            // Only show assignment_accepted toasts for the order owner (customer)
+            if (n.type === "assignment_accepted") {
+               // if meta contains rider info, present the rider contact format
+               if (meta && (meta.rider_name || meta.rider_phone)) {
+                  const riderName =
+                     meta.rider_name || meta.rider?.name || "Rider";
+                  const riderPhone =
+                     meta.rider_phone ||
+                     meta.rider?.phone ||
+                     "No phone provided";
+                  const message = `This rider is going to deliver your order.\n${riderName},\n${riderPhone}`;
+                  toast.message(message);
+                  return;
+               }
+               // otherwise show a minimal accepted message
+               toast.message(n.title || "Your order will be delivered soon.");
+               return;
+            }
+
+            // For other types, avoid noisy toasts; show only system/promotion/order updates
+            if (
+               n.type === "system" ||
+               n.type === "promotion" ||
+               n.type === "order"
+            ) {
+               const message = n.title
                   ? `${n.title}${n.body ? ` — ${n.body}` : ""}`
-                  : `You have a new notification.`;
+                  : n.body || "You have a new notification.";
+               toast.message(message);
+            }
+         } catch (e) {
+            // fallback: show generic toast
+            toast.message(n.title || "You have a new notification.");
          }
-         toast.message(message);
       };
 
       const fetchPersisted = async () => {

@@ -4,7 +4,8 @@ export type OrderStatus =
    | "shipped"
    | "assigned"
    | "delivered"
-   | "cancelled";
+   | "cancelled"
+   | "refunded";
 
 export interface OrderBase {
    user_id?: string;
@@ -79,7 +80,7 @@ export type RefundStatus =
    | "approved"
    | "rejected"
    | "cancelled"
-   | "refunded" ;
+   | "refunded";
 
 export interface CreateOrderRequest {
    order: OrderBase;

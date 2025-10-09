@@ -41,7 +41,13 @@ import { Checkbox } from "../ui/checkbox";
 
 interface OrdersTableProps {}
 
-type StatusLabel = "All" | "Pending" | "Processing" | "Delivered" | "Cancelled";
+type StatusLabel =
+   | "All"
+   | "Pending"
+   | "Processing"
+   | "Delivered"
+   | "Cancelled"
+   | "Refunded";
 
 const statusLabels: StatusLabel[] = [
    "All",
@@ -49,6 +55,7 @@ const statusLabels: StatusLabel[] = [
    "Processing",
    "Delivered",
    "Cancelled",
+   "Refunded",
 ];
 
 const statusMapping = {
@@ -57,6 +64,7 @@ const statusMapping = {
    Processing: "processing",
    Delivered: "delivered",
    Cancelled: "cancelled",
+   Refunded: "refunded",
 } as const;
 
 const OrdersTable: FC<OrdersTableProps> = () => {

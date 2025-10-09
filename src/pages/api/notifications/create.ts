@@ -63,8 +63,22 @@ export default async function handler(
                meta?.order?.order_number ||
                meta?.order_id ||
                "";
-            finalTitle = `Assignment Accepted`;
-            finalBody = `You have accepted delivery for order ${orderNum}.`;
+            // If rider info is present and recipient is a customer (recipient_user_id), craft the customer-facing message
+            if (
+               meta &&
+               (meta.rider_name || meta.rider_phone) &&
+               recipient_user_id
+            ) {
+               finalTitle = finalTitle || `Rider on the way`;
+               const riderName = meta.rider_name || meta.rider?.name || "Rider";
+               const riderPhone =
+                  meta.rider_phone || meta.rider?.phone || "No phone provided";
+               finalBody = `This rider is going to deliver your order.\n${riderName},\n${riderPhone}`;
+            } else {
+               finalTitle = finalTitle || `Assignment Accepted`;
+               finalBody =
+                  finalBody || `Assignment accepted for order ${orderNum}.`;
+            }
             break;
          }
          case "assignment_rejected": {
@@ -75,6 +89,32 @@ export default async function handler(
                "";
             finalTitle = `Assignment Rejected`;
             finalBody = `You have rejected delivery for order ${orderNum}.`;
+            break;
+         }
+         case "order_delivered": {
+            // Customer-facing delivery success message
+            finalTitle = finalTitle || "Delivery Success";
+            finalBody =
+               finalBody ||
+               "A rider marked your order as delivered successfully.";
+            break;
+         }
+         case "refund_requested": {
+            finalTitle = finalTitle || "Refund Requested";
+            finalBody =
+               finalBody ||
+               (meta?.details
+                  ? meta.details
+                  : "A refund has been requested. We will process it shortly.");
+            break;
+         }
+         case "refund_approved": {
+            finalTitle = finalTitle || "Refund Approved";
+            finalBody =
+               finalBody ||
+               (meta?.details
+                  ? meta.details
+                  : "Your refund has been approved. .");
             break;
          }
          case "promotion": {

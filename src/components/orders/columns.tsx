@@ -249,6 +249,14 @@ export const columns: ColumnDef<Order>[] = [
                   >
                      Cancelled
                   </DropdownMenuItem>
+                  <DropdownMenuItem
+                     onClick={() =>
+                        handleStatusChange("refunded" as OrderStatus)
+                     }
+                     disabled={!isExternal}
+                  >
+                     Refunded
+                  </DropdownMenuItem>
                </DropdownMenuContent>
             </DropdownMenu>
          );
@@ -299,9 +307,7 @@ export const columns: ColumnDef<Order>[] = [
                toast.success("Order cancelled successfully");
                setShowCancelAlert(false);
             } catch (err: any) {
-               toast.error(
-                  err?.message || "Failed to cancel order"
-               );
+               toast.error(err?.message || "Failed to cancel order");
             } finally {
                setIsCancelling(false);
             }
@@ -400,13 +406,18 @@ export const columns: ColumnDef<Order>[] = [
                   orderId={order.id}
                />
 
-               <AlertDialog open={showCancelAlert} onOpenChange={setShowCancelAlert}>
+               <AlertDialog
+                  open={showCancelAlert}
+                  onOpenChange={setShowCancelAlert}
+               >
                   <AlertDialogContent>
                      <AlertDialogHeader>
                         <AlertDialogTitle>Cancel Order</AlertDialogTitle>
                         <AlertDialogDescription>
-                           Are you sure you want to cancel order #{order.order_number || order.id}? 
-                           This action cannot be undone and will set the order status to &quot;cancelled&quot;.
+                           Are you sure you want to cancel order #
+                           {order.order_number || order.id}? This action cannot
+                           be undone and will set the order status to
+                           &quot;cancelled&quot;.
                         </AlertDialogDescription>
                      </AlertDialogHeader>
                      <AlertDialogFooter>
@@ -418,7 +429,9 @@ export const columns: ColumnDef<Order>[] = [
                            disabled={isCancelling}
                            className="bg-red-600 hover:bg-red-700 text-white"
                         >
-                           {isCancelling ? "Cancelling..." : "Yes, cancel order"}
+                           {isCancelling
+                              ? "Cancelling..."
+                              : "Yes, cancel order"}
                         </AlertDialogAction>
                      </AlertDialogFooter>
                   </AlertDialogContent>

@@ -59,19 +59,26 @@ const NotificationsBell: React.FC = () => {
 
          const isAdmin = hasRole && hasRole("admin");
 
-         if (!isAdmin) {
-            if (meta && (meta.order?.id || meta.order_id)) {
-               router.push(`/rider/notifications/${notification.id}`);
+         // For admin users keep existing behavior: allow meta.url or order-specific route
+         if (isAdmin) {
+            if (meta?.url) {
+               router.push(meta.url);
                return;
             }
+            if (meta && (meta.order?.id || meta.order_id)) {
+               router.push(`/admin/orders/${meta.order?.id || meta.order_id}`);
+               return;
+            }
+            // fallback to notifications page for admins as well
+            router.push(`/notifications`);
+            return;
          }
 
-         // Default navigation for other notifications
-         if (meta?.url) {
-            router.push(meta.url);
-         }
+         // Non-admin (customer) behavior: always go to notifications page so they can see rider contact and details
+         router.push(`/notifications`);
       } catch (e) {
          console.error("Error handling notification click:", e);
+         router.push(`/notifications`);
       }
    };
 
