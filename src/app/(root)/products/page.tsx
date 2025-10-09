@@ -409,10 +409,7 @@ function ProductListingComponent() {
                             <div className="absolute z-20 left-3 top-3">
                               <span className="hidden md:inline-block bg-brand-orange text-white text-xs font-bold rounded-full px-2 py-0.5 mr-auto">
                                 RWF{" "}
-                                {product?.price.toLocaleString("en-US", {
-                                  minimumFractionDigits: 2,
-                                  maximumFractionDigits: 2,
-                                })}{" "}
+                                {product?.price.toLocaleString()}{" "}
                               </span>
                             </div>
                             {/* Wishlist Button */}
@@ -429,10 +426,7 @@ function ProductListingComponent() {
                           {/* Content */}
                           <div className="space-y-2">
                             <p className="md:hidden font-bold text-orange-500 text-lg">
-                              {product?.price.toLocaleString("en-US", {
-                                minimumFractionDigits: 0,
-                                maximumFractionDigits: 0,
-                              })}{" "}
+                              {product?.price.toLocaleString()}{" "}
                               frw
                             </p>
                             <h3 className="font-semibold text-gray-900 text-sm md:text-lg truncate">

@@ -334,18 +334,12 @@ export default function ProductClientPage({
               {/* <div className="flex items-baseline gap-2"><span className="text-3xl font-bold text-orange-600">{currentPrice.toFixed(2)} frw</span>{comparePrice && <span className="text-lg text-gray-500 line-through">€{comparePrice.toFixed(2)}</span>}</div> */}
               <div className="flex items-baseline gap-2">
                 <span className="text-3xl font-bold text-orange-600">
-                  {currentPrice.toLocaleString("en-US", {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}{" "}
+                  {currentPrice.toLocaleString()}{" "}
                   frw
                 </span>
                 {comparePrice && (
                   <span className="text-lg text-gray-500 line-through">
-                    {comparePrice.toLocaleString("en-US", {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}{" "}
+                    {comparePrice}{" "}
                     frw
                   </span>
                 )}
@@ -651,7 +645,7 @@ export default function ProductClientPage({
                       </div>
                     </div>
                     <p className="font-bold text-orange-600">
-                      FRW {p.price.toFixed(2)}
+                      FRW {p.price}
                     </p>
                     <h3 className="font-medium text-sm mb-1 truncate">
                       {p.name}
