@@ -45,7 +45,30 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
       let notificationsChannel: any = null;
       const addNotificationLocal = (n: Notification) => {
          setNotifications((prev) => [n, ...prev]);
-         toast.message(n.title + (n.body ? ` — ${n.body}` : ""));
+         // Improved, context-aware notification toast messages
+         let message = "";
+         switch (n.type) {
+            case "order":
+               message = n.body
+                  ? `Order Update: ${n.body}`
+                  : `You have a new order update.`;
+               break;
+            case "promotion":
+               message = n.body
+                  ? `Special Offer: ${n.body}`
+                  : `A new promotion is available!`;
+               break;
+            case "system":
+               message = n.body
+                  ? `System Alert: ${n.body}`
+                  : `There is a new system notification.`;
+               break;
+            default:
+               message = n.title
+                  ? `${n.title}${n.body ? ` — ${n.body}` : ""}`
+                  : `You have a new notification.`;
+         }
+         toast.message(message);
       };
 
       const fetchPersisted = async () => {

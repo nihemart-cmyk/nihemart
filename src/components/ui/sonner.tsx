@@ -1,31 +1,31 @@
-"use client"
+"use client";
 
-import { useTheme } from "next-themes"
-import { Toaster as Sonner } from "sonner"
+import { useTheme } from "next-themes";
+import { Toaster as Sonner } from "sonner";
+import { CheckCircle2, AlertCircle, Bell } from "lucide-react";
 
-type ToasterProps = React.ComponentProps<typeof Sonner>
+type ToasterProps = React.ComponentProps<typeof Sonner>;
 
 const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = "system" } = useTheme()
+   const { theme = "system" } = useTheme();
 
-  return (
-    <Sonner
-      theme={theme as ToasterProps["theme"]}
-      className="toaster group"
-      toastOptions={{
-        classNames: {
-          toast:
-            "group toast group-[.toaster]:bg-background group-[.toaster]:text-foreground group-[.toaster]:border-border group-[.toaster]:shadow-lg",
-          description: "group-[.toast]:text-muted-foreground",
-          actionButton:
-            "group-[.toast]:bg-primary group-[.toast]:text-primary-foreground",
-          cancelButton:
-            "group-[.toast]:bg-muted group-[.toast]:text-muted-foreground",
-        },
-      }}
-      {...props}
-    />
-  )
-}
+   return (
+      <Sonner
+         theme={theme as ToasterProps["theme"]}
+         className="toaster group"
+         toastOptions={{
+            classNames: {
+               toast: "group toast rounded-xl border-2 border-[#1DA1F2] bg-gradient-to-r from-[#E3F2FD] to-[#F5FBFF] text-[#1DA1F2] shadow-lg px-4 py-3 flex items-center gap-3",
+               description: "group-[.toast]:text-[#1DA1F2] text-sm",
+               actionButton:
+                  "group-[.toast]:bg-[#1DA1F2] group-[.toast]:text-white font-semibold px-3 py-1 rounded-md",
+               cancelButton:
+                  "group-[.toast]:bg-gray-100 group-[.toast]:text-[#1DA1F2] px-3 py-1 rounded-md",
+            },
+         }}
+         {...props}
+      />
+   );
+};
 
-export { Toaster }
+export { Toaster };
