@@ -29,6 +29,7 @@ import {
   Filter,
   Search,
   PackageSearch,
+  ShoppingCart,
 } from "lucide-react";
 import { cn, optimizeImageUrl } from "@/lib/utils";
 import {
@@ -46,7 +47,7 @@ import Image from "next/image";
 import { useCart } from "@/contexts/CartContext";
 import { WishlistButton } from "@/components/ui/wishlist-button";
 
-const PAGE_LIMIT = 12;
+const PAGE_LIMIT = 32;
 
 function ProductListingComponent() {
   const router = useRouter();
@@ -66,7 +67,7 @@ function ProductListingComponent() {
     subcategories: parseAsArrayOf(parseAsString).withDefault([]),
   });
 
-  const debouncedSearchTerm = useDebounce(filters.q, 500);
+  const debouncedSearchTerm = useDebounce(filters.q, 300);
 
   const [expandedSections, setExpandedSections] = useState({
     category: true,
@@ -272,9 +273,9 @@ function ProductListingComponent() {
                     {sc.name}
                   </label>
                 </div>
-                <span className="text-xs text-gray-500">
+                {/* <span className="text-xs text-gray-500">
                   ({sc.products_count})
-                </span>
+                </span> */}
               </div>
             ))}
           </div>
@@ -287,7 +288,7 @@ function ProductListingComponent() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-orange-50">
-      <div className="container mx-auto px-2 md:px-4 py-6">
+      <div className="container mx-auto px-2 lg:px-4 py-6">
         <div className="flex gap-6">
           <div className="hidden lg:block w-80 flex-shrink-0">
             <div className="bg-white rounded-xl shadow-sm border border-slate-200 sticky top-28 max-h-[calc(100vh-10rem)] overflow-y-auto">
@@ -373,7 +374,7 @@ function ProductListingComponent() {
                 </Button>
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3  xl:grid-cols-4 gap-3 md:gap-4 mb-8">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-2 md:gap-5 mb-8">
                 {loading
                   ? Array.from({ length: PAGE_LIMIT }).map((_, i) => (
                       <Card
@@ -393,24 +394,25 @@ function ProductListingComponent() {
                         onClick={() => router.push(`/products/${product?.id}`)}
                         className="group hover:shadow-xl transition-all duration-300 hover:-translate-y-1 bg-white border-0 shadow-md cursor-pointer overflow-hidden"
                       >
-                        <CardContent className="p-0">
-                          {/* Image Container */}
-                          <div className="relative aspect-square bg-gray-100">
-                            <Image
-                              src={optimizeImageUrl(
-                                product?.main_image_url,
-                                { width: 300, height: 300, quality: 80 }
-                              )}
-                              alt={product?.name}
-                              fill
-                              className="object-cover group-hover:scale-105 transition-transform duration-300"
-                              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
-                              quality={80}
-                            />
-                            {/* Price Badge */}
-                            <div className="absolute top-2 left-2">
-                              <span className="inline-block bg-orange-500 text-white text-xs font-bold rounded-full px-2 py-1 shadow-md">
-                                RWF {product?.price.toLocaleString()}
+                        <CardContent className="md:p-5 p-2">
+                          <div className="relative mb-4">
+                            <div className="bg-gradient-to-br from-slate-100 to-slate-200 rounded-xl p-4 aspect-square">
+                              <Image
+                                src={
+                                  product?.main_image_url || "/placeholder.svg"
+                                }
+                                alt={product?.name}
+                                fill
+                                className="object-cover rounded-lg"
+                              />
+                            </div>
+                            <div className="absolute z-20 left-3 top-3">
+                              <span className="hidden md:inline-block bg-brand-orange text-white text-xs font-bold rounded-full px-2 py-0.5 mr-auto">
+                                RWF{" "}
+                                {product?.price.toLocaleString("en-US", {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                })}{" "}
                               </span>
                             </div>
                             {/* Wishlist Button */}
@@ -425,14 +427,20 @@ function ProductListingComponent() {
                           </div>
 
                           {/* Content */}
-                          <div className="p-3">
-                            <h3 className="font-semibold text-gray-900 text-sm line-clamp-2 mb-2 min-h-[2.5rem]">
+                          <div className="space-y-2">
+                            <p className="md:hidden font-bold text-orange-500 text-lg">
+                              {product?.price.toLocaleString("en-US", {
+                                minimumFractionDigits: 0,
+                                maximumFractionDigits: 0,
+                              })}{" "}
+                              frw
+                            </p>
+                            <h3 className="font-semibold text-gray-900 text-sm md:text-lg truncate">
                               {product?.name}
                             </h3>
                             <Button
                               onClick={(e) => handleAddToCart(e, product)}
-                              size="sm"
-                              className="w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-sm hover:shadow-md transition-all duration-200 text-xs"
+                              className="w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-sm hover:shadow-md transition-all duration-200"
                             >
                               Add To Cart
                             </Button>

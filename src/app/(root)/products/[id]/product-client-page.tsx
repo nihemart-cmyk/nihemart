@@ -319,7 +319,7 @@ export default function ProductClientPage({
                   {product.name}
                 </h1>
                 <p className="text-gray-600 mt-1">
-                  {product.brand || "Generic Brand"}
+                  {product.short_description}
                 </p>
               </div>
               <WishlistButton
@@ -441,9 +441,10 @@ export default function ProductClientPage({
               <div className="flex items-center gap-3">
                 <Truck className="h-5 w-5 text-green-600" />
                 <div>
-                  <p className="font-medium text-green-600">Free Delivery</p>
+                  <p className="font-medium text-green-600">We Deliver</p>
                   <p className="text-sm text-gray-600">
-                    Enter your Postal code for Delivery Availability
+                    Delivery fee is calculated at checkout based on your
+                    location.
                   </p>
                 </div>
               </div>
@@ -452,7 +453,14 @@ export default function ProductClientPage({
                 <div>
                   <p className="font-medium text-orange-600">Return Delivery</p>
                   <p className="text-sm text-gray-600">
-                    Free 30 days Delivery Return. Details
+                    If you are not satisfied with your purchase, you can return
+                    it within 24 hours.
+                    <Link
+                      href="/returns"
+                      className="text-orange-600 underline decoration-dotted cursor-pointer"
+                    >
+                      Details
+                    </Link>
                   </p>
                 </div>
               </div>
@@ -642,10 +650,13 @@ export default function ProductClientPage({
                         />
                       </div>
                     </div>
+                    <p className="font-bold text-orange-600">
+                      FRW {p.price.toFixed(2)}
+                    </p>
                     <h3 className="font-medium text-sm mb-1 truncate">
                       {p.name}
                     </h3>
-                    <div className="flex items-center gap-1 mb-2">
+                    {/* <div className="flex items-center gap-1 mb-2">
                       {[...Array(5)].map((_, i) => (
                         <Star
                           key={i}
@@ -656,10 +667,7 @@ export default function ProductClientPage({
                           }`}
                         />
                       ))}
-                    </div>
-                    <p className="font-bold text-orange-600">
-                      FRW {p.price.toFixed(2)}
-                    </p>
+                    </div> */}
                   </CardContent>
                 </Card>
               ))}
@@ -691,11 +699,12 @@ function ReviewForm({
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 5 * 1024 * 1024) { // 5MB limit
+      if (file.size > 5 * 1024 * 1024) {
+        // 5MB limit
         toast.error("Image size must be less than 5MB");
         return;
       }
-      if (!file.type.startsWith('image/')) {
+      if (!file.type.startsWith("image/")) {
         toast.error("Please select a valid image file");
         return;
       }
@@ -716,13 +725,16 @@ function ReviewForm({
     }
     setIsSubmitting(true);
     try {
-      const newReview = await createStoreReview({
-        product_id: productId,
-        user_id: userId,
-        rating,
-        title,
-        content,
-      }, imageFile || undefined);
+      const newReview = await createStoreReview(
+        {
+          product_id: productId,
+          user_id: userId,
+          rating,
+          title,
+          content,
+        },
+        imageFile || undefined
+      );
       toast.success("Thank you for your review!");
       onReviewSubmitted(newReview);
       setRating(0);
@@ -798,8 +810,12 @@ function ReviewForm({
                 />
                 <label htmlFor="review-image" className="cursor-pointer">
                   <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                  <p className="text-sm text-gray-600">Click to upload an image</p>
-                  <p className="text-xs text-gray-500 mt-1">Max 5MB, JPG, PNG, GIF</p>
+                  <p className="text-sm text-gray-600">
+                    Click to upload an image
+                  </p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Max 5MB, JPG, PNG, GIF
+                  </p>
                 </label>
               </div>
             ) : (
