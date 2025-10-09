@@ -74,7 +74,7 @@ export interface OrderItemInput {
    total: number;
 }
 
-export type RefundStatus = "requested" | "approved" | "rejected" | "cancelled";
+export type RefundStatus = "requested" | "approved" | "rejected" | "cancelled" | "refunded";
 
 export interface CreateOrderRequest {
    order: OrderBase;

@@ -380,69 +380,53 @@ const OrderDetails = () => {
 
                                     <div className="flex flex-wrap items-center gap-2">
                                        {item.refund_status === "rejected" ? (
-                                          <Badge
-                                             variant="destructive"
-                                             className="text-xs"
-                                          >
+                                          <Badge variant="destructive" className="text-xs">
                                              <X className="h-3 w-3 mr-1" />
                                              Rejected
+                                          </Badge>
+                                       ) : item.refund_status === "refunded" ? (
+                                          <Badge variant="default" className="text-xs bg-green-100 text-green-700">
+                                             <CheckCircle className="h-3 w-3 mr-1" />
+                                             Refunded
                                           </Badge>
                                        ) : !isAdmin && isOwner ? (
                                           item.refund_status ? (
                                              <>
                                                 <Badge
                                                    variant={
-                                                      item.refund_status ===
-                                                      "approved"
+                                                      item.refund_status === "approved"
                                                          ? "default"
                                                          : "secondary"
                                                    }
                                                    className="text-xs"
                                                 >
-                                                   {item.refund_status ===
-                                                   "approved" ? (
+                                                   {item.refund_status === "approved" ? (
                                                       <>
                                                          <CheckCircle className="h-3 w-3 mr-1" />
                                                          Refund Approved
                                                       </>
                                                    ) : (
-                                                      item.refund_status
-                                                         .charAt(0)
-                                                         .toUpperCase() +
-                                                      item.refund_status.slice(
-                                                         1
-                                                      )
+                                                      item.refund_status.charAt(0).toUpperCase() + item.refund_status.slice(1)
                                                    )}
                                                 </Badge>
-                                                {item.refund_status ===
-                                                   "requested" && (
+                                                {item.refund_status === "requested" && (
                                                    <Button
                                                       size="sm"
                                                       variant="ghost"
                                                       onClick={async () => {
-                                                         setUnrejectingItemId(
-                                                            item.id
-                                                         );
+                                                         setUnrejectingItemId(item.id);
                                                          try {
-                                                            await cancelRefund.mutateAsync(
-                                                               item.id
-                                                            );
+                                                            await cancelRefund.mutateAsync(item.id);
                                                          } catch (e) {
                                                             // handled by mutation
                                                          } finally {
-                                                            setUnrejectingItemId(
-                                                               null
-                                                            );
+                                                            setUnrejectingItemId(null);
                                                          }
                                                       }}
-                                                      disabled={
-                                                         unrejectingItemId ===
-                                                         item.id
-                                                      }
+                                                      disabled={unrejectingItemId === item.id}
                                                       className="text-xs h-7"
                                                    >
-                                                      {unrejectingItemId ===
-                                                      item.id ? (
+                                                      {unrejectingItemId === item.id ? (
                                                          <Loader2 className="h-3 w-3 animate-spin" />
                                                       ) : (
                                                          "Cancel"
@@ -464,9 +448,7 @@ const OrderDetails = () => {
                                                       : "border-red-300 text-red-600 hover:bg-red-50"
                                                 }`}
                                              >
-                                                {order.status === "delivered"
-                                                   ? "Request Refund"
-                                                   : "Reject"}
+                                                {order.status === "delivered" ? "Request Refund" : "Reject"}
                                              </Button>
                                           )
                                        ) : null}
