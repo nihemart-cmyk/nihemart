@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { initializeKPayService } from '@/lib/services/kpay';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createServerSupabaseClient } from '@/utils/supabase/server';
 import { logger } from '@/lib/logger';
 
 export async function POST(request: NextRequest) {
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
 
     // Update payment status based on webhook
     let newPaymentStatus: string;
-    let updateData: any = {
+    const updateData: any = {
       kpay_transaction_id: paymentStatus.transactionId,
       kpay_webhook_data: payload,
       updated_at: new Date().toISOString(),

@@ -14,12 +14,54 @@ import {
   CheckCircle2 
 } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
+import MobileMoneyPhoneDialog from './MobileMoneyPhoneDialog';
+import CardPaymentDialog from './CardPaymentDialog';
+import SpennPaymentDialog from './SpennPaymentDialog';
 
 export interface PaymentMethodSelectorProps {
   selectedMethod: keyof typeof PAYMENT_METHODS | 'cash_on_delivery';
   onMethodChange: (method: keyof typeof PAYMENT_METHODS | 'cash_on_delivery') => void;
   disabled?: boolean;
   className?: string;
+  // Mobile Money
+  onMobileMoneyPhoneChange?: (method: 'mtn_momo' | 'airtel_money', phoneNumber: string) => void;
+  mobileMoneyPhones?: {
+    mtn_momo?: string;
+    airtel_money?: string;
+  };
+  // Card Payments
+  onCardDataChange?: (method: 'visa_card' | 'mastercard', cardData: {
+    cardNumber: string;
+    expiryMonth: string;
+    expiryYear: string;
+    cvv: string;
+    cardholderName: string;
+  }) => void;
+  cardData?: {
+    visa_card?: {
+      cardNumber: string;
+      expiryMonth: string;
+      expiryYear: string;
+      cvv: string;
+      cardholderName: string;
+    };
+    mastercard?: {
+      cardNumber: string;
+      expiryMonth: string;
+      expiryYear: string;
+      cvv: string;
+      cardholderName: string;
+    };
+  };
+  // SPENN
+  onSpennDataChange?: (spennData: {
+    phoneNumber: string;
+    pin?: string;
+  }) => void;
+  spennData?: {
+    phoneNumber?: string;
+    pin?: string;
+  };
 }
 
 const PaymentMethodIcon = ({ method }: { method: keyof typeof PAYMENT_METHODS | 'cash_on_delivery' }) => {
@@ -100,17 +142,114 @@ export default function PaymentMethodSelector({
   onMethodChange,
   disabled = false,
   className = '',
+  // Mobile Money
+  onMobileMoneyPhoneChange,
+  mobileMoneyPhones = {},
+  // Card Payments
+  onCardDataChange,
+  cardData = {},
+  // SPENN
+  onSpennDataChange,
+  spennData = {},
 }: PaymentMethodSelectorProps) {
   const { t } = useLanguage();
+  
+  // Dialog states
+  const [mobileMoneyDialog, setMobileMoneyDialog] = useState<{
+    isOpen: boolean;
+    method: 'mtn_momo' | 'airtel_money' | null;
+  }>({ isOpen: false, method: null });
+  
+  const [cardDialog, setCardDialog] = useState<{
+    isOpen: boolean;
+    method: 'visa_card' | 'mastercard' | null;
+  }>({ isOpen: false, method: null });
+  
+  const [spennDialog, setSpennDialog] = useState<{
+    isOpen: boolean;
+  }>({ isOpen: false });
 
   const paymentOptions: (keyof typeof PAYMENT_METHODS | 'cash_on_delivery')[] = [
     'mtn_momo',
     'airtel_money',
     'visa_card',
     'mastercard',
-    'spenn',
+    // 'spenn', // Temporarily disabled - not supported by KPay (error 609)
     'cash_on_delivery',
   ];
+
+  const handleMethodChange = (method: keyof typeof PAYMENT_METHODS | 'cash_on_delivery') => {
+    // Handle Mobile Money methods
+    if ((method === 'mtn_momo' || method === 'airtel_money') && onMobileMoneyPhoneChange) {
+      if (!mobileMoneyPhones[method]) {
+        setMobileMoneyDialog({ isOpen: true, method });
+        return;
+      }
+    }
+    
+    // Handle Card Payment methods
+    if ((method === 'visa_card' || method === 'mastercard') && onCardDataChange) {
+      if (!cardData[method]) {
+        setCardDialog({ isOpen: true, method });
+        return;
+      }
+    }
+    
+    // Handle SPENN method
+    if (method === 'spenn' && onSpennDataChange) {
+      if (!spennData.phoneNumber) {
+        setSpennDialog({ isOpen: true });
+        return;
+      }
+    }
+    
+    // Cash on delivery or method with data already collected
+    onMethodChange(method);
+  };
+
+  const handleMobileMoneyPhoneConfirm = (phoneNumber: string) => {
+    const { method } = mobileMoneyDialog;
+    if (method && onMobileMoneyPhoneChange) {
+      onMobileMoneyPhoneChange(method, phoneNumber);
+      onMethodChange(method);
+    }
+  };
+
+  const handleCardDataConfirm = (cardPaymentData: {
+    cardNumber: string;
+    expiryMonth: string;
+    expiryYear: string;
+    cvv: string;
+    cardholderName: string;
+  }) => {
+    const { method } = cardDialog;
+    if (method && onCardDataChange) {
+      onCardDataChange(method, cardPaymentData);
+      onMethodChange(method);
+    }
+  };
+
+  const handleSpennDataConfirm = (spennPaymentData: {
+    phoneNumber: string;
+    pin?: string;
+  }) => {
+    if (onSpennDataChange) {
+      onSpennDataChange(spennPaymentData);
+      onMethodChange('spenn');
+    }
+  };
+
+  const handleMobileMoneyDialogClose = () => {
+    setMobileMoneyDialog({ isOpen: false, method: null });
+  };
+
+  const handleCardDialogClose = () => {
+    setCardDialog({ isOpen: false, method: null });
+  };
+
+  const handleSpennDialogClose = () => {
+    setSpennDialog({ isOpen: false });
+  };
 
   return (
     <Card className={`border border-gray-200 shadow-sm ${className}`}>
@@ -123,7 +262,7 @@ export default function PaymentMethodSelector({
       <CardContent>
         <RadioGroup
           value={selectedMethod}
-          onValueChange={onMethodChange}
+          onValueChange={handleMethodChange}
           disabled={disabled}
           className="space-y-3"
         >
@@ -170,6 +309,30 @@ export default function PaymentMethodSelector({
                         <p className="text-sm text-gray-600">
                           {details.description}
                         </p>
+                        {/* Show payment details for different methods */}
+                        {/* Mobile Money Phone Numbers */}
+                        {(method === 'mtn_momo' || method === 'airtel_money') && 
+                         mobileMoneyPhones[method] && (
+                          <p className="text-xs text-blue-600 font-mono mt-1">
+                            📱 {mobileMoneyPhones[method]}
+                          </p>
+                        )}
+                        
+                        {/* Card Details */}
+                        {(method === 'visa_card' || method === 'mastercard') && 
+                         cardData[method] && (
+                          <div className="text-xs text-blue-600 mt-1">
+                            <p className="font-mono">💳 •••• •••• •••• {cardData[method]!.cardNumber.slice(-4)}</p>
+                            <p className="font-mono">{cardData[method]!.cardholderName}</p>
+                          </div>
+                        )}
+                        
+                        {/* SPENN Details */}
+                        {method === 'spenn' && spennData.phoneNumber && (
+                          <p className="text-xs text-purple-600 font-mono mt-1">
+                            💰 {spennData.phoneNumber}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -199,6 +362,44 @@ export default function PaymentMethodSelector({
           </div>
         </div>
       </CardContent>
+      
+      {/* Payment Method Dialogs */}
+      
+      {/* Mobile Money Phone Dialog */}
+      {mobileMoneyDialog.method && (
+        <MobileMoneyPhoneDialog
+          isOpen={mobileMoneyDialog.isOpen}
+          onOpenChange={(open) => {
+            if (!open) handleMobileMoneyDialogClose();
+          }}
+          paymentMethod={mobileMoneyDialog.method}
+          onConfirm={handleMobileMoneyPhoneConfirm}
+          initialPhone={mobileMoneyPhones[mobileMoneyDialog.method] || ''}
+        />
+      )}
+      
+      {/* Card Payment Dialog */}
+      {cardDialog.method && (
+        <CardPaymentDialog
+          isOpen={cardDialog.isOpen}
+          onOpenChange={(open) => {
+            if (!open) handleCardDialogClose();
+          }}
+          paymentMethod={cardDialog.method}
+          onConfirm={handleCardDataConfirm}
+          initialData={cardData[cardDialog.method] || {}}
+        />
+      )}
+      
+      {/* SPENN Payment Dialog */}
+      <SpennPaymentDialog
+        isOpen={spennDialog.isOpen}
+        onOpenChange={(open) => {
+          if (!open) handleSpennDialogClose();
+        }}
+        onConfirm={handleSpennDataConfirm}
+        initialData={spennData}
+      />
     </Card>
   );
 }

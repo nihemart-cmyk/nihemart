@@ -179,6 +179,16 @@ export class KPayService {
       logourl: params.logoUrl,
     };
 
+    // Debug log the exact request being sent to KPay
+    console.log('🔍 KPay payment request details:', {
+      msisdn: paymentRequest.msisdn,
+      bankid: paymentRequest.bankid,
+      pmethod: paymentRequest.pmethod,
+      amount: paymentRequest.amount,
+      refid: paymentRequest.refid,
+      customerNumber: paymentRequest.cnumber
+    });
+
     try {
       const response = await fetch(this.getApiUrl(), {
         method: 'POST',
@@ -195,9 +205,14 @@ export class KPayService {
 
       const result: PaymentResponse = await response.json();
       
-      // Log the payment initiation
+      // Log the payment initiation with detailed request info
       console.log('KPay payment initiated:', {
         refid: params.orderReference,
+        paymentMethod: params.paymentMethod,
+        bankId: paymentConfig.bankId,
+        msisdn: params.customerPhone,
+        cnumber: params.customerNumber,
+        pmethod: paymentConfig.code,
         tid: result.tid,
         retcode: result.retcode,
         success: result.success,
@@ -282,8 +297,8 @@ export class KPayService {
     statusMessage: string;
   } {
     const isSuccessful = payload.statusid === '01';
-    const isFailed = payload.statusid === '02';
-    const isPending = payload.statusid === '03';
+    const isPending = payload.statusid === '02'; // Processing, waiting for SMS confirmation
+    const isFailed = payload.statusid === '03'; // Failed or cancelled
 
     return {
       isSuccessful,
@@ -321,30 +336,36 @@ export class KPayService {
   }
 
   /**
-   * Format phone number for KPay API
+   * Format phone number for KPay API (prefers 07XXXXXXXX format)
    */
   static formatPhoneNumber(phone: string): string {
     // Remove all non-digit characters except +
     const cleaned = phone.replace(/[^\d+]/g, '');
     
-    // If starts with +250, return as is (but remove spaces)
-    if (cleaned.startsWith('+250')) {
+    // If already in 07XXXXXXXX format, return as is
+    if (/^07\d{8}$/.test(cleaned)) {
       return cleaned;
     }
     
-    // If starts with 250, add +
+    // If starts with +250, convert to 07XXXXXXXX
+    if (cleaned.startsWith('+250')) {
+      const digits = cleaned.substring(4);
+      if (digits.length === 9 && digits.startsWith('7')) {
+        return `0${digits}`;
+      }
+    }
+    
+    // If starts with 250, convert to 07XXXXXXXX
     if (cleaned.startsWith('250')) {
-      return `+${cleaned}`;
+      const digits = cleaned.substring(3);
+      if (digits.length === 9 && digits.startsWith('7')) {
+        return `0${digits}`;
+      }
     }
     
-    // If starts with 07, replace with +250
-    if (cleaned.startsWith('07')) {
-      return `+250${cleaned.substring(1)}`;
-    }
-    
-    // If 9 digits starting with 7, assume it's Rwanda number without country code
+    // If 9 digits starting with 7, add 0 prefix
     if (cleaned.length === 9 && cleaned.startsWith('7')) {
-      return `+250${cleaned}`;
+      return `0${cleaned}`;
     }
     
     return cleaned;

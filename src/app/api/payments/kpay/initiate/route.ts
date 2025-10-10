@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { initializeKPayService, KPayService, PAYMENT_METHODS } from '@/lib/services/kpay';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createServerSupabaseClient } from '@/utils/supabase/server';
 import { logger } from '@/lib/logger';
 
 export interface PaymentInitiationRequest {
@@ -64,14 +64,52 @@ export async function POST(request: NextRequest) {
     }
 
     // Initialize Supabase client
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
 
-    // Verify the order exists and get order details
-    const { data: order, error: orderError } = await supabase
-      .from('orders')
-      .select('id, total_amount, status, customer_name, customer_email, customer_phone')
-      .eq('id', body.orderId)
-      .single();
+    // Verify the order exists with retry logic for database consistency
+    let order: any = null;
+    let orderError: any = null;
+    let attempts = 0;
+    const maxAttempts = 3;
+    
+    while (attempts < maxAttempts && !order) {
+      attempts++;
+      
+      if (attempts > 1) {
+        // Wait longer between retries
+        await new Promise(resolve => setTimeout(resolve, 200 * attempts));
+        logger.info('api', `Order verification retry attempt ${attempts}`, { orderId: body.orderId });
+      }
+      
+      const result = await supabase
+        .from('orders')
+        .select('id, total, status, customer_first_name, customer_last_name, customer_email, customer_phone')
+        .eq('id', body.orderId)
+        .single();
+        
+      order = result.data;
+      orderError = result.error;
+      
+      if (order) {
+        logger.info('api', `Order found on attempt ${attempts}`, {
+          orderId: body.orderId,
+          orderData: {
+            id: order.id,
+            status: order.status,
+            total: order.total,
+            customer_email: order.customer_email
+          }
+        });
+        break;
+      }
+    }
+    
+    logger.info('api', 'Final order verification result', {
+      orderId: body.orderId,
+      attempts,
+      found: !!order,
+      error: orderError?.message
+    });
 
     if (orderError || !order) {
       return NextResponse.json(
@@ -89,7 +127,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify amount matches order total
-    if (Math.abs(body.amount - order.total_amount) > 0.01) {
+    if (Math.abs(body.amount - order.total) > 0.01) {
       return NextResponse.json(
         { error: 'Amount mismatch with order total' },
         { status: 400 }
@@ -113,6 +151,13 @@ export async function POST(request: NextRequest) {
 
     // Format phone number for KPay
     const formattedPhone = KPayService.formatPhoneNumber(body.customerPhone);
+    
+    logger.info('api', 'Phone number formatting for KPay', {
+      orderId: body.orderId,
+      originalPhone: body.customerPhone,
+      formattedPhone,
+      paymentMethod: body.paymentMethod
+    });
 
     // Create payment record in database before initiating payment
     const { data: payment, error: paymentError } = await supabase
@@ -186,18 +231,35 @@ export async function POST(request: NextRequest) {
         });
       } else {
         // Payment failed to initiate
+        const errorMessage = kpayService.getErrorMessage(kpayResponse.retcode);
+        
         await supabase
           .from('payments')
           .update({
             status: 'failed',
-            failure_reason: kpayService.getErrorMessage(kpayResponse.retcode),
+            failure_reason: errorMessage,
+            kpay_return_code: kpayResponse.retcode,
             updated_at: new Date().toISOString(),
           })
           .eq('id', payment.id);
 
+        // Provide more user-friendly error messages
+        let userFriendlyError = errorMessage;
+        if (kpayResponse.retcode === 609) {
+          userFriendlyError = 'This payment method is currently not supported. Please try a different payment method.';
+        } else if (kpayResponse.retcode === 607) {
+          userFriendlyError = 'Mobile money transaction failed. Please check your account balance and try again.';
+        } else if (kpayResponse.retcode === 608) {
+          userFriendlyError = 'This payment reference has already been used. Please try again.';
+        } else if (kpayResponse.retcode >= 600) {
+          userFriendlyError = 'Payment gateway error. Please try again or contact support if the problem persists.';
+        }
+
         return NextResponse.json({
           success: false,
-          error: kpayService.getErrorMessage(kpayResponse.retcode),
+          error: userFriendlyError,
+          errorCode: kpayResponse.retcode,
+          technicalError: errorMessage,
         }, { status: 400 });
       }
 

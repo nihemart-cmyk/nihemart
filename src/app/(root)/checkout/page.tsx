@@ -149,6 +149,36 @@ const Checkout = () => {
    // Payment method state (default to Cash on Delivery)
    const [paymentMethod, setPaymentMethod] =
       useState<keyof typeof PAYMENT_METHODS | 'cash_on_delivery'>("cash_on_delivery");
+   
+   // Mobile money phone numbers state
+   const [mobileMoneyPhones, setMobileMoneyPhones] = useState<{
+      mtn_momo?: string;
+      airtel_money?: string;
+   }>({});
+   
+   // Card payment data state
+   const [cardData, setCardData] = useState<{
+      visa_card?: {
+         cardNumber: string;
+         expiryMonth: string;
+         expiryYear: string;
+         cvv: string;
+         cardholderName: string;
+      };
+      mastercard?: {
+         cardNumber: string;
+         expiryMonth: string;
+         expiryYear: string;
+         cvv: string;
+         cardholderName: string;
+      };
+   }>({});
+   
+   // SPENN payment data state
+   const [spennData, setSpennData] = useState<{
+      phoneNumber?: string;
+      pin?: string;
+   }>({});
    // Orders enabled flag (null = loading)
    const [ordersEnabled, setOrdersEnabled] = useState<boolean | null>(null);
 
@@ -232,6 +262,36 @@ const Checkout = () => {
       }
 
       return raw;
+   };
+
+   // Handle mobile money phone number changes
+   const handleMobileMoneyPhoneChange = (method: 'mtn_momo' | 'airtel_money', phoneNumber: string) => {
+      setMobileMoneyPhones(prev => ({
+         ...prev,
+         [method]: phoneNumber
+      }));
+   };
+   
+   // Handle card payment data changes
+   const handleCardDataChange = (method: 'visa_card' | 'mastercard', cardPaymentData: {
+      cardNumber: string;
+      expiryMonth: string;
+      expiryYear: string;
+      cvv: string;
+      cardholderName: string;
+   }) => {
+      setCardData(prev => ({
+         ...prev,
+         [method]: cardPaymentData
+      }));
+   };
+   
+   // Handle SPENN data changes
+   const handleSpennDataChange = (spennPaymentData: {
+      phoneNumber: string;
+      pin?: string;
+   }) => {
+      setSpennData(spennPaymentData);
    };
 
    useEffect(() => {
@@ -625,12 +685,17 @@ const Checkout = () => {
                } else {
                   // KPay payment - initiate payment
                   try {
+                     // Use mobile money phone number if available, otherwise fallback to address/form phone
+                     const customerPhone = (paymentMethod === 'mtn_momo' || paymentMethod === 'airtel_money')
+                        ? (mobileMoneyPhones[paymentMethod] || formatPhoneNumber(selectedAddress?.phone || formData.phone || ''))
+                        : formatPhoneNumber(selectedAddress?.phone || formData.phone || '');
+                     
                      const paymentRequest = {
                         orderId: createdOrder.id,
                         amount: total,
                         customerName: `${formData.firstName} ${formData.lastName}`,
                         customerEmail: formData.email,
-                        customerPhone: formatPhoneNumber(selectedAddress?.phone || formData.phone || ''),
+                        customerPhone,
                         paymentMethod: paymentMethod as keyof typeof PAYMENT_METHODS,
                         redirectUrl: `${window.location.origin}/orders/${createdOrder.id}?payment=success`,
                      };
@@ -648,8 +713,23 @@ const Checkout = () => {
                         toast.success(
                            `Order #${createdOrder.order_number} created! Redirecting to payment...`
                         );
-                        // Redirect to order page where they can track payment status
-                        router.push(`/orders/${createdOrder.id}?payment=pending&paymentId=${paymentResult.paymentId}`);
+                        // Handle different payment methods differently
+                        if (paymentMethod === 'visa_card' || paymentMethod === 'mastercard') {
+                          // For card payments, redirect to external checkout immediately if URL is provided
+                          if (paymentResult.checkoutUrl) {
+                            toast.success(`Order #${createdOrder.order_number} created! Redirecting to secure payment...`);
+                            // Redirect to external payment gateway immediately
+                            window.location.href = paymentResult.checkoutUrl;
+                          } else {
+                            // Fallback to payment page if no checkout URL
+                            router.push(`/payment/${paymentResult.paymentId}?orderId=${createdOrder.id}`);
+                          }
+                        } else {
+                          // For mobile money and other methods, go to payment status page
+                          router.push(`/payment/${paymentResult.paymentId}?orderId=${createdOrder.id}`);
+                          
+                          // For mobile money, don't open additional windows
+                        }
                      } else {
                         toast.error(
                            `Order created but payment failed: ${paymentResult.error || 'Unknown error'}`
@@ -1438,6 +1518,15 @@ Total: ${total.toLocaleString()} RWF
                            selectedMethod={paymentMethod}
                            onMethodChange={setPaymentMethod}
                            disabled={isSubmitting || isInitiating}
+                           // Mobile Money
+                           onMobileMoneyPhoneChange={handleMobileMoneyPhoneChange}
+                           mobileMoneyPhones={mobileMoneyPhones}
+                           // Card Payments
+                           onCardDataChange={handleCardDataChange}
+                           cardData={cardData}
+                           // SPENN
+                           onSpennDataChange={handleSpennDataChange}
+                           spennData={spennData}
                         />
                      </CollapsibleContent>
                   </Collapsible>
@@ -1597,10 +1686,7 @@ Total: ${total.toLocaleString()} RWF
                                     ) : (
                                        <>
                                           <CheckCircle2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                                          {paymentMethod === 'cash_on_delivery' 
-                                             ? t("checkout.placeOrder")
-                                             : `Pay with ${PAYMENT_METHODS[paymentMethod as keyof typeof PAYMENT_METHODS]?.name || 'KPay'}`
-                                          }
+                                          {t("checkout.placeOrder") || "Place Order"}
                                        </>
                                     )}
                                  </Button>

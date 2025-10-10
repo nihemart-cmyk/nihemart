@@ -67,11 +67,6 @@ export function useKPayPayment() {
 
         if (data.success) {
           toast.success('Payment initiated successfully');
-          
-          // If there's a checkout URL, redirect the user
-          if (data.checkoutUrl) {
-            window.open(data.checkoutUrl, '_blank', 'noopener,noreferrer');
-          }
         } else {
           toast.error(data.error || 'Payment initiation failed');
         }
@@ -147,24 +142,30 @@ export function useKPayPayment() {
     // Remove all non-digit characters except +
     const cleaned = phone.replace(/[^\d+]/g, '');
     
-    // If starts with +250, return as is
-    if (cleaned.startsWith('+250')) {
+    // If already in 07XXXXXXXX format, return as is (preferred by KPay)
+    if (/^07\d{8}$/.test(cleaned)) {
       return cleaned;
     }
     
-    // If starts with 250, add +
+    // If starts with +250, convert to 07XXXXXXXX
+    if (cleaned.startsWith('+250')) {
+      const digits = cleaned.substring(4);
+      if (digits.length === 9 && digits.startsWith('7')) {
+        return `0${digits}`;
+      }
+    }
+    
+    // If starts with 250, convert to 07XXXXXXXX
     if (cleaned.startsWith('250')) {
-      return `+${cleaned}`;
+      const digits = cleaned.substring(3);
+      if (digits.length === 9 && digits.startsWith('7')) {
+        return `0${digits}`;
+      }
     }
     
-    // If starts with 07, replace with +250
-    if (cleaned.startsWith('07')) {
-      return `+250${cleaned.substring(1)}`;
-    }
-    
-    // If 9 digits starting with 7, assume it's Rwanda number without country code
+    // If 9 digits starting with 7, add 0 prefix
     if (cleaned.length === 9 && cleaned.startsWith('7')) {
-      return `+250${cleaned}`;
+      return `0${cleaned}`;
     }
     
     return cleaned;
@@ -194,8 +195,8 @@ export function useKPayPayment() {
     } else {
       // Validate phone format
       const formattedPhone = formatPhoneNumber(request.customerPhone);
-      if (!formattedPhone.match(/^\+250\d{9}$/)) {
-        errors.push('Phone number must be in Rwanda format (+250XXXXXXXXX)');
+      if (!formattedPhone.match(/^07\d{8}$/)) {
+        errors.push('Phone number must be in Rwanda format (07XXXXXXXX)');
       }
     }
 

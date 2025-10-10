@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { initializeKPayService } from '@/lib/services/kpay';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createServerSupabaseClient } from '@/utils/supabase/server';
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Initialize Supabase client
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
 
     // Find the payment record
     let paymentQuery = supabase
@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
       // Process the status response
       let updatedStatus = payment.status;
       let needsUpdate = false;
-      let updateData: any = {
+      const updateData: any = {
         updated_at: new Date().toISOString(),
       };
 
@@ -94,17 +94,22 @@ export async function POST(request: NextRequest) {
         updateData.completed_at = new Date().toISOString();
         updateData.kpay_mom_transaction_id = kpayResponse.momtransactionid;
         needsUpdate = true;
-      } else if (kpayResponse.statusid === '02' && payment.status !== 'failed') {
-        // Payment failed
+      } else if (kpayResponse.statusid === '02') {
+        // Payment is being processed (waiting for SMS confirmation)
+        updatedStatus = 'pending';
+        // Don't mark as failed - this is normal processing state
+        console.log('Payment is processing with MTN - awaiting SMS confirmation:', {
+          paymentId: payment.id,
+          momTransactionId: kpayResponse.momtransactionid,
+          statusDesc: kpayResponse.statusdesc
+        });
+      } else if (kpayResponse.statusid === '03') {
+        // Payment failed or cancelled
         updatedStatus = 'failed';
         updateData.status = 'failed';
-        updateData.failure_reason = kpayResponse.statusdesc;
+        updateData.failure_reason = kpayResponse.statusdesc || 'Payment failed';
         needsUpdate = true;
-      } else if (kpayResponse.statusid === '03') {
-        // Payment still pending
-        updatedStatus = 'pending';
-        // Don't update status if already pending
-      } else if (kpayResponse.retcode === 611) {
+      }
         // Transaction not found - might indicate a problem
         console.warn('Transaction not found in KPay system:', {
           paymentId: payment.id,

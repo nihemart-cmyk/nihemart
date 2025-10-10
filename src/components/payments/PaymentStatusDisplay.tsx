@@ -211,7 +211,7 @@ export default function PaymentStatusDisplay({
                 <p className="text-sm text-orange-800 leading-relaxed">
                   {payment.checkoutUrl ? (
                     <>
-                      Please complete your payment. If you haven't been redirected, 
+                      Please complete your payment. If you haven&apos;t been redirected,
                       <a 
                         href={payment.checkoutUrl}
                         target="_blank"
