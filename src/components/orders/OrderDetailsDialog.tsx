@@ -204,7 +204,7 @@ export function OrderDetailsDialog({
                                  )}
                               </div>
                               <p className="font-medium">
-                                 {item.total.toLocaleString()} RWF
+                                 {Number(item.total || 0).toLocaleString()} RWF
                               </p>
                            </div>
                         ))}
@@ -217,17 +217,23 @@ export function OrderDetailsDialog({
                      <div className="space-y-2">
                         <div className="flex justify-between">
                            <p className="text-muted-foreground">Subtotal</p>
-                           <p>{order.subtotal.toLocaleString()} RWF</p>
+                           <p>
+                              {Number(order.subtotal || 0).toLocaleString()} RWF
+                           </p>
                         </div>
                         {order.tax && (
                            <div className="flex justify-between">
                               <p className="text-muted-foreground">Tax</p>
-                              <p>{order.tax.toLocaleString()} RWF</p>
+                              <p>
+                                 {Number(order.tax || 0).toLocaleString()} RWF
+                              </p>
                            </div>
                         )}
                         <div className="flex justify-between font-semibold border-t pt-2">
                            <p>Total</p>
-                           <p>{order.total.toLocaleString()} RWF</p>
+                           <p>
+                              {Number(order.total || 0).toLocaleString()} RWF
+                           </p>
                         </div>
                         {/* Full order refund actions - only visible to the order owner and hidden for admins */}
                         {isOwner && !isAdmin && (

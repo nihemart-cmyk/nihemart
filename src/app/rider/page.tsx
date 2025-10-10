@@ -21,6 +21,7 @@ import {
    Calendar,
 } from "lucide-react";
 import React, { useEffect, useState } from "react";
+import Link from "next/link";
 import { useAuth } from "@/hooks/useAuth";
 import { fetchRiderByUserId } from "@/integrations/supabase/riders";
 import { useRiderAssignments } from "@/hooks/useRiders";
@@ -37,7 +38,7 @@ import {
    PopoverContent,
    PopoverTrigger,
 } from "@/components/ui/popover";
-import { format } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 
 interface StatsCardProps {
@@ -306,26 +307,36 @@ const Dashboard = () => {
       return isNaN(d.getTime()) ? null : d;
    };
 
+   // Choose the most relevant timestamp for an assignment/order pair.
+   // Prefer the latest available timestamp among common fields so "time ago"
+   // and peak hour are computed from the actual event time (delivered/completed/etc.).
+   const getPrimaryTimestamp = (a: any): Date | null => {
+      const order = a.orders || a.order || null;
+      const candidates = [
+         a.delivered_at,
+         a.completed_at,
+         a.updated_at,
+         a.created_at,
+         order?.delivered_at,
+         order?.completed_at,
+         order?.updated_at,
+         order?.created_at,
+      ];
+      const dates = candidates.map(parseDate).filter(Boolean) as Date[];
+      if (!dates.length) return null;
+      // return the latest (most recent) timestamp
+      return dates.reduce(
+         (max, d) => (d.getTime() > max.getTime() ? d : max),
+         dates[0]
+      );
+   };
+
    const filteredAssignments = React.useMemo(() => {
       const days = Number(timeframe) || 7;
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - days);
       return assignments.filter((a: any) => {
-         const order = a.orders || a.order || null;
-         const timestamps = [
-            a.assigned_at,
-            a.delivered_at,
-            a.completed_at,
-            a.updated_at,
-            a.created_at,
-            order?.delivered_at,
-            order?.completed_at,
-            order?.updated_at,
-            order?.created_at,
-         ]
-            .map(parseDate)
-            .filter(Boolean) as Date[];
-         const ts = timestamps[0];
+         const ts = getPrimaryTimestamp(a);
          if (!ts) return false;
          return ts >= cutoff;
       });
@@ -336,12 +347,13 @@ const Dashboard = () => {
    const recent = filteredAssignments.slice(0, 5).map((a: any) => {
       const order =
          a.orders || a.order || (a.order_id ? { id: a.order_id } : null);
+      const ts = getPrimaryTimestamp(a);
       return {
-         id: order?.id || a.order_id,
+         id: order?.order_number || order?.id || a.order_id,
          name: order?.customer_name || order?.name || "Customer",
          location: order?.delivery_address || a.location || "-",
          amount: order?.tax || a.delivery_fee || a.fee || "-", // Show delivery fee instead of total
-         time: "-",
+         time: ts ? formatDistanceToNow(ts) : "-",
          status: a.status || order?.status || "-",
       };
    });
@@ -364,29 +376,29 @@ const Dashboard = () => {
    );
 
    const peakHour = (() => {
-      const hoursCount: Record<string, number> = {};
+      const hoursCount: Record<number, number> = {};
       selectedDateAssignments.forEach((a: any) => {
-         const order = a.orders || a.order || null;
-         const timestamps = [
-            a.delivered_at,
-            a.completed_at,
-            a.updated_at,
-            a.created_at,
-            order?.delivered_at,
-            order?.completed_at,
-            order?.updated_at,
-            order?.created_at,
-         ]
-            .map(parseDate)
-            .filter(Boolean) as Date[];
-         const ts = timestamps[0];
+         const ts = getPrimaryTimestamp(a);
          if (!ts) return;
          const hour = ts.getHours();
          hoursCount[hour] = (hoursCount[hour] || 0) + 1;
       });
-      const top = Object.entries(hoursCount).sort((a, b) => b[1] - a[1])[0];
-      if (!top) return "-";
-      const h = Number(top[0]);
+
+      const entries = Object.entries(hoursCount).map(([h, c]) => ({
+         hour: Number(h),
+         count: c,
+      }));
+      if (!entries.length) return "-";
+
+      // Prefer daytime hours between 6:00 and 21:00 if available.
+      const daytime = entries
+         .filter((e) => e.hour >= 6 && e.hour <= 21)
+         .sort((a, b) => b.count - a.count);
+
+      const candidate = (
+         daytime.length ? daytime : entries.sort((a, b) => b.count - a.count)
+      )[0];
+      const h = candidate.hour;
       return `${String(h).padStart(2, "0")}:00`;
    })();
 
@@ -625,6 +637,16 @@ const Dashboard = () => {
                                        status={r.status}
                                     />
                                  ))}
+                                 {filteredAssignments.length > 5 && (
+                                    <div className="mt-2 text-right">
+                                       <Link
+                                          href="/rider/orders"
+                                          className="text-sm text-orange-600 hover:underline"
+                                       >
+                                          View all deliveries
+                                       </Link>
+                                    </div>
+                                 )}
                               </div>
                            ) : (
                               <div className="text-center py-8 text-gray-500">

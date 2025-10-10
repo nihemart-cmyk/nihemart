@@ -562,9 +562,36 @@ export async function respondToOrderRefundRequest(
             err
          );
       }
+
+      // After successful approval, mark the parent order as refunded so UI shows
+      // the correct overall order status.
+      try {
+         const { error: orderUpdErr } = await sb
+            .from("orders")
+            .update({ status: "refunded" })
+            .eq("id", orderId);
+         if (orderUpdErr)
+            console.warn("Failed to mark order as refunded:", orderUpdErr);
+      } catch (oErr) {
+         console.warn("Failed to update order status to refunded:", oErr);
+      }
    }
 
-   return data;
+   // Return an up-to-date order row (including items) so callers can merge into cache
+   try {
+      const { data: freshOrder, error: freshErr } = await sb
+         .from("orders")
+         .select("*, items:order_items(*)")
+         .eq("id", orderId)
+         .maybeSingle();
+      if (freshErr) {
+         // If we couldn't fetch fresh order, fall back to returning the original update
+         return data;
+      }
+      return freshOrder;
+   } catch (fetchErr) {
+      return data;
+   }
 }
 import { supabase as browserSupabase } from "./client";
 import { createClient as createServerClient } from "@supabase/supabase-js";

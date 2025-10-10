@@ -86,36 +86,62 @@ const OrderDetails = () => {
    const isOwner = user?.id === order?.user_id;
    const isAdmin = hasRole("admin");
 
+   // Derive a normalized order state used for action visibility. We prioritize
+   // the physical order.status 'refunded' over refund_status so that when an
+   // order has been marked refunded the UI hides actions even if refund_status
+   // contains other values like 'approved'.
+   const orderStateForActions =
+      order?.status === "refunded"
+         ? "refunded"
+         : String(order?.refund_status || order?.status || "").toString();
+
    // Determine if there are any actionable items for the Order Actions card
+   // Show to admins for their status-change actions; for owners show actions
+   // in most cases except when the order is already refunded or when the
+   // refund window expired after delivery and there is no active refund.
    const hasOrderActions = (() => {
       if (!order) return false;
 
-      // Admin actions
+      // Admin actions: allow status updates
       if (isAdmin) {
          if (
-            order.status === "pending" ||
-            order.status === "processing" ||
-            order.status === "shipped"
+            orderStateForActions === "pending" ||
+            orderStateForActions === "processing" ||
+            orderStateForActions === "shipped"
          )
             return true;
       }
 
-      // Owner actions
+      // Owner actions: show unless refunded or refund window expired
       if (isOwner) {
-         // Request full refund when delivered within 24h and not requested/refunded
-         if (order.status === "delivered" && order.delivered_at) {
-            const deliveredAt = new Date(order.delivered_at).getTime();
-            const now = Date.now();
-            const within24h = now - deliveredAt <= 24 * 60 * 60 * 1000;
-            if (
-               within24h &&
-               order.refund_status !== "requested" &&
-               order.refund_status !== "refunded"
-            )
-               return true;
-            if (order.refund_status === "requested") return true; // show cancel refund request
-            if (order.refund_status === "approved") return true; // show approved message
+         // Hide actions if order is refunded
+         if (orderStateForActions === "refunded") return false;
+
+         // If delivered, check refund window (24h)
+         if (orderStateForActions === "delivered") {
+            if (order.delivered_at) {
+               const deliveredAt = new Date(order.delivered_at).getTime();
+               const now = Date.now();
+               const within24h = now - deliveredAt <= 24 * 60 * 60 * 1000;
+
+               // Show actions if still within 24h or there is an active refund status
+               if (within24h) return true;
+               if (
+                  order.refund_status &&
+                  String(order.refund_status) !== "refunded"
+               )
+                  return true;
+
+               // delivered and refund window expired with no refund -> hide
+               return false;
+            }
+
+            // delivered but no delivered_at timestamp -> show actions conservatively
+            return true;
          }
+
+         // For non-delivered statuses (pending, processing, shipped, etc.) show actions
+         return true;
       }
 
       return false;
@@ -420,9 +446,7 @@ const OrderDetails = () => {
                                           "cancelled",
                                           "delivered",
                                           "rejected",
-                                       ].includes(
-                                          order.refund_status || order.status
-                                       ) ||
+                                       ].includes(orderStateForActions) ||
                                        item.refund_status === "rejected" ? (
                                           // Only show status badge
                                           item.refund_status === "rejected" ? (
