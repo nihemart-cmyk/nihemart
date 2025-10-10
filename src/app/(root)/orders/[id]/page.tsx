@@ -86,6 +86,41 @@ const OrderDetails = () => {
    const isOwner = user?.id === order?.user_id;
    const isAdmin = hasRole("admin");
 
+   // Determine if there are any actionable items for the Order Actions card
+   const hasOrderActions = (() => {
+      if (!order) return false;
+
+      // Admin actions
+      if (isAdmin) {
+         if (
+            order.status === "pending" ||
+            order.status === "processing" ||
+            order.status === "shipped"
+         )
+            return true;
+      }
+
+      // Owner actions
+      if (isOwner) {
+         // Request full refund when delivered within 24h and not requested/refunded
+         if (order.status === "delivered" && order.delivered_at) {
+            const deliveredAt = new Date(order.delivered_at).getTime();
+            const now = Date.now();
+            const within24h = now - deliveredAt <= 24 * 60 * 60 * 1000;
+            if (
+               within24h &&
+               order.refund_status !== "requested" &&
+               order.refund_status !== "refunded"
+            )
+               return true;
+            if (order.refund_status === "requested") return true; // show cancel refund request
+            if (order.refund_status === "approved") return true; // show approved message
+         }
+      }
+
+      return false;
+   })();
+
    const requestOrderRefund = useRequestRefundOrder();
    const cancelOrderRefund = useCancelRefundRequestOrder();
 
@@ -379,19 +414,81 @@ const OrderDetails = () => {
                                     </p>
 
                                     <div className="flex flex-wrap items-center gap-2">
-                                       {!isAdmin && isOwner ? (
+                                       {/* Hide all actions if order or item is rejected, refunded, cancelled, or delivered */}
+                                       {[
+                                          "refunded",
+                                          "cancelled",
+                                          "delivered",
+                                          "rejected",
+                                       ].includes(
+                                          order.refund_status || order.status
+                                       ) ||
+                                       item.refund_status === "rejected" ? (
+                                          // Only show status badge
+                                          item.refund_status === "rejected" ? (
+                                             <Badge
+                                                variant="destructive"
+                                                className="text-xs"
+                                             >
+                                                <X className="h-3 w-3 mr-1" />
+                                                Rejected
+                                             </Badge>
+                                          ) : item.refund_status ===
+                                            "refunded" ? (
+                                             <Badge
+                                                variant="default"
+                                                className="text-xs bg-green-100 text-green-700"
+                                             >
+                                                <CheckCircle className="h-3 w-3 mr-1" />
+                                                Refunded
+                                             </Badge>
+                                          ) : item.refund_status ===
+                                            "approved" ? (
+                                             <Badge
+                                                variant="default"
+                                                className="text-xs"
+                                             >
+                                                <CheckCircle className="h-3 w-3 mr-1" />
+                                                Refund Approved
+                                             </Badge>
+                                          ) : item.refund_status ===
+                                            "requested" ? (
+                                             <Badge
+                                                variant="secondary"
+                                                className="text-xs"
+                                             >
+                                                Requested
+                                             </Badge>
+                                          ) : item.refund_status ===
+                                            "cancelled" ? (
+                                             <Badge
+                                                variant="secondary"
+                                                className="text-xs"
+                                             >
+                                                Cancelled
+                                             </Badge>
+                                          ) : null
+                                       ) : !isAdmin && isOwner ? (
                                           item.refund_status ? (
                                              <>
                                                 <Badge
-                                                   variant={
-                                                      item.refund_status ===
-                                                      "approved"
-                                                         ? "default"
-                                                         : item.refund_status ===
-                                                           "rejected"
-                                                         ? "destructive"
-                                                         : "secondary"
-                                                   }
+                                                   variant={(() => {
+                                                      const status =
+                                                         item.refund_status as import("@/types/orders").RefundStatus;
+                                                      switch (status) {
+                                                         case "approved":
+                                                            return "default";
+                                                         case "rejected":
+                                                            return "destructive";
+                                                         case "requested":
+                                                         case "cancelled":
+                                                            return "secondary";
+                                                         case "refunded":
+                                                            return "default";
+                                                         default:
+                                                            return "secondary";
+                                                      }
+                                                   })()}
                                                    className="text-xs"
                                                 >
                                                    {item.refund_status ===
@@ -400,19 +497,16 @@ const OrderDetails = () => {
                                                          <CheckCircle className="h-3 w-3 mr-1" />
                                                          Refund Approved
                                                       </>
-                                                   ) : item.refund_status ===
-                                                     "rejected" ? (
-                                                      <>
-                                                         <X className="h-3 w-3 mr-1" />
-                                                         Refund Rejected
-                                                      </>
-                                                   ) : (
+                                                   ) : typeof item.refund_status ===
+                                                     "string" ? (
                                                       item.refund_status
                                                          .charAt(0)
                                                          .toUpperCase() +
                                                       item.refund_status.slice(
                                                          1
                                                       )
+                                                   ) : (
+                                                      "Unknown"
                                                    )}
                                                 </Badge>
                                                 {item.refund_status ===
@@ -624,7 +718,7 @@ const OrderDetails = () => {
                   </CardContent>
                </Card>
 
-               {(isAdmin || isOwner) && (
+               {(isAdmin || isOwner) && hasOrderActions && (
                   <Card className="border-orange-200">
                      <CardHeader className="bg-gradient-to-r from-orange-50 to-orange-25 py-4 sm:py-5">
                         <CardTitle className="text-orange-800 text-lg sm:text-xl">

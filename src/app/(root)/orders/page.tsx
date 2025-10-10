@@ -11,6 +11,7 @@ import {
    Loader2,
    ArrowLeft,
    ShoppingBag,
+   CheckCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -478,7 +479,18 @@ const Orders = () => {
                                              </Button>
                                           );
                                        }
-
+                                       // Do not show refund button if already refunded
+                                       if (order.refund_status === "refunded") {
+                                          return (
+                                             <Badge
+                                                variant="default"
+                                                className="text-xs bg-green-100 text-green-700"
+                                             >
+                                                <CheckCircle className="h-3 w-3 mr-1" />
+                                                Refunded
+                                             </Badge>
+                                          );
+                                       }
                                        return (
                                           <Button
                                              size="sm"
