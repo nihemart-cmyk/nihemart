@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/pagination";
 import { ManageRefundDialog } from "./ManageRefundDialog";
 import { OrderDetailsDialog } from "./OrderDetailsDialog";
+import { ItemDetailsDialog } from "./ItemDetailsDialog";
 import { toast } from "sonner";
 
 interface RefundsTableProps {}
@@ -41,7 +42,7 @@ export const RefundsTable: React.FC<RefundsTableProps> = () => {
    const [selectedItem, setSelectedItem] = useState<any | null>(null);
    const [parentOrder, setParentOrder] = useState<any | null>(null);
    const [selectedAction, setSelectedAction] = useState<
-      "manage" | "details" | null
+      "manage" | "details" | "item-details" | null
    >(null);
    const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -147,30 +148,13 @@ export const RefundsTable: React.FC<RefundsTableProps> = () => {
                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
                            <DropdownMenuItem
                               onClick={() => {
-                                 if (!r.order) {
-                                    toast.error("Order details not available");
-                                    return;
-                                 }
-                                 // normalize order shape to ensure numeric fields exist
-                                 const fullOrder = {
-                                    ...r.order,
-                                    subtotal: Number(r.order.subtotal || 0),
-                                    tax: Number(r.order.tax || 0),
-                                    total:
-                                       r.order.total !== undefined
-                                          ? Number(r.order.total)
-                                          : Number(r.order.subtotal || 0),
-                                    items: Array.isArray(r.order.items)
-                                       ? r.order.items
-                                       : [],
-                                 };
-                                 setParentOrder(fullOrder as any);
-                                 setSelectedItem(null);
-                                 setSelectedAction("details");
+                                 setSelectedItem(refundItem);
+                                 setParentOrder(null);
+                                 setSelectedAction("item-details");
                                  setDialogOpen(true);
                               }}
                            >
-                              View order details
+                              View item details
                            </DropdownMenuItem>
                            <DropdownMenuSeparator />
                            <DropdownMenuItem
@@ -264,6 +248,12 @@ export const RefundsTable: React.FC<RefundsTableProps> = () => {
                open={dialogOpen}
                onOpenChange={(v) => setDialogOpen(v)}
                order={parentOrder || { id: selectedItem?.order_id }}
+            />
+         ) : selectedAction === "item-details" ? (
+            <ItemDetailsDialog
+               open={dialogOpen}
+               onOpenChange={(v) => setDialogOpen(v)}
+               item={selectedItem}
             />
          ) : (
             <ManageRefundDialog
