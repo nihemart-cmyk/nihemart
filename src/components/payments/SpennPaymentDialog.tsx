@@ -157,7 +157,7 @@ export default function SpennPaymentDialog({
           </DialogTitle>
           <DialogDescription>
             Please enter your SPENN account details to complete the payment.
-            You'll be redirected to SPENN to authorize the transaction.
+            You&apos;ll be redirected to SPENN to authorize the transaction.
           </DialogDescription>
         </DialogHeader>
 
@@ -219,8 +219,8 @@ export default function SpennPaymentDialog({
               <div className="text-sm text-purple-800">
                 <p className="font-medium mb-1">About SPENN</p>
                 <p className="text-xs leading-relaxed">
-                  SPENN is Rwanda's digital wallet that lets you send, receive, and pay for goods and services.
-                  You'll be redirected to the SPENN platform to complete your payment.
+                  SPENN is Rwanda&apos;s digital wallet that lets you send, receive, and pay for goods and services.
+                  You&apos;ll be redirected to the SPENN platform to complete your payment.
                 </p>
               </div>
             </div>

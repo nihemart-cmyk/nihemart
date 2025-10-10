@@ -40,7 +40,7 @@ import {
    MapPin,
    Mail,
    Phone,
-   User,
+   User as UserIcon,
    Calendar,
    MessageCircle,
    RefreshCw,
@@ -645,7 +645,7 @@ const OrderClientPage = ({ initialData, user, isAdmin }: OrderClientPageProps) =
                   </CardHeader>
                   <CardContent className="p-4 sm:p-6 space-y-3">
                      <div className="flex items-center space-x-3">
-                        <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <UserIcon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                         <span className="text-sm break-words">
                            {order.customer_first_name}{" "}
                            {order.customer_last_name}

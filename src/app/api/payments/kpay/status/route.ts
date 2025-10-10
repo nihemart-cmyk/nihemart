@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
         updateData.status = 'failed';
         updateData.failure_reason = kpayResponse.statusdesc || 'Payment failed';
         needsUpdate = true;
-      }
+      } else if (kpayResponse.retcode === 611) {
         // Transaction not found - might indicate a problem
         console.warn('Transaction not found in KPay system:', {
           paymentId: payment.id,
@@ -151,7 +151,7 @@ export async function POST(request: NextRequest) {
           const { error: orderUpdateError } = await supabase
             .from('orders')
             .update({
-              status: 'confirmed',
+              status: 'processing',
               payment_status: 'paid',
               updated_at: new Date().toISOString(),
             })

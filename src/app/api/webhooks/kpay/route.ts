@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     console.log('Processed payment status:', paymentStatus);
 
     // Initialize Supabase client
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
 
     // Find the payment record by KPay transaction ID or reference
     const { data: payment, error: findError } = await supabase
@@ -126,7 +126,7 @@ export async function POST(request: NextRequest) {
       const { error: orderUpdateError } = await supabase
         .from('orders')
         .update({
-          status: 'confirmed',
+          status: 'processing',
           payment_status: 'paid',
           updated_at: new Date().toISOString(),
         })
@@ -136,7 +136,7 @@ export async function POST(request: NextRequest) {
         console.error('Failed to update order status:', orderUpdateError);
         // Don't return error here as the payment was processed successfully
       } else {
-        console.log('Order status updated to confirmed:', payment.order_id);
+        console.log('Order status updated to processing:', payment.order_id);
       }
 
       // TODO: Add notification/email sending logic here

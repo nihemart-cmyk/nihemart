@@ -23,6 +23,7 @@ interface PaymentData {
   customer_phone: string;
   created_at: string;
   checkout_url?: string;
+  failure_reason?: string;
 }
 
 export default function PaymentPage() {
@@ -31,8 +32,8 @@ export default function PaymentPage() {
   const searchParams = useSearchParams();
   const { checkPaymentStatus, isCheckingStatus } = useKPayPayment();
   
-  const paymentId = params.paymentId as string;
-  const orderId = searchParams.get('orderId');
+  const paymentId = params?.paymentId as string;
+  const orderId = searchParams?.get('orderId');
   
   const [payment, setPayment] = useState<PaymentData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -233,7 +234,7 @@ export default function PaymentPage() {
               {paymentCompleted ? (
                 "Your payment has been processed successfully!"
               ) : payment.status === 'pending' ? (
-                "We're processing your payment. Please wait..."
+                "We&apos;re processing your payment. Please wait..."
               ) : payment.status === 'failed' ? (
                 "Your payment could not be processed. Please try again."
               ) : (
@@ -327,7 +328,7 @@ export default function PaymentPage() {
                   </p>
                   <div className="mt-4 p-3 bg-blue-50 rounded-lg">
                     <p className="text-sm text-blue-700">
-                      <strong>Tip:</strong> Keep this page open. We'll automatically detect when your payment is complete.
+                      <strong>Tip:</strong> Keep this page open. We&apos;ll automatically detect when your payment is complete.
                     </p>
                   </div>
                 </div>

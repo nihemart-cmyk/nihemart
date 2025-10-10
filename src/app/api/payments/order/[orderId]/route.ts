@@ -3,9 +3,9 @@ import { createServerSupabaseClient } from '@/utils/supabase/server';
 import { logger } from '@/lib/logger';
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     orderId: string;
-  };
+  }>;
 }
 
 export async function GET(request: NextRequest, { params }: RouteParams) {
