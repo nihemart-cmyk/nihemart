@@ -44,6 +44,9 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
+import PaymentMethodSelector from "@/components/payments/PaymentMethodSelector";
+import { useKPayPayment } from "@/hooks/useKPayPayment";
+import { PAYMENT_METHODS } from "@/lib/services/kpay";
 
 interface CartItem {
    id: string;
@@ -119,6 +122,9 @@ const Checkout = () => {
 
    const { items: cartItems, clearCart } = useCart();
 
+   // KPay payment functionality
+   const { initiatePayment, formatPhoneNumber, validatePaymentRequest, isInitiating } = useKPayPayment();
+
    // Location data state
    const [provinces, setProvinces] = useState<any[]>([]);
    const [districts, setDistricts] = useState<any[]>([]);
@@ -142,7 +148,7 @@ const Checkout = () => {
    const [isSavingAddress, setIsSavingAddress] = useState(false);
    // Payment method state (default to Cash on Delivery)
    const [paymentMethod, setPaymentMethod] =
-      useState<string>("cash_on_delivery");
+      useState<keyof typeof PAYMENT_METHODS | 'cash_on_delivery'>("cash_on_delivery");
    // Orders enabled flag (null = loading)
    const [ordersEnabled, setOrdersEnabled] = useState<boolean | null>(null);
 
@@ -601,7 +607,7 @@ const Checkout = () => {
          }
 
          createOrder.mutate(orderData as CreateOrderRequest, {
-            onSuccess: (createdOrder: any) => {
+            onSuccess: async (createdOrder: any) => {
                try {
                   clearCart();
                } catch (e) {
@@ -609,10 +615,55 @@ const Checkout = () => {
                }
                setOrderItems([]);
 
-               toast.success(
-                  `Order #${createdOrder.order_number} has been created successfully!`
-               );
-               router.push(`/orders/${createdOrder.id}`);
+               // Handle payment processing based on method
+               if (paymentMethod === 'cash_on_delivery') {
+                  // Cash on delivery - redirect to order page
+                  toast.success(
+                     `Order #${createdOrder.order_number} has been created successfully!`
+                  );
+                  router.push(`/orders/${createdOrder.id}`);
+               } else {
+                  // KPay payment - initiate payment
+                  try {
+                     const paymentRequest = {
+                        orderId: createdOrder.id,
+                        amount: total,
+                        customerName: `${formData.firstName} ${formData.lastName}`,
+                        customerEmail: formData.email,
+                        customerPhone: formatPhoneNumber(selectedAddress?.phone || formData.phone || ''),
+                        paymentMethod: paymentMethod as keyof typeof PAYMENT_METHODS,
+                        redirectUrl: `${window.location.origin}/orders/${createdOrder.id}?payment=success`,
+                     };
+
+                     const validationErrors = validatePaymentRequest(paymentRequest);
+                     if (validationErrors.length > 0) {
+                        toast.error(`Payment validation failed: ${validationErrors[0]}`);
+                        router.push(`/orders/${createdOrder.id}`);
+                        return;
+                     }
+
+                     const paymentResult = await initiatePayment(paymentRequest);
+                     
+                     if (paymentResult.success) {
+                        toast.success(
+                           `Order #${createdOrder.order_number} created! Redirecting to payment...`
+                        );
+                        // Redirect to order page where they can track payment status
+                        router.push(`/orders/${createdOrder.id}?payment=pending&paymentId=${paymentResult.paymentId}`);
+                     } else {
+                        toast.error(
+                           `Order created but payment failed: ${paymentResult.error || 'Unknown error'}`
+                        );
+                        router.push(`/orders/${createdOrder.id}`);
+                     }
+                  } catch (paymentError) {
+                     console.error('Payment initiation failed:', paymentError);
+                     toast.error(
+                        `Order #${createdOrder.order_number} created, but payment initiation failed. You can try to pay from the order page.`
+                     );
+                     router.push(`/orders/${createdOrder.id}`);
+                  }
+               }
             },
             onError: (error: any) => {
                console.error("createOrder.onError", error);
@@ -1383,37 +1434,11 @@ Total: ${total.toLocaleString()} RWF
                         </button>
                      </CollapsibleTrigger>
                      <CollapsibleContent className="mt-3 sm:mt-4">
-                        <div className="border border-gray-200 rounded-lg p-3 sm:p-4 bg-gray-50">
-                           <p className="text-xs sm:text-sm text-gray-600">
-                              {t("checkout.selectPaymentMethod")}
-                           </p>
-                           {/* Simple payment method selector - default COD */}
-                           <div className="mt-3">
-                              <fieldset className="space-y-2">
-                                 <legend className="sr-only">
-                                    Payment method
-                                 </legend>
-                                 <label className="flex items-center space-x-2 cursor-pointer">
-                                    <input
-                                       type="radio"
-                                       name="payment_method"
-                                       value="cash_on_delivery"
-                                       checked={
-                                          paymentMethod === "cash_on_delivery"
-                                       }
-                                       onChange={() =>
-                                          setPaymentMethod("cash_on_delivery")
-                                       }
-                                       className="w-4 h-4"
-                                    />
-                                    <span className="text-sm text-gray-800">
-                                       {t("checkout.cashOnDelivery") ||
-                                          "Cash on Delivery"}
-                                    </span>
-                                 </label>
-                              </fieldset>
-                           </div>
-                        </div>
+                        <PaymentMethodSelector
+                           selectedMethod={paymentMethod}
+                           onMethodChange={setPaymentMethod}
+                           disabled={isSubmitting || isInitiating}
+                        />
                      </CollapsibleContent>
                   </Collapsible>
                </div>
@@ -1561,18 +1586,21 @@ Total: ${total.toLocaleString()} RWF
                                     className="w-full bg-orange-500 hover:bg-orange-600 text-white text-sm sm:text-base h-10 sm:h-12"
                                     onClick={handleCreateOrder}
                                     disabled={
-                                       isSubmitting || orderItems.length === 0
+                                       isSubmitting || isInitiating || orderItems.length === 0
                                     }
                                  >
-                                    {isSubmitting ? (
+                                    {(isSubmitting || isInitiating) ? (
                                        <>
                                           <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 animate-spin" />
-                                          {t("checkout.processing")}
+                                          {isInitiating ? 'Initiating Payment...' : t("checkout.processing")}
                                        </>
                                     ) : (
                                        <>
                                           <CheckCircle2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                                          {t("checkout.placeOrder")}
+                                          {paymentMethod === 'cash_on_delivery' 
+                                             ? t("checkout.placeOrder")
+                                             : `Pay with ${PAYMENT_METHODS[paymentMethod as keyof typeof PAYMENT_METHODS]?.name || 'KPay'}`
+                                          }
                                        </>
                                     )}
                                  </Button>

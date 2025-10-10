@@ -1,0 +1,251 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { initializeKPayService } from '@/lib/services/kpay';
+import { createServerSupabaseClient } from '@/lib/supabase/server';
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { paymentId, transactionId, reference } = body;
+
+    // Validate that at least one identifier is provided
+    if (!paymentId && !transactionId && !reference) {
+      return NextResponse.json(
+        { error: 'Payment ID, transaction ID, or reference is required' },
+        { status: 400 }
+      );
+    }
+
+    // Initialize Supabase client
+    const supabase = createServerSupabaseClient();
+
+    // Find the payment record
+    let paymentQuery = supabase
+      .from('payments')
+      .select('id, order_id, status, amount, currency, reference, kpay_transaction_id, customer_name, customer_email');
+
+    if (paymentId) {
+      paymentQuery = paymentQuery.eq('id', paymentId);
+    } else if (transactionId) {
+      paymentQuery = paymentQuery.eq('kpay_transaction_id', transactionId);
+    } else if (reference) {
+      paymentQuery = paymentQuery.eq('reference', reference);
+    }
+
+    const { data: payment, error: paymentError } = await paymentQuery.single();
+
+    if (paymentError || !payment) {
+      return NextResponse.json(
+        { error: 'Payment not found' },
+        { status: 404 }
+      );
+    }
+
+    // If payment is already in final state, return current status
+    if (payment.status === 'completed' || payment.status === 'failed') {
+      return NextResponse.json({
+        success: true,
+        paymentId: payment.id,
+        status: payment.status,
+        amount: payment.amount,
+        currency: payment.currency,
+        reference: payment.reference,
+        transactionId: payment.kpay_transaction_id,
+        message: `Payment is ${payment.status}`,
+        needsUpdate: false,
+      });
+    }
+
+    // Initialize KPay service
+    let kpayService;
+    try {
+      kpayService = initializeKPayService();
+    } catch (error) {
+      console.error('KPay service initialization failed:', error);
+      return NextResponse.json(
+        { error: 'Payment service unavailable' },
+        { status: 503 }
+      );
+    }
+
+    try {
+      // Check payment status with KPay
+      const kpayResponse = await kpayService.checkPaymentStatus({
+        transactionId: payment.kpay_transaction_id,
+        orderReference: payment.reference,
+      });
+
+      console.log('KPay status check response:', {
+        paymentId: payment.id,
+        kpayResponse: kpayResponse
+      });
+
+      // Process the status response
+      let updatedStatus = payment.status;
+      let needsUpdate = false;
+      let updateData: any = {
+        updated_at: new Date().toISOString(),
+      };
+
+      // Check if status has changed based on statusid
+      if (kpayResponse.statusid === '01' && payment.status !== 'completed') {
+        // Payment successful
+        updatedStatus = 'completed';
+        updateData.status = 'completed';
+        updateData.completed_at = new Date().toISOString();
+        updateData.kpay_mom_transaction_id = kpayResponse.momtransactionid;
+        needsUpdate = true;
+      } else if (kpayResponse.statusid === '02' && payment.status !== 'failed') {
+        // Payment failed
+        updatedStatus = 'failed';
+        updateData.status = 'failed';
+        updateData.failure_reason = kpayResponse.statusdesc;
+        needsUpdate = true;
+      } else if (kpayResponse.statusid === '03') {
+        // Payment still pending
+        updatedStatus = 'pending';
+        // Don't update status if already pending
+      } else if (kpayResponse.retcode === 611) {
+        // Transaction not found - might indicate a problem
+        console.warn('Transaction not found in KPay system:', {
+          paymentId: payment.id,
+          transactionId: payment.kpay_transaction_id,
+          reference: payment.reference
+        });
+        
+        return NextResponse.json({
+          success: true,
+          paymentId: payment.id,
+          status: payment.status,
+          amount: payment.amount,
+          currency: payment.currency,
+          reference: payment.reference,
+          transactionId: payment.kpay_transaction_id,
+          message: 'Transaction not found in payment gateway',
+          needsUpdate: false,
+          error: 'Transaction not found in KPay system',
+        });
+      }
+
+      // Update payment record if status changed
+      if (needsUpdate) {
+        const { error: updateError } = await supabase
+          .from('payments')
+          .update(updateData)
+          .eq('id', payment.id);
+
+        if (updateError) {
+          console.error('Failed to update payment status:', updateError);
+          return NextResponse.json(
+            { error: 'Failed to update payment status' },
+            { status: 500 }
+          );
+        }
+
+        // Update order status if payment completed
+        if (updatedStatus === 'completed') {
+          const { error: orderUpdateError } = await supabase
+            .from('orders')
+            .update({
+              status: 'confirmed',
+              payment_status: 'paid',
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', payment.order_id);
+
+          if (orderUpdateError) {
+            console.error('Failed to update order status:', orderUpdateError);
+          }
+        }
+
+        // Update order status if payment failed
+        if (updatedStatus === 'failed') {
+          const { error: orderUpdateError } = await supabase
+            .from('orders')
+            .update({
+              status: 'cancelled',
+              payment_status: 'failed',
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', payment.order_id);
+
+          if (orderUpdateError) {
+            console.error('Failed to update order status on payment failure:', orderUpdateError);
+          }
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        paymentId: payment.id,
+        status: updatedStatus,
+        amount: payment.amount,
+        currency: payment.currency,
+        reference: payment.reference,
+        transactionId: payment.kpay_transaction_id,
+        message: kpayResponse.statusdesc || `Payment is ${updatedStatus}`,
+        needsUpdate: needsUpdate,
+        kpayStatus: {
+          statusId: kpayResponse.statusid,
+          statusDescription: kpayResponse.statusdesc,
+          returnCode: kpayResponse.retcode,
+          momTransactionId: kpayResponse.momtransactionid,
+        }
+      });
+
+    } catch (kpayError) {
+      console.error('KPay status check failed:', kpayError);
+
+      // Return current status from database if KPay check fails
+      return NextResponse.json({
+        success: true,
+        paymentId: payment.id,
+        status: payment.status,
+        amount: payment.amount,
+        currency: payment.currency,
+        reference: payment.reference,
+        transactionId: payment.kpay_transaction_id,
+        message: 'Unable to check with payment gateway, showing last known status',
+        needsUpdate: false,
+        error: 'Failed to check status with payment gateway',
+      });
+    }
+
+  } catch (error) {
+    console.error('Payment status check error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const paymentId = searchParams.get('paymentId');
+    const transactionId = searchParams.get('transactionId');
+    const reference = searchParams.get('reference');
+
+    // Validate that at least one identifier is provided
+    if (!paymentId && !transactionId && !reference) {
+      return NextResponse.json(
+        { error: 'Payment ID, transaction ID, or reference is required' },
+        { status: 400 }
+      );
+    }
+
+    // Call the same logic as POST method
+    return await POST(new NextRequest(request.url, {
+      method: 'POST',
+      body: JSON.stringify({ paymentId, transactionId, reference }),
+      headers: { 'Content-Type': 'application/json' }
+    }));
+
+  } catch (error) {
+    console.error('Payment status check error (GET):', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
