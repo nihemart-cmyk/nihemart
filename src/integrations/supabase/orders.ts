@@ -264,6 +264,7 @@ export async function respondToRefundRequest(
 
    const newStatus = approve ? "approved" : "rejected";
    const updates: any = { refund_status: newStatus };
+   if (approve) updates.status = "refunded";
    if (!approve) updates.refund_reason = existing.refund_reason || null;
 
    const { data, error } = await sb
@@ -346,7 +347,7 @@ export async function respondToRefundRequest(
             p_recipient_role: null,
             p_type: "refund_approved",
             p_title: "Refund approved",
-            p_body: `Your refund request for item ${existing.product_name} has been approved. Please allow up to 24 hours for processing.`,
+            p_body: `Your refund request for item ${existing.product_name} has been approved. .`,
             p_meta: JSON.stringify({
                order_id: existing.order_id,
                item_id: existing.id,
@@ -357,6 +358,45 @@ export async function respondToRefundRequest(
          console.warn(
             "Failed to create notification for refund approval:",
             err
+         );
+      }
+      // After approving an item refund, check whether all items in the order
+      // are now approved/refunded. If so, update the parent order status to
+      // 'refunded' so the UI reflects that the whole order has been refunded.
+      try {
+         const { data: siblingItems, error: siblingErr } = await sb
+            .from("order_items")
+            .select("refund_status")
+            .eq("order_id", existing.order_id);
+         if (!siblingErr && Array.isArray(siblingItems)) {
+            const allRefunded = siblingItems.every(
+               (it: any) =>
+                  it.refund_status === "approved" ||
+                  it.refund_status === "refunded"
+            );
+            if (allRefunded) {
+               try {
+                  const { error: orderUpdErr } = await sb
+                     .from("orders")
+                     .update({ status: "refunded" })
+                     .eq("id", existing.order_id);
+                  if (orderUpdErr)
+                     console.warn(
+                        "Failed to mark order as refunded:",
+                        orderUpdErr
+                     );
+               } catch (oErr) {
+                  console.warn(
+                     "Failed to update order status to refunded:",
+                     oErr
+                  );
+               }
+            }
+         }
+      } catch (chkErr) {
+         console.warn(
+            "Failed to check sibling items after refund approval:",
+            chkErr
          );
       }
    }
@@ -513,7 +553,7 @@ export async function respondToOrderRefundRequest(
             p_title: "Refund approved",
             p_body: `Your refund request for order ${
                existing.order_number || existing.id
-            } has been approved. Please allow up to 24 hours for processing.`,
+            } has been approved. .`,
             p_meta: JSON.stringify({ order_id: existing.id }),
          });
       } catch (err) {
@@ -522,9 +562,36 @@ export async function respondToOrderRefundRequest(
             err
          );
       }
+
+      // After successful approval, mark the parent order as refunded so UI shows
+      // the correct overall order status.
+      try {
+         const { error: orderUpdErr } = await sb
+            .from("orders")
+            .update({ status: "refunded" })
+            .eq("id", orderId);
+         if (orderUpdErr)
+            console.warn("Failed to mark order as refunded:", orderUpdErr);
+      } catch (oErr) {
+         console.warn("Failed to update order status to refunded:", oErr);
+      }
    }
 
-   return data;
+   // Return an up-to-date order row (including items) so callers can merge into cache
+   try {
+      const { data: freshOrder, error: freshErr } = await sb
+         .from("orders")
+         .select("*, items:order_items(*)")
+         .eq("id", orderId)
+         .maybeSingle();
+      if (freshErr) {
+         // If we couldn't fetch fresh order, fall back to returning the original update
+         return data;
+      }
+      return freshOrder;
+   } catch (fetchErr) {
+      return data;
+   }
 }
 import { supabase as browserSupabase } from "./client";
 import { createClient as createServerClient } from "@supabase/supabase-js";

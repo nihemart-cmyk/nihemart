@@ -1,9 +1,10 @@
 "use client";
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { fetchRiderByUserId } from "@/integrations/supabase/riders";
 import { toast } from "sonner";
+import { formatRiderInfo } from "@/utils/notification-formatters";
 
 type Notification = {
    id: string;
@@ -38,6 +39,8 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
    const { user, hasRole } = useAuth();
    const [notifications, setNotifications] = useState<Notification[]>([]);
    const [riderId, setRiderId] = useState<string | null>(null);
+   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+   const lastFetchTime = useRef<number>(Date.now());
 
    useEffect(() => {
       if (!user) return;
@@ -45,30 +48,57 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
       let notificationsChannel: any = null;
       const addNotificationLocal = (n: Notification) => {
          setNotifications((prev) => [n, ...prev]);
-         // Improved, context-aware notification toast messages
-         let message = "";
-         switch (n.type) {
-            case "order":
-               message = n.body
-                  ? `Order Update: ${n.body}`
-                  : `You have a new order update.`;
-               break;
-            case "promotion":
-               message = n.body
-                  ? `Special Offer: ${n.body}`
-                  : `A new promotion is available!`;
-               break;
-            case "system":
-               message = n.body
-                  ? `System Alert: ${n.body}`
-                  : `There is a new system notification.`;
-               break;
-            default:
-               message = n.title
-                  ? `${n.title}${n.body ? ` — ${n.body}` : ""}`
-                  : `You have a new notification.`;
+         // Show concise toasts only for important customer-facing events.
+         try {
+            // Parse meta if present
+            const meta =
+               typeof n.meta === "string" ? JSON.parse(n.meta) : n.meta || {};
+
+            // Only show assignment_accepted toasts for the order owner (customer)
+            if (n.type === "assignment_accepted") {
+               // Use the notification title directly since it's now properly formatted
+               toast.success(n.title || "Rider assigned to your order", {
+                  duration: 5000,
+               });
+               return;
+            }
+
+            // For other types, show appropriate toast messages using notification titles
+            if (n.type === "order_status_update") {
+               toast.info(n.title || "Order Status Updated", {
+                  duration: 4000,
+               });
+            } else if (n.type === "order_delivered") {
+               toast.success(n.title || "Order Delivered Successfully", {
+                  duration: 5000,
+               });
+            } else if (n.type === "refund_approved") {
+               toast.success(n.title || "Refund Approved", {
+                  duration: 5000,
+               });
+            } else if (n.type === "promotion") {
+               toast(n.title || "Special Offer Available", {
+                  duration: 6000,
+               });
+            } else if (n.type === "system") {
+               toast.info(n.title || "System Notification", {
+                  duration: 4000,
+               });
+            } else if (n.type === "assignment_created") {
+               // For rider notifications, show more specific toast
+               toast.info(n.title || "New Delivery Assignment", {
+                  duration: 4000,
+               });
+            } else if (n.type === "assignment_rejected") {
+               // Admin notification for rejected assignments
+               toast.info(n.title || "Assignment Rejected", {
+                  duration: 3000,
+               });
+            }
+         } catch (e) {
+            // fallback: show generic toast
+            toast.message(n.title || "You have a new notification.");
          }
-         toast.message(message);
       };
 
       const fetchPersisted = async () => {
@@ -178,6 +208,73 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
          }
       };
 
+      // Polling fallback for better reliability
+      const startPolling = () => {
+         // Clear existing interval
+         if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+         }
+
+         // Poll every 10 seconds for new notifications for better real-time experience
+         pollingIntervalRef.current = setInterval(async () => {
+            try {
+               const currentTime = Date.now();
+               const since = new Date(lastFetchTime.current).toISOString();
+               
+               // Fetch only recent notifications since last fetch
+               const response = await fetch(
+                  `/api/notifications?userId=${encodeURIComponent(user.id)}&limit=20&since=${since}`
+               );
+               
+               if (response.ok) {
+                  const data = await response.json();
+                  const newNotifications = data.notifications || [];
+                  
+                  if (newNotifications.length > 0) {
+                     setNotifications((prev) => {
+                        const existingIds = new Set(prev.map(n => n.id));
+                        const reallyNew = newNotifications.filter((n: Notification) => !existingIds.has(n.id));
+                        
+                        if (reallyNew.length > 0) {
+                        // Show toast for new notifications
+                           reallyNew.forEach((n: Notification) => {
+                              if (n.type === "assignment_accepted") {
+                                 toast.success(n.title || "Rider assigned to your order", {
+                                    duration: 5000,
+                                 });
+                              } else if (n.type === "order_delivered") {
+                                 toast.success(n.title || "Order Delivered Successfully", {
+                                    duration: 5000,
+                                 });
+                              } else if (n.type === "order_status_update") {
+                                 toast.info(n.title || "Order Status Updated", {
+                                    duration: 4000,
+                                 });
+                              }
+                           });
+                           
+                           return [reallyNew, ...prev].slice(0, 200);
+                        }
+                        
+                        return prev;
+                     });
+                  }
+                  
+                  lastFetchTime.current = currentTime;
+               }
+            } catch (error) {
+               console.error("Polling error:", error);
+            }
+         }, 10000); // Poll every 10 seconds for better real-time experience
+      };
+
+      const stopPolling = () => {
+         if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = null;
+         }
+      };
+
       const setupRealtime = () => {
          // subscribe to notifications INSERT and UPDATE events and filter client-side
          notificationsChannel = supabase
@@ -266,16 +363,44 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
             return [normalized, ...prev].slice(0, 200);
          });
 
-         // show small toast for real-time arrival
-         toast.message(
-            normalized.title + (normalized.body ? ` — ${normalized.body}` : "")
-         );
+         // show small toast for real-time arrival using notification titles
+         if (normalized.type === "assignment_accepted") {
+            toast.success(normalized.title || "Rider assigned to your order", {
+               duration: 5000,
+            });
+         } else if (normalized.type === "order_delivered") {
+            toast.success(normalized.title || "Order Delivered Successfully", {
+               duration: 5000,
+            });
+         } else if (normalized.type === "order_status_update") {
+            toast.info(normalized.title || "Order Status Updated", {
+               duration: 4000,
+            });
+         } else if (normalized.type === "assignment_created") {
+            toast.info(normalized.title || "New Delivery Assignment", {
+               duration: 4000,
+            });
+         } else if (normalized.type === "refund_approved") {
+            toast.success(normalized.title || "Refund Approved", {
+               duration: 5000,
+            });
+         } else {
+            // Default message for other types
+            toast.message(normalized.title || "New notification", {
+               duration: 3000,
+            });
+         }
       };
 
       fetchPersisted();
       setupRealtime();
+      startPolling();
+
+      // Update last fetch time
+      lastFetchTime.current = Date.now();
 
       return () => {
+         stopPolling();
          try {
             if (notificationsChannel)
                supabase.removeChannel(notificationsChannel);

@@ -37,7 +37,11 @@ const NotificationsPage = () => {
    const router = useRouter();
 
    useEffect(() => {
-      setLocalNotifications(notifications);
+      // Filter out invalid notifications before setting local state
+      const validNotifications = notifications.filter((n) => {
+         return n && n.id && (n.title || n.body) && n.created_at;
+      });
+      setLocalNotifications(validNotifications);
    }, [notifications]);
 
    const filteredNotifications = localNotifications.filter((notification) => {
@@ -334,21 +338,33 @@ const NotificationsPage = () => {
                                     </div>
 
                                     {notification.body && (
-                                       <p className="text-gray-600 text-sm mt-1 line-clamp-2">
-                                          {notification.body}
-                                       </p>
+                                       <div className="text-gray-600 text-sm mt-1">
+                                          <div className="whitespace-pre-wrap">
+                                             {notification.body}
+                                          </div>
+                                       </div>
                                     )}
 
                                     <div className="flex items-center justify-between mt-2">
                                        <div className="text-xs text-muted-foreground">
-                                          {new Date(
-                                             notification.created_at
-                                          ).toLocaleString("en-US", {
-                                             month: "short",
-                                             day: "numeric",
-                                             hour: "2-digit",
-                                             minute: "2-digit",
-                                          })}
+                                          {(() => {
+                                             try {
+                                                if (!notification.created_at) return "Recently";
+                                                const date = new Date(notification.created_at);
+                                                if (isNaN(date.getTime())) return "Recently";
+                                                
+                                                return date.toLocaleString("en-US", {
+                                                   month: "short",
+                                                   day: "numeric",
+                                                   hour: "2-digit",
+                                                   minute: "2-digit",
+                                                   year: date.getFullYear() !== new Date().getFullYear() ? "numeric" : undefined,
+                                                });
+                                             } catch (error) {
+                                                console.error("Error formatting notification date:", error);
+                                                return "Recently";
+                                             }
+                                          })()}
                                        </div>
 
                                        <div className="flex items-center space-x-1">

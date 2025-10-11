@@ -24,7 +24,7 @@ export default async function handler(
 
    try {
       if (req.method === "GET") {
-         const { userId, role, limit = 50, notificationId } = req.query;
+         const { userId, role, limit = 50, notificationId, since } = req.query;
 
          // If a notificationId is provided, return that single notification
          if (notificationId) {
@@ -50,6 +50,7 @@ export default async function handler(
 
          if (userId) query = query.eq("recipient_user_id", String(userId));
          if (role) query = query.eq("recipient_role", String(role));
+         if (since) query = query.gt("created_at", String(since));
 
          const { data, error } = await query;
          if (error) {

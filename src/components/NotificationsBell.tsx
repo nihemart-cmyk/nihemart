@@ -27,7 +27,13 @@ import { Separator } from "@/components/ui/separator";
 const NotificationsBell: React.FC = () => {
    const { notifications, markAsRead } = useNotifications();
    const [isMarkingRead, setIsMarkingRead] = useState<string | null>(null);
-   const unread = notifications.filter((n) => !n.read).length;
+   
+   // Filter out invalid notifications
+   const validNotifications = notifications.filter((n) => {
+      return n && n.id && (n.title || n.body) && n.created_at;
+   });
+   
+   const unread = validNotifications.filter((n) => !n.read).length;
    const router = useRouter();
    const { hasRole } = useAuth();
 
@@ -59,24 +65,31 @@ const NotificationsBell: React.FC = () => {
 
          const isAdmin = hasRole && hasRole("admin");
 
-         if (!isAdmin) {
-            if (meta && (meta.order?.id || meta.order_id)) {
-               router.push(`/rider/notifications/${notification.id}`);
+         // For admin users keep existing behavior: allow meta.url or order-specific route
+         if (isAdmin) {
+            if (meta?.url) {
+               router.push(meta.url);
                return;
             }
+            if (meta && (meta.order?.id || meta.order_id)) {
+               router.push(`/admin/orders/${meta.order?.id || meta.order_id}`);
+               return;
+            }
+            // fallback to notifications page for admins as well
+            router.push(`/notifications`);
+            return;
          }
 
-         // Default navigation for other notifications
-         if (meta?.url) {
-            router.push(meta.url);
-         }
+         // Non-admin (customer) behavior: always go to notifications page so they can see rider contact and details
+         router.push(`/notifications`);
       } catch (e) {
          console.error("Error handling notification click:", e);
+         router.push(`/notifications`);
       }
    };
 
    const handleMarkAllAsRead = async () => {
-      const unreadNotifications = notifications.filter((n) => !n.read);
+      const unreadNotifications = validNotifications.filter((n) => !n.read);
       for (const notification of unreadNotifications) {
          await markAsRead(notification.id);
       }
@@ -87,20 +100,42 @@ const NotificationsBell: React.FC = () => {
    };
 
    const formatTime = (dateString: string) => {
-      const date = new Date(dateString);
-      const now = new Date();
-      const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
+      try {
+         if (!dateString) return "Recently";
+         
+         const date = new Date(dateString);
+         
+         // Check if date is valid
+         if (isNaN(date.getTime())) {
+            return "Recently";
+         }
+         
+         const now = new Date();
+         const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
 
-      if (diffInHours < 1) {
-         const minutes = Math.floor(diffInHours * 60);
-         return `${minutes}m ago`;
-      } else if (diffInHours < 24) {
-         return `${Math.floor(diffInHours)}h ago`;
-      } else {
-         return date.toLocaleDateString("en-US", {
-            month: "short",
-            day: "numeric",
-         });
+         if (diffInHours < 0) {
+            // Future date, probably a timezone issue
+            return "Just now";
+         }
+
+         if (diffInHours < 1) {
+            const minutes = Math.floor(diffInHours * 60);
+            return minutes <= 0 ? "Just now" : `${minutes}m ago`;
+         } else if (diffInHours < 24) {
+            return `${Math.floor(diffInHours)}h ago`;
+         } else if (diffInHours < 168) {
+            const days = Math.floor(diffInHours / 24);
+            return `${days}d ago`;
+         } else {
+            return date.toLocaleDateString("en-US", {
+               month: "short",
+               day: "numeric",
+               year: date.getFullYear() !== now.getFullYear() ? "numeric" : undefined,
+            });
+         }
+      } catch (error) {
+         console.error("Error formatting time:", error);
+         return "Recently";
       }
    };
 
@@ -153,7 +188,7 @@ const NotificationsBell: React.FC = () => {
 
             {/* Notifications List */}
             <div className="max-h-80 overflow-auto">
-               {notifications.length === 0 ? (
+               {validNotifications.length === 0 ? (
                   <div className="py-8 text-center">
                      <Bell className="h-12 w-12 text-gray-300 mx-auto mb-3" />
                      <p className="text-sm text-gray-600">
@@ -164,7 +199,7 @@ const NotificationsBell: React.FC = () => {
                      </p>
                   </div>
                ) : (
-                  notifications.slice(0, 6).map((notification) => (
+                  validNotifications.slice(0, 6).map((notification) => (
                      <DropdownMenuItem
                         key={notification.id}
                         onClick={() => handleNotificationClick(notification)}
@@ -205,9 +240,11 @@ const NotificationsBell: React.FC = () => {
                            </div>
 
                            {notification.body && (
-                              <p className="text-xs text-gray-600 line-clamp-2 mb-1">
-                                 {notification.body}
-                              </p>
+                              <div className="text-xs text-gray-600 mb-1">
+                                 <div className="whitespace-pre-wrap line-clamp-3">
+                                    {notification.body}
+                                 </div>
+                              </div>
                            )}
 
                            <div className="flex items-center justify-between">
@@ -227,7 +264,7 @@ const NotificationsBell: React.FC = () => {
             </div>
 
             {/* Footer */}
-            {notifications.length > 0 && (
+            {validNotifications.length > 0 && (
                <>
                   <Separator />
                   <div className="p-2 bg-gray-50">
@@ -244,7 +281,7 @@ const NotificationsBell: React.FC = () => {
                </>
             )}
 
-            {notifications.length === 0 && (
+            {validNotifications.length === 0 && (
                <>
                   <Separator />
                   <div className="p-2 bg-gray-50">

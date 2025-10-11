@@ -2,11 +2,19 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
 export async function createClient() {
+   // Validate environment variables
+   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL environment variable');
+   }
+   if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      throw new Error('Missing NEXT_PUBLIC_SUPABASE_ANON_KEY environment variable');
+   }
+
    const cookieStore = await cookies();
 
-   return createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+   const client = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
       {
          cookies: {
             getAll() {
@@ -26,4 +34,13 @@ export async function createClient() {
          },
       }
    );
+
+   if (!client) {
+      throw new Error('Failed to create Supabase client');
+   }
+
+   return client;
 }
+
+// Legacy alias for backward compatibility
+export const createServerSupabaseClient = createClient;

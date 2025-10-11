@@ -717,6 +717,11 @@ export function useOrders() {
                                  ? "approved"
                                  : it.refund_status,
                         }));
+                        // When a full-order refund is approved, ensure order status reflects refunded
+                        merged.status =
+                           merged.status === "delivered"
+                              ? "refunded"
+                              : merged.status;
                      }
                      queryClient.setQueryData(orderKeys.detail(id), merged);
                   }
@@ -744,6 +749,11 @@ export function useOrders() {
                                        ? "approved"
                                        : it.refund_status,
                               }));
+                              // Ensure list items reflect overall refunded status
+                              merged.status =
+                                 merged.status === "delivered"
+                                    ? "refunded"
+                                    : merged.status;
                            }
                            return merged;
                         });

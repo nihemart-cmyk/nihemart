@@ -3,7 +3,16 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { DataTable } from "./data-table";
 import { ManageRefundDialog } from "./ManageRefundDialog";
+import { OrderDetailsDialog } from "./OrderDetailsDialog";
 import { Button } from "@/components/ui/button";
+import {
+   DropdownMenu,
+   DropdownMenuTrigger,
+   DropdownMenuContent,
+   DropdownMenuItem,
+   DropdownMenuLabel,
+   DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import {
    Pagination,
@@ -26,6 +35,9 @@ export default function OrderRefundsTable() {
 
    const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
    const [dialogOpen, setDialogOpen] = useState(false);
+   const [selectedAction, setSelectedAction] = useState<
+      "manage" | "details" | null
+   >(null);
 
    const fetchOrders = async () => {
       setLoading(true);
@@ -98,19 +110,65 @@ export default function OrderRefundsTable() {
          {
             id: "actions",
             header: "ACTIONS",
-            cell: ({ row }: any) => (
-               <div className="flex gap-2">
-                  <Button
-                     size="sm"
-                     onClick={() => {
-                        setSelectedOrder(row.original);
-                        setDialogOpen(true);
-                     }}
-                  >
-                     Manage
-                  </Button>
-               </div>
-            ),
+            cell: ({ row }: any) => {
+               const order = row.original;
+               return (
+                  <div className="flex gap-2">
+                     <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                           <Button
+                              variant="ghost"
+                              className="h-8 w-8 p-0"
+                           >
+                              <span className="sr-only">Open actions</span>
+                              <svg
+                                 xmlns="http://www.w3.org/2000/svg"
+                                 viewBox="0 0 24 24"
+                                 fill="currentColor"
+                                 className="h-4 w-4"
+                              >
+                                 <path d="M12 7a2 2 0 110-4 2 2 0 010 4zm0 7a2 2 0 110-4 2 2 0 010 4zm0 7a2 2 0 110-4 2 2 0 010 4z" />
+                              </svg>
+                           </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                           <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                           <DropdownMenuItem
+                              onClick={() => {
+                                 const fullOrder = {
+                                    ...order,
+                                    subtotal: Number(order.subtotal || 0),
+                                    tax: Number(order.tax || 0),
+                                    total:
+                                       order.total !== undefined
+                                          ? Number(order.total)
+                                          : Number(order.subtotal || 0),
+                                    items: Array.isArray(order.items)
+                                       ? order.items
+                                       : [],
+                                 };
+                                 setSelectedOrder(fullOrder as any);
+                                 setSelectedAction("details");
+                                 setDialogOpen(true);
+                              }}
+                           >
+                              View order details
+                           </DropdownMenuItem>
+                           <DropdownMenuSeparator />
+                           <DropdownMenuItem
+                              onClick={() => {
+                                 setSelectedOrder(order);
+                                 setSelectedAction("manage");
+                                 setDialogOpen(true);
+                              }}
+                           >
+                              Manage refund
+                           </DropdownMenuItem>
+                        </DropdownMenuContent>
+                     </DropdownMenu>
+                  </div>
+               );
+            },
          },
       ],
       []
@@ -182,12 +240,20 @@ export default function OrderRefundsTable() {
             </Pagination>
          </div>
 
-         <ManageRefundDialog
-            open={dialogOpen}
-            onOpenChange={(v) => setDialogOpen(v)}
-            order={selectedOrder || { id: null }}
-            item={null}
-         />
+         {selectedAction === "details" ? (
+            <OrderDetailsDialog
+               open={dialogOpen}
+               onOpenChange={(v) => setDialogOpen(v)}
+               order={selectedOrder || { id: null }}
+            />
+         ) : (
+            <ManageRefundDialog
+               open={dialogOpen}
+               onOpenChange={(v) => setDialogOpen(v)}
+               order={selectedOrder || { id: null }}
+               item={null}
+            />
+         )}
       </div>
    );
 }

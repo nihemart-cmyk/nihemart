@@ -41,7 +41,6 @@ export function AddressDialog({
    const [error, setError] = useState<string | null>(null);
    const debouncedSearch = useDebounce(query, 300);
 
-   // Zod schema: phone optional, but when present must match +250XXXXXXXXX or 07XXXXXXXX
    const AddressSchema = z.object({
       house_number: z.string().optional(),
       phone: z
@@ -116,7 +115,6 @@ export function AddressDialog({
          return;
       }
 
-      console.log("Starting save with selected:", selected, "values:", values);
       setIsSaving(true);
       setError(null);
 
@@ -130,11 +128,8 @@ export function AddressDialog({
             is_default: false,
          };
 
-         console.log("Saving address:", addr);
-
          // Save to database through the hook
          const result = await saveAddress(addr);
-         console.log("Save result:", result);
 
          if (!result) {
             throw new Error("Failed to save address");
@@ -149,7 +144,7 @@ export function AddressDialog({
          // Close dialog
          onOpenChange?.(false);
       } catch (err: any) {
-         console.error("Failed to save address:", err);
+         
          setError(err.message || "Failed to save address. Please try again.");
       } finally {
          setIsSaving(false);

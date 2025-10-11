@@ -5,6 +5,14 @@ import { DataTable } from "./data-table";
 import { useOrders } from "@/hooks/useOrders";
 import { Button } from "@/components/ui/button";
 import {
+   DropdownMenu,
+   DropdownMenuTrigger,
+   DropdownMenuContent,
+   DropdownMenuItem,
+   DropdownMenuLabel,
+   DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import {
    Pagination,
    PaginationContent,
    PaginationItem,
@@ -13,6 +21,8 @@ import {
    PaginationNext,
 } from "@/components/ui/pagination";
 import { ManageRefundDialog } from "./ManageRefundDialog";
+import { OrderDetailsDialog } from "./OrderDetailsDialog";
+import { ItemDetailsDialog } from "./ItemDetailsDialog";
 import { toast } from "sonner";
 
 interface RefundsTableProps {}
@@ -31,6 +41,9 @@ export const RefundsTable: React.FC<RefundsTableProps> = () => {
 
    const [selectedItem, setSelectedItem] = useState<any | null>(null);
    const [parentOrder, setParentOrder] = useState<any | null>(null);
+   const [selectedAction, setSelectedAction] = useState<
+      "manage" | "details" | "item-details" | null
+   >(null);
    const [dialogOpen, setDialogOpen] = useState(false);
 
    const fetchRefunded = async () => {
@@ -111,18 +124,51 @@ export const RefundsTable: React.FC<RefundsTableProps> = () => {
             header: "ACTIONS",
             cell: ({ row }: any) => {
                const r = row.original;
+               const refundItem = r; // single item row
                return (
                   <div className="flex gap-2">
-                     <Button
-                        size="sm"
-                        onClick={() => {
-                           setSelectedItem(r);
-                           setParentOrder(r.order || null);
-                           setDialogOpen(true);
-                        }}
-                     >
-                        Manage
-                     </Button>
+                     <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                           <Button
+                              variant="ghost"
+                              className="h-8 w-8 p-0"
+                           >
+                              <span className="sr-only">Open actions</span>
+                              <svg
+                                 xmlns="http://www.w3.org/2000/svg"
+                                 viewBox="0 0 24 24"
+                                 fill="currentColor"
+                                 className="h-4 w-4"
+                              >
+                                 <path d="M12 7a2 2 0 110-4 2 2 0 010 4zm0 7a2 2 0 110-4 2 2 0 010 4zm0 7a2 2 0 110-4 2 2 0 010 4z" />
+                              </svg>
+                           </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                           <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                           <DropdownMenuItem
+                              onClick={() => {
+                                 setSelectedItem(refundItem);
+                                 setParentOrder(null);
+                                 setSelectedAction("item-details");
+                                 setDialogOpen(true);
+                              }}
+                           >
+                              View item details
+                           </DropdownMenuItem>
+                           <DropdownMenuSeparator />
+                           <DropdownMenuItem
+                              onClick={() => {
+                                 setSelectedItem(refundItem);
+                                 setParentOrder(r.order || null);
+                                 setSelectedAction("manage");
+                                 setDialogOpen(true);
+                              }}
+                           >
+                              Manage refund
+                           </DropdownMenuItem>
+                        </DropdownMenuContent>
+                     </DropdownMenu>
                   </div>
                );
             },
@@ -197,12 +243,26 @@ export const RefundsTable: React.FC<RefundsTableProps> = () => {
             </Pagination>
          </div>
 
-         <ManageRefundDialog
-            open={dialogOpen}
-            onOpenChange={(v) => setDialogOpen(v)}
-            order={parentOrder || { id: selectedItem?.order_id }}
-            item={selectedItem}
-         />
+         {selectedAction === "details" ? (
+            <OrderDetailsDialog
+               open={dialogOpen}
+               onOpenChange={(v) => setDialogOpen(v)}
+               order={parentOrder || { id: selectedItem?.order_id }}
+            />
+         ) : selectedAction === "item-details" ? (
+            <ItemDetailsDialog
+               open={dialogOpen}
+               onOpenChange={(v) => setDialogOpen(v)}
+               item={selectedItem}
+            />
+         ) : (
+            <ManageRefundDialog
+               open={dialogOpen}
+               onOpenChange={(v) => setDialogOpen(v)}
+               order={parentOrder || { id: selectedItem?.order_id }}
+               item={selectedItem}
+            />
+         )}
       </div>
    );
 };

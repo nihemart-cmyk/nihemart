@@ -5,6 +5,9 @@ create or replace function public.notify_on_order_assignments() returns trigger 
 declare
   v_rider_user_id uuid;
   v_order record;
+  v_order_user_id uuid;
+  v_rider_name text;
+  v_rider_phone text;
 begin
   -- try to get the auth user id for the rider
   if (new.rider_id is not null) then
@@ -88,6 +91,29 @@ begin
           'Assignment accepted',
           format('You accepted order %s', new.order_id),
           (to_jsonb(new) || jsonb_build_object('rider_id', new.rider_id))
+        );
+      end if;
+      -- Notify the order owner (customer) with rider contact when the rider accepts the assignment.
+      begin
+        select user_id into v_order_user_id from public.orders where id = new.order_id limit 1;
+      exception when others then
+        v_order_user_id := null;
+      end;
+      begin
+        select coalesce(name, '')::text, coalesce(phone, '')::text into v_rider_name, v_rider_phone
+        from public.riders where id = new.rider_id limit 1;
+      exception when others then
+        v_rider_name := null;
+        v_rider_phone := null;
+      end;
+      if v_order_user_id is not null then
+        perform public.insert_notification(
+          v_order_user_id,
+          null,
+          'assignment_accepted',
+          'Rider on the way',
+          format('This rider is going to deliver your order.\n%s,\n%s', coalesce(v_rider_name, 'Rider'), coalesce(v_rider_phone, 'No phone provided')),
+          (to_jsonb(new) || jsonb_build_object('rider_name', v_rider_name, 'rider_phone', v_rider_phone, 'order_id', new.order_id))
         );
       end if;
     elsif (new.status = 'rejected' and old.status is distinct from new.status) then
