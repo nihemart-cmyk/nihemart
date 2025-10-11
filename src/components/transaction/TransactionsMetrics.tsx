@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 "use client"
 
 import { Button } from "@/components/ui/button"
@@ -80,11 +81,62 @@ export default function TransactionsMetrics() {
     },
   ]
 
+=======
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader } from "@/components/ui/card"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { MoreHorizontal, Plus, TrendingUp, TrendingDown, PlusCircle, ArrowUp, ArrowDown } from "lucide-react"
+
+interface OrderMetric {
+  title: string
+  value: string
+  change: string
+  isPositive: boolean
+  period: string
+}
+
+const orderMetrics: OrderMetric[] = [
+  {
+    title: "Total Revenue",
+    value: "1,240",
+    change: "14.4%",
+    isPositive: true,
+    period: "Last 7 days",
+  },
+  {
+    title: "Completed Transactions",
+    value: "240",
+    change: "20%",
+    isPositive: true,
+    period: "Last 7 days",
+  },
+  {
+    title: "Failed Transactions",
+    value: "960",
+    change: "85%",
+    isPositive: true,
+    period: "Last 7 days",
+  },
+  {
+    title: "Pending Transactions",
+    value: "87",
+    change: "5%",
+    isPositive: false,
+    period: "Last 7 days",
+  },
+]
+
+export default function TransactionsMetrics() {
+>>>>>>> 924b1762cbd130b828098898bb5e8daf241640c8
   return (
     <div className="space-y-6">
       {/* Metrics Cards */}
       <div className="grid grid-cols-1 min-[500px]:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-6">
+<<<<<<< HEAD
         {transactionMetrics.map((metric, index) => (
+=======
+        {orderMetrics.map((metric, index) => (
+>>>>>>> 924b1762cbd130b828098898bb5e8daf241640c8
           <Card key={index} className="relative">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <h3 className="text-lg text-[#23272E] font-semibold">{metric.title}</h3>
@@ -95,16 +147,23 @@ export default function TransactionsMetrics() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+<<<<<<< HEAD
                   <DropdownMenuItem onClick={handleRefresh}>
                     <RefreshCw className="h-4 w-4 mr-2" />
                     Refresh
                   </DropdownMenuItem>
                   <DropdownMenuItem>Export Data</DropdownMenuItem>
+=======
+                  <DropdownMenuItem>View Details</DropdownMenuItem>
+                  <DropdownMenuItem>Export Data</DropdownMenuItem>
+                  <DropdownMenuItem>Refresh</DropdownMenuItem>
+>>>>>>> 924b1762cbd130b828098898bb5e8daf241640c8
                 </DropdownMenuContent>
               </DropdownMenu>
             </CardHeader>
             <CardContent>
               <div className="space-y-2 flex items-end gap-2">
+<<<<<<< HEAD
                 <div className="text-3xl font-bold text-[#023337]">
                   {isLoading ? (
                     <Loader2 className="h-8 w-8 animate-spin" />
@@ -117,10 +176,16 @@ export default function TransactionsMetrics() {
                       }
                     </>
                   )}
+=======
+                <div className="text-3xl font-bold text-[#023337]">Rwf  {metric.value}</div>
+                <div className="flex items-center gap-2 text-sm">
+
+>>>>>>> 924b1762cbd130b828098898bb5e8daf241640c8
                 </div>
               </div>
               <div className="text-xs text-muted-foreground mt-2 flex items-center justify-between gap-1">
                 <span>{metric.period}</span>
+<<<<<<< HEAD
                 {!isLoading && (
                   <div className={`flex items-center gap-1 ${
                     metric.isPositive ? "text-blue-600" : "text-red-600"
@@ -133,6 +198,12 @@ export default function TransactionsMetrics() {
                     {Math.abs(metric.change).toFixed(1)}%
                   </div>
                 )}
+=======
+                <div className={`flex items-center gap-1 ${metric.isPositive ? "text-blue-600" : "text-red-600"}`}>
+                  {metric.isPositive ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />}
+                  {metric.change}
+                </div>
+>>>>>>> 924b1762cbd130b828098898bb5e8daf241640c8
               </div>
             </CardContent>
           </Card>

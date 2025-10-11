@@ -4,8 +4,8 @@ import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import Image from "next/image";
 import { FC, RefObject, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { fetchCategories } from "@/integrations/supabase/categories";
-import type { Category } from "@/integrations/supabase/categories";
+import { fetchCategoriesLight } from "@/integrations/supabase/categories";
+import type { CategoryLight } from "@/integrations/supabase/categories";
 import { useLanguage } from "@/contexts/LanguageContext";
 import MaxWidthWrapper from "../MaxWidthWrapper";
 
@@ -14,20 +14,20 @@ interface CollectionProps {}
 const Collection: FC<CollectionProps> = ({}) => {
   const { t } = useLanguage();
 
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [categories, setCategories] = useState<CategoryLight[]>([]);
   const [loading, setLoading] = useState(true);
   const [chevAppear, setChevApp] = useState<{ left: boolean; right: boolean }>({
     left: false,
     right: false,
   });
   const sliderRef: RefObject<HTMLDivElement | null> = useRef(null);
-
+  
   useEffect(() => {
     const loadCategories = async () => {
       setLoading(true);
       try {
-        // Fetching only the first 8 categories for the landing page
-        const { data } = await fetchCategories({ page: 1, limit: 20 });
+        // Fetching categories for the landing page
+        const data = await fetchCategoriesLight();
         setCategories(data);
       } catch (error) {
         console.error("Failed to fetch categories:", error);

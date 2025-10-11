@@ -10,6 +10,12 @@ export interface Category {
   products_count?: number;
 }
 
+export interface CategoryLight {
+  id: string;
+  name: string;
+  icon_url?: string | null;
+}
+
 export interface CategoryInput {
   name: string;
   icon_url?: string | null;
@@ -45,6 +51,18 @@ export const fetchCategories = cache(async ({ search = '', page = 1, limit = 10 
   }));
 
   return { data: formattedData as Category[], count: count ?? 0 };
+});
+
+export const fetchCategoriesLight = cache(async (): Promise<CategoryLight[]> => {
+  const { data, error } = await sb
+    .from('categories')
+    .select('id, name, icon_url')
+    .order('created_at', { ascending: false })
+    .limit(20);
+
+  if (error) throw error;
+
+  return data as CategoryLight[];
 });
 
 export async function createCategory(categoryData: CategoryInput): Promise<Category> {
