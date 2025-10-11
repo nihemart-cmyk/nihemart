@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import type { DateRange } from "react-day-picker";
 
 import { Input } from "@/components/ui/input";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
@@ -24,13 +25,17 @@ import {
    Package,
 } from "lucide-react";
 import OrdersListMini from "@/components/admin/orders-list-mini";
+import StatsCard from "@/components/admin/StatsCard";
+import DetailedStatsCard from "@/components/admin/DetailedStatsCard";
+import ProductItem from "@/components/admin/ProductItem";
+import UserItem from "@/components/admin/UserItem";
+import StatsGrid from "@/components/admin/StatsGrid";
 import { format } from "date-fns";
 import Link from "next/link";
-import { useOrders } from "@/hooks/useOrders";
-import { useProducts } from "@/hooks/useProducts";
-import { useUsers } from "@/hooks/useUsers";
-import { useRiders } from "@/hooks/useRiders";
 import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { fetchRiders } from "@/integrations/supabase/riders";
+const sb = supabase as any;
 import {
    Area,
    AreaChart,
@@ -83,127 +88,235 @@ interface UserItemProps {
    avatar: string;
 }
 
-// Stats Card Component
-const StatsCard: React.FC<StatsCardProps> = ({
-   title,
-   value,
-   change,
-   icon: Icon,
-   iconColor,
-}) => (
-   <div className="bg-white rounded-lg border shadow-sm p-6 flex flex-col h-full">
-      <div className="flex items-center justify-between mb-4">
-         <div className={`p-2 rounded-lg ${iconColor}`}>
-            <Icon className="w-5 h-5 text-white" />
-         </div>
-      </div>
-      <div className="flex flex-col flex-grow justify-between">
-         <p className="text-sm font-medium text-gray-600 mb-2">{title}</p>
-         <p className="text-2xl font-bold text-gray-900 mb-2">{value}</p>
-         {change && (
-            <div className="flex items-center gap-1 mt-auto">
-               <TrendingUp className="w-4 h-4 text-blue-500" />
-               <span className="text-sm text-blue-500">{change}%</span>
-               <span className="text-sm text-gray-500">vs last 7 days</span>
-            </div>
-         )}
-      </div>
-   </div>
-);
-
-// Detailed Stats Card Component
-const DetailedStatsCard: React.FC<DetailedStatsCardProps> = ({
-   title,
-   data,
-   icon: Icon,
-   iconColor,
-}) => (
-   <div className="bg-white rounded-lg border shadow-sm p-6 flex flex-col h-full ">
-      <div className="flex items-center justify-between mb-4">
-         <div className={`p-2 rounded-lg ${iconColor}`}>
-            <Icon className="w-5 h-5 text-white" />
-         </div>
-      </div>
-      <div className="flex flex-col flex-grow justify-between">
-         <p className="text-sm font-medium text-gray-600 mb-3">{title}</p>
-         <div className="space-y-2">
-            {data.map((item: DetailedStatsData, index: number) => (
-               <div
-                  key={index}
-                  className="flex justify-between items-center flex-wrap"
-               >
-                  <span className="text-sm text-gray-600">{item.label}</span>
-                  <span className="text-sm font-medium text-gray-900">
-                     {item.value}
-                  </span>
-               </div>
-            ))}
-         </div>
-      </div>
-   </div>
-);
-
-// Product Item Component
-const ProductItem: React.FC<ProductItemProps> = ({
-   image,
-   name,
-   code,
-   price,
-   bgColor = "bg-gray-100",
-}) => (
-   <div className="flex items-center gap-3 p-3">
-      <div
-         className={`w-10 h-10 rounded ${bgColor} flex items-center justify-center`}
-      >
-         {image || <div className="w-6 h-6 bg-gray-400 rounded"></div>}
-      </div>
-      <div className="flex-1">
-         <p className="font-medium text-gray-900">{name}</p>
-         <p className="text-sm text-gray-500">{code}</p>
-         <p className="font-semibold text-gray-900">{price}</p>
-      </div>
-   </div>
-);
-
-// User Item Component
-const UserItem: React.FC<UserItemProps> = ({ name, code, amount, avatar }) => (
-   <div className="flex items-center gap-3 p-3">
-      <div className="w-10 h-10 bg-orange-500 rounded-full flex items-center justify-center">
-         <span className="text-white font-medium">{avatar}</span>
-      </div>
-      <div className="flex-1">
-         <p className="font-medium text-gray-900">{name}</p>
-         <p className="text-sm text-gray-500">{code}</p>
-      </div>
-      <p className="font-semibold text-gray-900">{amount}</p>
-   </div>
-);
 
 // Main Dashboard Component
 const Dashboard: React.FC = () => {
-   const [date, setDate] = useState<Date | undefined>(new Date());
+   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
    const [calendarOpen, setCalendarOpen] = useState(false);
-   const [productSearch, setProductSearch] = useState("");
-   const [userSearch, setUserSearch] = useState("");
 
-   // Fetch real data
-   const { useAllOrders, useOrderStats } = useOrders();
-   const { useProducts: useProductsHook } = useProducts();
-   const { users, loading: usersLoading, fetchUsers } = useUsers();
-   const { data: ridersData, isLoading: ridersLoading } = useRiders();
+   // Fetch data with optimized queries
+   const { data: ordersResponse, isLoading: ordersLoading } = useQuery({
+      queryKey: ['admin-orders', dateRange?.from, dateRange?.to],
+      queryFn: async () => {
+         let query = sb
+            .from('orders')
+            .select(`
+               *,
+               order_items (
+                  *,
+                  product:products(*),
+                  product_variation:product_variations(*)
+               ),
+               payments (*)
+            `)
+            .order('created_at', { ascending: false });
 
-   const { data: ordersResponse, isLoading: ordersLoading } = useAllOrders({
-      pagination: { page: 1, limit: 1000 },
+         if (dateRange?.from) {
+            query = query.gte('created_at', dateRange.from.toISOString());
+         }
+         if (dateRange?.to) {
+            query = query.lte('created_at', dateRange.to.toISOString());
+         }
+
+         const { data, error } = await query;
+         if (error) throw error;
+         return data as any[];
+      },
+      staleTime: 10 * 60 * 1000, // 10 minutes - orders change more frequently
+      gcTime: 30 * 60 * 1000, // 30 minutes
+      refetchOnWindowFocus: false, // Don't refetch on window focus for admin dashboard
+      refetchOnReconnect: true, // Refetch when connection restored
+      refetchInterval: 2 * 60 * 1000, // Background refetch every 2 minutes for fresh order data
+      refetchIntervalInBackground: true, // Continue refetching even when tab is not active
    });
-   const { data: orderStats, isLoading: statsLoading } = useOrderStats();
-   const { data: productsResponse, isLoading: productsLoading } =
-      useProductsHook({
-         pagination: { page: 1, limit: 100 },
-      });
 
-   const orders = ordersResponse?.data || [];
-   const products = productsResponse?.data || [];
-   const riders = ridersData || [];
+   const { data: productsResponse, isLoading: productsLoading } = useQuery({
+      queryKey: ['admin-products'],
+      queryFn: async () => {
+         const { data, error } = await sb
+            .from('products')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(50); // Reduce limit for faster loading
+         if (error) throw error;
+         return data as any[];
+      },
+      staleTime: 30 * 60 * 1000, // 30 minutes - products don't change often
+      gcTime: 60 * 60 * 1000, // 1 hour
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: true,
+   });
+
+   const { data: topProductsResponse, isLoading: topProductsLoading } = useQuery({
+      queryKey: ['admin-top-products', dateRange?.from, dateRange?.to],
+      queryFn: async () => {
+         // Get products with order count
+         let query = sb
+            .from('products')
+            .select(`
+               *,
+               order_items!inner(count)
+            `)
+            .order('created_at', { ascending: false })
+            .limit(5);
+
+         // Note: Supabase doesn't support COUNT in select directly, so we'll fetch order_items and count client-side
+         // For better performance, we can fetch order_items separately and aggregate
+         const { data: orderItems, error: itemsError } = await sb
+            .from('order_items')
+            .select('product_id, created_at')
+            .order('created_at', { ascending: false });
+
+         if (itemsError) throw itemsError;
+
+         // Filter by date range if provided
+         let filteredItems = orderItems || [];
+         if (dateRange?.from) {
+            filteredItems = filteredItems.filter((item: { created_at: string | number | Date; }) => new Date(item.created_at) >= dateRange.from!);
+         }
+         if (dateRange?.to) {
+            filteredItems = filteredItems.filter((item: { created_at: string | number | Date; }) => new Date(item.created_at) <= dateRange.to!);
+         }
+
+         // Count orders per product
+         const productOrderCounts: Record<string, number> = {};
+         filteredItems.forEach((item: { product_id: string | number; }) => {
+            productOrderCounts[item.product_id] = (productOrderCounts[item.product_id] || 0) + 1;
+         });
+
+         // Get top 5 products
+         const topProductIds = Object.entries(productOrderCounts)
+            .sort(([,a], [,b]) => b - a)
+            .slice(0, 5)
+            .map(([id]) => id);
+
+         if (topProductIds.length === 0) return [];
+
+         const { data: products, error } = await sb
+            .from('products')
+            .select('*')
+            .in('id', topProductIds);
+
+         if (error) throw error;
+
+         // Sort by order count
+         return (products || []).sort((a: { id: string | number; }, b: { id: string | number; }) =>
+            (productOrderCounts[b.id] || 0) - (productOrderCounts[a.id] || 0)
+         ) as any[];
+      },
+      staleTime: 15 * 60 * 1000, // 15 minutes
+      gcTime: 30 * 60 * 1000, // 30 minutes
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: true,
+   });
+
+   const { data: usersResponse, isLoading: usersLoading } = useQuery({
+      queryKey: ['admin-users'],
+      queryFn: async () => {
+         const { data, error } = await sb
+            .from('profiles')
+            .select(`
+               *,
+               user_roles (role)
+            `)
+            .order('created_at', { ascending: false })
+            .limit(50); // Limit for performance
+         if (error) throw error;
+         return data as any[];
+      },
+      staleTime: 30 * 60 * 1000, // 30 minutes
+      gcTime: 60 * 60 * 1000, // 1 hour
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: true,
+   });
+
+   const { data: topUsersResponse, isLoading: topUsersLoading } = useQuery({
+      queryKey: ['admin-top-users', dateRange?.from, dateRange?.to],
+      queryFn: async () => {
+         // Get orders to calculate user spend
+         let ordersQuery = sb
+            .from('orders')
+            .select('user_id, total, created_at')
+            .not('user_id', 'is', null);
+
+         if (dateRange?.from) {
+            ordersQuery = ordersQuery.gte('created_at', dateRange.from.toISOString());
+         }
+         if (dateRange?.to) {
+            ordersQuery = ordersQuery.lte('created_at', dateRange.to.toISOString());
+         }
+
+         const { data: orders, error: ordersError } = await ordersQuery.limit(1000); // Limit for performance
+         if (ordersError) throw ordersError;
+
+         // Calculate total spend per user
+         const userSpend: Record<string, number> = {};
+         (orders || []).forEach((order: { user_id: string | number; total: any; }) => {
+            userSpend[order.user_id] = (userSpend[order.user_id] || 0) + (order.total || 0);
+         });
+
+         // Get top 5 users
+         const topUserIds = Object.entries(userSpend)
+            .sort(([,a], [,b]) => b - a)
+            .slice(0, 5)
+            .map(([id]) => id);
+
+         if (topUserIds.length === 0) return [];
+
+         const { data: users, error } = await sb
+            .from('profiles')
+            .select(`
+               *,
+               user_roles (role)
+            `)
+            .in('id', topUserIds);
+
+         if (error) throw error;
+
+         // Add totalSpend to users
+         return (users || []).map((user: { id: string | number; }) => ({
+            ...user,
+            totalSpend: userSpend[user.id] || 0
+         })).sort((a: { totalSpend: any; }, b: { totalSpend: any; }) => (b.totalSpend || 0) - (a.totalSpend || 0)) as any[];
+      },
+      staleTime: 15 * 60 * 1000, // 15 minutes
+      gcTime: 30 * 60 * 1000, // 30 minutes
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: true,
+   });
+
+   const { data: ridersResponse, isLoading: ridersLoading } = useQuery({
+      queryKey: ['admin-riders'],
+      queryFn: () => fetchRiders(),
+      staleTime: 30 * 60 * 1000, // 30 minutes
+      gcTime: 60 * 60 * 1000, // 1 hour
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: true,
+   });
+
+   const { data: earningsResponse, isLoading: earningsLoading } = useQuery({
+      queryKey: ['admin-riders-earnings'],
+      queryFn: async () => {
+         const res = await fetch("/api/admin/riders/earnings");
+         if (!res.ok) {
+            throw new Error("Failed to fetch earnings");
+         }
+         const j = await res.json();
+         return j.earnings || {};
+      },
+      staleTime: 10 * 60 * 1000, // 10 minutes
+      gcTime: 30 * 60 * 1000, // 30 minutes
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: true,
+   });
+
+   const orders = ordersResponse || [];
+   const products = productsResponse || [];
+   const users = usersResponse || [];
+   const riders = ridersResponse || [];
+   const topProducts = topProductsResponse || [];
+   const topUsers = topUsersResponse || [];
+   const earnings = earningsResponse || {};
 
    // Calculate real metrics
    const metrics = useMemo(() => {
@@ -285,10 +398,8 @@ const Dashboard: React.FC = () => {
    const ridersStatsData: DetailedStatsData[] = useMemo(() => {
       const activeRiders = riders.filter((rider) => rider.active).length;
 
-      // Calculate total earnings from completed deliveries
-      const totalRiderEarnings = orders
-         .filter((order) => order.status === "delivered")
-         .reduce((sum, order) => sum + (order.tax || 0), 0);
+      // Calculate total earnings from earnings map
+      const totalRiderEarnings = Object.values(earnings as Record<string, number>).reduce((sum, amount) => sum + amount, 0);
 
       return [
          { label: "Active Riders", value: activeRiders.toString() },
@@ -297,69 +408,44 @@ const Dashboard: React.FC = () => {
             value: `RWF ${totalRiderEarnings.toLocaleString()}`,
          },
       ];
-   }, [riders, orders]);
+   }, [riders, earnings]);
 
-   // Filter products based on search
-   const filteredProducts = useMemo(() => {
-      if (!productSearch.trim()) return products.slice(0, 5); // Show top 5
-      return products
-         .filter(
-            (product) =>
-               product.name
-                  .toLowerCase()
-                  .includes(productSearch.toLowerCase()) ||
-               product.sku?.toLowerCase().includes(productSearch.toLowerCase())
-         )
-         .slice(0, 5);
-   }, [products, productSearch]);
+   // Top products are already fetched
+   const filteredProducts = topProducts.slice(0, 5);
 
-   // Filter users based on search
-   const filteredUsers = useMemo(() => {
-      if (!userSearch.trim()) return users.slice(0, 5); // Show top 5
-      return users
-         .filter(
-            (user) =>
-               user.full_name
-                  ?.toLowerCase()
-                  .includes(userSearch.toLowerCase()) ||
-               user.email?.toLowerCase().includes(userSearch.toLowerCase())
-         )
-         .slice(0, 5);
-   }, [users, userSearch]);
+   // Top users are already fetched
+   const filteredUsers = topUsers.slice(0, 5);
 
-   // Get top riders based on actual earnings
+   // Get top riders based on earnings
    const topRiders = useMemo(() => {
-      // Calculate earnings per rider from delivered orders
-      const riderEarnings: Record<string, number> = {};
+      // Use earnings map directly
+      const riderEarnings = earnings as Record<string, number>;
 
-      orders
-         .filter((order) => order.status === "delivered")
-         .forEach((order) => {
-            // We need to get the rider_id from order_assignments
-            // For now, we'll use a simplified approach
-            // In a real implementation, you'd join with order_assignments
-            const earnings = order.tax || 0;
-            // This is a simplified version - in practice you'd need to join with assignments
-         });
+      // Get top 5 riders by earnings
+      const topRiderIds = Object.entries(riderEarnings)
+         .sort(([,a], [,b]) => b - a)
+         .slice(0, 5)
+         .map(([id]) => id);
 
       return riders
-         .filter((rider) => rider.active)
-         .slice(0, 2)
+         .filter((rider) => rider.active && topRiderIds.includes(rider.id))
+         .sort((a, b) => (riderEarnings[b.id] || 0) - (riderEarnings[a.id] || 0))
+         .slice(0, 5)
          .map((rider) => ({
             name: rider.full_name || "Unknown Rider",
             code: "Rider",
-            amount: `RWF ${(250000).toLocaleString()}`, // Keep mock for now since we need assignment data
+            amount: `RWF ${(riderEarnings[rider.id] || 0).toLocaleString()}`,
             avatar:
                rider.full_name
                   ?.split(" ")
-                  .map((n) => n[0])
+                  .map((n: string) => n[0])
                   .join("")
                   .toUpperCase() || "R",
          }));
-   }, [riders, orders]);
+   }, [riders, earnings]);
 
    return (
-      <div className="min-h-screen p-4 md:p-6">
+      <div className="h-[calc(100vh-10rem)] p-4 md:p-6">
          <ScrollArea className="h-[calc(100vh-2rem)] pb-20">
             <div className="overflow-x-auto">
                <div className="flex flex-col">
@@ -395,10 +481,17 @@ const Dashboard: React.FC = () => {
                                     className="justify-start text-left font-normal h-9 px-3"
                                  >
                                     <Calendar className="mr-2 h-4 w-4" />
-                                    {date ? (
-                                       format(date, "PPP")
+                                    {dateRange?.from ? (
+                                       dateRange.to ? (
+                                          <>
+                                             {format(dateRange.from, "LLL dd, y")} -{" "}
+                                             {format(dateRange.to, "LLL dd, y")}
+                                          </>
+                                       ) : (
+                                          format(dateRange.from, "LLL dd, y")
+                                       )
                                     ) : (
-                                       <span>Pick a date</span>
+                                       <span>Pick a date range</span>
                                     )}
                                  </Button>
                               </PopoverTrigger>
@@ -407,126 +500,31 @@ const Dashboard: React.FC = () => {
                                  align="end"
                               >
                                  <CalendarComponent
-                                    mode="single"
-                                    selected={date}
-                                    onSelect={(selectedDate) => {
-                                       setDate(selectedDate);
-                                       setCalendarOpen(false);
+                                    mode="range"
+                                    selected={dateRange}
+                                    onSelect={(selectedRange) => {
+                                       setDateRange(selectedRange);
+                                       if (selectedRange?.from && selectedRange?.to) {
+                                          setCalendarOpen(false);
+                                       }
                                     }}
+                                    numberOfMonths={2}
                                     initialFocus
-                                    captionLayout="dropdown"
-                                    fromYear={2020}
-                                    toYear={2025}
                                     className="rounded-md border shadow-sm"
                                  />
                               </PopoverContent>
                            </Popover>
                         </div>
 
-                        {/* Stats Cards Row 1 */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 mb-4 md:mb-6">
-                           {ordersLoading || usersLoading ? (
-                              // Loading skeletons
-                              Array.from({ length: 3 }).map((_, index) => (
-                                 <div
-                                    key={index}
-                                    className="bg-white rounded-lg border shadow-sm p-6 flex flex-col h-full"
-                                 >
-                                    <div className="flex items-center justify-between mb-4">
-                                       <div className="w-8 h-8 bg-gray-200 rounded-lg animate-pulse"></div>
-                                    </div>
-                                    <div className="flex flex-col flex-grow justify-between">
-                                       <div className="h-4 bg-gray-200 rounded w-24 mb-2 animate-pulse"></div>
-                                       <div className="h-6 bg-gray-200 rounded w-32 mb-2 animate-pulse"></div>
-                                       <div className="h-4 bg-gray-200 rounded w-20 animate-pulse"></div>
-                                    </div>
-                                 </div>
-                              ))
-                           ) : (
-                              <>
-                                 <StatsCard
-                                    title="Total Revenue"
-                                    value={`RWF ${metrics.totalRevenue.toLocaleString()}`}
-                                    change={
-                                       metrics.totalRevenue > 100000
-                                          ? "12.5"
-                                          : "0"
-                                    }
-                                    icon={TrendingUp}
-                                    iconColor="bg-orange-500"
-                                 />
-                                 <StatsCard
-                                    title="Total Orders"
-                                    value={metrics.totalOrders.toString()}
-                                    change={
-                                       metrics.totalOrders > 10 ? "8.2" : "0"
-                                    }
-                                    icon={ShoppingCart}
-                                    iconColor="bg-orange-500"
-                                 />
-                                 <StatsCard
-                                    title="Total Users"
-                                    value={metrics.totalUsers.toString()}
-                                    change={
-                                       metrics.totalUsers > 5 ? "15.3" : "0"
-                                    }
-                                    icon={Users}
-                                    iconColor="bg-orange-500"
-                                 />
-                              </>
-                           )}
-                        </div>
-
-                        {/* Stats Cards Row 2 */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 mb-4 md:mb-6">
-                           {ordersLoading || ridersLoading ? (
-                              // Loading skeletons for detailed cards
-                              Array.from({ length: 3 }).map((_, index) => (
-                                 <div
-                                    key={index}
-                                    className="bg-white rounded-lg border shadow-sm p-6 flex flex-col h-full"
-                                 >
-                                    <div className="flex items-center justify-between mb-4">
-                                       <div className="w-8 h-8 bg-gray-200 rounded-lg animate-pulse"></div>
-                                    </div>
-                                    <div className="flex flex-col flex-grow justify-between">
-                                       <div className="h-4 bg-gray-200 rounded w-32 mb-3 animate-pulse"></div>
-                                       <div className="space-y-2">
-                                          <div className="flex justify-between">
-                                             <div className="h-3 bg-gray-200 rounded w-16 animate-pulse"></div>
-                                             <div className="h-3 bg-gray-200 rounded w-12 animate-pulse"></div>
-                                          </div>
-                                          <div className="flex justify-between">
-                                             <div className="h-3 bg-gray-200 rounded w-20 animate-pulse"></div>
-                                             <div className="h-3 bg-gray-200 rounded w-14 animate-pulse"></div>
-                                          </div>
-                                       </div>
-                                    </div>
-                                 </div>
-                              ))
-                           ) : (
-                              <>
-                                 <DetailedStatsCard
-                                    title="Total Orders"
-                                    data={orderStatusData}
-                                    icon={ShoppingCart}
-                                    iconColor="bg-orange-500"
-                                 />
-                                 <DetailedStatsCard
-                                    title="Total Refunds"
-                                    data={refundsData}
-                                    icon={RotateCcw}
-                                    iconColor="bg-orange-500"
-                                 />
-                                 <DetailedStatsCard
-                                    title="Riders"
-                                    data={ridersStatsData}
-                                    icon={Bike}
-                                    iconColor="bg-orange-500"
-                                 />
-                              </>
-                           )}
-                        </div>
+                        <StatsGrid
+                           metrics={metrics}
+                           orderStatusData={orderStatusData}
+                           refundsData={refundsData}
+                           ridersStatsData={ridersStatsData}
+                           ordersLoading={ordersLoading}
+                           usersLoading={usersLoading}
+                           ridersLoading={ridersLoading}
+                        />
 
                         {/* Order Status Distribution Chart */}
                         <div className="bg-white rounded-lg border shadow-sm p-6">
@@ -671,19 +669,8 @@ const Dashboard: React.FC = () => {
                                     All product
                                  </Link>
                               </div>
-                              <div className="relative p-4">
-                                 <Search className="absolute left-6 top-6 w-4 h-4 text-gray-400" />
-                                 <Input
-                                    placeholder="Search products..."
-                                    className="pl-8 mb-4"
-                                    value={productSearch}
-                                    onChange={(e) =>
-                                       setProductSearch(e.target.value)
-                                    }
-                                 />
-                              </div>
                               <div>
-                                 {productsLoading ? (
+                                 {topProductsLoading ? (
                                     // Loading skeletons for products
                                     Array.from({ length: 4 }).map(
                                        (_, index) => (
@@ -704,6 +691,7 @@ const Dashboard: React.FC = () => {
                                     filteredProducts.map((product, index) => (
                                        <ProductItem
                                           key={product.id || index}
+                                          image={product.main_image_url}
                                           name={product.name}
                                           code={
                                              product.sku ||
@@ -735,19 +723,8 @@ const Dashboard: React.FC = () => {
                               <div className="flex justify-between items-center p-4 border-b">
                                  <h3 className="font-semibold">Top Users</h3>
                               </div>
-                              <div className="relative p-4">
-                                 <Search className="absolute left-6 top-6 w-4 h-4 text-gray-400" />
-                                 <Input
-                                    placeholder="Search users..."
-                                    className="pl-8 mb-4"
-                                    value={userSearch}
-                                    onChange={(e) =>
-                                       setUserSearch(e.target.value)
-                                    }
-                                 />
-                              </div>
                               <div>
-                                 {usersLoading ? (
+                                 {topUsersLoading ? (
                                     // Loading skeletons for users
                                     Array.from({ length: 2 }).map(
                                        (_, index) => (
@@ -783,7 +760,7 @@ const Dashboard: React.FC = () => {
                                              "U"
                                           )
                                              .split(" ")
-                                             .map((n) => n[0])
+                                             .map((n: any[]) => n[0])
                                              .join("")
                                              .toUpperCase()}
                                        />
