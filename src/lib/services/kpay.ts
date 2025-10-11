@@ -296,9 +296,15 @@ export class KPayService {
     orderReference: string;
     statusMessage: string;
   } {
-    const isSuccessful = payload.statusid === '01';
-    const isPending = payload.statusid === '02'; // Processing, waiting for SMS confirmation
-    const isFailed = payload.statusid === '03'; // Failed or cancelled
+    const isSuccessful: boolean = payload.statusid === '01';
+    
+    // Check if payment is pending
+    const isPending: boolean = payload.statusid === '02' || 
+      (payload.statusid === '03' && Boolean(payload.statusdesc && payload.statusdesc.toLowerCase().includes('pending')));
+    
+    // Status '03' is failed only if it's not described as pending
+    const isFailed: boolean = payload.statusid === '03' && 
+      !Boolean(payload.statusdesc && payload.statusdesc.toLowerCase().includes('pending'));
 
     return {
       isSuccessful,

@@ -8,3 +8,6 @@ export  {default as carousel5} from './carousel-imgs/5.jpg'
 
 // Icons
 export { default as momoIcon} from './icons/mtn.png'
+export { default as mtnIcon} from './icons/mtn.png'
+export { default as airtelIcon} from './icons/airtel.png'
+export { default as visaIcon} from './icons/visa.png'

@@ -126,7 +126,7 @@ export async function POST(request: NextRequest) {
       const { error: orderUpdateError } = await supabase
         .from('orders')
         .update({
-          status: 'processing',
+          status: 'pending',
           payment_status: 'paid',
           updated_at: new Date().toISOString(),
         })
@@ -136,7 +136,7 @@ export async function POST(request: NextRequest) {
         console.error('Failed to update order status:', orderUpdateError);
         // Don't return error here as the payment was processed successfully
       } else {
-        console.log('Order status updated to processing:', payment.order_id);
+        console.log('Order status updated to pending (paid):', payment.order_id);
       }
 
       // TODO: Add notification/email sending logic here

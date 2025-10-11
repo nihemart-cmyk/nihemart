@@ -165,7 +165,7 @@ export default function MobileMoneyPhoneDialog({
             <Input
               id="phone"
               type="tel"
-              placeholder="e.g., 0781234567"
+              placeholder={methodInfo.name === 'MTN Mobile Money' ? '0780000000' : '0730000000'}
               value={phoneNumber}
               onChange={(e) => handlePhoneChange(e.target.value)}
               className={error ? 'border-red-500 focus-visible:ring-red-500' : ''}
@@ -189,9 +189,7 @@ export default function MobileMoneyPhoneDialog({
                 <p className="text-xs leading-relaxed">
                   {methodInfo.name} numbers in Rwanda start with: {methodInfo.prefixes.join(', ')}
                 </p>
-                <p className="text-xs leading-relaxed mt-1">
-                  You can enter: 0781234567, +250781234567, or 781234567
-                </p>
+               
               </div>
             </div>
           </div>

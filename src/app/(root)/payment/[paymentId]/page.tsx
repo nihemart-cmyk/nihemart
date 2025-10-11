@@ -1,447 +1,705 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
-import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Loader2, CheckCircle, XCircle, Clock, CreditCard, Smartphone, AlertCircle } from 'lucide-react';
-import { useKPayPayment } from '@/hooks/useKPayPayment';
-import { toast } from 'sonner';
+import React, { useEffect, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import {
+   Card,
+   CardContent,
+   CardDescription,
+   CardHeader,
+   CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+   Loader2,
+   CheckCircle,
+   XCircle,
+   Clock,
+   CreditCard,
+   Smartphone,
+   AlertCircle,
+   ArrowLeft,
+   RefreshCw,
+   ExternalLink,
+} from "lucide-react";
+import { useKPayPayment } from "@/hooks/useKPayPayment";
+import { toast } from "sonner";
+import Image from "next/image";
+import logo from "@/assets/logo.png";
 
 interface PaymentData {
-  id: string;
-  order_id: string;
-  amount: number;
-  currency: string;
-  payment_method: string;
-  status: string;
-  reference: string;
-  kpay_transaction_id?: string;
-  customer_name: string;
-  customer_email: string;
-  customer_phone: string;
-  created_at: string;
-  checkout_url?: string;
-  failure_reason?: string;
+   id: string;
+   order_id: string;
+   amount: number;
+   currency: string;
+   payment_method: string;
+   status: string;
+   reference: string;
+   kpay_transaction_id?: string;
+   customer_name: string;
+   customer_email: string;
+   customer_phone: string;
+   created_at: string;
+   checkout_url?: string;
+   failure_reason?: string;
 }
 
 export default function PaymentPage() {
-  const params = useParams();
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const { checkPaymentStatus, isCheckingStatus } = useKPayPayment();
-  
-  const paymentId = params?.paymentId as string;
-  const orderId = searchParams?.get('orderId');
-  
-  const [payment, setPayment] = useState<PaymentData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [statusCheckCount, setStatusCheckCount] = useState(0);
-  const [paymentCompleted, setPaymentCompleted] = useState(false);
+   const params = useParams();
+   const router = useRouter();
+   const searchParams = useSearchParams();
+   const { checkPaymentStatus, isCheckingStatus } = useKPayPayment();
 
-  // Fetch payment data
-  const fetchPaymentData = async () => {
-    try {
-      const response = await fetch(`/api/payments/${paymentId}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch payment data');
+   const paymentId = params?.paymentId as string;
+   const orderId = searchParams?.get("orderId");
+
+   const [payment, setPayment] = useState<PaymentData | null>(null);
+   const [loading, setLoading] = useState(true);
+   const [error, setError] = useState<string | null>(null);
+   const [statusCheckCount, setStatusCheckCount] = useState(0);
+   const [paymentCompleted, setPaymentCompleted] = useState(false);
+
+   // Fetch payment data
+   const fetchPaymentData = async () => {
+      try {
+         const response = await fetch(`/api/payments/${paymentId}`);
+         if (!response.ok) {
+            throw new Error("Failed to fetch payment data");
+         }
+         const data = await response.json();
+         setPayment(data);
+
+         if (data.status === "completed" || data.status === "successful") {
+            setPaymentCompleted(true);
+         }
+      } catch (err) {
+         setError(
+            err instanceof Error ? err.message : "Failed to load payment"
+         );
+      } finally {
+         setLoading(false);
       }
-      const data = await response.json();
-      setPayment(data);
+   };
+
+   // Check payment status periodically
+   const checkStatus = async () => {
+      // Timeout after 2 minutes (12 checks * 10 seconds)
+      const maxStatusChecks = 12;
       
-      // If payment is already completed, mark as completed
-      if (data.status === 'completed' || data.status === 'successful') {
-        setPaymentCompleted(true);
+      if (!payment || paymentCompleted) return;
+      
+      // If we've reached the timeout, mark as timed out for user experience
+      if (statusCheckCount >= maxStatusChecks) {
+         console.log('Payment timeout reached, marking as timeout for user experience');
+         
+         // Call timeout API to log this without affecting the order
+         try {
+            await fetch('/api/payments/timeout', {
+               method: 'POST',
+               headers: {
+                  'Content-Type': 'application/json',
+               },
+               body: JSON.stringify({
+                  paymentId: payment.id,
+                  reason: 'Client-side timeout after 2 minutes of status checking'
+               }),
+            });
+         } catch (err) {
+            console.error('Failed to record timeout:', err);
+         }
+         
+         setPayment((prev) =>
+            prev
+               ? {
+                    ...prev,
+                    status: 'timeout',
+                    failure_reason: 'Payment took too long to process. You can try again or use a different payment method.',
+                 }
+               : null
+         );
+         
+         toast.error(
+            "Payment took too long to process. You can try again or use a different payment method.",
+            { duration: 6000 }
+         );
+         return;
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load payment');
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  // Check payment status periodically
-  const checkStatus = async () => {
-    if (!payment || paymentCompleted || statusCheckCount >= 30) return; // Stop after 30 checks (5 minutes)
-    
-    try {
-      const statusResult = await checkPaymentStatus({
-        paymentId: payment.id,
-        transactionId: payment.kpay_transaction_id,
-        reference: payment.reference,
-      });
+      try {
+         const statusResult = await checkPaymentStatus({
+            paymentId: payment.id,
+            transactionId: payment.kpay_transaction_id,
+            reference: payment.reference,
+         });
 
-      if (statusResult.success) {
-        if (statusResult.status === 'completed' || statusResult.status === 'successful') {
-          setPaymentCompleted(true);
-          setPayment(prev => prev ? { ...prev, status: statusResult.status } : null);
-          toast.success('Payment completed successfully!');
-          
-          // Redirect to order details after a short delay
-          setTimeout(() => {
-            router.push(`/orders/${orderId || payment.order_id}?payment=success`);
-          }, 2000);
-        } else if (statusResult.status === 'failed' || statusResult.status === 'cancelled') {
-          setPayment(prev => prev ? { ...prev, status: statusResult.status, failure_reason: statusResult.error } : null);
-          
-          // Show appropriate error message
-          const errorMessage = statusResult.error || 'Payment failed or was cancelled';
-          toast.error(errorMessage);
-          
-          // For card payments, provide specific guidance
-          if (payment.payment_method === 'visa_card' || payment.payment_method === 'mastercard') {
-            toast.error('Card payment failed. Please check your card details and try again.');
-          }
-        } else {
-          // Update payment status but continue checking
-          setPayment(prev => prev ? { ...prev, status: statusResult.status } : null);
-        }
-      } else if (statusResult.error) {
-        // Handle status check errors
-        console.error('Payment status check error:', statusResult.error);
-        
-        // For card payments that might be processed externally, be less aggressive with error messages
-        if (payment.payment_method === 'visa_card' || payment.payment_method === 'mastercard') {
-          // Don't show error immediately for card payments - they might still be processing
-          if (statusCheckCount > 10) { // After 1.5+ minutes
-            toast.info('Payment status check taking longer than usual. Please check with your bank or try refreshing.');
-          }
-        } else {
-          toast.error('Unable to check payment status. Please refresh the page.');
-        }
+         if (statusResult.success) {
+            if (
+               statusResult.status === "completed" ||
+               statusResult.status === "successful"
+            ) {
+               setPaymentCompleted(true);
+               setPayment((prev) =>
+                  prev ? { ...prev, status: statusResult.status } : null
+               );
+               toast.success("Payment completed successfully!");
+
+               setTimeout(() => {
+                  router.push(
+                     `/orders/${orderId || payment.order_id}?payment=success`
+                  );
+               }, 2000);
+            } else if (
+               statusResult.status === "failed" ||
+               statusResult.status === "cancelled"
+            ) {
+               setPayment((prev) =>
+                  prev
+                     ? {
+                          ...prev,
+                          status: statusResult.status,
+                          failure_reason: statusResult.error,
+                       }
+                     : null
+               );
+
+               const errorMessage =
+                  statusResult.error || "Payment failed or was cancelled";
+               toast.error(errorMessage, { duration: 5000 });
+
+               if (
+                  payment.payment_method === "visa_card" ||
+                  payment.payment_method === "mastercard"
+               ) {
+                  toast.error(
+                     "Card payment failed. Please check your card details and try again."
+                  );
+               }
+            } else {
+               setPayment((prev) =>
+                  prev ? { ...prev, status: statusResult.status } : null
+               );
+            }
+         } else if (statusResult.error) {
+            console.error("Payment status check error:", statusResult.error);
+
+            // Show timeout warning after 1 minute
+            if (statusCheckCount >= 6) {
+               toast.info(
+                  "Payment is taking longer than usual. We'll keep checking for a bit longer...",
+                  { duration: 4000 }
+               );
+            }
+         }
+      } catch (err) {
+         console.error("Failed to check payment status:", err);
+         
+         // After several failed attempts, show error
+         if (statusCheckCount >= 6) {
+            toast.error(
+               "Having trouble checking payment status. Please refresh the page or try a different payment method.",
+               { duration: 5000 }
+            );
+         }
       }
-    } catch (err) {
-      console.error('Failed to check payment status:', err);
-    }
-    
-    setStatusCheckCount(prev => prev + 1);
-  };
 
-  useEffect(() => {
-    fetchPaymentData();
-  }, [paymentId]);
+      setStatusCheckCount((prev) => prev + 1);
+   };
 
-  // Set up periodic status checking
-  useEffect(() => {
-    if (!payment || paymentCompleted || loading) return;
+   useEffect(() => {
+      fetchPaymentData();
+   }, [paymentId]);
 
-    const interval = setInterval(checkStatus, 10000); // Check every 10 seconds
-    return () => clearInterval(interval);
-  }, [payment, paymentCompleted, loading, statusCheckCount]);
+   useEffect(() => {
+      if (!payment || paymentCompleted || loading) return;
 
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'completed':
-      case 'successful':
-        return <CheckCircle className="h-5 w-5 text-green-500" />;
-      case 'failed':
-      case 'cancelled':
-        return <XCircle className="h-5 w-5 text-red-500" />;
-      case 'pending':
-        return <Clock className="h-5 w-5 text-yellow-500" />;
-      default:
-        return <AlertCircle className="h-5 w-5 text-gray-500" />;
-    }
-  };
+      const interval = setInterval(checkStatus, 10000);
+      return () => clearInterval(interval);
+   }, [payment, paymentCompleted, loading, statusCheckCount]);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed':
-      case 'successful':
-        return 'bg-green-100 text-green-800';
-      case 'failed':
-      case 'cancelled':
-        return 'bg-red-100 text-red-800';
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
+   const getStatusIcon = (status: string) => {
+      switch (status) {
+         case "completed":
+         case "successful":
+            return <CheckCircle className="h-12 w-12 text-green-500" />;
+         case "failed":
+         case "cancelled":
+         case "timeout":
+            return <XCircle className="h-12 w-12 text-red-500" />;
+         case "pending":
+            return (
+               <Clock className="h-12 w-12 text-orange-500 animate-pulse" />
+            );
+         default:
+            return <AlertCircle className="h-12 w-12 text-gray-500" />;
+      }
+   };
 
-  const getPaymentMethodIcon = (method: string) => {
-    if (method.includes('momo') || method.includes('mtn') || method.includes('airtel')) {
-      return <Smartphone className="h-5 w-5" />;
-    }
-    return <CreditCard className="h-5 w-5" />;
-  };
+   const getStatusColor = (status: string) => {
+      switch (status) {
+         case "completed":
+         case "successful":
+            return "bg-green-50 text-green-700 border-green-200";
+         case "failed":
+         case "cancelled":
+         case "timeout":
+            return "bg-red-50 text-red-700 border-red-200";
+         case "pending":
+            return "bg-orange-50 text-orange-700 border-orange-200";
+         default:
+            return "bg-gray-50 text-gray-700 border-gray-200";
+      }
+   };
 
-  const getPaymentMethodName = (method: string) => {
-    const names: Record<string, string> = {
-      'mtn_momo': 'MTN Mobile Money',
-      'airtel_money': 'Airtel Money',
-      'visa_card': 'Visa Card',
-      'mastercard': 'MasterCard',
-      'spenn': 'SPENN',
-    };
-    return names[method] || method.toUpperCase();
-  };
+   const getPaymentMethodIcon = (method: string) => {
+      if (
+         method.includes("momo") ||
+         method.includes("mtn") ||
+         method.includes("airtel")
+      ) {
+         return <Smartphone className="h-5 w-5" />;
+      }
+      return <CreditCard className="h-5 w-5" />;
+   };
 
-  if (loading) {
-    return (
-      <div className="container mx-auto py-8 px-4">
-        <div className="max-w-2xl mx-auto">
-          <Card>
-            <CardContent className="flex items-center justify-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin mr-2" />
-              <span>Loading payment details...</span>
-            </CardContent>
-          </Card>
-        </div>
+   const getPaymentMethodName = (method: string) => {
+      const names: Record<string, string> = {
+         mtn_momo: "MTN Mobile Money",
+         airtel_money: "Airtel Money",
+         visa_card: "Visa Card",
+         mastercard: "MasterCard",
+         spenn: "SPENN",
+      };
+      return names[method] || method.toUpperCase();
+   };
+
+   if (loading) {
+      return (
+         <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-orange-50">
+            <div className="container mx-auto py-8 px-4">
+               <div className="max-w-2xl mx-auto">
+                  <Card className="border-0 shadow-xl">
+                     <CardContent className="flex flex-col items-center justify-center py-16">
+                        <Loader2 className="h-12 w-12 animate-spin text-blue-500 mb-4" />
+                        <span className="text-gray-600 font-medium">
+                           Loading payment details...
+                        </span>
+                     </CardContent>
+                  </Card>
+               </div>
+            </div>
+         </div>
+      );
+   }
+
+   if (error || !payment) {
+      return (
+         <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-orange-50">
+            <div className="container mx-auto py-8 px-4">
+               <div className="max-w-2xl mx-auto">
+                  <Card className="border-0 shadow-xl">
+                     <CardHeader className="text-center pb-4">
+                        <div className="flex justify-center mb-4">
+                           <XCircle className="h-16 w-16 text-red-500" />
+                        </div>
+                        <CardTitle className="text-2xl text-red-600">
+                           Payment Error
+                        </CardTitle>
+                     </CardHeader>
+                     <CardContent className="text-center">
+                        <p className="mb-6 text-gray-600">
+                           {error || "Payment not found"}
+                        </p>
+                        <Button
+                           onClick={() => router.back()}
+                           className="bg-blue-500 hover:bg-blue-600"
+                        >
+                           <ArrowLeft className="h-4 w-4 mr-2" />
+                           Go Back
+                        </Button>
+                     </CardContent>
+                  </Card>
+               </div>
+            </div>
+         </div>
+      );
+   }
+
+   return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-orange-50">
+         {/* Header with Logo */}
+         <div className="bg-white border-b shadow-sm sticky top-0 z-10">
+            <div className="container mx-auto px-3 sm:px-4 py-3 sm:py-4">
+               <div className="flex items-center justify-between max-w-7xl mx-auto">
+                  <Image
+                     src={logo}
+                     alt="Logo"
+                     className="h-8 sm:h-10 w-auto"
+                     priority
+                  />
+                  <Badge
+                     variant="outline"
+                     className="text-xs sm:text-sm font-medium"
+                  >
+                     Payment #{payment.reference.slice(-8)}
+                  </Badge>
+               </div>
+            </div>
+         </div>
+
+         <div className="container mx-auto py-4 sm:py-8 px-3 sm:px-4 max-w-7xl">
+            <div className="grid lg:grid-cols-2 gap-4 sm:gap-6">
+               {/* Left Column - Main Status & Details */}
+               <div className="space-y-4 sm:space-y-6">
+                  {/* Main Status Card */}
+                  <Card className="border-0 shadow-xl overflow-hidden">
+                     <div
+                        className={`${getStatusColor(
+                           payment.status
+                        )} border-b py-6 sm:py-8`}
+                     >
+                        <div className="flex flex-col items-center text-center px-4 sm:px-6">
+                           {getStatusIcon(payment.status)}
+                           <h1 className="text-xl sm:text-2xl font-bold mt-3 sm:mt-4 mb-2">
+                              {paymentCompleted
+                                 ? "Payment Successful!"
+                                 : payment.status === "pending"
+                                 ? "Processing Payment"
+                                 : payment.status === "failed"
+                                 ? "Payment Failed"
+                                 : payment.status === "timeout"
+                                 ? "Payment Timeout"
+                                 : "Payment Status"}
+                           </h1>
+                           <p className="text-xs sm:text-sm opacity-80 max-w-md px-2">
+                              {paymentCompleted
+                                 ? "Your payment has been processed successfully! You'll be redirected shortly."
+                                 : payment.status === "pending"
+                                 ? "We're securely processing your payment. Please wait a moment..."
+                                 : payment.status === "failed"
+                                 ? "We couldn't process your payment. Please try again or use a different method."
+                                 : payment.status === "timeout"
+                                 ? "Payment took too long to process. You can try again or use a different payment method."
+                                 : "Checking your payment status..."}
+                           </p>
+                        </div>
+                     </div>
+
+                     {/* Amount Display */}
+                     <div className="bg-gradient-to-r from-blue-500 to-orange-500 text-white py-4 sm:py-6">
+                        <div className="text-center">
+                           <p className="text-xs sm:text-sm opacity-90 mb-1">
+                              Amount
+                           </p>
+                           <p className="text-3xl sm:text-4xl font-bold">
+                              {payment.amount.toLocaleString()}{" "}
+                              <span className="text-xl sm:text-2xl">
+                                 {payment.currency}
+                              </span>
+                           </p>
+                        </div>
+                     </div>
+
+                     {/* Payment Details */}
+                     <CardContent className="p-4 sm:p-6 space-y-3 sm:space-y-4">
+                        <div className="grid grid-cols-1 gap-3 sm:gap-4">
+                           <div className="flex items-center justify-between p-3 sm:p-4 bg-gray-50 rounded-lg">
+                              <span className="text-xs sm:text-sm text-gray-600 flex items-center flex-shrink-0">
+                                 {getPaymentMethodIcon(payment.payment_method)}
+                                 <span className="ml-2">Payment Method</span>
+                              </span>
+                              <span className="font-semibold text-gray-800 text-xs sm:text-sm text-right">
+                                 {getPaymentMethodName(payment.payment_method)}
+                              </span>
+                           </div>
+
+                           <div className="flex items-center justify-between p-3 sm:p-4 bg-gray-50 rounded-lg">
+                              <span className="text-xs sm:text-sm text-gray-600">
+                                 Status
+                              </span>
+                              <Badge
+                                 className={`${getStatusColor(
+                                    payment.status
+                                 )} text-xs`}
+                              >
+                                 {payment.status.charAt(0).toUpperCase() +
+                                    payment.status.slice(1)}
+                              </Badge>
+                           </div>
+
+                           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 sm:p-4 bg-gray-50 rounded-lg gap-1 sm:gap-2">
+                              <span className="text-xs sm:text-sm text-gray-600 flex-shrink-0">
+                                 Reference
+                              </span>
+                              <span className="font-mono text-xs sm:text-sm font-semibold break-all">
+                                 {payment.reference}
+                              </span>
+                           </div>
+
+                           {payment.kpay_transaction_id && (
+                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 sm:p-4 bg-gray-50 rounded-lg gap-1 sm:gap-2">
+                                 <span className="text-xs sm:text-sm text-gray-600 flex-shrink-0">
+                                    Transaction ID
+                                 </span>
+                                 <span className="font-mono text-xs text-gray-700 break-all">
+                                    {payment.kpay_transaction_id}
+                                 </span>
+                              </div>
+                           )}
+
+                           <div className="flex items-center justify-between p-3 sm:p-4 bg-gray-50 rounded-lg">
+                              <span className="text-xs sm:text-sm text-gray-600">
+                                 Customer
+                              </span>
+                              <span className="text-xs sm:text-sm font-medium text-right break-words max-w-[60%]">
+                                 {payment.customer_name}
+                              </span>
+                           </div>
+
+                           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 sm:p-4 bg-gray-50 rounded-lg gap-1 sm:gap-2">
+                              <span className="text-xs sm:text-sm text-gray-600">
+                                 Phone
+                              </span>
+                              <span className="text-xs sm:text-sm font-medium break-all">
+                                 {payment.customer_phone}
+                              </span>
+                           </div>
+                        </div>
+
+                        {/* Failure Reason */}
+                        {payment.failure_reason &&
+                           (payment.status === "failed" || payment.status === "timeout") && (
+                              <div className="mt-3 sm:mt-4 p-3 sm:p-4 bg-red-50 border border-red-200 rounded-lg">
+                                 <div className="flex items-start gap-2 sm:gap-3">
+                                    <XCircle className="h-4 w-4 sm:h-5 sm:w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                                    <div>
+                                       <p className="text-xs sm:text-sm font-semibold text-red-800 mb-1">
+                                          {payment.status === "timeout" ? "Payment Timeout" : "Payment Failed"}
+                                       </p>
+                                       <p className="text-xs sm:text-sm text-red-700">
+                                          {payment.failure_reason}
+                                       </p>
+                                       <p className="text-xs text-red-600 mt-2">
+                                          {payment.status === "timeout" 
+                                             ? "Your order is still pending. You can try the same payment method again or use a different one."
+                                             : "Please try again or contact support if the issue persists."
+                                          }
+                                       </p>
+                                    </div>
+                                 </div>
+                              </div>
+                           )}
+                     </CardContent>
+                  </Card>
+               </div>
+
+               {/* Right Column - Instructions & Actions */}
+               <div className="space-y-4 sm:space-y-6">
+                  {/* Instructions Card */}
+                  {payment.status === "pending" && !paymentCompleted && (
+                     <Card className="border-0 shadow-lg">
+                        <CardHeader className="bg-gradient-to-r from-blue-50 to-orange-50 p-4 sm:p-6">
+                           <CardTitle className="text-base sm:text-lg flex items-center text-blue-700">
+                              <AlertCircle className="h-4 w-4 sm:h-5 sm:w-5 mr-2 flex-shrink-0" />
+                              Payment Instructions
+                           </CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-4 sm:p-6">
+                           {payment.payment_method.includes("momo") ||
+                           payment.payment_method.includes("mtn") ||
+                           payment.payment_method.includes("airtel") ? (
+                              <div className="space-y-3 sm:space-y-4">
+                                 <div className="flex items-start">
+                                    <div className="flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 bg-blue-500 text-white rounded-full flex items-center justify-center font-semibold text-xs sm:text-sm">
+                                       1
+                                    </div>
+                                    <p className="ml-2 sm:ml-3 text-xs sm:text-sm text-gray-700">
+                                       Check your mobile phone{" "}
+                                       <span className="font-medium break-all">
+                                          ({payment.customer_phone})
+                                       </span>{" "}
+                                       for an SMS prompt
+                                    </p>
+                                 </div>
+                                 <div className="flex items-start">
+                                    <div className="flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 bg-blue-500 text-white rounded-full flex items-center justify-center font-semibold text-xs sm:text-sm">
+                                       2
+                                    </div>
+                                    <p className="ml-2 sm:ml-3 text-xs sm:text-sm text-gray-700">
+                                       Enter your Mobile Money PIN to authorize
+                                       the payment
+                                    </p>
+                                 </div>
+                                 <div className="flex items-start">
+                                    <div className="flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 bg-blue-500 text-white rounded-full flex items-center justify-center font-semibold text-xs sm:text-sm">
+                                       3
+                                    </div>
+                                    <p className="ml-2 sm:ml-3 text-xs sm:text-sm text-gray-700">
+                                       Wait for confirmation - this page will
+                                       update automatically
+                                    </p>
+                                 </div>
+                                 <div className="mt-3 sm:mt-4 p-3 sm:p-4 bg-blue-50 rounded-lg border border-blue-200">
+                                    <p className="text-xs sm:text-sm text-blue-800">
+                                       <strong>💡 Tip:</strong> Keep this page
+                                       open. We&apos;ll automatically detect when
+                                       your payment is complete.
+                                    </p>
+                                 </div>
+                              </div>
+                           ) : payment.payment_method.includes("card") ||
+                             payment.payment_method === "visa_card" ||
+                             payment.payment_method === "mastercard" ? (
+                              <div className="space-y-3 sm:space-y-4">
+                                 <div className="flex items-start">
+                                    <div className="flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 bg-green-500 text-white rounded-full flex items-center justify-center font-semibold text-xs sm:text-sm">
+                                       1
+                                    </div>
+                                    <p className="ml-2 sm:ml-3 text-xs sm:text-sm text-gray-700">
+                                       You&apos;ll be redirected to a secure payment
+                                       gateway
+                                    </p>
+                                 </div>
+                                 <div className="flex items-start">
+                                    <div className="flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 bg-green-500 text-white rounded-full flex items-center justify-center font-semibold text-xs sm:text-sm">
+                                       2
+                                    </div>
+                                    <p className="ml-2 sm:ml-3 text-xs sm:text-sm text-gray-700">
+                                       Enter your card details securely
+                                    </p>
+                                 </div>
+                                 <div className="flex items-start">
+                                    <div className="flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 bg-green-500 text-white rounded-full flex items-center justify-center font-semibold text-xs sm:text-sm">
+                                       3
+                                    </div>
+                                    <p className="ml-2 sm:ml-3 text-xs sm:text-sm text-gray-700">
+                                       Return here to see your payment
+                                       confirmation
+                                    </p>
+                                 </div>
+                                 <div className="mt-3 sm:mt-4 p-3 sm:p-4 bg-green-50 rounded-lg border border-green-200">
+                                    <p className="text-xs sm:text-sm text-green-800">
+                                       <strong>🔒 Secure:</strong> All card
+                                       transactions are encrypted and
+                                       PCI-compliant.
+                                    </p>
+                                 </div>
+                                 <Button
+                                    onClick={() => window.location.reload()}
+                                    variant="outline"
+                                    className="w-full mt-3 sm:mt-4 border-green-300 text-green-700 hover:bg-green-50 text-xs sm:text-sm h-9 sm:h-10"
+                                 >
+                                    <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
+                                    Refresh Payment Status
+                                 </Button>
+                              </div>
+                           ) : (
+                              <div className="space-y-3">
+                                 <p className="text-xs sm:text-sm text-gray-700">
+                                    Follow the instructions provided by your
+                                    payment provider to complete the
+                                    transaction.
+                                 </p>
+                                 <div className="mt-3 sm:mt-4 p-3 sm:p-4 bg-gray-50 rounded-lg border border-gray-200">
+                                    <p className="text-xs sm:text-sm text-gray-700">
+                                       <strong>Note:</strong> This page will
+                                       automatically update when payment is
+                                       confirmed.
+                                    </p>
+                                 </div>
+                              </div>
+                           )}
+
+                           {isCheckingStatus && (
+                              <div className="mt-3 sm:mt-4 flex items-center justify-center text-xs sm:text-sm text-gray-600 p-3 bg-white rounded-lg border">
+                                 <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 animate-spin mr-2" />
+                                 Checking payment status...
+                              </div>
+                           )}
+                        </CardContent>
+                     </Card>
+                  )}
+
+                  {/* Action Buttons */}
+                  <Card className="border-0 shadow-lg">
+                     <CardContent className="p-4 sm:p-6">
+                        <div className="space-y-3">
+                           <Button
+                              variant="outline"
+                              onClick={() =>
+                                 router.push(
+                                    `/orders/${orderId || payment.order_id}`
+                                 )
+                              }
+                              className="w-full border-blue-300 text-blue-700 hover:bg-blue-50 text-xs sm:text-sm h-9 sm:h-11"
+                           >
+                              View Order Details
+                           </Button>
+
+                           {(payment.status === "failed" || payment.status === "timeout") && (
+                              <>
+                                 <Button
+                                    onClick={() => router.push(
+                                       `/orders/${orderId || payment.order_id}?retry=true`
+                                    )}
+                                    className="w-full bg-orange-500 hover:bg-orange-600 text-xs sm:text-sm h-9 sm:h-11"
+                                 >
+                                    Try Different Method
+                                 </Button>
+                                 <Button
+                                    variant="outline"
+                                    onClick={() => window.location.reload()}
+                                    className="w-full border-gray-300 text-xs sm:text-sm h-9 sm:h-11"
+                                 >
+                                    <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
+                                    {payment.status === "timeout" ? "Try Again" : "Retry Payment"}
+                                 </Button>
+                              </>
+                           )}
+
+                           {payment.status === "pending" &&
+                              payment.payment_method !== "mtn_momo" &&
+                              payment.payment_method !== "airtel_money" && (
+                                 <Button
+                                    onClick={() => {
+                                       if (payment.checkout_url) {
+                                          window.open(
+                                             payment.checkout_url,
+                                             "_blank",
+                                             "noopener,noreferrer"
+                                          );
+                                       } else {
+                                          window.location.reload();
+                                       }
+                                    }}
+                                    className="w-full bg-blue-500 hover:bg-blue-600 text-xs sm:text-sm h-9 sm:h-11"
+                                 >
+                                    <ExternalLink className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
+                                    Open Payment Gateway
+                                 </Button>
+                              )}
+
+                           {paymentCompleted && (
+                              <Button
+                                 onClick={() =>
+                                    router.push(
+                                       `/orders/${
+                                          orderId || payment.order_id
+                                       }?payment=success`
+                                    )
+                                 }
+                                 className="w-full bg-green-500 hover:bg-green-600 text-xs sm:text-sm h-9 sm:h-11"
+                              >
+                                 <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
+                                 Continue to Order
+                              </Button>
+                           )}
+                        </div>
+                     </CardContent>
+                  </Card>
+               </div>
+            </div>
+         </div>
       </div>
-    );
-  }
-
-  if (error || !payment) {
-    return (
-      <div className="container mx-auto py-8 px-4">
-        <div className="max-w-2xl mx-auto">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center text-red-600">
-                <XCircle className="h-5 w-5 mr-2" />
-                Payment Error
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="mb-4">{error || 'Payment not found'}</p>
-              <Button onClick={() => router.back()}>Go Back</Button>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="container mx-auto py-8 px-4">
-      <div className="max-w-2xl mx-auto space-y-6">
-        {/* Payment Status Card */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center">
-                {getStatusIcon(payment.status)}
-                <span className="ml-2">Payment Processing</span>
-              </CardTitle>
-              <Badge className={getStatusColor(payment.status)}>
-                {payment.status.charAt(0).toUpperCase() + payment.status.slice(1)}
-              </Badge>
-            </div>
-            <CardDescription>
-              {paymentCompleted ? (
-                "Your payment has been processed successfully!"
-              ) : payment.status === 'pending' ? (
-                "We&apos;re processing your payment. Please wait..."
-              ) : payment.status === 'failed' ? (
-                "Your payment could not be processed. Please try again."
-              ) : (
-                "Processing your payment..."
-              )}
-            </CardDescription>
-          </CardHeader>
-        </Card>
-
-        {/* Payment Details Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Payment Details</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Amount</span>
-              <span className="font-semibold">
-                {payment.amount.toLocaleString()} {payment.currency}
-              </span>
-            </div>
-            
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Payment Method</span>
-              <div className="flex items-center">
-                {getPaymentMethodIcon(payment.payment_method)}
-                <span className="ml-2 font-medium">
-                  {getPaymentMethodName(payment.payment_method)}
-                </span>
-              </div>
-            </div>
-            
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Reference</span>
-              <span className="font-mono text-sm">{payment.reference}</span>
-            </div>
-            
-            {payment.kpay_transaction_id && (
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-gray-600">Transaction ID</span>
-                <span className="font-mono text-sm">{payment.kpay_transaction_id}</span>
-              </div>
-            )}
-            
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Customer</span>
-              <span className="text-sm">{payment.customer_name}</span>
-            </div>
-            
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-gray-600">Phone</span>
-              <span className="text-sm">{payment.customer_phone}</span>
-            </div>
-            
-            {payment.failure_reason && payment.status === 'failed' && (
-              <div className="pt-2 border-t border-red-200">
-                <div className="bg-red-50 p-3 rounded-lg">
-                  <div className="flex items-center gap-2 mb-1">
-                    <XCircle className="h-4 w-4 text-red-600" />
-                    <span className="text-red-800 text-sm font-medium">Payment Failed</span>
-                  </div>
-                  <span className="text-red-700 text-xs">
-                    {payment.failure_reason}
-                  </span>
-                  <div className="mt-2 text-red-600 text-xs">
-                    Please try again or use a different payment method.
-                  </div>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Instructions Card - only show for pending payments */}
-        {payment.status === 'pending' && !paymentCompleted && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-blue-600">Payment Instructions</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {payment.payment_method.includes('momo') || payment.payment_method.includes('mtn') || payment.payment_method.includes('airtel') ? (
-                <div className="space-y-2">
-                  <p className="text-sm">
-                    1. You should receive an SMS prompt on your mobile phone ({payment.customer_phone})
-                  </p>
-                  <p className="text-sm">
-                    2. Enter your Mobile Money PIN to confirm the payment
-                  </p>
-                  <p className="text-sm">
-                    3. Wait for confirmation - this page will update automatically
-                  </p>
-                  <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-                    <p className="text-sm text-blue-700">
-                      <strong>Tip:</strong> Keep this page open. We&apos;ll automatically detect when your payment is complete.
-                    </p>
-                  </div>
-                </div>
-              ) : payment.payment_method.includes('card') || payment.payment_method === 'visa_card' || payment.payment_method === 'mastercard' ? (
-                <div className="space-y-2">
-                  <p className="text-sm">
-                    1. You will be redirected to a secure payment gateway to enter your card details
-                  </p>
-                  <p className="text-sm">
-                    2. Complete the payment using your {payment.payment_method === 'visa_card' ? 'Visa' : 'MasterCard'} card
-                  </p>
-                  <p className="text-sm">
-                    3. Return to this page to see your payment confirmation
-                  </p>
-                  <div className="mt-4 p-3 bg-green-50 rounded-lg">
-                    <p className="text-sm text-green-700">
-                      <strong>Secure Payment:</strong> All card transactions are processed through encrypted, secure channels.
-                    </p>
-                  </div>
-                  {/* Add redirect button if checkout URL is available */}
-                  <div className="mt-4 pt-2 border-t">
-                    <p className="text-sm text-gray-600 mb-2">Having trouble with automatic redirect?</p>
-                    <button 
-                      onClick={() => window.location.reload()}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 transition-colors"
-                    >
-                      Try Payment Again
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <p className="text-sm">
-                    1. Complete the payment process through the secure payment gateway
-                  </p>
-                  <p className="text-sm">
-                    2. Follow the instructions provided by your payment provider
-                  </p>
-                  <p className="text-sm">
-                    3. Return to this page to see your payment status
-                  </p>
-                  <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-                    <p className="text-sm text-gray-700">
-                      <strong>Note:</strong> This page will automatically update when payment is confirmed.
-                    </p>
-                  </div>
-                </div>
-              )}
-              
-              {isCheckingStatus && (
-                <div className="mt-4 flex items-center text-sm text-gray-600">
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  Checking payment status...
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Action Buttons */}
-        <div className="flex flex-wrap gap-4">
-          <Button
-            variant="outline"
-            onClick={() => router.push(`/orders/${orderId || payment.order_id}`)}
-            className="flex-1 min-w-0"
-          >
-            View Order Details
-          </Button>
-          
-          {payment.status === 'failed' && (
-            <>
-              <Button 
-                onClick={() => router.push(`/checkout`)}
-                className="flex-1 min-w-0 bg-orange-600 hover:bg-orange-700"
-              >
-                Try Different Payment Method
-              </Button>
-              <Button 
-                variant="outline"
-                onClick={() => window.location.reload()}
-                className="flex-1 min-w-0"
-              >
-                Retry This Payment
-              </Button>
-            </>
-          )}
-          
-          {payment.status === 'pending' && payment.payment_method !== 'mtn_momo' && payment.payment_method !== 'airtel_money' && (
-            <Button 
-              onClick={() => {
-                // For card payments, try to redirect to checkout URL if available
-                if (payment.checkout_url) {
-                  window.open(payment.checkout_url, '_blank', 'noopener,noreferrer');
-                } else {
-                  window.location.reload();
-                }
-              }}
-              className="flex-1 min-w-0 bg-blue-600 hover:bg-blue-700"
-            >
-              Open Payment Gateway
-            </Button>
-          )}
-          
-          {paymentCompleted && (
-            <Button 
-              onClick={() => router.push(`/orders/${orderId || payment.order_id}?payment=success`)}
-              className="flex-1 min-w-0 bg-green-600 hover:bg-green-700"
-            >
-              Continue to Order
-            </Button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
+   );
 }

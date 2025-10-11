@@ -87,28 +87,67 @@ export async function POST(request: NextRequest) {
       };
 
       // Check if status has changed based on statusid
+      console.log('Processing KPay status response:', {
+        paymentId: payment.id,
+        currentStatus: payment.status,
+        kpayStatusId: kpayResponse.statusid,
+        kpayStatusDesc: kpayResponse.statusdesc,
+        kpayRetCode: kpayResponse.retcode
+      });
+
       if (kpayResponse.statusid === '01' && payment.status !== 'completed') {
         // Payment successful
         updatedStatus = 'completed';
         updateData.status = 'completed';
         updateData.completed_at = new Date().toISOString();
         updateData.kpay_mom_transaction_id = kpayResponse.momtransactionid;
-        needsUpdate = true;
+          needsUpdate = true;
+        console.log('Payment marked as completed:', {
+          paymentId: payment.id,
+          previousStatus: payment.status,
+          newStatus: 'completed',
+          momTransactionId: kpayResponse.momtransactionid
+        });
       } else if (kpayResponse.statusid === '02') {
         // Payment is being processed (waiting for SMS confirmation)
         updatedStatus = 'pending';
-        // Don't mark as failed - this is normal processing state
-        console.log('Payment is processing with MTN - awaiting SMS confirmation:', {
+        // For long-running payments, don't update the database unless status actually changes
+        if (payment.status !== 'pending') {
+          updateData.status = 'pending';
+          needsUpdate = true;
+        }
+        console.log('Payment is processing - awaiting confirmation:', {
           paymentId: payment.id,
           momTransactionId: kpayResponse.momtransactionid,
-          statusDesc: kpayResponse.statusdesc
+          statusDesc: kpayResponse.statusdesc,
+          currentStatus: payment.status,
+          willUpdate: needsUpdate
         });
       } else if (kpayResponse.statusid === '03') {
-        // Payment failed or cancelled
-        updatedStatus = 'failed';
-        updateData.status = 'failed';
-        updateData.failure_reason = kpayResponse.statusdesc || 'Payment failed';
-        needsUpdate = true;
+        // Check if this is actually a failure or still pending
+        // For some payment methods like Airtel, '03' with 'Pending' status description means still processing
+        if (kpayResponse.statusdesc && kpayResponse.statusdesc.toLowerCase().includes('pending')) {
+          // Payment is still pending, but we should update the status to ensure consistency
+          if (payment.status !== 'pending') {
+            updatedStatus = 'pending';
+            updateData.status = 'pending';
+            needsUpdate = true;
+          } else {
+            updatedStatus = 'pending';
+          }
+          console.log('Payment still pending:', {
+            paymentId: payment.id,
+            statusDesc: kpayResponse.statusdesc,
+            statusId: kpayResponse.statusid,
+            willUpdate: needsUpdate
+          });
+        } else {
+          // Payment failed or cancelled
+          updatedStatus = 'failed';
+          updateData.status = 'failed';
+          updateData.failure_reason = kpayResponse.statusdesc || 'Payment failed';
+          needsUpdate = true;
+        }
       } else if (kpayResponse.retcode === 611) {
         // Transaction not found - might indicate a problem
         console.warn('Transaction not found in KPay system:', {
@@ -133,6 +172,13 @@ export async function POST(request: NextRequest) {
 
       // Update payment record if status changed
       if (needsUpdate) {
+        console.log('Updating payment in database:', {
+          paymentId: payment.id,
+          updateData: updateData,
+          previousStatus: payment.status,
+          newStatus: updatedStatus
+        });
+
         const { error: updateError } = await supabase
           .from('payments')
           .update(updateData)
@@ -146,12 +192,17 @@ export async function POST(request: NextRequest) {
           );
         }
 
+        console.log('Payment successfully updated in database:', {
+          paymentId: payment.id,
+          newStatus: updatedStatus
+        });
+
         // Update order status if payment completed
         if (updatedStatus === 'completed') {
           const { error: orderUpdateError } = await supabase
             .from('orders')
             .update({
-              status: 'processing',
+              status: 'pending',
               payment_status: 'paid',
               updated_at: new Date().toISOString(),
             })
