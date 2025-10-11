@@ -1,10 +1,6 @@
 "use client"
 
-<<<<<<< HEAD
 import { momoIcon, mtnIcon, airtelIcon, visaIcon } from "@/assets"
-=======
-import { momoIcon } from "@/assets"
->>>>>>> 924b1762cbd130b828098898bb5e8daf241640c8
 import { cn } from "@/lib/utils"
 import { ColumnDef } from "@tanstack/react-table"
 import { format } from "date-fns"
@@ -15,7 +11,6 @@ import { Badge } from "../ui/badge"
 import { Button } from "../ui/button"
 import { Checkbox } from "../ui/checkbox"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "../ui/dropdown-menu"
-<<<<<<< HEAD
 import { useState } from "react"
 import { toast } from "sonner"
 import { CustomerDetailsDialog } from "../orders/CustomerDetailsDialog"
@@ -23,17 +18,6 @@ import { OrderDetailsDialog } from "../orders/OrderDetailsDialog"
 import { Transaction } from '@/integrations/supabase/transactions';
 
 type Payment = Transaction;
-=======
-
-type Payment = {
-    order: string
-    date: Date
-    customer: { namme: string, email: string }
-    payment: "successful" | 'failed' | 'notpaid'
-    status: "cancled" | "delivered" | "scheduled"
-    method: 'momo' | 'mastercard'
-}
->>>>>>> 924b1762cbd130b828098898bb5e8daf241640c8
 
 const Status = ({ status }: { status: "cancled" | "delivered" | "scheduled" }) => {
     return <Badge
@@ -45,25 +29,16 @@ const Status = ({ status }: { status: "cancled" | "delivered" | "scheduled" }) =
     >{status}</Badge>
 }
 
-<<<<<<< HEAD
 const PaymentStatus = ({ status }: { status: string }) => {
     return <div className={cn("flex items-center capitalize font-semibold",
         { "text-green-500": status == 'completed' },
         { "text-red-500": status == 'failed' },
         { "text-yellow-500": status == 'pending' },
         { "text-gray-500": status == 'timeout' },
-=======
-const Payment = ({ status }: { status: "successful" | 'failed' | 'notpaid' }) => {
-    return <div className={cn("flex items-center capitalize font-semibold",
-        { "text-green-500": status == 'successful' },
-        { "text-red-500": status == 'failed' },
-        { "text-yellow-500": status == 'notpaid' },
->>>>>>> 924b1762cbd130b828098898bb5e8daf241640c8
     )}><Dot strokeWidth={7} />{status}</div>
 }
 
 
-<<<<<<< HEAD
 const PaymentMethod = ({ method }: { method: string }) => {
     const methodLower = method?.toLowerCase().replace(/[_\s-]/g, '');
     
@@ -109,16 +84,6 @@ const PaymentMethod = ({ method }: { method: string }) => {
                     </span>
                 </div>
             );
-=======
-const PaymentMethod = ({ method }: { method: 'momo' | 'mastercard' }) => {
-    switch (method) {
-        case 'momo':
-            return <Image src={momoIcon} alt="momoIcon" height={30} width={70} />;
-        case 'mastercard':
-            return <div className="flex items-center gap-1"><Icons.orders.masterCard /> ... 1234</div>
-        default:
-            return null;
->>>>>>> 924b1762cbd130b828098898bb5e8daf241640c8
     }
 }
 
@@ -146,7 +111,6 @@ export const columns: ColumnDef<Payment>[] = [
         enableHiding: false,
     },
     {
-<<<<<<< HEAD
         accessorKey: "reference",
         header: "REFERENCE",
         cell: ({ row }) => <span className="text-text-primary font-mono text-sm">#{row.getValue('reference')}</span>
@@ -193,55 +157,10 @@ export const columns: ColumnDef<Payment>[] = [
         header: "STATUS",
         cell: ({ row }) => <PaymentStatus status={row.getValue('status') || ''} />
     },
-=======
-        accessorKey: "order",
-        header: "ORDER",
-        cell: ({ row }) => <span className="text-text-primary">#{row.getValue('order')}</span>
-    },
-    {
-        id: "customer",
-        accessorKey: "customer.namme",
-        header: "Name",
-    },
-    {
-        accessorKey: "date",
-        header: "DATE",
-        cell: ({ row }) => <span className="text-text-secondary">{format(new Date(row.getValue('date')), "MMMM d, yyyy, HH:mm")}</span>
-    },
-    {
-        accessorKey: "amount",
-        header: () => <div className="">Amount</div>,
-        cell: ({ row }) => {
-            const amount = parseFloat(row.getValue("amount"))
-            const formatted = new Intl.NumberFormat("en-US", {
-                style: "currency",
-                currency: "RWF",
-            }).format(1300)
-
-            return <div className="">{formatted}</div>
-        },
-    },
-    {
-        accessorKey: "method",
-        header: "METHOD",
-        cell: ({ row }) => <PaymentMethod method={row.getValue('method') || ''} />
-    },
-    {
-        accessorKey: "payment",
-        header: "Status",
-        cell: ({ row }) => <Payment status={row.getValue('payment') || ''} />
-    },
-    // {
-    //     accessorKey: "status",
-    //     header: "STATUS",
-    //     cell: ({ row }) => <Status status={row.getValue('status') || ''} />
-    // },
->>>>>>> 924b1762cbd130b828098898bb5e8daf241640c8
     {
         id: "actions",
         size: 10,
         cell: ({ row }) => {
-<<<<<<< HEAD
             const transaction = row.original
             const [showCustomerDetails, setShowCustomerDetails] = useState(false);
             const [showOrderDetails, setShowOrderDetails] = useState(false);
@@ -335,31 +254,3 @@ export const columns: ColumnDef<Payment>[] = [
         },
     },
 ]
-=======
-            const payment = row.original
-
-            return (
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
-                            <span className="sr-only">Open menu</span>
-                            <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem
-                            onClick={() => navigator.clipboard.writeText(payment.order)}
-                        >
-                            Copy order ID
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem>View customer</DropdownMenuItem>
-                        <DropdownMenuItem>View order details</DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
-            )
-        },
-    },
-]
->>>>>>> 924b1762cbd130b828098898bb5e8daf241640c8
