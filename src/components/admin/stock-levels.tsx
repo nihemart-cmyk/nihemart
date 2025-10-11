@@ -180,11 +180,15 @@ function StockUpdateDialog({ product, variation, onClose }: { product: StockProd
 
 // Stock history dialog component
 function StockHistoryDialog({ variationId, onClose }: { variationId: string, onClose: () => void }) {
-  const { data: history, isLoading } = useQuery({
-    queryKey: ['stock-history', variationId],
-    queryFn: () => fetchStockHistory(variationId),
-    enabled: !!variationId
-  })
+   const { data: history, isLoading } = useQuery({
+     queryKey: ['stock-history', variationId],
+     queryFn: () => fetchStockHistory(variationId),
+     enabled: !!variationId,
+     staleTime: 10 * 60 * 1000, // 10 minutes - history doesn't change often
+     gcTime: 30 * 60 * 1000, // 30 minutes
+     refetchOnWindowFocus: false,
+     refetchOnReconnect: true,
+   })
 
   return (
     <DialogContent className="max-w-2xl">
@@ -229,11 +233,15 @@ function StockHistoryDialog({ variationId, onClose }: { variationId: string, onC
 
 // Product stock history dialog component
 function ProductStockHistoryDialog({ productId, onClose }: { productId: string, onClose: () => void }) {
-  const { data: history, isLoading } = useQuery({
-    queryKey: ['product-stock-history', productId],
-    queryFn: () => fetchProductStockHistory(productId),
-    enabled: !!productId
-  })
+   const { data: history, isLoading } = useQuery({
+     queryKey: ['product-stock-history', productId],
+     queryFn: () => fetchProductStockHistory(productId),
+     enabled: !!productId,
+     staleTime: 10 * 60 * 1000, // 10 minutes - history doesn't change often
+     gcTime: 30 * 60 * 1000, // 30 minutes
+     refetchOnWindowFocus: false,
+     refetchOnReconnect: true,
+   })
 
   return (
     <DialogContent className="max-w-2xl">
@@ -304,6 +312,10 @@ function StockTable({
   const { data: categories = [] } = useQuery({
     queryKey: ['categories'],
     queryFn: () => fetchCategories(),
+    staleTime: 60 * 60 * 1000, // 1 hour - categories change rarely
+    gcTime: 2 * 60 * 60 * 1000, // 2 hours
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: true,
   })
 
   const columns = [
@@ -713,6 +725,10 @@ export default function StockLevels() {
   const { data: products = [], isLoading } = useQuery({
     queryKey: ['products-stock'],
     queryFn: () => fetchProductsForStockManagement(),
+    staleTime: 30 * 60 * 1000, // 30 minutes - stock data doesn't change often
+    gcTime: 60 * 60 * 1000, // 1 hour
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: true,
   })
 
   const inStockProducts = products.filter(p =>
