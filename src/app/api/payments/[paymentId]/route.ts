@@ -45,6 +45,41 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       status: payment.status,
       amount: payment.amount 
     });
+    
+    // If payment is pending, automatically check for status update
+    if (payment.status === 'pending' && payment.kpay_transaction_id) {
+      logger.info('api', 'Payment is pending, checking for updates', { paymentId });
+      
+      try {
+        // Make a status check request internally
+        const statusResponse = await fetch(`${request.nextUrl.origin}/api/payments/kpay/status`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ paymentId })
+        });
+        
+        if (statusResponse.ok) {
+          const statusData = await statusResponse.json();
+          logger.info('api', 'Status check completed', { 
+            paymentId, 
+            newStatus: statusData.status,
+            needsUpdate: statusData.needsUpdate 
+          });
+          
+          // Return the updated status
+          if (statusData.needsUpdate) {
+            payment.status = statusData.status;
+          }
+        }
+      } catch (statusError) {
+        logger.warn('api', 'Status check failed, returning current status', { 
+          paymentId, 
+          error: statusError instanceof Error ? statusError.message : String(statusError)
+        });
+      }
+    }
 
     return NextResponse.json(payment);
 

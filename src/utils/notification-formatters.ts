@@ -9,6 +9,7 @@ export interface NotificationMeta {
   rider_phone?: string;
   rider?: {
     name?: string;
+    full_name?: string;
     phone?: string;
   };
   delivery_address?: string;
@@ -23,8 +24,8 @@ export interface NotificationMeta {
 /**
  * Format currency amount for display
  */
-export const formatCurrency = (amount: number, currency = "NGN"): string => {
-  return new Intl.NumberFormat("en-NG", {
+export const formatCurrency = (amount: number, currency = "RWF"): string => {
+  return new Intl.NumberFormat("en-RW", {
     style: "currency",
     currency,
     minimumFractionDigits: 0,
@@ -64,13 +65,13 @@ export const getOrderTotal = (order?: Order, items?: OrderItem[]): number => {
  * Format rider information for display
  */
 export const formatRiderInfo = (meta: NotificationMeta): string => {
-  const riderName = meta.rider_name || meta.rider?.name || "Rider";
+  const riderName = meta.rider_name || meta.rider?.name || meta.rider?.full_name || "Your Delivery Rider";
   const riderPhone = meta.rider_phone || meta.rider?.phone || null;
   
   if (riderPhone) {
-    return `${riderName}, ${riderPhone}`;
+    return `${riderName} (${riderPhone})`;
   }
-  return `${riderName}, No phone provided`;
+  return `${riderName}`;
 };
 
 /**
@@ -81,18 +82,30 @@ export const getOrderNumber = (meta: NotificationMeta): string => {
   const orderNumber = meta.order_number || meta.order?.order_number;
   const orderId = meta.order_id || meta.order?.id;
   
-  if (orderNumber && !orderNumber.includes("-") && orderNumber.length <= 10) {
-    return `#${orderNumber}`;
+  // If we have a clean order number (not a UUID), use it
+  if (orderNumber && !orderNumber.includes("-") && orderNumber.length <= 15) {
+    return orderNumber.startsWith("#") ? orderNumber : `#${orderNumber}`;
   }
   
+  // If we have an order_id that's not a UUID, use it
+  if (orderId && !orderId.includes("-") && orderId.length <= 15) {
+    return orderId.startsWith("#") ? orderId : `#${orderId}`;
+  }
+  
+  // For UUIDs, create a more readable short version
+  if (orderId && orderId.includes("-") && orderId.length > 20) {
+    // Take first 8 characters and add "NH" prefix for "Nihemart"
+    const shortId = orderId.replace(/-/g, "").slice(0, 8).toUpperCase();
+    return `#NH${shortId}`;
+  }
+  
+  // If we have any orderId, format it nicely
   if (orderId) {
-    // If it's a UUID, try to make it shorter and more readable
-    if (orderId.includes("-") && orderId.length > 20) {
-      return `#${orderId.slice(0, 8).toUpperCase()}`;
-    }
-    return `#${orderId}`;
+    const cleanId = orderId.replace(/-/g, "").slice(0, 10).toUpperCase();
+    return `#${cleanId}`;
   }
   
+  // Final fallback
   return "your order";
 };
 
@@ -140,17 +153,34 @@ export const createOrderSummary = (meta: NotificationMeta): string => {
   
   let summary = `Order ${orderNumber}`;
   
-  if (items.length > 0) {
-    summary += `\n\nItems:\n${formatOrderItems(items)}`;
-    
-    if (total > 0) {
-      summary += `\n\nTotal: ${formatCurrency(total)}`;
+  // Add items if available
+  if (items && items.length > 0) {
+    const itemsText = formatOrderItems(items);
+    if (itemsText) {
+      summary += `\n\nItems:\n${itemsText}`;
     }
   }
   
+  // Add total if available
+  if (total > 0) {
+    summary += `\n\nTotal: ${formatCurrency(total)}`;
+  } else if (meta.order?.total && meta.order.total > 0) {
+    summary += `\n\nTotal: ${formatCurrency(meta.order.total)}`;
+  }
+  
+  // Add delivery address if available
   const address = formatDeliveryAddress(meta);
   if (address) {
     summary += `\n\nDelivery to: ${address}`;
+  }
+  
+  // Add customer name if available
+  const customerName = meta.order?.customer_first_name && meta.order?.customer_last_name 
+    ? `${meta.order.customer_first_name} ${meta.order.customer_last_name}`
+    : meta.order?.customer_first_name || null;
+    
+  if (customerName) {
+    summary += `\n\nCustomer: ${customerName}`;
   }
   
   return summary;

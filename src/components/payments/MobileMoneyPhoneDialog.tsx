@@ -12,7 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Smartphone, AlertCircle } from 'lucide-react';
+import { Smartphone, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { PAYMENT_METHODS } from '@/lib/services/kpay';
 
 interface MobileMoneyPhoneDialogProps {
@@ -30,104 +30,141 @@ export default function MobileMoneyPhoneDialog({
   onConfirm,
   initialPhone = '',
 }: MobileMoneyPhoneDialogProps) {
-  const [phoneNumber, setPhoneNumber] = useState('');
+  const [phoneDisplay, setPhoneDisplay] = useState('');
+  const [phoneValue, setPhoneValue] = useState('');
   const [error, setError] = useState('');
+  const [isValid, setIsValid] = useState(false);
 
   // Reset phone number when dialog opens
   useEffect(() => {
     if (isOpen) {
-      setPhoneNumber(initialPhone);
+      const formatted = formatPhoneForDisplay(initialPhone);
+      setPhoneDisplay(formatted);
+      setPhoneValue(initialPhone);
       setError('');
+      validatePhone(initialPhone);
     }
   }, [isOpen, initialPhone]);
 
-  const formatPhoneNumber = (phone: string): string => {
-    // Remove all non-digit characters except +
-    const cleaned = phone.replace(/[^\d+]/g, '');
+  const formatPhoneForDisplay = (input: string): string => {
+    const cleaned = input.replace(/[^\d]/g, '');
     
-    // If already in 07XXXXXXXX format, return as is (preferred by KPay)
-    if (/^07\d{8}$/.test(cleaned)) {
-      return cleaned;
-    }
-    
-    // If starts with +250, convert to 07XXXXXXXX
-    if (cleaned.startsWith('+250')) {
-      const digits = cleaned.substring(4);
-      if (digits.length === 9 && digits.startsWith('7')) {
-        return `0${digits}`;
-      }
-    }
-    
-    // If starts with 250, convert to 07XXXXXXXX
-    if (cleaned.startsWith('250')) {
-      const digits = cleaned.substring(3);
-      if (digits.length === 9 && digits.startsWith('7')) {
-        return `0${digits}`;
-      }
-    }
-    
-    // If 9 digits starting with 7, add 0 prefix
-    if (cleaned.length === 9 && cleaned.startsWith('7')) {
-      return `0${cleaned}`;
+    // Format as 078 123 4567
+    if (cleaned.startsWith('07')) {
+      const digits = cleaned;
+      if (digits.length <= 3) return digits;
+      if (digits.length <= 6) return `${digits.slice(0, 3)} ${digits.slice(3)}`;
+      return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(6, 10)}`;
     }
     
     return cleaned;
   };
 
-  const validatePhoneNumber = (phone: string): boolean => {
-    const formatted = formatPhoneNumber(phone);
+  const normalizePhoneValue = (raw: string): string => {
+    const digits = raw.replace(/[^\d]/g, '');
     
-    // Check if it's a valid Rwanda mobile number format (07XXXXXXXX)
-    const rwandaMobileRegex = /^07[0-9]{8}$/;
-    return rwandaMobileRegex.test(formatted);
+    // Return in 07XXXXXXXX format (10 digits)
+    if (digits.startsWith('07') && digits.length <= 10) {
+      return digits;
+    }
+    
+    return digits;
   };
 
-  const validateMobileOperator = (phone: string): boolean => {
-    const formatted = formatPhoneNumber(phone);
+  const validateMobileOperator = (phone: string): { valid: boolean; message?: string } => {
+    const cleaned = phone.replace(/[^\d]/g, '');
+    
+    if (cleaned.length !== 10) {
+      return { valid: false, message: 'Phone number must be 10 digits' };
+    }
+
+    if (!cleaned.startsWith('07')) {
+      return { valid: false, message: 'Phone number must start with 07' };
+    }
     
     if (paymentMethod === 'mtn_momo') {
       // MTN numbers start with 078, 077, 076, 079
-      return /^0(78|77|76|79)[0-9]{7}$/.test(formatted);
+      if (/^0(78|77|76|79)/.test(cleaned)) {
+        return { valid: true };
+      }
+      return { 
+        valid: false, 
+        message: 'Please enter a valid MTN number (078, 077, 076, or 079)' 
+      };
     } else if (paymentMethod === 'airtel_money') {
       // Airtel numbers start with 073, 072, 070
-      return /^0(73|72|70)[0-9]{7}$/.test(formatted);
+      if (/^0(73|72|70)/.test(cleaned)) {
+        return { valid: true };
+      }
+      return { 
+        valid: false, 
+        message: 'Please enter a valid Airtel number (073, 072, or 070)' 
+      };
     }
     
-    return false;
+    return { valid: false };
   };
 
-  const handlePhoneChange = (value: string) => {
-    setPhoneNumber(value);
-    setError('');
+  const validatePhone = (phone: string) => {
+    const validation = validateMobileOperator(phone);
+    setIsValid(validation.valid);
+    return validation;
+  };
+
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const input = e.target.value;
+    const formatted = formatPhoneForDisplay(input);
+    const normalized = normalizePhoneValue(input);
+
+    // Enforce max length of 10 digits
+    if (normalized.length <= 10) {
+      setPhoneDisplay(formatted);
+      setPhoneValue(normalized);
+      setError('');
+      
+      // Real-time validation feedback
+      if (normalized.length === 10) {
+        const validation = validatePhone(normalized);
+        if (!validation.valid && validation.message) {
+          setError(validation.message);
+        }
+      } else {
+        setIsValid(false);
+      }
+    }
   };
 
   const handleConfirm = () => {
-    const trimmedPhone = phoneNumber.trim();
+    const trimmedPhone = phoneValue.trim();
     
     if (!trimmedPhone) {
       setError('Phone number is required');
       return;
     }
 
-    if (!validatePhoneNumber(trimmedPhone)) {
-      setError('Please enter a valid Rwanda mobile number (e.g., 0781234567)');
+    if (trimmedPhone.length !== 10) {
+      setError('Please enter a complete 10-digit phone number');
       return;
     }
 
-    if (!validateMobileOperator(trimmedPhone)) {
-      const operatorName = paymentMethod === 'mtn_momo' ? 'MTN' : 'Airtel';
-      const prefixes = paymentMethod === 'mtn_momo' ? '078, 077, 076, 079' : '073, 072, 070';
-      setError(`Please enter a valid ${operatorName} number. ${operatorName} numbers start with: ${prefixes}`);
+    const validation = validateMobileOperator(trimmedPhone);
+    if (!validation.valid) {
+      setError(validation.message || 'Invalid phone number');
       return;
     }
 
-    const formattedPhone = formatPhoneNumber(trimmedPhone);
-    onConfirm(formattedPhone);
+    onConfirm(trimmedPhone);
     onOpenChange(false);
   };
 
   const handleCancel = () => {
     onOpenChange(false);
+  };
+
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && isValid) {
+      handleConfirm();
+    }
   };
 
   const getPaymentMethodInfo = () => {
@@ -138,6 +175,8 @@ export default function MobileMoneyPhoneDialog({
         ? ['078', '077', '076', '079'] 
         : ['073', '072', '070'],
       color: paymentMethod === 'mtn_momo' ? 'text-yellow-600' : 'text-red-600',
+      bgColor: paymentMethod === 'mtn_momo' ? 'bg-yellow-50' : 'bg-red-50',
+      borderColor: paymentMethod === 'mtn_momo' ? 'border-yellow-200' : 'border-red-200',
     };
   };
 
@@ -162,15 +201,31 @@ export default function MobileMoneyPhoneDialog({
             <Label htmlFor="phone" className="text-sm font-medium">
               Phone Number
             </Label>
-            <Input
-              id="phone"
-              type="tel"
-              placeholder={methodInfo.name === 'MTN Mobile Money' ? '0780000000' : '0730000000'}
-              value={phoneNumber}
-              onChange={(e) => handlePhoneChange(e.target.value)}
-              className={error ? 'border-red-500 focus-visible:ring-red-500' : ''}
-              autoFocus
-            />
+            <div className="relative">
+              <Input
+                id="phone"
+                type="tel"
+                placeholder={methodInfo.name === 'MTN Mobile Money' ? '078 123 4567' : '073 123 4567'}
+                value={phoneDisplay}
+                onChange={handlePhoneChange}
+                onKeyPress={handleKeyPress}
+                className={`pr-10 ${
+                  error 
+                    ? 'border-red-500 focus-visible:ring-red-500' 
+                    : isValid 
+                    ? 'border-green-500 focus-visible:ring-green-500' 
+                    : ''
+                }`}
+                autoFocus
+                maxLength={12} // 10 digits + 2 spaces
+              />
+              {isValid && (
+                <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-green-500" />
+              )}
+            </div>
+            <p className="text-xs text-gray-500">
+              {phoneValue.length}/10 digits
+            </p>
             {error && (
               <div className="flex items-center gap-2 text-sm text-red-600">
                 <AlertCircle className="h-4 w-4" />
@@ -179,17 +234,19 @@ export default function MobileMoneyPhoneDialog({
             )}
           </div>
 
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+          <div className={`${methodInfo.bgColor} border ${methodInfo.borderColor} rounded-lg p-3`}>
             <div className="flex items-start gap-2">
-              <Smartphone className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
-              <div className="text-sm text-blue-800">
+              <Smartphone className={`h-4 w-4 ${methodInfo.color} mt-0.5 flex-shrink-0`} />
+              <div className="text-sm">
                 <p className="font-medium mb-1">
                   {methodInfo.name} Number Format
                 </p>
-                <p className="text-xs leading-relaxed">
-                  {methodInfo.name} numbers in Rwanda start with: {methodInfo.prefixes.join(', ')}
+                <p className="text-xs leading-relaxed text-gray-700">
+                  {methodInfo.name} numbers in Rwanda start with: <span className="font-semibold">{methodInfo.prefixes.join(', ')}</span>
                 </p>
-               
+                <p className="text-xs leading-relaxed text-gray-700 mt-1">
+                  Example: {methodInfo.prefixes[0]} 123 4567
+                </p>
               </div>
             </div>
           </div>
@@ -201,8 +258,8 @@ export default function MobileMoneyPhoneDialog({
           </Button>
           <Button 
             onClick={handleConfirm}
-            disabled={!phoneNumber.trim()}
-            className="bg-orange-600 hover:bg-orange-700"
+            disabled={!isValid}
+            className="bg-orange-600 hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Continue Payment
           </Button>

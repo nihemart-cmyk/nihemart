@@ -640,7 +640,7 @@ export default function PaymentPage() {
                               <>
                                  <Button
                                     onClick={() => router.push(
-                                       `/orders/${orderId || payment.order_id}?retry=true`
+                                       `/checkout?orderId=${orderId || payment.order_id}&retry=true`
                                     )}
                                     className="w-full bg-orange-500 hover:bg-orange-600 text-xs sm:text-sm h-9 sm:h-11"
                                  >

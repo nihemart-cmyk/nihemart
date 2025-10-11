@@ -39,6 +39,14 @@ export async function POST(request: NextRequest) {
         { status: 404 }
       );
     }
+    
+    console.log('Payment found in database:', {
+      paymentId: payment.id,
+      currentStatus: payment.status,
+      orderId: payment.order_id,
+      reference: payment.reference,
+      kpayTransactionId: payment.kpay_transaction_id
+    });
 
     // If payment is already in final state, return current status
     if (payment.status === 'completed' || payment.status === 'failed') {
@@ -196,6 +204,9 @@ export async function POST(request: NextRequest) {
           paymentId: payment.id,
           newStatus: updatedStatus
         });
+        
+        // Update the payment object with the new status for immediate return
+        payment.status = updatedStatus;
 
         // Update order status if payment completed
         if (updatedStatus === 'completed') {

@@ -43,6 +43,47 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       orderId,
       paymentCount: payments?.length || 0
     });
+    
+    // Check for pending payments and update their status
+    if (payments && payments.length > 0) {
+      const pendingPayments = payments.filter(p => p.status === 'pending' && p.kpay_transaction_id);
+      
+      if (pendingPayments.length > 0) {
+        logger.info('api', 'Found pending payments, checking for updates', { 
+          orderId,
+          pendingCount: pendingPayments.length 
+        });
+        
+        // Check status for each pending payment
+        for (const payment of pendingPayments) {
+          try {
+            const statusResponse = await fetch(`${request.nextUrl.origin}/api/payments/kpay/status`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ paymentId: payment.id })
+            });
+            
+            if (statusResponse.ok) {
+              const statusData = await statusResponse.json();
+              if (statusData.needsUpdate) {
+                payment.status = statusData.status;
+                logger.info('api', 'Payment status updated in list', { 
+                  paymentId: payment.id,
+                  newStatus: statusData.status 
+                });
+              }
+            }
+          } catch (statusError) {
+            logger.warn('api', 'Failed to check status for payment', { 
+              paymentId: payment.id,
+              error: statusError instanceof Error ? statusError.message : String(statusError)
+            });
+          }
+        }
+      }
+    }
 
     return NextResponse.json(payments || []);
 
