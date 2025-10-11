@@ -2,15 +2,13 @@
 
 import { useState, useMemo, useEffect } from "react";
 import Image from "next/image";
+import LookingGlass from "@/components/LookingGlass";
 import {
-  Heart,
   Star,
   Minus,
   Plus,
   Truck,
   RotateCcw,
-  ChevronLeft,
-  ChevronRight,
   Upload,
   X,
 } from "lucide-react";
@@ -22,10 +20,10 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious, type CarouselApi } from "@/components/ui/carousel";
 import { createStoreReview } from "@/integrations/supabase/store";
 import type {
   ProductPageData,
-  ProductVariationDetail,
   ProductReview,
 } from "@/integrations/supabase/store";
 import { useCart } from "@/contexts/CartContext";
@@ -48,7 +46,8 @@ export default function ProductClientPage({
   const { addItem } = useCart();
   const [data] = useState<ProductPageData>(initialData);
 
-  const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [carouselApi, setCarouselApi] = useState<CarouselApi>();
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [reviews, setReviews] = useState<ProductReview[]>(data.reviews || []);
   const [user, setUser] = useState<User | null>(null);
@@ -163,11 +162,7 @@ export default function ProductClientPage({
   }, [images, product.main_image_url]);
 
   useEffect(() => {
-    setSelectedImageIndex(0);
-  }, [displayImages]);
-
-  useEffect(() => {
-    if (singleSelectedVariation) {
+    if (singleSelectedVariation && carouselApi) {
       const variantImageIndex = displayImages.findIndex((imgUrl) => {
         const imageObj = images.find(
           (img) =>
@@ -177,10 +172,20 @@ export default function ProductClientPage({
         return imageObj !== undefined;
       });
       if (variantImageIndex !== -1) {
-        setSelectedImageIndex(variantImageIndex);
+        carouselApi.scrollTo(variantImageIndex);
       }
     }
-  }, [singleSelectedVariation, displayImages, images]);
+  }, [singleSelectedVariation, displayImages, images, carouselApi]);
+
+  useEffect(() => {
+    if (!carouselApi) return;
+    setCurrentIndex(carouselApi.selectedScrollSnap());
+    const onSelect = () => setCurrentIndex(carouselApi.selectedScrollSnap());
+    carouselApi.on('select', onSelect);
+    return () => {
+      carouselApi.off('select', onSelect);
+    };
+  }, [carouselApi]);
 
   const handleOptionSelect = (type: string, value: string) => {
     setSelectedOptions((prev) => {
@@ -247,54 +252,48 @@ export default function ProductClientPage({
     setReviews((prev) => [newReview, ...prev]);
   };
 
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
           <div className="space-y-4">
-            <div className="relative aspect-square bg-white rounded-lg overflow-hidden">
-              <Image
-                src={optimizeImageUrl(
-                  displayImages[selectedImageIndex],
-                  { width: 800, height: 800, quality: 85 }
-                )}
-                alt={product.name}
-                fill
-                className="object-contain"
-                sizes="(max-width: 1024px) 100vw, 50vw"
-                quality={85}
-              />
-              <Button
-                variant="ghost"
-                size="icon"
-                className="absolute border border-orange-500 left-5 top-1/2 -translate-y-1/2 bg-white/80"
-                onClick={() =>
-                  setSelectedImageIndex(
-                    (p) => (p - 1 + displayImages.length) % displayImages.length
-                  )
-                }
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="absolute border border-orange-500 right-5 top-1/2 -translate-y-1/2 bg-white/80"
-                onClick={() =>
-                  setSelectedImageIndex((p) => (p + 1) % displayImages.length)
-                }
-              >
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
+            <Carousel setApi={setCarouselApi} opts={{ loop: true }} className="w-full">
+              <CarouselContent>
+                {displayImages.map((image, index) => (
+                  <CarouselItem key={index}>
+                    <div className="relative aspect-square bg-white rounded-lg overflow-hidden">
+                      <LookingGlass
+                        src={optimizeImageUrl(
+                          image,
+                          { width: 800, height: 800, quality: 85 }
+                        )}
+                        alt={`${product.name} - Image ${index + 1}`}
+                        zoomSrc={optimizeImageUrl(
+                          image,
+                          { width: 1600, height: 1600, quality: 90 }
+                        )}
+                        zoomFactor={2}
+                        squareMagnifier={false}
+                        size={200}
+                        cursorOffset={{ x: 0, y: 100 }}
+                        imageClassName="object-contain"
+                      />
+                    </div>
+                  </CarouselItem>
+                ))}
+              </CarouselContent>
+              <CarouselPrevious className="left-5 border border-orange-500 bg-white/80" />
+              <CarouselNext className="right-5 border border-orange-500 bg-white/80" />
+            </Carousel>
             <div className="flex gap-2 overflow-x-auto pb-2">
               {displayImages.map((image, index) => (
                 <button
                   key={index}
-                  onClick={() => setSelectedImageIndex(index)}
+                  onClick={() => carouselApi?.scrollTo(index)}
                   title={`Select image ${index + 1}`}
                   className={`flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 ${
-                    selectedImageIndex === index
+                    currentIndex === index
                       ? "border-orange-500"
                       : "border-gray-200"
                   }`}
