@@ -334,9 +334,11 @@ const NotificationsPage = () => {
                                     </div>
 
                                     {notification.body && (
-                                       <p className="text-gray-600 text-sm mt-1 line-clamp-2">
-                                          {notification.body}
-                                       </p>
+                                       <div className="text-gray-600 text-sm mt-1">
+                                          <div className="whitespace-pre-wrap line-clamp-4">
+                                             {notification.body}
+                                          </div>
+                                       </div>
                                     )}
 
                                     <div className="flex items-center justify-between mt-2">

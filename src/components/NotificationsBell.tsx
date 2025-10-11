@@ -212,9 +212,11 @@ const NotificationsBell: React.FC = () => {
                            </div>
 
                            {notification.body && (
-                              <p className="text-xs text-gray-600 line-clamp-2 mb-1">
-                                 {notification.body}
-                              </p>
+                              <div className="text-xs text-gray-600 mb-1">
+                                 <div className="whitespace-pre-wrap line-clamp-3">
+                                    {notification.body}
+                                 </div>
+                              </div>
                            )}
 
                            <div className="flex items-center justify-between">

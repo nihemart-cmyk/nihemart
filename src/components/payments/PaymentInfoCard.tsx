@@ -41,6 +41,7 @@ export default function PaymentInfoCard({ orderId }: PaymentInfoCardProps) {
   const [payments, setPayments] = useState<PaymentData[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [orderRefundStatus, setOrderRefundStatus] = useState<string | null>(null);
   const { checkPaymentStatus } = useKPayPayment();
 
   const fetchPayments = async (showLoading = false) => {
@@ -53,6 +54,13 @@ export default function PaymentInfoCard({ orderId }: PaymentInfoCardProps) {
         setPayments(Array.isArray(data) ? data : []);
       } else {
         setPayments([]);
+      }
+
+      // Also fetch order refund status
+      const orderResponse = await fetch(`/api/orders/${orderId}`);
+      if (orderResponse.ok) {
+        const orderData = await orderResponse.json();
+        setOrderRefundStatus(orderData.refund_status || null);
       }
     } catch (error) {
       console.error('Failed to fetch payments:', error);
@@ -250,6 +258,58 @@ export default function PaymentInfoCard({ orderId }: PaymentInfoCardProps) {
               </div>
             )}
           </div>
+
+          {/* Refund Status Section - Based on Order Status */}
+          {orderRefundStatus && latestPayment.status === 'successful' && (
+            <div className="mt-3 pt-3 border-t border-gray-200">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-sm font-semibold text-gray-700">Refund Status</h4>
+                <Badge 
+                  variant={orderRefundStatus === 'approved' ? 'default' : 'secondary'}
+                  className="text-xs"
+                >
+                  {orderRefundStatus === 'requested' && (
+                    <Clock className="h-3 w-3 mr-1" />
+                  )}
+                  {orderRefundStatus === 'approved' && (
+                    <CheckCircle className="h-3 w-3 mr-1" />
+                  )}
+                  {orderRefundStatus === 'rejected' && (
+                    <XCircle className="h-3 w-3 mr-1" />
+                  )}
+                  {orderRefundStatus.charAt(0).toUpperCase() + orderRefundStatus.slice(1)}
+                </Badge>
+              </div>
+              
+              <div className="text-sm text-gray-600 mb-1">
+                <strong>Payment Amount:</strong> {latestPayment.amount.toLocaleString()} {latestPayment.currency}
+              </div>
+              
+              {orderRefundStatus === 'requested' && (
+                <div className="bg-blue-50 border border-blue-200 rounded p-2 mt-2">
+                  <p className="text-xs text-blue-800">
+                    🔄 Your refund request is being reviewed. Once approved, the refund will be processed back to your original payment method.
+                  </p>
+                </div>
+              )}
+              
+              {orderRefundStatus === 'approved' && (
+                <div className="bg-green-50 border border-green-200 rounded p-2 mt-2">
+                  <p className="text-xs text-green-800">
+                    ✅ Refund approved! Your money will be credited back to your {getPaymentMethodName(latestPayment.payment_method)} within 24 hours.
+                  </p>
+                </div>
+              )}
+              
+              {orderRefundStatus === 'rejected' && (
+                <div className="bg-red-50 border border-red-200 rounded p-2 mt-2">
+                  <p className="text-xs text-red-800">
+                    ❌ Refund request was not approved. If you have questions, please contact our support team.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Action buttons */}
           <div className="flex gap-2 mt-3">
