@@ -1,5 +1,6 @@
 import React from 'react';
 import Magnifier from './Magnifier';
+import { cn } from '@/lib/utils';
 
 interface LookingGlassProps {
   src: string;
@@ -128,8 +129,8 @@ class LookingGlass extends React.PureComponent<LookingGlassProps, LookingGlassSt
           position: 'relative',
           width: "100%",
           height: "100%",
-          overflowY: "auto",
-          touchAction: 'none'
+          overflow: "hidden",
+          touchAction: 'none',
         }}
         className={className}
       >
@@ -164,7 +165,7 @@ class LookingGlass extends React.PureComponent<LookingGlassProps, LookingGlassSt
             cursorPosition={cursorPosition}
             imageOffset={imageOffset}
             squareMagnifier={squareMagnifier}
-            zoomClassName={zoomClassName}
+            zoomClassName={cn(zoomClassName, '')}
           />
         )}
       </div>

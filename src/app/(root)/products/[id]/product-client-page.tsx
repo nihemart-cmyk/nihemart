@@ -276,15 +276,15 @@ export default function ProductClientPage({
                         zoomFactor={2}
                         squareMagnifier={false}
                         size={200}
-                        cursorOffset={{ x: 0, y: 100 }}
+                        cursorOffset={{ x: 0, y: 0 }}
                         imageClassName="object-contain"
                       />
                     </div>
                   </CarouselItem>
                 ))}
               </CarouselContent>
-              <CarouselPrevious className="left-5 border border-orange-500 bg-white/80" />
-              <CarouselNext className="right-5 border border-orange-500 bg-white/80" />
+              <CarouselPrevious className="left-5 text-orange-500 hover:text-orange-600 border border-orange-500 bg-white/80" />
+              <CarouselNext className="right-5 text-orange-500 hover:text-orange-600 border border-orange-500 bg-white/80" />
             </Carousel>
             <div className="flex gap-2 overflow-x-auto pb-2">
               {displayImages.map((image, index) => (

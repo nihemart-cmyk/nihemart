@@ -40,6 +40,7 @@ class Magnifier extends React.PureComponent<MagnifierProps> {
           boxShadow: `1px 1px 6px rgba(0,0,0,0.3)`,
           touchAction: 'none',
           pointerEvents: 'none',
+          zIndex: 9999,
         }}
         className={zoomClassName}
       >
