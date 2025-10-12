@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/chart'
 import { Area, AreaChart, CartesianGrid, XAxis, Bar, BarChart } from 'recharts'
 import { useQuery } from '@tanstack/react-query'
+import { useMemo } from 'react'
 import { fetchProductsForStockManagement } from '@/integrations/supabase/stock'
 import { useOrders } from '@/hooks/useOrders'
 import { useRouter } from 'next/navigation'
@@ -52,7 +53,14 @@ export default function StockOverview({ onTabChange }: { onTabChange?: (tab: str
   const { data: products = [], isLoading } = useQuery({
     queryKey: ['products-stock'],
     queryFn: () => fetchProductsForStockManagement(),
+    staleTime: 30 * 60 * 1000, // 30 minutes - stock data doesn't change often
+    gcTime: 60 * 60 * 1000, // 1 hour
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: true,
   })
+
+  const ordersQuery = useOrders().useAllOrders()
+  const orders = ordersQuery.data?.data || []
 
   // Calculate real metrics
   const metrics = (() => {
@@ -85,7 +93,15 @@ export default function StockOverview({ onTabChange }: { onTabChange?: (tab: str
       }
     })
 
-    const totalStockValue = 0 // Placeholder - would need product price data
+    const totalStockValue = products.reduce((total, product) => {
+      if (product.variations.length > 0) {
+        return total + product.variations.reduce((varTotal, variation) => {
+          return varTotal + ((variation.price || 0) * variation.stock);
+        }, 0);
+      } else {
+        return total + ((product.price || 0) * (product.stock || 0));
+      }
+    }, 0);
 
     return {
       totalProducts,
@@ -97,25 +113,27 @@ export default function StockOverview({ onTabChange }: { onTabChange?: (tab: str
     }
   })()
 
-  // Prepare chart data for stock levels over time (mock data for now)
+  // Prepare chart data for stock levels (current data)
   const stockChartData = [
-    { month: 'Jan', inStock: 45, lowStock: 8, outOfStock: 2 },
-    { month: 'Feb', inStock: 52, lowStock: 6, outOfStock: 1 },
-    { month: 'Mar', inStock: 48, lowStock: 9, outOfStock: 3 },
-    { month: 'Apr', inStock: 55, lowStock: 7, outOfStock: 1 },
-    { month: 'May', inStock: 58, lowStock: 5, outOfStock: 2 },
-    { month: 'Jun', inStock: 62, lowStock: 4, outOfStock: 1 },
+    { month: 'Current', inStock: metrics.inStockVariations, lowStock: metrics.lowStockVariations, outOfStock: metrics.outOfStockVariations },
   ]
 
-  // Prepare orders chart data (mock data for now)
-  const ordersChartData = [
-    { month: 'Jan', orders: 45 },
-    { month: 'Feb', orders: 52 },
-    { month: 'Mar', orders: 48 },
-    { month: 'Apr', orders: 55 },
-    { month: 'May', orders: 58 },
-    { month: 'Jun', orders: 62 },
-  ]
+  // Prepare orders chart data from real data
+  const ordersChartData = useMemo(() => {
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const orderCounts: Record<string, number> = {};
+
+    orders.forEach((order: any) => {
+      const date = new Date(order.created_at);
+      const month = monthNames[date.getMonth()];
+      orderCounts[month] = (orderCounts[month] || 0) + 1;
+    });
+
+    return monthNames.map(month => ({
+      month,
+      orders: orderCounts[month] || 0
+    }));
+  }, [orders])
 
   if (isLoading) {
     return (

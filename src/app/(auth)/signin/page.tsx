@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { FC, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter } from "next13-progressbar";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuthStore } from "@/store/auth.store";
 import logo from "@/assets/logo.png";
