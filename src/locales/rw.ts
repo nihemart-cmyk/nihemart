@@ -90,6 +90,9 @@ export const rw: Record<string, string> = {
 
    // Checkout
    "checkout.title": "Kwishyura",
+   "checkout.securePayment": "Kwishyura Mu Mutekano",
+   "checkout.securePaymentDesc":
+      "Uburyo bwo kwishyura bwose bukorerwa mu mutekano hakoreshejwe uburyo bugezweho bwo guhisha amakuru.",
    "checkout.orderInfo": "Amakuru ya Komande",
    "checkout.email": "Imeyili",
    "checkout.firstName": "Izina rya mbere",
@@ -317,18 +320,21 @@ export const rw: Record<string, string> = {
 
    // Wishlist
    "wishlist.title": "Urutonde rw'ibyo wakunze",
-  "wishlist.empty": "Ntakintu kiri mu rutonde rw'ibyo wakunze",
-  "wishlist.itemsInWishlist": "{count} igicuruzwa{count > 1 ? 's' : ''} mu rutonde rwawe rw'ibyo wakunze",
-  "wishlist.emptyTitle": "Urutonde rwawe rw'ibyo wakunze rurimo ubusa",
-  "wishlist.emptyDesc": "Tangira kongeramo ibicuruzwa ukunda mu rutonde rw'ibyo wakunze",
-  "wishlist.browseProducts": "Reba Ibicuruzwa",
-  "wishlist.addedToCart": "Byongewe mu gatebo!",
-  "wishlist.failedAddToCart": "Byanze kongera mu gatebo",
-  "wishlist.removedFromWishlist": "Byakuwe mu rutonde rw'ibyo wakunze",
-  "wishlist.failedRemoveFromWishlist": "Byanze gukura mu rutonde rw'ibyo wakunze",
-  "wishlist.price": "RWF {igiciro}",
-  "wishlist.adding": "Birimo kongerwa...",
-  "wishlist.addToCart": "Ongera mu Gatebo",
+   "wishlist.empty": "Ntakintu kiri mu rutonde rw'ibyo wakunze",
+   "wishlist.itemsInWishlist":
+      "{count} igicuruzwa{count > 1 ? 's' : ''} mu rutonde rwawe rw'ibyo wakunze",
+   "wishlist.emptyTitle": "Urutonde rwawe rw'ibyo wakunze rurimo ubusa",
+   "wishlist.emptyDesc":
+      "Tangira kongeramo ibicuruzwa ukunda mu rutonde rw'ibyo wakunze",
+   "wishlist.browseProducts": "Reba Ibicuruzwa",
+   "wishlist.addedToCart": "Byongewe mu gatebo!",
+   "wishlist.failedAddToCart": "Byanze kongera mu gatebo",
+   "wishlist.removedFromWishlist": "Byakuwe mu rutonde rw'ibyo wakunze",
+   "wishlist.failedRemoveFromWishlist":
+      "Byanze gukura mu rutonde rw'ibyo wakunze",
+   "wishlist.price": "RWF {igiciro}",
+   "wishlist.adding": "Birimo kongerwa...",
+   "wishlist.addToCart": "Ongera mu Gatebo",
 
    // About Page
    "about.title": "Ibyerekeye NiheMart",

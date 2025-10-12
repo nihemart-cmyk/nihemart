@@ -59,8 +59,13 @@ interface CartItem {
    variation_name?: string;
 }
 
-
-const CheckoutPage = ({ isRetryMode, retryOrderId }: { isRetryMode: boolean; retryOrderId: string | null }) => {
+const CheckoutPage = ({
+   isRetryMode,
+   retryOrderId,
+}: {
+   isRetryMode: boolean;
+   retryOrderId: string | null;
+}) => {
    const { t } = useLanguage();
    const { user, isLoggedIn } = useAuth();
    const { createOrder } = useOrders();
@@ -125,7 +130,12 @@ const CheckoutPage = ({ isRetryMode, retryOrderId }: { isRetryMode: boolean; ret
    const { items: cartItems, clearCart } = useCart();
 
    // KPay payment functionality
-   const { initiatePayment, formatPhoneNumber, validatePaymentRequest, isInitiating } = useKPayPayment();
+   const {
+      initiatePayment,
+      formatPhoneNumber,
+      validatePaymentRequest,
+      isInitiating,
+   } = useKPayPayment();
 
    // Location data state
    const [provinces, setProvinces] = useState<any[]>([]);
@@ -149,19 +159,19 @@ const CheckoutPage = ({ isRetryMode, retryOrderId }: { isRetryMode: boolean; ret
    );
    const [isSavingAddress, setIsSavingAddress] = useState(false);
    // Payment method state (default to Cash on Delivery)
-   const [paymentMethod, setPaymentMethod] =
-      useState<keyof typeof PAYMENT_METHODS | 'cash_on_delivery'>("cash_on_delivery");
-   
+   const [paymentMethod, setPaymentMethod] = useState<
+      keyof typeof PAYMENT_METHODS | "cash_on_delivery"
+   >("cash_on_delivery");
+
    // Mobile money phone numbers state
    const [mobileMoneyPhones, setMobileMoneyPhones] = useState<{
       mtn_momo?: string;
       airtel_money?: string;
    }>({});
-   
-   
+
    // Orders enabled flag (null = loading)
    const [ordersEnabled, setOrdersEnabled] = useState<boolean | null>(null);
-   
+
    // Retry mode state (now passed as props)
    const [existingOrder, setExistingOrder] = useState<any>(null);
    const [loadingExistingOrder, setLoadingExistingOrder] = useState(false);
@@ -249,14 +259,15 @@ const CheckoutPage = ({ isRetryMode, retryOrderId }: { isRetryMode: boolean; ret
    };
 
    // Handle mobile money phone number changes
-   const handleMobileMoneyPhoneChange = (method: 'mtn_momo' | 'airtel_money', phoneNumber: string) => {
-      setMobileMoneyPhones(prev => ({
+   const handleMobileMoneyPhoneChange = (
+      method: "mtn_momo" | "airtel_money",
+      phoneNumber: string
+   ) => {
+      setMobileMoneyPhones((prev) => ({
          ...prev,
-         [method]: phoneNumber
+         [method]: phoneNumber,
       }));
    };
-   
-   
 
    useEffect(() => {
       try {
@@ -291,7 +302,12 @@ const CheckoutPage = ({ isRetryMode, retryOrderId }: { isRetryMode: boolean; ret
 
    // Load existing order in retry mode
    useEffect(() => {
-      if (isRetryMode && retryOrderId && !existingOrder && !loadingExistingOrder) {
+      if (
+         isRetryMode &&
+         retryOrderId &&
+         !existingOrder &&
+         !loadingExistingOrder
+      ) {
          setLoadingExistingOrder(true);
          (async () => {
             try {
@@ -299,47 +315,51 @@ const CheckoutPage = ({ isRetryMode, retryOrderId }: { isRetryMode: boolean; ret
                if (response.ok) {
                   const order = await response.json();
                   setExistingOrder(order);
-                  
+
                   // Pre-fill form with existing order data
                   setFormData({
-                     email: order.email || '',
-                     firstName: order.first_name || '',
-                     lastName: order.last_name || '',
-                     address: order.delivery_address || '',
-                     city: order.delivery_city || '',
-                     phone: order.phone || '',
-                     delivery_notes: order.delivery_notes || '',
+                     email: order.email || "",
+                     firstName: order.first_name || "",
+                     lastName: order.last_name || "",
+                     address: order.delivery_address || "",
+                     city: order.delivery_city || "",
+                     phone: order.phone || "",
+                     delivery_notes: order.delivery_notes || "",
                   });
-                  
+
                   // Set order items from existing order
                   if (order.order_items && Array.isArray(order.order_items)) {
-                     setOrderItems(order.order_items.map((item: any) => ({
-                        id: item.product_id,
-                        name: item.product_name,
-                        price: item.price,
-                        quantity: item.quantity,
-                        sku: item.product_sku,
-                        variation_id: item.product_variation_id,
-                        variation_name: item.variation_name,
-                     })));
+                     setOrderItems(
+                        order.order_items.map((item: any) => ({
+                           id: item.product_id,
+                           name: item.product_name,
+                           price: item.price,
+                           quantity: item.quantity,
+                           sku: item.product_sku,
+                           variation_id: item.product_variation_id,
+                           variation_name: item.variation_name,
+                        }))
+                     );
                   }
-                  
-                  toast.info('Order loaded for payment retry. Please select a payment method.');
+
+                  toast.info(
+                     "Order loaded for payment retry. Please select a payment method."
+                  );
                } else {
-                  toast.error('Failed to load order details');
-                  router.push('/checkout');
+                  toast.error("Failed to load order details");
+                  router.push("/checkout");
                }
             } catch (error) {
-               console.error('Failed to load existing order:', error);
-               toast.error('Failed to load order details');
-               router.push('/checkout');
+               console.error("Failed to load existing order:", error);
+               toast.error("Failed to load order details");
+               router.push("/checkout");
             } finally {
                setLoadingExistingOrder(false);
             }
          })();
       }
    }, [isRetryMode, retryOrderId, existingOrder, loadingExistingOrder, router]);
-   
+
    // Fetch orders_enabled flag so checkout can disable ordering when admin toggles it
    useEffect(() => {
       let mounted = true;
@@ -539,12 +559,9 @@ const CheckoutPage = ({ isRetryMode, retryOrderId }: { isRetryMode: boolean; ret
       const formErrors: any = {};
       const emailPattern = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/;
 
-      if (!formData.firstName.trim())
-         formErrors.firstName =
-            t("checkout.errors.firstNameRequired") || "First name is required";
-      if (!formData.lastName.trim())
-         formErrors.lastName =
-            t("checkout.errors.lastNameRequired") || "Last name is required";
+      // First/last name are optional on the checkout form because the
+      // customer's name should be derived from their user profile when
+      // they're logged in. If not logged in, fallback to form values.
       if (!formData.email.trim() || !emailPattern.test(formData.email)) {
          formErrors.email =
             t("checkout.errors.validEmailRequired") ||
@@ -566,22 +583,34 @@ const CheckoutPage = ({ isRetryMode, retryOrderId }: { isRetryMode: boolean; ret
 
    // Handle retry payment for existing orders
    const handleRetryPayment = async () => {
-      if (paymentMethod === 'cash_on_delivery') {
-         toast.error('Cannot retry payment with Cash on Delivery. Please select a different payment method.');
+      if (paymentMethod === "cash_on_delivery") {
+         toast.error(
+            "Cannot retry payment with Cash on Delivery. Please select a different payment method."
+         );
          setIsSubmitting(false);
          return;
       }
-      
+
       try {
          // Use mobile money phone number if available, otherwise fallback to address/form phone
-         const customerPhone = (paymentMethod === 'mtn_momo' || paymentMethod === 'airtel_money')
-            ? (mobileMoneyPhones[paymentMethod] || formatPhoneNumber(selectedAddress?.phone || formData.phone || ''))
-            : formatPhoneNumber(selectedAddress?.phone || formData.phone || '');
-         
+         const customerPhone =
+            paymentMethod === "mtn_momo" || paymentMethod === "airtel_money"
+               ? mobileMoneyPhones[paymentMethod] ||
+                 formatPhoneNumber(
+                    selectedAddress?.phone || formData.phone || ""
+                 )
+               : formatPhoneNumber(
+                    selectedAddress?.phone || formData.phone || ""
+                 );
+
+         const derivedFullName =
+            user?.user_metadata?.full_name?.trim() ||
+            `${formData.firstName || ""} ${formData.lastName || ""}`.trim();
+
          const paymentRequest = {
             orderId: existingOrder.id,
             amount: existingOrder.total,
-            customerName: `${formData.firstName} ${formData.lastName}`,
+            customerName: derivedFullName || undefined,
             customerEmail: formData.email,
             customerPhone,
             paymentMethod: paymentMethod as keyof typeof PAYMENT_METHODS,
@@ -596,41 +625,50 @@ const CheckoutPage = ({ isRetryMode, retryOrderId }: { isRetryMode: boolean; ret
          }
 
          const paymentResult = await initiatePayment(paymentRequest);
-         
+
          if (paymentResult.success) {
-            toast.success('Initiating payment with new method...');
+            toast.success("Initiating payment with new method...");
             // Handle different payment methods differently
-            if (paymentMethod === 'visa_card' || paymentMethod === 'mastercard') {
-              // For card payments, redirect to external checkout immediately if URL is provided
-              if (paymentResult.checkoutUrl) {
-                toast.success('Redirecting to secure payment...');
-                // Redirect to external payment gateway immediately
-                window.location.href = paymentResult.checkoutUrl;
-              } else {
-                // Fallback to payment page if no checkout URL
-                router.push(`/payment/${paymentResult.paymentId}?orderId=${existingOrder.id}`);
-              }
+            if (
+               paymentMethod === "visa_card" ||
+               paymentMethod === "mastercard"
+            ) {
+               // For card payments, redirect to external checkout immediately if URL is provided
+               if (paymentResult.checkoutUrl) {
+                  toast.success("Redirecting to secure payment...");
+                  // Redirect to external payment gateway immediately
+                  window.location.href = paymentResult.checkoutUrl;
+               } else {
+                  // Fallback to payment page if no checkout URL
+                  router.push(
+                     `/payment/${paymentResult.paymentId}?orderId=${existingOrder.id}`
+                  );
+               }
             } else {
-              // For mobile money and other methods, go to payment status page
-              router.push(`/payment/${paymentResult.paymentId}?orderId=${existingOrder.id}`);
+               // For mobile money and other methods, go to payment status page
+               router.push(
+                  `/payment/${paymentResult.paymentId}?orderId=${existingOrder.id}`
+               );
             }
          } else {
             toast.error(
-               `Payment initiation failed: ${paymentResult.error || 'Unknown error'}`
+               `Payment initiation failed: ${
+                  paymentResult.error || "Unknown error"
+               }`
             );
             router.push(`/orders/${existingOrder.id}`);
          }
       } catch (paymentError) {
-         console.error('Payment initiation failed:', paymentError);
+         console.error("Payment initiation failed:", paymentError);
          toast.error(
-            'Payment initiation failed. Please try again or contact support.'
+            "Payment initiation failed. Please try again or contact support."
          );
          router.push(`/orders/${existingOrder.id}`);
       } finally {
          setIsSubmitting(false);
       }
    };
-   
+
    // Handle order creation or retry payment
    const handleCreateOrder = async () => {
       if (isSubmitting) return;
@@ -661,7 +699,7 @@ const CheckoutPage = ({ isRetryMode, retryOrderId }: { isRetryMode: boolean; ret
 
       setIsSubmitting(true);
       setErrors({});
-      
+
       // If in retry mode, skip order creation and go directly to payment
       if (isRetryMode && existingOrder) {
          return handleRetryPayment();
@@ -680,6 +718,16 @@ const CheckoutPage = ({ isRetryMode, retryOrderId }: { isRetryMode: boolean; ret
       try {
          const derivedCity = deriveCity();
 
+         // Derive full name from user profile when available, otherwise fallback to form fields
+         const derivedFullNameForOrder =
+            user?.user_metadata?.full_name?.trim() ||
+            `${formData.firstName || ""} ${formData.lastName || ""}`.trim();
+
+         const [derivedFirstName, ...derivedLastParts] = (
+            derivedFullNameForOrder || ""
+         ).split(" ");
+         const derivedLastName = derivedLastParts.join(" ");
+
          const orderData: CreateOrderRequest = {
             order: {
                user_id: user!.id,
@@ -687,8 +735,8 @@ const CheckoutPage = ({ isRetryMode, retryOrderId }: { isRetryMode: boolean; ret
                tax: transport,
                total: total,
                customer_email: formData.email.trim(),
-               customer_first_name: formData.firstName.trim(),
-               customer_last_name: formData.lastName.trim(),
+               customer_first_name: (derivedFirstName || "").trim(),
+               customer_last_name: (derivedLastName || "").trim(),
                customer_phone:
                   (selectedAddress?.phone || formData.phone || "").trim() ||
                   undefined,
@@ -707,7 +755,8 @@ const CheckoutPage = ({ isRetryMode, retryOrderId }: { isRetryMode: boolean; ret
                ).trim(),
                status: "pending" as const,
                payment_method: paymentMethod || "cash_on_delivery",
-               delivery_notes: (formData.delivery_notes || "").trim() || undefined,
+               delivery_notes:
+                  (formData.delivery_notes || "").trim() || undefined,
             },
             items: orderItems.map((item) => {
                const explicitProductId = (item as any).product_id as
@@ -763,7 +812,7 @@ const CheckoutPage = ({ isRetryMode, retryOrderId }: { isRetryMode: boolean; ret
                setOrderItems([]);
 
                // Handle payment processing based on method
-               if (paymentMethod === 'cash_on_delivery') {
+               if (paymentMethod === "cash_on_delivery") {
                   // Cash on delivery - redirect to order page
                   toast.success(
                      `Order #${createdOrder.order_number} has been created successfully!`
@@ -773,58 +822,88 @@ const CheckoutPage = ({ isRetryMode, retryOrderId }: { isRetryMode: boolean; ret
                   // KPay payment - initiate payment
                   try {
                      // Use mobile money phone number if available, otherwise fallback to address/form phone
-                     const customerPhone = (paymentMethod === 'mtn_momo' || paymentMethod === 'airtel_money')
-                        ? (mobileMoneyPhones[paymentMethod] || formatPhoneNumber(selectedAddress?.phone || formData.phone || ''))
-                        : formatPhoneNumber(selectedAddress?.phone || formData.phone || '');
-                     
+                     const customerPhone =
+                        paymentMethod === "mtn_momo" ||
+                        paymentMethod === "airtel_money"
+                           ? mobileMoneyPhones[paymentMethod] ||
+                             formatPhoneNumber(
+                                selectedAddress?.phone || formData.phone || ""
+                             )
+                           : formatPhoneNumber(
+                                selectedAddress?.phone || formData.phone || ""
+                             );
+
+                     const derivedFullName =
+                        user?.user_metadata?.full_name?.trim() ||
+                        `${formData.firstName || ""} ${
+                           formData.lastName || ""
+                        }`.trim();
+
                      const paymentRequest = {
                         orderId: createdOrder.id,
                         amount: total,
-                        customerName: `${formData.firstName} ${formData.lastName}`,
+                        customerName: derivedFullName || undefined,
                         customerEmail: formData.email,
                         customerPhone,
-                        paymentMethod: paymentMethod as keyof typeof PAYMENT_METHODS,
+                        paymentMethod:
+                           paymentMethod as keyof typeof PAYMENT_METHODS,
                         redirectUrl: `${window.location.origin}/orders/${createdOrder.id}?payment=success`,
                      };
 
-                     const validationErrors = validatePaymentRequest(paymentRequest);
+                     const validationErrors =
+                        validatePaymentRequest(paymentRequest);
                      if (validationErrors.length > 0) {
-                        toast.error(`Payment validation failed: ${validationErrors[0]}`);
+                        toast.error(
+                           `Payment validation failed: ${validationErrors[0]}`
+                        );
                         router.push(`/orders/${createdOrder.id}`);
                         return;
                      }
 
-                     const paymentResult = await initiatePayment(paymentRequest);
-                     
+                     const paymentResult = await initiatePayment(
+                        paymentRequest
+                     );
+
                      if (paymentResult.success) {
                         toast.success(
                            `Order #${createdOrder.order_number} created! Redirecting to payment...`
                         );
                         // Handle different payment methods differently
-                        if (paymentMethod === 'visa_card' || paymentMethod === 'mastercard') {
-                          // For card payments, redirect to external checkout immediately if URL is provided
-                          if (paymentResult.checkoutUrl) {
-                            toast.success(`Order #${createdOrder.order_number} created! Redirecting to secure payment...`);
-                            // Redirect to external payment gateway immediately
-                            window.location.href = paymentResult.checkoutUrl;
-                          } else {
-                            // Fallback to payment page if no checkout URL
-                            router.push(`/payment/${paymentResult.paymentId}?orderId=${createdOrder.id}`);
-                          }
+                        if (
+                           paymentMethod === "visa_card" ||
+                           paymentMethod === "mastercard"
+                        ) {
+                           // For card payments, redirect to external checkout immediately if URL is provided
+                           if (paymentResult.checkoutUrl) {
+                              toast.success(
+                                 `Order #${createdOrder.order_number} created! Redirecting to secure payment...`
+                              );
+                              // Redirect to external payment gateway immediately
+                              window.location.href = paymentResult.checkoutUrl;
+                           } else {
+                              // Fallback to payment page if no checkout URL
+                              router.push(
+                                 `/payment/${paymentResult.paymentId}?orderId=${createdOrder.id}`
+                              );
+                           }
                         } else {
-                          // For mobile money and other methods, go to payment status page
-                          router.push(`/payment/${paymentResult.paymentId}?orderId=${createdOrder.id}`);
-                          
-                          // For mobile money, don't open additional windows
+                           // For mobile money and other methods, go to payment status page
+                           router.push(
+                              `/payment/${paymentResult.paymentId}?orderId=${createdOrder.id}`
+                           );
+
+                           // For mobile money, don't open additional windows
                         }
                      } else {
                         toast.error(
-                           `Order created but payment failed: ${paymentResult.error || 'Unknown error'}`
+                           `Order created but payment failed: ${
+                              paymentResult.error || "Unknown error"
+                           }`
                         );
                         router.push(`/orders/${createdOrder.id}`);
                      }
                   } catch (paymentError) {
-                     console.error('Payment initiation failed:', paymentError);
+                     console.error("Payment initiation failed:", paymentError);
                      toast.error(
                         `Order #${createdOrder.order_number} created, but payment initiation failed. You can try to pay from the order page.`
                      );
@@ -940,10 +1019,12 @@ Total: ${total.toLocaleString()} RWF
 
    return (
       <div className="container mx-auto px-3 sm:px-4 py-6 sm:py-8 max-w-[90vw]">
-            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight mb-6 sm:mb-8 px-2 sm:px-0">
-               {isRetryMode ? "Retry Payment with Different Method" : t("checkout.title")}
-            </h1>
-         
+         <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight mb-6 sm:mb-8 px-2 sm:px-0">
+            {isRetryMode
+               ? "Retry Payment with Different Method"
+               : t("checkout.title")}
+         </h1>
+
          {/* Retry mode banner */}
          {isRetryMode && existingOrder && (
             <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
@@ -954,18 +1035,21 @@ Total: ${total.toLocaleString()} RWF
                         Retrying payment for Order #{existingOrder.order_number}
                      </p>
                      <p className="text-xs text-blue-700 mt-1">
-                        Previous payment failed or timed out. Choose a different payment method below.
+                        Previous payment failed or timed out. Choose a different
+                        payment method below.
                      </p>
                   </div>
                </div>
             </div>
          )}
-         
+
          {/* Loading existing order */}
          {isRetryMode && loadingExistingOrder && (
             <div className="mb-6 flex items-center justify-center p-4 bg-gray-50 rounded-lg">
                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-               <span className="text-sm text-gray-600">Loading order details...</span>
+               <span className="text-sm text-gray-600">
+                  Loading order details...
+               </span>
             </div>
          )}
 
@@ -1631,7 +1715,9 @@ Total: ${total.toLocaleString()} RWF
                            onMethodChange={setPaymentMethod}
                            disabled={isSubmitting || isInitiating}
                            // Mobile Money
-                           onMobileMoneyPhoneChange={handleMobileMoneyPhoneChange}
+                           onMobileMoneyPhoneChange={
+                              handleMobileMoneyPhoneChange
+                           }
                            mobileMoneyPhones={mobileMoneyPhones}
                         />
                      </CollapsibleContent>
@@ -1781,18 +1867,25 @@ Total: ${total.toLocaleString()} RWF
                                     className="w-full bg-orange-500 hover:bg-orange-600 text-white text-sm sm:text-base h-10 sm:h-12"
                                     onClick={handleCreateOrder}
                                     disabled={
-                                       isSubmitting || isInitiating || orderItems.length === 0
+                                       isSubmitting ||
+                                       isInitiating ||
+                                       orderItems.length === 0
                                     }
                                  >
-                                    {(isSubmitting || isInitiating) ? (
+                                    {isSubmitting || isInitiating ? (
                                        <>
                                           <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 animate-spin" />
-                                          {isInitiating ? 'Initiating Payment...' : t("checkout.processing")}
+                                          {isInitiating
+                                             ? "Initiating Payment..."
+                                             : t("checkout.processing")}
                                        </>
                                     ) : (
                                        <>
                                           <CheckCircle2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                                          {isRetryMode ? "Pay with Different Method" : (t("checkout.placeOrder") || "Place Order")}
+                                          {isRetryMode
+                                             ? "Pay with Different Method"
+                                             : t("checkout.placeOrder") ||
+                                               "Place Order"}
                                        </>
                                     )}
                                  </Button>
