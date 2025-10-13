@@ -151,7 +151,7 @@ const Dashboard: React.FC = () => {
       queryKey: ['admin-top-products', dateRange?.from, dateRange?.to],
       queryFn: async () => {
          // Get products with order count
-         let query = sb
+         const query = sb
             .from('products')
             .select(`
                *,

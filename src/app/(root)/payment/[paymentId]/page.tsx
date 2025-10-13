@@ -82,49 +82,12 @@ export default function PaymentPage() {
       }
    };
 
-   // Check payment status periodically
+   // Check payment status periodically with exponential backoff and cap
    const checkStatus = async () => {
-      // Timeout after 2 minutes (12 checks * 10 seconds)
-      const maxStatusChecks = 12;
-      
       if (!payment || paymentCompleted) return;
-      
-      // If we've reached the timeout, mark as timed out for user experience
-      if (statusCheckCount >= maxStatusChecks) {
-         console.log('Payment timeout reached, marking as timeout for user experience');
-         
-         // Call timeout API to log this without affecting the order
-         try {
-            await fetch('/api/payments/timeout', {
-               method: 'POST',
-               headers: {
-                  'Content-Type': 'application/json',
-               },
-               body: JSON.stringify({
-                  paymentId: payment.id,
-                  reason: 'Client-side timeout after 2 minutes of status checking'
-               }),
-            });
-         } catch (err) {
-            console.error('Failed to record timeout:', err);
-         }
-         
-         setPayment((prev) =>
-            prev
-               ? {
-                    ...prev,
-                    status: 'timeout',
-                    failure_reason: 'Payment took too long to process. You can try again or use a different payment method.',
-                 }
-               : null
-         );
-         
-         toast.error(
-            "Payment took too long to process. You can try again or use a different payment method.",
-            { duration: 6000 }
-         );
-         return;
-      }
+
+      // Maximum total checks to consider this a client-side timeout (2 minutes)
+      const maxStatusChecks = 12;
 
       try {
          const statusResult = await checkPaymentStatus({
@@ -134,30 +97,27 @@ export default function PaymentPage() {
          });
 
          if (statusResult.success) {
-            if (
-               statusResult.status === "completed" ||
-               statusResult.status === "successful"
-            ) {
+            // Normalize statuses
+            const s = statusResult.status;
+            if (s === "completed" || s === "successful") {
                setPaymentCompleted(true);
-               setPayment((prev) =>
-                  prev ? { ...prev, status: statusResult.status } : null
-               );
+               setPayment((prev) => (prev ? { ...prev, status: s } : null));
                toast.success("Payment completed successfully!");
 
                setTimeout(() => {
                   router.push(
                      `/orders/${orderId || payment.order_id}?payment=success`
                   );
-               }, 2000);
-            } else if (
-               statusResult.status === "failed" ||
-               statusResult.status === "cancelled"
-            ) {
+               }, 1500);
+               return;
+            }
+
+            if (s === "failed" || s === "cancelled") {
                setPayment((prev) =>
                   prev
                      ? {
                           ...prev,
-                          status: statusResult.status,
+                          status: s,
                           failure_reason: statusResult.error,
                        }
                      : null
@@ -175,15 +135,15 @@ export default function PaymentPage() {
                      "Card payment failed. Please check your card details and try again."
                   );
                }
-            } else {
-               setPayment((prev) =>
-                  prev ? { ...prev, status: statusResult.status } : null
-               );
+
+               return;
             }
+
+            // Update intermediate/pending status
+            setPayment((prev) => (prev ? { ...prev, status: s } : null));
          } else if (statusResult.error) {
             console.error("Payment status check error:", statusResult.error);
-
-            // Show timeout warning after 1 minute
+            // Inform user if checks are taking long
             if (statusCheckCount >= 6) {
                toast.info(
                   "Payment is taking longer than usual. We'll keep checking for a bit longer...",
@@ -193,8 +153,6 @@ export default function PaymentPage() {
          }
       } catch (err) {
          console.error("Failed to check payment status:", err);
-         
-         // After several failed attempts, show error
          if (statusCheckCount >= 6) {
             toast.error(
                "Having trouble checking payment status. Please refresh the page or try a different payment method.",
@@ -203,7 +161,45 @@ export default function PaymentPage() {
          }
       }
 
-      setStatusCheckCount((prev) => prev + 1);
+      // increment and check for timeout
+      setStatusCheckCount((prev) => {
+         const next = prev + 1;
+         if (next >= maxStatusChecks) {
+            // mark timeout for UX and log to server
+            (async () => {
+               try {
+                  await fetch("/api/payments/timeout", {
+                     method: "POST",
+                     headers: { "Content-Type": "application/json" },
+                     body: JSON.stringify({
+                        paymentId: payment.id,
+                        reason: "Client-side timeout after polling",
+                     }),
+                  });
+               } catch (e) {
+                  console.error("Failed to record timeout:", e);
+               }
+            })();
+
+            setPayment((prev) =>
+               prev
+                  ? {
+                       ...prev,
+                       status: "timeout",
+                       failure_reason:
+                          "Payment took too long to process. You can try again or use a different payment method.",
+                    }
+                  : null
+            );
+
+            toast.error(
+               "Payment took too long to process. You can try again or use a different payment method.",
+               { duration: 6000 }
+            );
+         }
+
+         return next;
+      });
    };
 
    useEffect(() => {
@@ -213,9 +209,13 @@ export default function PaymentPage() {
    useEffect(() => {
       if (!payment || paymentCompleted || loading) return;
 
+      // Run an immediate check once, then poll every 10s
+      checkStatus();
+
       const interval = setInterval(checkStatus, 10000);
       return () => clearInterval(interval);
-   }, [payment, paymentCompleted, loading, statusCheckCount]);
+      // note: intentionally not including statusCheckCount to avoid recreating the interval on every poll
+   }, [payment, paymentCompleted, loading]);
 
    const getStatusIcon = (status: string) => {
       switch (status) {
@@ -468,22 +468,24 @@ export default function PaymentPage() {
 
                         {/* Failure Reason */}
                         {payment.failure_reason &&
-                           (payment.status === "failed" || payment.status === "timeout") && (
+                           (payment.status === "failed" ||
+                              payment.status === "timeout") && (
                               <div className="mt-3 sm:mt-4 p-3 sm:p-4 bg-red-50 border border-red-200 rounded-lg">
                                  <div className="flex items-start gap-2 sm:gap-3">
                                     <XCircle className="h-4 w-4 sm:h-5 sm:w-5 text-red-600 flex-shrink-0 mt-0.5" />
                                     <div>
                                        <p className="text-xs sm:text-sm font-semibold text-red-800 mb-1">
-                                          {payment.status === "timeout" ? "Payment Timeout" : "Payment Failed"}
+                                          {payment.status === "timeout"
+                                             ? "Payment Timeout"
+                                             : "Payment Failed"}
                                        </p>
                                        <p className="text-xs sm:text-sm text-red-700">
                                           {payment.failure_reason}
                                        </p>
                                        <p className="text-xs text-red-600 mt-2">
-                                          {payment.status === "timeout" 
+                                          {payment.status === "timeout"
                                              ? "Your order is still pending. You can try the same payment method again or use a different one."
-                                             : "Please try again or contact support if the issue persists."
-                                          }
+                                             : "Please try again or contact support if the issue persists."}
                                        </p>
                                     </div>
                                  </div>
@@ -542,8 +544,8 @@ export default function PaymentPage() {
                                  <div className="mt-3 sm:mt-4 p-3 sm:p-4 bg-blue-50 rounded-lg border border-blue-200">
                                     <p className="text-xs sm:text-sm text-blue-800">
                                        <strong>💡 Tip:</strong> Keep this page
-                                       open. We&apos;ll automatically detect when
-                                       your payment is complete.
+                                       open. We&apos;ll automatically detect
+                                       when your payment is complete.
                                     </p>
                                  </div>
                               </div>
@@ -556,8 +558,8 @@ export default function PaymentPage() {
                                        1
                                     </div>
                                     <p className="ml-2 sm:ml-3 text-xs sm:text-sm text-gray-700">
-                                       You&apos;ll be redirected to a secure payment
-                                       gateway
+                                       You&apos;ll be redirected to a secure
+                                       payment gateway
                                     </p>
                                  </div>
                                  <div className="flex items-start">
@@ -636,12 +638,17 @@ export default function PaymentPage() {
                               View Order Details
                            </Button>
 
-                           {(payment.status === "failed" || payment.status === "timeout") && (
+                           {(payment.status === "failed" ||
+                              payment.status === "timeout") && (
                               <>
                                  <Button
-                                    onClick={() => router.push(
-                                       `/checkout?orderId=${orderId || payment.order_id}&retry=true`
-                                    )}
+                                    onClick={() =>
+                                       router.push(
+                                          `/checkout?orderId=${
+                                             orderId || payment.order_id
+                                          }&retry=true`
+                                       )
+                                    }
                                     className="w-full bg-orange-500 hover:bg-orange-600 text-xs sm:text-sm h-9 sm:h-11"
                                  >
                                     Try Different Method
@@ -652,7 +659,9 @@ export default function PaymentPage() {
                                     className="w-full border-gray-300 text-xs sm:text-sm h-9 sm:h-11"
                                  >
                                     <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
-                                    {payment.status === "timeout" ? "Try Again" : "Retry Payment"}
+                                    {payment.status === "timeout"
+                                       ? "Try Again"
+                                       : "Retry Payment"}
                                  </Button>
                               </>
                            )}
@@ -672,6 +681,7 @@ export default function PaymentPage() {
                                           window.location.reload();
                                        }
                                     }}
+                                    disabled={isCheckingStatus}
                                     className="w-full bg-blue-500 hover:bg-blue-600 text-xs sm:text-sm h-9 sm:h-11"
                                  >
                                     <ExternalLink className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />

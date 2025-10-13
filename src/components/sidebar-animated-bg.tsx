@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
 'use client';
 import { cn } from '@/lib/utils';
 import { AnimatePresence, Transition, motion } from 'framer-motion';

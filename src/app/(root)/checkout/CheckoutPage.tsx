@@ -587,9 +587,12 @@ const CheckoutPage = ({
          toast.error(
             "Cannot retry payment with Cash on Delivery. Please select a different payment method."
          );
-         setIsSubmitting(false);
          return;
       }
+
+      // Prevent duplicate submissions
+      if (isSubmitting || isInitiating) return;
+      setIsSubmitting(true);
 
       try {
          // Use mobile money phone number if available, otherwise fallback to address/form phone
@@ -636,8 +639,11 @@ const CheckoutPage = ({
                // For card payments, redirect to external checkout immediately if URL is provided
                if (paymentResult.checkoutUrl) {
                   toast.success("Redirecting to secure payment...");
-                  // Redirect to external payment gateway immediately
-                  window.location.href = paymentResult.checkoutUrl;
+                  // give a tiny delay for the toast to show on slow devices
+                  const url = paymentResult.checkoutUrl as string;
+                  setTimeout(() => {
+                     window.location.href = url;
+                  }, 250);
                } else {
                   // Fallback to payment page if no checkout URL
                   router.push(
@@ -878,8 +884,11 @@ const CheckoutPage = ({
                               toast.success(
                                  `Order #${createdOrder.order_number} created! Redirecting to secure payment...`
                               );
-                              // Redirect to external payment gateway immediately
-                              window.location.href = paymentResult.checkoutUrl;
+                              // Small delay so the toast is visible before navigation on slow devices
+                              const url = paymentResult.checkoutUrl as string;
+                              setTimeout(() => {
+                                 window.location.href = url;
+                              }, 250);
                            } else {
                               // Fallback to payment page if no checkout URL
                               router.push(
