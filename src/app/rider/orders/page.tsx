@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { useLanguage } from "@/contexts/LanguageContext";
 import Link from "next/link";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+// Tabs removed: show Orders only
 import { Input } from "@/components/ui/input";
 import { DataTable } from "@/components/data-table/data-table";
 import {
@@ -43,6 +44,7 @@ import {
 
 const Page = () => {
    const { user, isLoggedIn } = useAuth();
+   const { t } = useLanguage();
    const [riderId, setRiderId] = useState<string | null>(null);
    const [loadingRider, setLoadingRider] = useState(false);
 
@@ -175,7 +177,7 @@ const Page = () => {
             size: 50,
          },
          columnHelper.accessor("orderNumber", {
-            header: "Order",
+            header: t("rider.orders.order"),
             cell: (info) => (
                <div className="flex items-center gap-2">
                   <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
@@ -189,7 +191,7 @@ const Page = () => {
             size: 150,
          }),
          columnHelper.accessor("location", {
-            header: "Delivery Location",
+            header: t("rider.orders.deliveryLocation"),
             cell: (info) => (
                <div className="flex items-center gap-2">
                   <MapPin className="w-4 h-4 text-gray-400" />
@@ -201,7 +203,7 @@ const Page = () => {
             size: 250,
          }),
          columnHelper.accessor("deliveryFee", {
-            header: "Delivery Fee",
+            header: t("rider.orders.deliveryFee"),
             cell: (info) => {
                const v = info.getValue();
                return (
@@ -213,7 +215,7 @@ const Page = () => {
             size: 120,
          }),
          columnHelper.accessor("status", {
-            header: "Actions",
+            header: t("rider.orders.actions"),
             cell: (info) => {
                const row = info.row.original;
                const a = row.assignment;
@@ -228,7 +230,7 @@ const Page = () => {
                            disabled={respond.isPending}
                         >
                            <CheckCircle className="w-4 h-4 mr-1" />
-                           Accept
+                           {t("rider.orders.accept")}
                         </Button>
                         <Button
                            onClick={() => handleRespond(a.id, "rejected")}
@@ -237,7 +239,7 @@ const Page = () => {
                            disabled={respond.isPending}
                         >
                            <XCircle className="w-4 h-4 mr-1" />
-                           Reject
+                           {t("rider.orders.reject")}
                         </Button>
                      </div>
                   );
@@ -252,7 +254,7 @@ const Page = () => {
                         disabled={respond.isPending}
                      >
                         <CheckCircle className="w-4 h-4 mr-1" />
-                        Mark Delivered
+                        {t("rider.orders.markDelivered")}
                      </Button>
                   );
                }
@@ -261,11 +263,11 @@ const Page = () => {
                const statusConfig = {
                   rejected: {
                      color: "bg-red-100 text-red-700",
-                     label: "Rejected",
+                     label: t("rider.orders.rejected"),
                   },
                   completed: {
                      color: "bg-green-100 text-green-700",
-                     label: "Delivered",
+                     label: t("rider.orders.delivered"),
                   },
                };
 
@@ -327,7 +329,7 @@ const Page = () => {
                                  if (o) setViewOrder(o);
                               }}
                            >
-                              View Details
+                              {t("rider.orders.viewDetails")}
                            </DropdownMenuItem>
                            <DropdownMenuItem
                               onClick={() => {
@@ -341,7 +343,7 @@ const Page = () => {
                                  toast.success("Order ID copied to clipboard");
                               }}
                            >
-                              Copy Order ID
+                              {t("rider.orders.copyOrderId")}
                            </DropdownMenuItem>
                         </DropdownMenuContent>
                      </DropdownMenu>
@@ -537,142 +539,64 @@ const Page = () => {
                   </Card>
                </div>
 
-               <Tabs
-                  defaultValue="orders"
-                  className="space-y-6"
-               >
-                  <TabsList className="bg-white border border-gray-200 shadow-sm">
-                     <TabsTrigger
-                        value="orders"
-                        className="data-[state=active]:bg-orange-500 data-[state=active]:text-white"
-                     >
-                        Orders
-                     </TabsTrigger>
-                     <TabsTrigger
-                        value="statistics"
-                        className="data-[state=active]:bg-orange-500 data-[state=active]:text-white"
-                     >
-                        Statistics
-                     </TabsTrigger>
-                     <TabsTrigger
-                        value="settings"
-                        className="data-[state=active]:bg-orange-500 data-[state=active]:text-white"
-                     >
-                        Settings
-                     </TabsTrigger>
-                  </TabsList>
+               <Card className="border-0 shadow-lg">
+                  <CardHeader>
+                     <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div>
+                           <CardTitle className="text-xl text-gray-900">
+                              {t("rider.orders.assignedTitle")}
+                           </CardTitle>
+                           <p className="text-sm text-gray-500 mt-1">
+                              {t("rider.orders.assignedDesc")}
+                           </p>
+                        </div>
+                        <div className="relative w-full sm:w-80">
+                           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                           <Input
+                              placeholder={t("rider.orders.searchPlaceholder")}
+                              value={search}
+                              onChange={(e) => setSearch(e.target.value)}
+                              className="pl-10 bg-gray-50 border-gray-200 focus:bg-white"
+                           />
+                        </div>
+                     </div>
+                  </CardHeader>
 
-                  <TabsContent value="orders">
-                     <Card className="border-0 shadow-lg">
-                        <CardHeader>
-                           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                              <div>
-                                 <CardTitle className="text-xl text-gray-900">
-                                    Assigned Orders
-                                 </CardTitle>
-                                 <p className="text-sm text-gray-500 mt-1">
-                                    Manage your delivery assignments and track
-                                    progress
-                                 </p>
-                              </div>
-                              <div className="relative w-full sm:w-80">
-                                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                                 <Input
-                                    placeholder="Search orders, locations..."
-                                    value={search}
-                                    onChange={(e) => setSearch(e.target.value)}
-                                    className="pl-10 bg-gray-50 border-gray-200 focus:bg-white"
-                                 />
+                  <CardContent>
+                     {isLoading ? (
+                        <div className="flex justify-center items-center py-16">
+                           <div className="flex items-center gap-3">
+                              <Loader2 className="w-6 h-6 animate-spin text-orange-500" />
+                              <span className="text-gray-600">
+                                 {t("rider.orders.loading")}
+                              </span>
+                           </div>
+                        </div>
+                     ) : filteredData.length === 0 ? (
+                        <div className="text-center py-16">
+                           <Package className="w-16 h-16 mx-auto text-gray-300 mb-4" />
+                           <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                              {search
+                                 ? t("rider.orders.noMatching")
+                                 : t("rider.orders.noAssigned")}
+                           </h3>
+                           <p className="text-gray-500">
+                              {search
+                                 ? t("rider.orders.trySearch")
+                                 : t("rider.orders.newAssignments")}
+                           </p>
+                        </div>
+                     ) : (
+                        <div className="space-y-4">
+                           <div className="overflow-x-auto">
+                              <div className="min-w-[800px]">
+                                 <DataTable table={table as any} />
                               </div>
                            </div>
-                        </CardHeader>
-
-                        <CardContent>
-                           {isLoading ? (
-                              <div className="flex justify-center items-center py-16">
-                                 <div className="flex items-center gap-3">
-                                    <Loader2 className="w-6 h-6 animate-spin text-orange-500" />
-                                    <span className="text-gray-600">
-                                       Loading your assignments...
-                                    </span>
-                                 </div>
-                              </div>
-                           ) : filteredData.length === 0 ? (
-                              <div className="text-center py-16">
-                                 <Package className="w-16 h-16 mx-auto text-gray-300 mb-4" />
-                                 <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                                    {search
-                                       ? "No matching orders"
-                                       : "No orders assigned"}
-                                 </h3>
-                                 <p className="text-gray-500">
-                                    {search
-                                       ? "Try adjusting your search terms"
-                                       : "New delivery assignments will appear here"}
-                                 </p>
-                              </div>
-                           ) : (
-                              <div className="space-y-4">
-                                 {/* Mobile/Tablet responsive wrapper with horizontal scroll */}
-                                 <div className="overflow-x-auto">
-                                    <div className="min-w-[800px]">
-                                       <DataTable table={table as any} />
-                                    </div>
-                                 </div>
-                              </div>
-                           )}
-                        </CardContent>
-                     </Card>
-
-                     {viewOrder && (
-                        <OrderDetailsDialog
-                           open={!!viewOrder}
-                           onOpenChange={(open) => {
-                              if (!open) setViewOrder(null);
-                           }}
-                           order={viewOrder}
-                        />
+                        </div>
                      )}
-                  </TabsContent>
-
-                  <TabsContent value="statistics">
-                     <Card className="border-0 shadow-lg">
-                        <CardContent className="p-8 text-center">
-                           <div className="max-w-md mx-auto">
-                              <div className="w-16 h-16 bg-gray-100 rounded-full mx-auto mb-4 flex items-center justify-center">
-                                 <Package className="w-8 h-8 text-gray-400" />
-                              </div>
-                              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                                 Statistics Coming Soon
-                              </h3>
-                              <p className="text-gray-500">
-                                 Detailed analytics and performance metrics will
-                                 be available here.
-                              </p>
-                           </div>
-                        </CardContent>
-                     </Card>
-                  </TabsContent>
-
-                  <TabsContent value="settings">
-                     <Card className="border-0 shadow-lg">
-                        <CardContent className="p-8 text-center">
-                           <div className="max-w-md mx-auto">
-                              <div className="w-16 h-16 bg-gray-100 rounded-full mx-auto mb-4 flex items-center justify-center">
-                                 <Package className="w-8 h-8 text-gray-400" />
-                              </div>
-                              <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                                 Settings Coming Soon
-                              </h3>
-                              <p className="text-gray-500">
-                                 Rider preferences and configuration options
-                                 will be available here.
-                              </p>
-                           </div>
-                        </CardContent>
-                     </Card>
-                  </TabsContent>
-               </Tabs>
+                  </CardContent>
+               </Card>
             </div>
          </ScrollArea>
       </div>

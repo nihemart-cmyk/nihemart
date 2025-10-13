@@ -26,6 +26,7 @@ import RiderSidebar from "./RiderSidebar";
 import { Button } from "./ui/button";
 import { DropdownMenu } from "./ui/dropdown-menu";
 import { useAuth } from "@/hooks/useAuth";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { toast } from "sonner";
 
 type TopBarProps = {
@@ -44,6 +45,7 @@ const RiderTopBar: FC<TopBarProps> = (props) => {
    const router = useRouter();
    const { className, variant } = props;
    const { signOut, user } = useAuth();
+   const { t, language, setLanguage } = useLanguage();
 
    const handleLogout = async () => {
       await signOut();
@@ -118,7 +120,9 @@ const RiderTopBar: FC<TopBarProps> = (props) => {
                      rider?.active ? "bg-green-500" : "bg-red-500"
                   )}
                ></div>
-               {rider?.active ? "Active" : "Unavailable"}
+               {rider?.active
+                  ? t("rider.activeLabel")
+                  : t("rider.unavailableLabel")}
             </Badge>
          </div>
 
@@ -129,6 +133,40 @@ const RiderTopBar: FC<TopBarProps> = (props) => {
          >
             <div className="flex items-center gap-4">
                <NotificationsBell />
+
+               {/* Language selector */}
+               <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                     <Button
+                        variant="ghost"
+                        className="px-2 py-1 rounded-md"
+                     >
+                        {t(`language.short.${language}`)}
+                     </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                     align="end"
+                     sideOffset={8}
+                     forceMount
+                  >
+                     <DropdownMenuLabel className="text-sm">
+                        {t("common.language")}
+                     </DropdownMenuLabel>
+                     <DropdownMenuSeparator />
+                     <DropdownMenuItem
+                        onClick={() => setLanguage("rw")}
+                        className="cursor-pointer"
+                     >
+                        {t("language.rw")}
+                     </DropdownMenuItem>
+                     <DropdownMenuItem
+                        onClick={() => setLanguage("en")}
+                        className="cursor-pointer"
+                     >
+                        {t("language.en")}
+                     </DropdownMenuItem>
+                  </DropdownMenuContent>
+               </DropdownMenu>
             </div>
 
             <DropdownMenu>
@@ -174,7 +212,7 @@ const RiderTopBar: FC<TopBarProps> = (props) => {
                         className="cursor-pointer hover:bg-gray-50"
                      >
                         <Settings className="mr-3 h-4 w-4" />
-                        Settings
+                        {t("admin.settings")}
                      </DropdownMenuItem>
                   </DropdownMenuGroup>
                   <DropdownMenuSeparator />
@@ -183,7 +221,7 @@ const RiderTopBar: FC<TopBarProps> = (props) => {
                      className="cursor-pointer hover:bg-red-50 text-red-600 focus:text-red-600"
                   >
                      <LogOut className="mr-3 h-4 w-4" />
-                     Logout
+                     {t("nav.logout")}
                   </DropdownMenuItem>
                </DropdownMenuContent>
             </DropdownMenu>

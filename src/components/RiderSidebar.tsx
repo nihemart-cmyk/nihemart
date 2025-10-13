@@ -14,6 +14,7 @@ import { ChevronDown, LogOut, Settings } from "lucide-react";
 import { Button } from "./ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface NavItem {
    id: string;
@@ -21,6 +22,7 @@ interface NavItem {
    icon: ElementType;
    href?: string;
    subLinks?: Omit<NavItem, "subLinks" | "icon">[];
+   titleKey?: string;
 }
 
 type FlatNavItem = {
@@ -32,18 +34,21 @@ const navItems: NavItem[] = [
    {
       id: "1",
       title: "Dashboard",
+      titleKey: "nav.home",
       href: "/rider",
       icon: Icons.sidebar.dashboard,
    },
    {
       id: "2",
       title: "Orders",
+      titleKey: "nav.orders",
       href: "/rider/orders",
       icon: Icons.sidebar.orders,
    },
    {
       id: "3",
       title: "Settings",
+      titleKey: "admin.settings",
       href: "/rider/settings",
       icon: Settings,
    },
@@ -53,6 +58,7 @@ const RiderSidebar: FC = () => {
    const router = useRouter();
    const pathname = usePathname();
    const { signOut } = useAuth();
+   const { t } = useLanguage();
 
    const handleLogout = async () => {
       await signOut();
@@ -144,7 +150,9 @@ const RiderSidebar: FC = () => {
                                  )}
                               >
                                  <Icon size={20} />
-                                 <span>{item.title}</span>
+                                 <span>
+                                    {t((item as any).titleKey || item.title)}
+                                 </span>
                                  <motion.span
                                     className="ml-auto"
                                     animate={{ rotate: isOpen ? 0 : -90 }}
@@ -179,7 +187,13 @@ const RiderSidebar: FC = () => {
                                                       : "font-medium"
                                                 )}
                                              >
-                                                <span>{subLink.title}</span>
+                                                <span>
+                                                   {t(
+                                                      (subLink as any)
+                                                         .titleKey ||
+                                                         subLink.title
+                                                   )}
+                                                </span>
                                              </Link>
                                           );
                                        })}
@@ -198,7 +212,9 @@ const RiderSidebar: FC = () => {
                         >
                            <p className="px-6 py-2 !flex items-center gap-3 w-full justify-start font-medium">
                               <Icon size={20} />
-                              <span>{item.title}</span>
+                              <span>
+                                 {t((item as any).titleKey || item.title)}
+                              </span>
                            </p>
                         </Link>
                      );
@@ -214,7 +230,7 @@ const RiderSidebar: FC = () => {
                className="h-12 flex items-center justify-start text-lg"
                onClick={handleLogout}
             >
-               <LogOut size={20} /> Logout
+               <LogOut size={20} /> {t("nav.logout")}
             </Button>
          </div>
       </div>

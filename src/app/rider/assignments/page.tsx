@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
 import { fetchRiderByUserId } from "@/integrations/supabase/riders";
 import { useRiderAssignments, useRespondToAssignment } from "@/hooks/useRiders";
@@ -53,7 +54,9 @@ const RiderAssignmentsPage = () => {
 
    return (
       <div className="p-6">
-         <h1 className="text-2xl font-bold mb-4">Your Assignments</h1>
+         <h1 className="text-2xl font-bold mb-4">
+            {t("rider.assignmentsTitle")}
+         </h1>
          {isLoading ? (
             <div>Loading assignments...</div>
          ) : (
@@ -70,7 +73,8 @@ const RiderAssignmentsPage = () => {
                               Order #{a.order_id}
                            </div>
                            <div className="text-sm text-gray-600">
-                              Status: {a.status}
+                              {t("rider.status")}:{" "}
+                              {t(`rider.status.${a.status}`) || a.status}
                            </div>
                            <div className="text-sm text-gray-600">
                               Assigned:{" "}
@@ -86,7 +90,7 @@ const RiderAssignmentsPage = () => {
                                     }
                                     className="px-3 py-1 bg-green-600 text-white rounded"
                                  >
-                                    Accept
+                                    {t("rider.action.accept")}
                                  </button>
                                  <button
                                     onClick={() =>
@@ -94,7 +98,7 @@ const RiderAssignmentsPage = () => {
                                     }
                                     className="px-3 py-1 bg-red-500 text-white rounded"
                                  >
-                                    Reject
+                                    {t("rider.action.reject")}
                                  </button>
                               </>
                            )}
@@ -105,7 +109,7 @@ const RiderAssignmentsPage = () => {
                                  }
                                  className="px-3 py-1 bg-blue-600 text-white rounded"
                               >
-                                 Mark Completed
+                                 {t("rider.action.markCompleted")}
                               </button>
                            )}
                         </div>

@@ -12,6 +12,7 @@ import {
    SelectContent,
    SelectItem,
 } from "@/components/ui/select";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,6 +30,25 @@ import {
    CheckCircle2,
    XCircle,
 } from "lucide-react";
+
+function LanguageSelector() {
+   const { language, setLanguage, t } = useLanguage();
+
+   return (
+      <Select
+         value={language}
+         onValueChange={(v) => setLanguage(v as any)}
+      >
+         <SelectTrigger className="w-full h-11">
+            <SelectValue />
+         </SelectTrigger>
+         <SelectContent>
+            <SelectItem value="rw">{t("language.short.rw")}</SelectItem>
+            <SelectItem value="en">{t("language.short.en")}</SelectItem>
+         </SelectContent>
+      </Select>
+   );
+}
 
 export default function RiderSettingsPage() {
    const { user } = useAuth();
@@ -142,6 +162,14 @@ export default function RiderSettingsPage() {
                <div className="flex items-center gap-3 mb-2">
                   <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-orange-400 to-orange-600 rounded-xl flex items-center justify-center shadow-lg">
                      <SettingsIcon className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                  </div>
+
+                  {/* Language preference */}
+                  <div className="space-y-2">
+                     <Label className="text-sm font-medium text-gray-700">
+                        Preferred Language
+                     </Label>
+                     <LanguageSelector />
                   </div>
                   <div>
                      <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">

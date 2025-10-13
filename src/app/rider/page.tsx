@@ -21,6 +21,7 @@ import {
    Calendar,
 } from "lucide-react";
 import React, { useEffect, useState } from "react";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
 import { fetchRiderByUserId } from "@/integrations/supabase/riders";
 import { useRiderAssignments } from "@/hooks/useRiders";
@@ -37,7 +38,7 @@ import {
    PopoverContent,
    PopoverTrigger,
 } from "@/components/ui/popover";
-import { format } from "date-fns";
+import { format, formatDistanceToNowStrict } from "date-fns";
 import { Button } from "@/components/ui/button";
 
 interface StatsCardProps {
@@ -55,6 +56,10 @@ interface ActiveRiderProps {
    status: string;
    rating: string;
    deliveries: string;
+   profileTitle?: string;
+   totalDeliveriesLabel?: string;
+   ratingLabel?: string;
+   lastActiveLabel?: string;
 }
 
 interface RecentDeliveryProps {
@@ -113,11 +118,15 @@ const ActiveRiderCard: React.FC<ActiveRiderProps> = ({
    deliveries,
    rating,
    status,
+   profileTitle,
+   totalDeliveriesLabel,
+   ratingLabel,
+   lastActiveLabel,
 }) => (
    <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300">
       <CardHeader className="pb-4">
          <CardTitle className="text-base sm:text-lg font-semibold text-gray-800">
-            Your Profile
+            {profileTitle || "Your Profile"}
          </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4 sm:space-y-6">
@@ -162,7 +171,7 @@ const ActiveRiderCard: React.FC<ActiveRiderProps> = ({
                   {deliveries}
                </p>
                <p className="text-xs sm:text-sm text-gray-500">
-                  Total Deliveries
+                  {totalDeliveriesLabel || "Total Deliveries"}
                </p>
             </div>
             <div className="bg-gray-50 rounded-lg p-3 sm:p-4 text-center">
@@ -175,7 +184,9 @@ const ActiveRiderCard: React.FC<ActiveRiderProps> = ({
                <p className="text-xl sm:text-2xl font-bold text-gray-900">
                   {rating}
                </p>
-               <p className="text-xs sm:text-sm text-gray-500">Rating</p>
+               <p className="text-xs sm:text-sm text-gray-500">
+                  {ratingLabel || "Rating"}
+               </p>
             </div>
          </div>
 
@@ -190,7 +201,9 @@ const ActiveRiderCard: React.FC<ActiveRiderProps> = ({
                <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
                   <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                </div>
-               <span className="text-xs sm:text-sm">Last active: Now</span>
+               <span className="text-xs sm:text-sm">
+                  {lastActiveLabel || "Last active: Now"}
+               </span>
             </div>
          </div>
       </CardContent>
@@ -244,7 +257,7 @@ const RecentDelivery: React.FC<RecentDeliveryProps> = ({
                </p>
                <div className="flex items-center gap-1 text-xs text-gray-500">
                   <Clock className="w-3 h-3" />
-                  <span className="whitespace-nowrap">{time} ago</span>
+                  <span className="whitespace-nowrap">{time}</span>
                </div>
             </div>
          </div>
@@ -257,6 +270,12 @@ const Dashboard = () => {
    const [rider, setRider] = useState<any | null>(null);
    // replace calendar with timeframe selector for analytics
    const [timeframe, setTimeframe] = useState<string>("7");
+   // date range for filtering (from/to strings like admin/orders)
+   const [dateRange, setDateRange] = useState<{ from?: string; to?: string }>(
+      {}
+   );
+
+   const { t } = useLanguage();
 
    useEffect(() => {
       if (!user) return;
@@ -307,9 +326,27 @@ const Dashboard = () => {
    };
 
    const filteredAssignments = React.useMemo(() => {
+      // base: filter by timeframe (days)
       const days = Number(timeframe) || 7;
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - days);
+
+      const startDate = parseDate(dateRange.from);
+      const endDate = parseDate(dateRange.to);
+
+      // helper to check if date is within optional start/end and timeframe
+      const inRange = (d?: Date | null) => {
+         if (!d) return false;
+         if (startDate && d < startDate) return false;
+         if (endDate) {
+            // include end of day
+            const e = new Date(endDate);
+            e.setHours(23, 59, 59, 999);
+            if (d > e) return false;
+         }
+         return d >= cutoff;
+      };
+
       return assignments.filter((a: any) => {
          const order = a.orders || a.order || null;
          const timestamps = [
@@ -327,21 +364,49 @@ const Dashboard = () => {
             .filter(Boolean) as Date[];
          const ts = timestamps[0];
          if (!ts) return false;
-         return ts >= cutoff;
+
+         // combine timeframe and optional date-range
+         if (!inRange(ts)) return false;
+
+         // no time-of-day filtering in rider dashboard (admin/orders style)
+
+         return true;
       });
-   }, [assignments, timeframe]);
+   }, [assignments, timeframe, dateRange]);
 
    const selectedDateAssignments = filteredAssignments;
 
    const recent = filteredAssignments.slice(0, 5).map((a: any) => {
       const order =
          a.orders || a.order || (a.order_id ? { id: a.order_id } : null);
+      // pick first valid timestamp to represent the event time
+      const timestamps = [
+         a.delivered_at,
+         a.completed_at,
+         a.updated_at,
+         a.assigned_at,
+         a.created_at,
+         order?.delivered_at,
+         order?.completed_at,
+         order?.updated_at,
+         order?.created_at,
+      ]
+         .map((v: any) => (v ? new Date(v) : null))
+         .filter(Boolean) as Date[];
+
+      const ts = timestamps[0] || null;
+      const timeStr = ts
+         ? `${formatDistanceToNowStrict(ts, { roundingMethod: "floor" })} ${t(
+              "rider.ago"
+           )}`
+         : t("rider.noRecentDeliveries");
+
       return {
          id: order?.id || a.order_id,
          name: order?.customer_name || order?.name || "Customer",
          location: order?.delivery_address || a.location || "-",
          amount: order?.tax || a.delivery_fee || a.fee || "-", // Show delivery fee instead of total
-         time: "-",
+         time: timeStr,
          status: a.status || order?.status || "-",
       };
    });
@@ -398,10 +463,10 @@ const Dashboard = () => {
             <Card className="p-6 sm:p-8 text-center max-w-md w-full">
                <CardContent>
                   <h2 className="text-lg sm:text-xl font-semibold mb-2">
-                     Please Sign In
+                     {t("rider.signInTitle")}
                   </h2>
                   <p className="text-sm sm:text-base text-gray-600">
-                     You need to sign in to access your dashboard.
+                     {t("rider.signInDesc")}
                   </p>
                </CardContent>
             </Card>
@@ -416,38 +481,49 @@ const Dashboard = () => {
                {/* Welcome Section */}
                <div className="mb-6 sm:mb-8">
                   <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">
-                     Welcome back, {rider?.full_name || user?.email || "Rider"}!
+                     {t("rider.welcomeBack").replace(
+                        "{name}",
+                        rider?.full_name || user?.email || "Rider"
+                     )}
                   </h1>
                   <p className="text-sm sm:text-base text-gray-600">
-                     Here&apos;s your delivery overview for today.
+                     {t("rider.overview")}
                   </p>
                </div>
 
                {/* Stats Cards */}
                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6 mb-6 sm:mb-8">
                   <StatsCard
-                     title="Status"
-                     value={rider?.active ? "Active" : "Inactive"}
+                     title={t("rider.status")}
+                     value={
+                        rider?.active
+                           ? t("rider.status") === "Status"
+                              ? "Active"
+                              : rider?.active
+                              ? "Active"
+                              : "Inactive"
+                           : "Inactive"
+                     }
                      change={"0"}
                      icon={Users}
                      gradient="bg-gradient-to-br from-orange-500 to-orange-600"
                   />
                   <StatsCard
-                     title="Total Orders"
+                     title={t("rider.totalOrders")}
                      value={`${totalDeliveries}`}
                      change={"0"}
                      icon={Box}
                      gradient="bg-gradient-to-br from-blue-500 to-blue-600"
                   />
                   <StatsCard
-                     title="Completed"
+                     title={t("rider.completed")}
                      value={`${delivered}`}
                      change={"0"}
                      icon={Target}
                      gradient="bg-gradient-to-br from-green-500 to-green-600"
                   />
                   <StatsCard
-                     title="Pending"
+                     title={t("rider.pending")}
                      value={`${pending}`}
                      change={"0"}
                      icon={Timer}
@@ -466,6 +542,10 @@ const Dashboard = () => {
                         deliveries={`${totalDeliveries}`}
                         rating={"4.8"}
                         status={rider?.active ? "Active" : "Unavailable"}
+                        profileTitle={t("rider.yourProfile")}
+                        totalDeliveriesLabel={t("rider.totalDeliveries")}
+                        ratingLabel={t("rider.rating")}
+                        lastActiveLabel={t("rider.lastActiveNow")}
                      />
                   </div>
 
@@ -476,28 +556,98 @@ const Dashboard = () => {
                            <div className="flex items-center justify-between">
                               <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
                                  <Navigation className="w-4 h-4 sm:w-5 sm:h-5 text-orange-500" />
-                                 Delivery Analytics
+                                 {t("rider.deliveryAnalytics")}
                               </CardTitle>
-                              <div className="w-44">
-                                 <Select
-                                    value={timeframe}
-                                    onValueChange={setTimeframe}
-                                 >
-                                    <SelectTrigger>
-                                       <SelectValue placeholder="Last 7 days" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                       <SelectItem value="7">
-                                          Last 7 days
-                                       </SelectItem>
-                                       <SelectItem value="30">
-                                          Last 30 days
-                                       </SelectItem>
-                                       <SelectItem value="365">
-                                          Last 12 months
-                                       </SelectItem>
-                                    </SelectContent>
-                                 </Select>
+                              <div className="flex items-center gap-3">
+                                 <div className="w-44">
+                                    <Select
+                                       value={timeframe}
+                                       onValueChange={setTimeframe}
+                                    >
+                                       <SelectTrigger>
+                                          <SelectValue
+                                             placeholder={t("rider.last7days")}
+                                          />
+                                       </SelectTrigger>
+                                       <SelectContent>
+                                          <SelectItem value="7">
+                                             {t("rider.last7days")}
+                                          </SelectItem>
+                                          <SelectItem value="30">
+                                             {t("rider.last30days")}
+                                          </SelectItem>
+                                          <SelectItem value="365">
+                                             {t("rider.last12months")}
+                                          </SelectItem>
+                                       </SelectContent>
+                                    </Select>
+                                 </div>
+
+                                 {/* Date range picker */}
+                                 <Popover>
+                                    <PopoverTrigger asChild>
+                                       <Button
+                                          variant="outline"
+                                          className="h-9"
+                                       >
+                                          <Calendar className="w-4 h-4 mr-2" />
+                                          {dateRange.from && dateRange.to
+                                             ? `${dateRange.from} — ${dateRange.to}`
+                                             : t("rider.selectDateRange")}
+                                       </Button>
+                                    </PopoverTrigger>
+                                    <PopoverContent
+                                       className="w-auto p-4"
+                                       align="end"
+                                    >
+                                       <div className="space-y-2">
+                                          <div>
+                                             <label className="block text-xs text-gray-500 mb-1">
+                                                From
+                                             </label>
+                                             <input
+                                                type="date"
+                                                className="w-full rounded-md border px-3 py-2"
+                                                value={dateRange.from || ""}
+                                                onChange={(e) =>
+                                                   setDateRange((prev) => ({
+                                                      ...prev,
+                                                      from:
+                                                         e.target.value ||
+                                                         undefined,
+                                                   }))
+                                                }
+                                             />
+                                          </div>
+                                          <div>
+                                             <label className="block text-xs text-gray-500 mb-1">
+                                                To
+                                             </label>
+                                             <input
+                                                type="date"
+                                                className="w-full rounded-md border px-3 py-2"
+                                                value={dateRange.to || ""}
+                                                onChange={(e) =>
+                                                   setDateRange((prev) => ({
+                                                      ...prev,
+                                                      to:
+                                                         e.target.value ||
+                                                         undefined,
+                                                   }))
+                                                }
+                                             />
+                                          </div>
+                                          <div className="flex justify-end gap-2 pt-2">
+                                             <Button
+                                                variant="ghost"
+                                                onClick={() => setDateRange({})}
+                                             >
+                                                {t("rider.clearRange")}
+                                             </Button>
+                                          </div>
+                                       </div>
+                                    </PopoverContent>
+                                 </Popover>
                               </div>
                            </div>
                         </CardHeader>
@@ -543,10 +693,10 @@ const Dashboard = () => {
                                        <div className="space-y-1">
                                           <p className="text-gray-500 text-xs sm:text-sm">
                                              {timeframe === "7"
-                                                ? "Last 7 days total"
+                                                ? t("rider.last7daysTotal")
                                                 : timeframe === "30"
-                                                ? "Last 30 days total"
-                                                : "Last 12 months total"}
+                                                ? t("rider.last30daysTotal")
+                                                : t("rider.last12monthsTotal")}
                                           </p>
                                           <p className="text-xl sm:text-2xl font-bold text-gray-900">
                                              RWF{" "}
@@ -604,7 +754,7 @@ const Dashboard = () => {
                         <CardHeader className="pb-4">
                            <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
                               <Navigation className="w-4 h-4 sm:w-5 sm:h-5 text-orange-500" />
-                              Recent Deliveries
+                              {t("rider.recentDeliveries")}
                            </CardTitle>
                         </CardHeader>
                         <CardContent>
@@ -630,7 +780,7 @@ const Dashboard = () => {
                               <div className="text-center py-8 text-gray-500">
                                  <Package className="w-10 h-10 sm:w-12 sm:h-12 mx-auto mb-3 opacity-50" />
                                  <p className="text-sm sm:text-base">
-                                    No recent deliveries
+                                    {t("rider.noRecentDeliveries")}
                                  </p>
                               </div>
                            )}
