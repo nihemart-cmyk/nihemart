@@ -30,6 +30,7 @@ import {
    CheckCircle2,
    XCircle,
 } from "lucide-react";
+import { UserAvatarProfile } from "@/components/user-avatar-profile";
 
 function LanguageSelector() {
    const { language, setLanguage, t } = useLanguage();
@@ -194,15 +195,15 @@ export default function RiderSettingsPage() {
                      <CardContent className="space-y-6">
                         <div className="flex items-start gap-4">
                            <div className="relative flex-shrink-0">
-                              <div className="w-16 h-16 rounded-xl shadow-lg bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center">
-                                 <span className="text-white text-xl font-semibold">
-                                    {getInitials(
-                                       fullName ||
-                                          rider?.full_name ||
-                                          user?.email ||
-                                          "Rider"
-                                    )}
-                                 </span>
+                              <div className="w-16 h-16 rounded-xl shadow-lg bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center overflow-hidden">
+                                 <UserAvatarProfile
+                                    className="w-16 h-16"
+                                    user={{
+                                       fullName: fullName || rider?.full_name || user?.email || "Rider",
+                                       subTitle: rider?.location || "",
+                                       imageUrl: rider?.image_url || "",
+                                    }}
+                                 />
                               </div>
                               <div
                                  className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-white ${

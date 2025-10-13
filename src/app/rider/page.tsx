@@ -20,6 +20,7 @@ import {
    DollarSign,
    Calendar,
 } from "lucide-react";
+import { UserAvatarProfile } from "@/components/user-avatar-profile";
 import React, { useEffect, useState } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/hooks/useAuth";
@@ -56,6 +57,7 @@ interface ActiveRiderProps {
    status: string;
    rating: string;
    deliveries: string;
+   imageUrl?: string;
    profileTitle?: string;
    totalDeliveriesLabel?: string;
    ratingLabel?: string;
@@ -118,6 +120,7 @@ const ActiveRiderCard: React.FC<ActiveRiderProps> = ({
    deliveries,
    rating,
    status,
+   imageUrl,
    profileTitle,
    totalDeliveriesLabel,
    ratingLabel,
@@ -131,10 +134,14 @@ const ActiveRiderCard: React.FC<ActiveRiderProps> = ({
       </CardHeader>
       <CardContent className="space-y-4 sm:space-y-6">
          <div className="flex items-start gap-3 sm:gap-4">
-            <div className="relative flex-shrink-0">
+               <div className="relative flex-shrink-0">
                <div className="w-14 h-14 sm:w-16 sm:h-16 bg-gradient-to-br from-orange-400 to-orange-600 rounded-xl flex items-center justify-center shadow-lg">
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 bg-white rounded-full flex items-center justify-center">
-                     <Users className="w-4 h-4 sm:w-5 sm:h-5 text-orange-500" />
+                  {/* Use shared UserAvatarProfile so images/initials match admin table */}
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 bg-white rounded-full flex items-center justify-center overflow-hidden">
+                     <UserAvatarProfile
+                        className="w-7 h-7 sm:w-8 sm:h-8"
+                        user={{ fullName: name, subTitle: location, imageUrl: imageUrl || "" }}
+                     />
                   </div>
                </div>
                <div
@@ -539,6 +546,7 @@ const Dashboard = () => {
                         id={rider?.id || "-"}
                         name={rider?.full_name || user?.email || "Rider"}
                         location={rider?.city || "-"}
+                        imageUrl={rider?.image_url || rider?.avatar || ""}
                         deliveries={`${totalDeliveries}`}
                         rating={"4.8"}
                         status={rider?.active ? "Active" : "Unavailable"}
