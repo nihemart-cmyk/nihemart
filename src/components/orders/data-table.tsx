@@ -4,6 +4,7 @@ import {
    ColumnDef,
    flexRender,
    getCoreRowModel,
+   getSortedRowModel,
    useReactTable,
 } from "@tanstack/react-table";
 
@@ -27,14 +28,19 @@ export function DataTable<TData, TValue>({
    data,
 }: DataTableProps<TData, TValue>) {
    const [rowSelection, setRowSelection] = useState({});
+   const [sorting, setSorting] = useState<any[]>([]);
+
    const table = useReactTable({
       data,
       columns,
-      getCoreRowModel: getCoreRowModel(),
-      onRowSelectionChange: setRowSelection,
       state: {
          rowSelection,
+         sorting,
       },
+      onRowSelectionChange: setRowSelection,
+      onSortingChange: setSorting,
+      getCoreRowModel: getCoreRowModel(),
+      getSortedRowModel: getSortedRowModel(),
    });
 
    return (
@@ -44,14 +50,35 @@ export function DataTable<TData, TValue>({
                {table.getHeaderGroups().map((headerGroup) => (
                   <TableRow key={headerGroup.id}>
                      {headerGroup.headers.map((header) => {
+                        const canSort = header.column.getCanSort();
+                        const sortState = header.column.getIsSorted();
+
                         return (
                            <TableHead key={header.id}>
-                              {header.isPlaceholder
-                                 ? null
-                                 : flexRender(
-                                      header.column.columnDef.header,
-                                      header.getContext()
-                                   )}
+                              {header.isPlaceholder ? null : canSort ? (
+                                 <button
+                                    type="button"
+                                    onClick={header.column.getToggleSortingHandler()}
+                                    className="flex items-center gap-2"
+                                 >
+                                    {flexRender(
+                                       header.column.columnDef.header,
+                                       header.getContext()
+                                    )}
+                                    <span className="text-xs opacity-60">
+                                       {sortState === "asc"
+                                          ? "▲"
+                                          : sortState === "desc"
+                                          ? "▼"
+                                          : ""}
+                                    </span>
+                                 </button>
+                              ) : (
+                                 flexRender(
+                                    header.column.columnDef.header,
+                                    header.getContext()
+                                 )
+                              )}
                            </TableHead>
                         );
                      })}

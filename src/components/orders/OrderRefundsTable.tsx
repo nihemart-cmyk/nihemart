@@ -79,12 +79,17 @@ export default function OrderRefundsTable() {
          { accessorKey: "id", header: "ID" },
          {
             id: "order_number",
+            accessorFn: (row: any) => row.order_number || row.id || "",
             header: "ORDER",
             cell: ({ row }: any) =>
                row.original.order_number || row.original.id,
          },
          {
             id: "customer",
+            accessorFn: (row: any) =>
+               `${row.customer_first_name || ""} ${
+                  row.customer_last_name || ""
+               }`.trim(),
             header: "CUSTOMER",
             cell: ({ row }: any) =>
                `${row.original.customer_first_name || ""} ${
@@ -104,6 +109,7 @@ export default function OrderRefundsTable() {
          { accessorKey: "refund_status", header: "STATUS" },
          {
             id: "reason",
+            accessorKey: "refund_reason",
             header: "REASON",
             cell: ({ row }: any) => row.original.refund_reason || "-",
          },

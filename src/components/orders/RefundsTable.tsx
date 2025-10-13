@@ -91,6 +91,8 @@ export const RefundsTable: React.FC<RefundsTableProps> = () => {
          },
          {
             id: "product",
+            accessorFn: (row: any) =>
+               row.product?.name || row.product_name || "",
             header: "PRODUCT",
             cell: ({ row }: any) => {
                const r = row.original;
@@ -99,6 +101,8 @@ export const RefundsTable: React.FC<RefundsTableProps> = () => {
          },
          {
             id: "order",
+            accessorFn: (row: any) =>
+               row.order?.order_number || row.order_id || "",
             header: "ORDER",
             cell: ({ row }: any) => {
                const r = row.original;
@@ -116,6 +120,7 @@ export const RefundsTable: React.FC<RefundsTableProps> = () => {
          },
          {
             id: "reason",
+            accessorKey: "refund_reason",
             header: "REASON",
             cell: ({ row }: any) => row.original.refund_reason || "-",
          },
