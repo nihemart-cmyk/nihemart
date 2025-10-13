@@ -1,8 +1,19 @@
 import { createBrowserClient } from "@supabase/ssr";
 
 export function createClient() {
-   return createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-   );
+   // Validate environment variables early so callers fail fast instead
+   // of hanging on network requests.
+   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+   if (!url) {
+      throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL environment variable");
+   }
+   if (!key) {
+      throw new Error(
+         "Missing NEXT_PUBLIC_SUPABASE_ANON_KEY environment variable"
+      );
+   }
+
+   return createBrowserClient(url, key);
 }

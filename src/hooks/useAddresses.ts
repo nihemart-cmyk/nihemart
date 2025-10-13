@@ -99,36 +99,84 @@ export function useAddresses() {
    ) => {
       if (!user) return null;
 
+      // Helper to add a timeout to promises so UI doesn't hang forever
+      const withTimeout = <T>(p: Promise<T>, ms = 10000): Promise<T> => {
+         let timer: NodeJS.Timeout;
+         return Promise.race([
+            p,
+            new Promise<T>((_, reject) => {
+               timer = setTimeout(() => {
+                  reject(new Error(`Request timed out after ${ms}ms`));
+               }, ms);
+            }),
+         ]).finally(() => clearTimeout(timer));
+      };
+
       try {
          console.log("Saving address with data:", addressData);
          setLoading(true);
          const supabase = createClient();
-         const { data, error } = await supabase
-            .from("addresses")
-            .insert([
-               {
-                  user_id: user.id,
-                  display_name: addressData.display_name,
-                  street: addressData.street,
-                  house_number: addressData.house_number,
-                  phone: addressData.phone,
-                  city: addressData.address?.city || addressData.address?.town,
-                  lat: addressData.lat,
-                  lon: addressData.lon,
-                  is_default: addressData.is_default,
-               },
-            ])
-            .select()
-            .single();
+
+         // Wrap the insert call with a timeout to avoid indefinite hangs.
+         const insertPromise = new Promise<any>(async (resolve, reject) => {
+            try {
+               const res = await supabase
+                  .from("addresses")
+                  .insert([
+                     {
+                        user_id: user.id,
+                        display_name: addressData.display_name,
+                        street: addressData.street,
+                        house_number: addressData.house_number,
+                        phone: addressData.phone,
+                        city:
+                           addressData.address?.city ||
+                           addressData.address?.town,
+                        lat: addressData.lat,
+                        lon: addressData.lon,
+                        is_default: addressData.is_default,
+                     },
+                  ])
+                  .select()
+                  .single();
+
+               resolve(res);
+            } catch (e) {
+               reject(e);
+            }
+         });
+
+         let data: any = null;
+         let error: any = null;
+         try {
+            const res = await withTimeout(insertPromise, 12000);
+            // Supabase response shape may be { data, error } or the client may
+            // return the record directly depending on wrapper; normalize it.
+            if (res && typeof res === "object" && "data" in res) {
+               data = (res as any).data;
+               error = (res as any).error;
+            } else {
+               // Some supabase clients return the row directly when using .single()
+               data = res;
+            }
+         } catch (e) {
+            console.error("Insert request failed or timed out:", e);
+            throw e;
+         }
 
          console.log("Save result:", { data, error });
 
          if (error) throw error;
 
+         if (!data) {
+            throw new Error("No address returned from insert");
+         }
+
          setAddresses((prev) => [...prev, data]);
          if (data.is_default) setSelected(data);
          return data;
       } catch (err) {
+         console.error("saveAddress error:", err);
          setError(err instanceof Error ? err.message : "Error adding address");
          return null;
       } finally {

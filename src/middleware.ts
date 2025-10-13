@@ -19,6 +19,11 @@ export const config = {
       "/signin",
       "/auth/signin",
       "/(auth)/signin",
+      // Ensure middleware runs on storefront landing and products pages so
+      // rider-specific redirect rules in `updateSession` are applied.
+      "/",
+      "/products",
+      "/products/:path*",
       // Add more private routes as needed
    ],
 };
