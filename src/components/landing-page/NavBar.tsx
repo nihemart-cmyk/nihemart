@@ -137,6 +137,7 @@ const NavBar: FC<NavBarProps> = ({}) => {
                   src={logo}
                   alt="ilead logo"
                   priority
+                  className="w-14 h-16"
                />
             </Link>
 

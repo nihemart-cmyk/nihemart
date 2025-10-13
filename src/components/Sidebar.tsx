@@ -231,7 +231,7 @@ const Sidebar: FC = () => {
                src={logo}
                alt="logo"
                priority
-               className="md:mx-5 mx-auto"
+               className="md:mx-5 mx-auto w-16 h-20"
             />
          </div>
 
