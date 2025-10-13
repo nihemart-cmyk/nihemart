@@ -21,9 +21,10 @@ export interface StoreCategory {
   products_count: number;
 }
 export interface StoreSubcategory {
-  id: string;
-  name: string;
-  products_count: number;
+   id: string;
+   name: string;
+   category_id: string;
+   products_count: number;
 }
 export interface StoreFilters {
   categories?: string[];
@@ -92,12 +93,14 @@ const applyStoreFilters = (
 ) => {
   let q = query.in("status", ["active", "out_of_stock"]);
 
-  // Apply category and subcategory filters
+  // Apply category and subcategory filters using junction tables
   if (filters.categories && filters.categories.length > 0) {
-    q = q.in("category_id", filters.categories);
+    // For category filtering, we need to use a different approach since we're using junction tables
+    // This will be handled in the main query function
   }
   if (filters.subcategories && filters.subcategories.length > 0) {
-    q = q.in("subcategory_id", filters.subcategories);
+    // For subcategory filtering, we need to use a different approach since we're using junction tables
+    // This will be handled in the main query function
   }
   if (filters.rating) {
     q = q.gte("average_rating", filters.rating);
@@ -116,7 +119,95 @@ const applyStoreFilters = (
 export const fetchStoreProducts = cache(async (
   options: StoreQueryOptions
 ): Promise<{ data: StoreProduct[]; count: number }> => {
-  // Start the query chain with a select
+  // If filtering by categories or subcategories, we need to use a different approach
+  if ((options.filters?.categories && options.filters.categories.length > 0) ||
+      (options.filters?.subcategories && options.filters.subcategories.length > 0)) {
+
+    // First get product IDs that match the category/subcategory filters
+    let productIds: string[] = [];
+
+    if (options.filters.categories && options.filters.categories.length > 0) {
+      const { data: catProductIds, error: catError } = await sb
+        .from("product_categories")
+        .select("product_id")
+        .in("category_id", options.filters.categories);
+
+      if (catError) throw catError;
+      productIds = (catProductIds || []).map((pc: any) => pc.product_id);
+    }
+
+    if (options.filters.subcategories && options.filters.subcategories.length > 0) {
+      const { data: subProductIds, error: subError } = await sb
+        .from("product_subcategories")
+        .select("product_id")
+        .in("subcategory_id", options.filters.subcategories);
+
+      if (subError) throw subError;
+      const subIds = (subProductIds || []).map((ps: any) => ps.product_id);
+
+      // If we have both category and subcategory filters, intersect the results
+      if (productIds.length > 0) {
+        productIds = productIds.filter(id => subIds.includes(id));
+      } else {
+        productIds = subIds;
+      }
+    }
+
+    if (productIds.length === 0) {
+      return { data: [], count: 0 };
+    }
+
+    // Now query products with these IDs and apply other filters
+    let query = sb
+      .from("products")
+      .select("id", { count: "exact", head: true })
+      .in("id", productIds)
+      .in("status", ["active", "out_of_stock"]);
+
+    // Apply other filters
+    if (options.filters.rating) {
+      query = query.gte("average_rating", options.filters.rating);
+    }
+    if (options.search && options.search.trim()) {
+      const searchTerm = options.search.trim();
+      query = query.or(`name.ilike.%${searchTerm}%,brand.ilike.%${searchTerm}%,short_description.ilike.%${searchTerm}%`);
+    }
+
+    const { count, error: countError } = await query;
+    if (countError) throw countError;
+
+    const from = (options.pagination.page - 1) * options.pagination.limit;
+    const to = from + options.pagination.limit - 1;
+
+    // Now get the actual data
+    let dataQuery = sb
+      .from("products")
+      .select(
+        "id, name, price, short_description, main_image_url, average_rating, review_count, brand, category:categories(id, name)"
+      )
+      .in("id", productIds)
+      .in("status", ["active", "out_of_stock"]);
+
+    // Apply other filters again
+    if (options.filters.rating) {
+      dataQuery = dataQuery.gte("average_rating", options.filters.rating);
+    }
+    if (options.search && options.search.trim()) {
+      const searchTerm = options.search.trim();
+      dataQuery = dataQuery.or(`name.ilike.%${searchTerm}%,brand.ilike.%${searchTerm}%,short_description.ilike.%${searchTerm}%`);
+    }
+
+    const { data, error } = await dataQuery
+      .order(options.sort?.column || "created_at", {
+        ascending: options.sort?.direction === "asc",
+      })
+      .range(from, to);
+
+    if (error) throw error;
+    return { data: data as StoreProduct[], count: count ?? 0 };
+  }
+
+  // Standard query without category/subcategory filtering
   let countQuery = sb
     .from("products")
     .select("id", { count: "exact", head: true });
@@ -149,9 +240,35 @@ export const fetchStoreProducts = cache(async (
 });
 
 export const fetchStoreFilterData = cache(async (): Promise<{ categories: StoreCategory[] }> => {
-  const { data, error } = await sb.rpc("get_categories_with_product_count");
-  if (error) throw error;
-  return { categories: data as StoreCategory[] };
+   const { data, error } = await sb.rpc("get_categories_with_product_count");
+   if (error) throw error;
+   return { categories: data as StoreCategory[] };
+});
+
+export const fetchAllCategoriesWithSubcategories = cache(async (): Promise<{ categories: StoreCategory[], subcategories: StoreSubcategory[] }> => {
+   try {
+      const [categoriesRes, subcategoriesRes] = await Promise.all([
+         sb.rpc("get_categories_with_product_count"),
+         sb.from("subcategories").select("id, name, category_id").order("name")
+      ]);
+
+      if (categoriesRes.error) throw categoriesRes.error;
+      if (subcategoriesRes.error) throw subcategoriesRes.error;
+
+      // Add products_count to subcategories (we'll calculate this client-side or set to 0 for now)
+      const subcategoriesWithCount = (subcategoriesRes.data || []).map((sub: any) => ({
+         ...sub,
+         products_count: 0 // We'll calculate this properly later if needed
+      }));
+
+      return {
+         categories: categoriesRes.data as StoreCategory[],
+         subcategories: subcategoriesWithCount as StoreSubcategory[]
+      };
+   } catch (error) {
+      console.error("Error in fetchAllCategoriesWithSubcategories:", error);
+      throw error;
+   }
 });
 export async function fetchStoreSubcategories(categoryIds: string[] = []) {
   const { data, error } = await sb.rpc("get_subcategories_with_product_count", {
@@ -164,7 +281,7 @@ export const fetchStoreProductById = cache(async (id: string): Promise<ProductPa
   const { data: product, error } = await sb
     .from("products")
     .select(
-      `id, name, description, stock, price, compare_at_price, main_image_url, average_rating, review_count, brand, category:categories(id, name)`
+      `id, name, description, stock, price, compare_at_price, main_image_url, average_rating, review_count, brand, category:categories(id, name), categories:product_categories(category:categories(id, name)), subcategories:product_subcategories(subcategory:subcategories(id, name))`
     )
     .eq("id", id)
     .in("status", ["active", "out_of_stock"])
@@ -172,6 +289,14 @@ export const fetchStoreProductById = cache(async (id: string): Promise<ProductPa
   if (error || !product) {
     return null;
   }
+
+  // Transform the product data to flatten nested relations
+  const transformedProduct = {
+    ...product,
+    categories: product.categories?.map((pc: any) => pc.category).filter(Boolean) || [],
+    subcategories: product.subcategories?.map((ps: any) => ps.subcategory).filter(Boolean) || [],
+  };
+
   const [variationsRes, imagesRes, reviewsRes] = await Promise.all([
     sb
       .from("product_variations")
@@ -191,22 +316,37 @@ export const fetchStoreProductById = cache(async (id: string): Promise<ProductPa
   if (variationsRes.error) throw variationsRes.error;
   if (imagesRes.error) throw imagesRes.error;
   if (reviewsRes.error) throw reviewsRes.error;
-  const categoryId = product.category?.id;
+
+  // Get similar products based on shared categories
   let similarProducts: StoreProduct[] = [];
-  if (categoryId) {
-    const { data: similarData } = await sb
-      .from("products")
-      .select(
-        "id, name, price, main_image_url, short_description, average_rating, category:categories(id, name)"
-      )
-      .eq("category_id", categoryId)
-      .in("status", ["active", "out_of_stock"])
-      .neq("id", id)
-      .limit(6);
-    similarProducts = similarData || [];
+  const productCategories = transformedProduct.categories;
+  if (productCategories && productCategories.length > 0) {
+    // Get product IDs that share categories with this product
+    const categoryIds = productCategories.map((cat: any) => cat.id);
+    const { data: similarProductIds, error: similarError } = await sb
+      .from("product_categories")
+      .select("product_id")
+      .in("category_id", categoryIds)
+      .neq("product_id", id);
+
+    if (!similarError && similarProductIds && similarProductIds.length > 0) {
+      const uniqueProductIds = [...new Set(similarProductIds.map((sp: any) => sp.product_id))];
+
+      const { data: similarData } = await sb
+        .from("products")
+        .select(
+          "id, name, price, main_image_url, short_description, average_rating, category:categories(id, name)"
+        )
+        .in("id", uniqueProductIds)
+        .in("status", ["active", "out_of_stock"])
+        .limit(6);
+
+      similarProducts = similarData || [];
+    }
   }
+
   return {
-    product: product as ProductDetail,
+    product: transformedProduct as ProductDetail,
     variations: (variationsRes.data || []) as ProductVariationDetail[],
     images: (imagesRes.data || []) as ProductImageDetail[],
     reviews: (reviewsRes.data || []) as ProductReview[],

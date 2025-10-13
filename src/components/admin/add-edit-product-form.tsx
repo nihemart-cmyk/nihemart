@@ -22,6 +22,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { TagInput } from "@/components/ui/tag-input";
+import { Checkbox } from "@/components/ui/checkbox";
 
 import { supabase } from "@/integrations/supabase/client";
 import { createProductWithImages, updateProductWithImages, fetchCategoriesWithSubcategories } from "@/integrations/supabase/products";
@@ -47,25 +48,25 @@ const variationSchema = z.object({
 });
 
 const productSchema = z.object({
-    name: z.string().min(3, "Product name is required"),
-    description: z.preprocess((val) => val === null || val === undefined || val === "" ? undefined : val, z.string().optional()),
-    short_description: z.string().optional(),
-    category_id: z.string().optional(),
-    subcategory_id: z.string().optional(),
-    price: z.coerce.number().min(0, "Base price is required"),
-    cost_price: z.coerce.number().min(0, "Cost price is required").optional(),
-    compare_at_price: optionalNumber,
-    status: z.enum(["draft", "active", "out_of_stock"]),
-    sku: z.string().optional(),
-    featured: z.boolean().default(false),
-    track_quantity: z.boolean().default(true),
-    continue_selling_when_oos: z.boolean().default(false),
-    requires_shipping: z.boolean().default(true),
-    taxable: z.boolean().default(false),
-    dimensions: z.string().optional(),
-    tags: z.array(z.string()).default([]),
-    variations: z.array(variationSchema).min(0),
-});
+     name: z.string().min(3, "Product name is required"),
+     description: z.preprocess((val) => val === null || val === undefined || val === "" ? undefined : val, z.string().optional()),
+     short_description: z.string().optional(),
+     categories: z.array(z.string()).default([]),
+     subcategories: z.array(z.string()).default([]),
+     price: z.coerce.number().min(0, "Base price is required"),
+     cost_price: z.coerce.number().min(0, "Cost price is required").optional(),
+     compare_at_price: optionalNumber,
+     status: z.enum(["draft", "active", "out_of_stock"]),
+     sku: z.string().optional(),
+     featured: z.boolean().default(false),
+     track_quantity: z.boolean().default(true),
+     continue_selling_when_oos: z.boolean().default(false),
+     requires_shipping: z.boolean().default(true),
+     taxable: z.boolean().default(false),
+     dimensions: z.string().optional(),
+     tags: z.array(z.string()).default([]),
+     variations: z.array(variationSchema).min(0),
+ });
 
 type ProductFormData = z.infer<typeof productSchema>;
 interface DisplayImage { url: string; file?: File; isExisting?: boolean; }
@@ -95,43 +96,46 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
         // @ts-ignore
         defaultValues: isEditMode
             ? {
-                ...initialData.product,
-                name: initialData.product.name || 'Product Name',
-                status: initialData.product.status && ["draft", "active", "out_of_stock"].includes(initialData.product.status) ? initialData.product.status : "draft",
-                price: initialData.product.price ?? 0,
-                cost_price: initialData.product.cost_price ?? 0,
-                sku: initialData.product.sku ?? undefined,
-                compare_at_price: initialData.product.compare_at_price ?? undefined,
-                short_description: initialData.product.short_description ?? '',
-                subcategory_id: initialData.product.subcategory_id ?? '',
-                dimensions: initialData.product.dimensions ?? '',
-                tags: initialData.product.tags ?? [],
-                variations: initialData.variations.map(v => ({
-                    id: undefined,
-                    price: v.price ?? 0,
-                    stock: v.stock ?? 0,
-                    name: v.name ?? '',
-                    sku: v.sku ?? '',
-                    barcode: v.barcode ?? '',
-                    attributes: Object.entries(v.attributes || {}).filter(([name, value]) => typeof value === 'string' && name.trim() && value.trim()).map(([name, value]) => ({ name: name.trim(), value: (value as string).trim() })),
-                    imageFiles: [],
-                    existingImages: v.images || [],
-                })),
-            }
+                 ...initialData.product,
+                 name: initialData.product.name || 'Product Name',
+                 status: initialData.product.status && ["draft", "active", "out_of_stock"].includes(initialData.product.status) ? initialData.product.status : "draft",
+                 price: initialData.product.price ?? 0,
+                 cost_price: initialData.product.cost_price ?? 0,
+                 sku: initialData.product.sku ?? undefined,
+                 compare_at_price: initialData.product.compare_at_price ?? null,
+                 short_description: initialData.product.short_description ?? '',
+                 categories: initialData.product.categories ?? [],
+                 subcategories: initialData.product.subcategories ?? [],
+                 dimensions: initialData.product.dimensions ?? '',
+                 tags: initialData.product.tags ?? [],
+                 variations: initialData.variations.map(v => ({
+                     id: undefined,
+                     price: v.price ?? 0,
+                     stock: v.stock ?? 0,
+                     name: v.name ?? '',
+                     sku: v.sku ?? '',
+                     barcode: v.barcode ?? '',
+                     attributes: Object.entries(v.attributes || {}).filter(([name, value]) => typeof value === 'string' && name.trim() && value.trim()).map(([name, value]) => ({ name: name.trim(), value: (value as string).trim() })),
+                     imageFiles: [],
+                     existingImages: v.images || [],
+                 })),
+             }
             : {
-                name: "",
-                status: "draft",
-                price: 0,
-                cost_price: 0,
-                compare_at_price: undefined,
-                featured: false,
-                track_quantity: true,
-                continue_selling_when_oos: false,
-                requires_shipping: true,
-                taxable: false,
-                tags: [],
-                variations: [{ name: "Default", price: 0, stock: 0, attributes: [{ name: "Title", value: "Default" }], imageFiles: [] }],
-            },
+                 name: "",
+                 status: "draft",
+                 price: 0,
+                 cost_price: 0,
+                 compare_at_price: null,
+                 featured: false,
+                 track_quantity: true,
+                 continue_selling_when_oos: false,
+                 requires_shipping: true,
+                 taxable: false,
+                 categories: [],
+                 subcategories: [],
+                 tags: [],
+                 variations: [{ name: "Default", price: 0, stock: 0, attributes: [{ name: "Title", value: "Default" }], imageFiles: [] }],
+             },
     });
     
     useEffect(() => {
@@ -150,7 +154,7 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
         name: "variations",
     });
 
-    const selectedCategoryId = useWatch({ control: form.control, name: 'category_id' });
+    const selectedCategories = useWatch({ control: form.control, name: 'categories' });
 
     useEffect(() => {
         async function loadCats() {
@@ -161,14 +165,15 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
     }, []);
 
     useEffect(() => {
-        if (selectedCategoryId) {
-            const cat = categories.find(c => c.id === selectedCategoryId);
-            setSubcategories(cat?.subcategories || []);
-            if (isEditMode && initialData.product.category_id !== selectedCategoryId) {
-                form.setValue('subcategory_id', '');
-            }
+        if (selectedCategories && selectedCategories.length > 0) {
+            const allSubs = categories
+                .filter(c => selectedCategories.includes(c.id))
+                .flatMap(c => c.subcategories);
+            setSubcategories(allSubs);
+        } else {
+            setSubcategories([]);
         }
-    }, [selectedCategoryId, categories, isEditMode, initialData, form]);
+    }, [selectedCategories, categories]);
 
     useEffect(() => {
         if (quill) {
@@ -211,8 +216,6 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
                 price: data.price,
                 cost_price: data.cost_price,
                 compare_at_price: data.compare_at_price ?? null,
-                category_id: data.category_id,
-                subcategory_id: data.subcategory_id || null,
                 status: data.status,
                 featured: data.featured,
                 track_quantity: data.track_quantity,
@@ -222,6 +225,8 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
                 dimensions: data.dimensions || null,
                 tags: data.tags,
                 stock: data.variations.reduce((sum, v) => sum + Number(v.stock), 0),
+                categories: data.categories,
+                subcategories: data.subcategories,
             };
 
             console.log({productBaseData})
@@ -350,9 +355,9 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
                                      {/* @ts-ignore */}
                                      <FormField control={form.control} name="status" render={({ field }) => <FormItem><FormLabel>Status</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl><SelectContent><SelectItem value="draft">Draft</SelectItem><SelectItem value="active">Active</SelectItem><SelectItem value="out_of_stock">Out of Stock</SelectItem></SelectContent></Select><FormMessage /></FormItem>} />
                                      {/* @ts-ignore */}
-                                     <FormField control={form.control} name="category_id" render={({ field }) => <FormItem><FormLabel>Category</FormLabel><Select onValueChange={field.onChange} defaultValue={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger></FormControl><SelectContent>{categories.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>} />
+                                     <FormField control={form.control} name="categories" render={({ field }) => <FormItem><FormLabel>Categories</FormLabel><Select onValueChange={(value) => { if (!field.value.includes(value)) field.onChange([...field.value, value]); }}><FormControl><SelectTrigger><SelectValue placeholder="Select categories..." /></SelectTrigger></FormControl><SelectContent>{categories.map(c => <SelectItem key={c.id} value={c.id}><Checkbox checked={field.value.includes(c.id)} className="mr-2" />{c.name}</SelectItem>)}</SelectContent></Select><div className="flex flex-wrap gap-2 mt-2">{field.value.map(catId => { const cat = categories.find(c => c.id === catId); return cat ? <div key={catId} className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-sm flex items-center gap-1"><span>{cat.name}</span><X className="h-3 w-3 cursor-pointer" onClick={() => field.onChange(field.value.filter(id => id !== catId))} /></div> : null; })}</div><FormMessage /></FormItem>} />
                                      {/* @ts-ignore */}
-                                     <FormField control={form.control} name="subcategory_id" render={({ field }) => <FormItem><FormLabel>Subcategory</FormLabel><Select onValueChange={field.onChange} value={field.value || ''} disabled={!selectedCategoryId || subcategories.length === 0}><FormControl><SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger></FormControl><SelectContent>{subcategories.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent></Select><FormMessage /></FormItem>} />
+                                     <FormField control={form.control} name="subcategories" render={({ field }) => <FormItem><FormLabel>Subcategories</FormLabel><Select onValueChange={(value) => { if (!field.value.includes(value)) field.onChange([...field.value, value]); }} disabled={subcategories.length === 0}><FormControl><SelectTrigger><SelectValue placeholder="Select subcategories..." /></SelectTrigger></FormControl><SelectContent>{subcategories.map(s => <SelectItem key={s.id} value={s.id}><Checkbox checked={field.value.includes(s.id)} className="mr-2" />{s.name}</SelectItem>)}</SelectContent></Select><div className="flex flex-wrap gap-2 mt-2">{field.value.map(subId => { const sub = subcategories.find(s => s.id === subId); return sub ? <div key={subId} className="bg-green-100 text-green-800 px-2 py-1 rounded text-sm flex items-center gap-1"><span>{sub.name}</span><X className="h-3 w-3 cursor-pointer" onClick={() => field.onChange(field.value.filter(id => id !== subId))} /></div> : null; })}</div><FormMessage /></FormItem>} />
                                      {/* @ts-ignore */}
                                      <FormField control={form.control} name="tags" render={({ field }) => <FormItem><FormLabel>Tags</FormLabel><FormControl><TagInput value={field.value || []} onChange={field.onChange} placeholder="Add product tags..." /></FormControl><FormMessage /></FormItem>} />
                                  </CardContent></Card>
