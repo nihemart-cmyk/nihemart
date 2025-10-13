@@ -553,7 +553,7 @@ const Page = () => {
                         <div className="relative w-full sm:w-80">
                            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                            <Input
-                              placeholder={t("rider.orders.searchPlaceholder")}
+                              placeholder={t("rider.searchPlaceholder")}
                               value={search}
                               onChange={(e) => setSearch(e.target.value)}
                               className="pl-10 bg-gray-50 border-gray-200 focus:bg-white"

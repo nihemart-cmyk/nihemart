@@ -421,6 +421,7 @@ export const rw: Record<string, string> = {
    "rider.timeNight": "Ijoro (22:00-05:59)",
    "rider.activeLabel": "Akora",
    "rider.unavailableLabel": "Ntiboneka",
+   "rider.searchPlaceholder": "Shakisha ...",
    // Language names
    "language.en": "Icyongereza",
    "language.rw": "Ikinyarwanda",

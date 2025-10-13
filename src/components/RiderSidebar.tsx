@@ -10,7 +10,7 @@ import logo from "@/assets/logo.png";
 import { cn } from "@/lib/utils";
 import { Icons } from "./icons";
 import AnimatedBackground from "./sidebar-animated-bg";
-import { ChevronDown, LogOut, Settings } from "lucide-react";
+import { Bell, ChevronDown, LogOut, Settings } from "lucide-react";
 import { Button } from "./ui/button";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
@@ -44,6 +44,13 @@ const navItems: NavItem[] = [
       titleKey: "nav.orders",
       href: "/rider/orders",
       icon: Icons.sidebar.orders,
+   },
+   {
+      id: "4",
+      title: "Notifications",
+      titleKey: "nav.notifications",
+      href: "/rider/notifications",
+      icon: Bell,
    },
    {
       id: "3",
@@ -120,14 +127,14 @@ const RiderSidebar: FC = () => {
 
    return (
       <div className="w-full h-full flex flex-col py-10 px-1 lg:px-5">
-         <div className="w-full ml-2 mb-8 flex-shrink-0">
-            <Image
-               src={logo}
-               alt="Nihemart logo"
-               priority
-               className="md:mx-5 mx-auto"
-            />
-         </div>
+           <div className="w-full ml-2 mb-8 flex-shrink-0 flex flex-col items-start gap-2">
+                     <Image
+                        src={logo}
+                        alt="logo"
+                        priority
+                        className="md:mx-5 mx-auto w-16 h-20"
+                     />
+                  </div>
 
          <div className="flex-1 overflow-y-auto">
             <div className="flex flex-col gap-1">

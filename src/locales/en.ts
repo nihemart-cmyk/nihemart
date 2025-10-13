@@ -420,6 +420,7 @@ export const en: Record<string, string> = {
    "rider.timeNight": "Night (22:00-05:59)",
    "rider.activeLabel": "Active",
    "rider.unavailableLabel": "Unavailable",
+   "rider.searchPlaceholder": "Search assignments...",
    // Language names
    "language.en": "English",
    "language.rw": "Kinyarwanda",

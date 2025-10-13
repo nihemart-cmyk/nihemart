@@ -20,7 +20,7 @@ import { LogOut, Menu, Settings, User } from "lucide-react";
 import { useRouter } from "next13-progressbar";
 import { useEffect, useState } from "react";
 import { useRiderAssignments, useRiderByUserId } from "@/hooks/useRiders";
-import NotificationsBell from "@/components/NotificationsBell";
+import RiderNotificationsBell from "@/components/RiderNotificationsBell";
 import { FC } from "react";
 import RiderSidebar from "./RiderSidebar";
 import { Button } from "./ui/button";
@@ -132,7 +132,7 @@ const RiderTopBar: FC<TopBarProps> = (props) => {
             })}
          >
             <div className="flex items-center gap-4">
-               <NotificationsBell />
+               <RiderNotificationsBell />
 
                {/* Language selector */}
                <DropdownMenu>

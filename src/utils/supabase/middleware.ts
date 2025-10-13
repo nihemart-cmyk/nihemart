@@ -149,6 +149,77 @@ export async function updateSession(request: NextRequest) {
             return NextResponse.redirect(url);
          }
       }
+
+      // Riders are allowed through the /rider protection block; do not
+      // perform additional redirects here because that would cause a
+      // redirect-to-self loop when visiting /rider.
+   }
+
+   // Redirect authenticated riders away from non-public storefront pages
+   // Run this check only for requests NOT already under /rider to avoid
+   // self-redirect loops.
+   if (
+      user &&
+      !request.nextUrl.pathname.startsWith("/rider") &&
+      !request.nextUrl.pathname.startsWith("/auth") &&
+      !request.nextUrl.pathname.startsWith("/signin")
+   ) {
+      const pathname = request.nextUrl.pathname;
+
+      // Whitelist of paths/prefixes riders are allowed to visit
+      const riderAllowedPrefixes = [
+         "/about",
+         "/contact",
+         "/how-to-buy",
+         "/auth",
+         "/signin",
+         "/error",
+         "/api",
+         "/_next",
+         "/static",
+         "/assets",
+         "/favicon.ico",
+      ];
+
+      const isAllowed = riderAllowedPrefixes.some(
+         (p) =>
+            pathname === p ||
+            pathname.startsWith(p + "/") ||
+            pathname.startsWith(p)
+      );
+
+      if (!isAllowed) {
+         // Determine if the user is a rider (check user_roles, metadata, and riders table)
+         const { data: roles } = await supabase
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", user.id);
+
+         const metaRole = (user as any)?.user_metadata?.role as
+            | string
+            | undefined;
+         let isRider =
+            roles?.some((r: any) => r.role === "rider") || metaRole === "rider";
+
+         if (!isRider) {
+            try {
+               const { data: riderRow } = await supabase
+                  .from("riders")
+                  .select("id")
+                  .eq("user_id", user.id)
+                  .maybeSingle();
+               if (riderRow && (riderRow as any).id) isRider = true;
+            } catch (e) {
+               // ignore fallback errors
+            }
+         }
+
+         if (isRider) {
+            const url = request.nextUrl.clone();
+            url.pathname = "/rider";
+            return NextResponse.redirect(url);
+         }
+      }
    }
 
    // IMPORTANT: You *must* return the supabaseResponse object as it is.

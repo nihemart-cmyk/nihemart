@@ -48,6 +48,9 @@ const AssignOrderToRiderDialog = dynamic(
 const EditMediaDialog = dynamic(
    () => import("@/components/riders/EditRiderMediaDialog")
 );
+const EditRiderDialog = dynamic(
+   () => import("@/components/riders/EditRiderDialog")
+);
 const RiderDetailsDialog = dynamic(
    () => import("@/components/riders/RiderDetailsDialog")
 );
@@ -70,6 +73,10 @@ const RidersPage = () => {
       open: boolean;
       riderId: string | null;
    }>({ open: false, riderId: null });
+   const [editRiderDialog, setEditRiderDialog] = useState<{
+      open: boolean;
+      rider: any | null;
+   }>({ open: false, rider: null });
 
    // confirmation dialogs state
    const [confirmToggle, setConfirmToggle] = useState<{
@@ -319,11 +326,14 @@ const RidersPage = () => {
                            ? "Cannot assign (inactive)"
                            : "Assign to order"}
                      </DropdownMenuItem>
+                     {/* 'Edit image/location' replaced by full 'Edit Rider' action */}
                      {hasRole && hasRole("admin") && (
                         <DropdownMenuItem
-                           onClick={() => setMediaDialog({ open: true, rider })}
+                           onClick={() =>
+                              setEditRiderDialog({ open: true, rider })
+                           }
                         >
-                           Edit image/location
+                           Edit Rider
                         </DropdownMenuItem>
                      )}
                      <DropdownMenuSeparator />
@@ -810,6 +820,21 @@ const RidersPage = () => {
                   onClose={() => setMediaDialog({ open: false, rider: null })}
                   onSaved={() => {
                      setMediaDialog({ open: false, rider: null });
+                     refetch && refetch();
+                  }}
+               />
+            )}
+
+            {editRiderDialog.open && (
+               <EditRiderDialog
+                  open={editRiderDialog.open}
+                  rider={editRiderDialog.rider}
+                  token={session?.access_token}
+                  onClose={() =>
+                     setEditRiderDialog({ open: false, rider: null })
+                  }
+                  onSaved={() => {
+                     setEditRiderDialog({ open: false, rider: null });
                      refetch && refetch();
                   }}
                />
