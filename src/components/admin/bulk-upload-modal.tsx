@@ -55,12 +55,12 @@ interface ParsedProductRow {
 }
 
 const REQUIRED_HEADERS = [
-   "name",
-   "price",
-   "stock",
-   "category_name",
-   "subcategory_name",
-];
+    "name",
+    "price",
+    "stock",
+    "categories",
+    "subcategories",
+ ];
 
 export const BulkUploadModal: React.FC<BulkUploadModalProps> = ({
    isOpen,
@@ -149,18 +149,27 @@ export const BulkUploadModal: React.FC<BulkUploadModalProps> = ({
                )
                   errors.stock = "Stock must be a whole number.";
 
-               const categoryName = row.category_name?.toLowerCase();
-               if (!categoryName || !categoryMap.has(categoryName))
-                  errors.category_name = `Invalid category: "${row.category_name}".`;
+               // Parse categories and subcategories (comma-separated)
+               const categoryNames = row.categories?.split(',').map((c: string) => c.trim().toLowerCase()).filter((c: string) => c) || [];
+               const subcategoryNames = row.subcategories?.split(',').map((s: string) => s.trim().toLowerCase()).filter((s: string) => s) || [];
 
-               const subcategoryName = row.subcategory_name?.toLowerCase();
-               if (!subcategoryName || !subcategoryMap.has(subcategoryName))
-                  errors.subcategory_name = `Invalid subcategory: "${row.subcategory_name}".`;
-               else if (
-                  categoryMap.get(categoryName) !==
-                  subcategoryMap.get(subcategoryName)?.category_id
-               ) {
-                  errors.subcategory_name = `Subcategory "${row.subcategory_name}" does not belong to category "${row.category_name}".`;
+               const categoryIds: string[] = [];
+               const subcategoryIds: string[] = [];
+
+               for (const catName of categoryNames) {
+                  if (!categoryMap.has(catName)) {
+                     errors.categories = `Invalid category: "${catName}".`;
+                     break;
+                  }
+                  categoryIds.push(categoryMap.get(catName)!);
+               }
+
+               for (const subName of subcategoryNames) {
+                  if (!subcategoryMap.has(subName)) {
+                     errors.subcategories = `Invalid subcategory: "${subName}".`;
+                     break;
+                  }
+                  subcategoryIds.push(subcategoryMap.get(subName)!.id);
                }
 
                return {
@@ -180,8 +189,8 @@ export const BulkUploadModal: React.FC<BulkUploadModalProps> = ({
                         ? parseFloat(row.weight_kg)
                         : null,
                      status: "draft",
-                     category_name: row.category_name,
-                     subcategory_name: row.subcategory_name,
+                     categories: categoryIds,
+                     subcategories: subcategoryIds,
                   },
                };
             });
@@ -227,8 +236,8 @@ export const BulkUploadModal: React.FC<BulkUploadModalProps> = ({
             price: 19.99,
             compare_at_price: 24.99,
             stock: 100,
-            category_name: "Apparel",
-            subcategory_name: "T-Shirts",
+            categories: "Apparel",
+            subcategories: "T-Shirts",
             sku: "TS-BLK-L",
             brand: "BrandName",
             weight_kg: 0.2,
@@ -240,8 +249,8 @@ export const BulkUploadModal: React.FC<BulkUploadModalProps> = ({
             price: 99.5,
             compare_at_price: "",
             stock: 50,
-            category_name: "Electronics",
-            subcategory_name: "Audio",
+            categories: "Electronics",
+            subcategories: "Audio",
             sku: "WH-001",
             brand: "TechBrand",
             weight_kg: 0.35,
@@ -265,15 +274,15 @@ export const BulkUploadModal: React.FC<BulkUploadModalProps> = ({
          ],
          ["stock", "Yes", "The number of items in stock (whole number).", 100],
          [
-            "category_name",
+            "categories",
             "Yes",
-            "Must match an existing category name exactly.",
+            "Comma-separated list of category names (e.g., 'Apparel,Electronics').",
             "Apparel",
          ],
          [
-            "subcategory_name",
+            "subcategories",
             "Yes",
-            "Must match an existing subcategory within the chosen category.",
+            "Comma-separated list of subcategory names.",
             "T-Shirts",
          ],
          [
@@ -323,29 +332,23 @@ export const BulkUploadModal: React.FC<BulkUploadModalProps> = ({
 
    const handleRowChange = (
       index: number,
-      field: "category_name" | "subcategory_name",
+      field: "categories" | "subcategories",
       value: string
    ) => {
       const newRows = [...parsedRows];
       const rowToUpdate = newRows[index];
-      rowToUpdate.data[field] = value;
+      const currentArray = rowToUpdate.data[field] || [];
+      if (!currentArray.includes(value)) {
+         rowToUpdate.data[field] = [...currentArray, value];
+      }
 
       const newErrors: { [key: string]: string } = {};
-      const categoryName = rowToUpdate.data.category_name?.toLowerCase();
-      if (!categoryName || !categoryMap.has(categoryName))
-         newErrors.category_name = `Invalid category.`;
-
-      const subcategoryName = rowToUpdate.data.subcategory_name?.toLowerCase();
-      if (!subcategoryName || !subcategoryMap.has(subcategoryName))
-         newErrors.subcategory_name = `Invalid subcategory.`;
-      else if (
-         categoryMap.get(categoryName!) !==
-         subcategoryMap.get(subcategoryName)?.category_id
-      ) {
-         newErrors.subcategory_name = `Subcategory does not belong to the selected category.`;
-         if (field === "category_name") {
-            rowToUpdate.data.subcategory_name = "";
-         }
+      if (field === "categories") {
+         const cat = categories.find(c => c.id === value);
+         if (!cat) newErrors.categories = `Invalid category.`;
+      } else if (field === "subcategories") {
+         const sub = subcategories.find(s => s.id === value);
+         if (!sub) newErrors.subcategories = `Invalid subcategory.`;
       }
       rowToUpdate.errors = newErrors;
       setParsedRows(newRows);
@@ -367,15 +370,9 @@ export const BulkUploadModal: React.FC<BulkUploadModalProps> = ({
       setGeneralErrors([]);
       try {
          const productsToCreate = parsedRows.map((row) => {
-            const { category_name, subcategory_name, ...productData } =
-               row.data;
             return {
-               ...productData,
+               ...row.data,
                status: "draft",
-               category_id: categoryMap.get(category_name!.toLowerCase()),
-               subcategory_id: subcategoryMap.get(
-                  subcategory_name!.toLowerCase()
-               )?.id,
             };
          });
 
@@ -495,10 +492,10 @@ export const BulkUploadModal: React.FC<BulkUploadModalProps> = ({
                                     <TableHead>Price</TableHead>
                                     <TableHead>Stock</TableHead>
                                     <TableHead className="min-w-[200px]">
-                                       Category
+                                       Categories
                                     </TableHead>
                                     <TableHead className="min-w-[200px]">
-                                       Subcategory
+                                       Subcategories
                                     </TableHead>
                                  </TableRow>
                               </TableHeader>
@@ -531,11 +528,10 @@ export const BulkUploadModal: React.FC<BulkUploadModalProps> = ({
                                           </TableCell>
                                           <TableCell>
                                              <Select
-                                                value={row.data.category_name}
                                                 onValueChange={(value) =>
                                                    handleRowChange(
                                                       index,
-                                                      "category_name",
+                                                      "categories",
                                                       value
                                                    )
                                                 }
@@ -543,7 +539,7 @@ export const BulkUploadModal: React.FC<BulkUploadModalProps> = ({
                                                 <SelectTrigger
                                                    className={cn(
                                                       row.errors
-                                                         .category_name &&
+                                                         .categories &&
                                                          "border-red-500"
                                                    )}
                                                 >
@@ -553,43 +549,49 @@ export const BulkUploadModal: React.FC<BulkUploadModalProps> = ({
                                                    {categories.map((cat) => (
                                                       <SelectItem
                                                          key={cat.id}
-                                                         value={cat.name}
+                                                         value={cat.id}
                                                       >
                                                          {cat.name}
                                                       </SelectItem>
                                                    ))}
                                                 </SelectContent>
                                              </Select>
+                                             <div className="flex flex-wrap gap-1 mt-1">
+                                                {(row.data.categories || []).map((catId: string) => {
+                                                   const cat = categories.find(c => c.id === catId);
+                                                   return cat ? (
+                                                      <span key={catId} className="bg-blue-100 text-blue-800 px-1 py-0.5 rounded text-xs">
+                                                         {cat.name}
+                                                      </span>
+                                                   ) : null;
+                                                })}
+                                             </div>
                                           </TableCell>
                                           <TableCell>
                                              <Select
-                                                value={
-                                                   row.data.subcategory_name
-                                                }
                                                 onValueChange={(value) =>
                                                    handleRowChange(
                                                       index,
-                                                      "subcategory_name",
+                                                      "subcategories",
                                                       value
                                                    )
                                                 }
-                                                disabled={!categoryId}
                                              >
                                                 <SelectTrigger
                                                    className={cn(
                                                       row.errors
-                                                         .subcategory_name &&
+                                                         .subcategories &&
                                                          "border-red-500"
                                                    )}
                                                 >
                                                    <SelectValue placeholder="Select subcategory..." />
                                                 </SelectTrigger>
                                                 <SelectContent>
-                                                   {validSubcategories.map(
+                                                   {subcategories.map(
                                                       (sub) => (
                                                          <SelectItem
                                                             key={sub.id}
-                                                            value={sub.name}
+                                                            value={sub.id}
                                                          >
                                                             {sub.name}
                                                          </SelectItem>
@@ -597,6 +599,16 @@ export const BulkUploadModal: React.FC<BulkUploadModalProps> = ({
                                                    )}
                                                 </SelectContent>
                                              </Select>
+                                             <div className="flex flex-wrap gap-1 mt-1">
+                                                {(row.data.subcategories || []).map((subId: string) => {
+                                                   const sub = subcategories.find(s => s.id === subId);
+                                                   return sub ? (
+                                                      <span key={subId} className="bg-green-100 text-green-800 px-1 py-0.5 rounded text-xs">
+                                                         {sub.name}
+                                                      </span>
+                                                   ) : null;
+                                                })}
+                                             </div>
                                           </TableCell>
                                        </TableRow>
                                     );

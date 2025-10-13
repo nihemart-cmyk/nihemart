@@ -11,31 +11,31 @@ const footerLinks = [
   {
     title: "Company",
     links: [
+      { label: "Home", href: "/" },
       { label: "About Us", href: "/about" },
-      { label: "Journal", href: "/journal" },
-      { label: "Careers", href: "/careers" },
       { label: "Contact Us", href: "/contact" },
-      { label: "FAQs", href: "/faqs" },
+      { label: "How To Buy", href: "/how-to-buy" },
+      { label: "Returns & Refunds Policy", href: "/returns" },
     ],
   },
   {
     title: "Shop",
     links: [
-      { label: "Headphones", href: "/category/headphones" },
-      { label: "Speakers", href: "/category/speakers" },
-      { label: "Charging Stations", href: "/category/charging-stations" },
-      { label: "Phones", href: "/category/phones" },
-      { label: "Portable Chargers", href: "/category/portable-chargers" },
+      { label: "Products", href: "/products" },
+      { label: "Cart", href: "/cart" },
+      { label: "Orders", href: "/orders" },
+      { label: "Wishlist", href: "/wishlist" },
+      { label: "Notifications", href: "/notifications" },
     ],
   },
   {
     title: "Customer Service",
     links: [
-      { label: "Help Center", href: "/help" },
-      { label: "Returns & Exchanges", href: "/returns" },
-      { label: "Shipping Info", href: "/shipping" },
-      { label: "Terms of Service", href: "/terms" },
-      { label: "Privacy Policy", href: "/privacy" },
+      { label: "Profile", href: "/profile" },
+      { label: "Customer Support", href: "/contact" },
+      { label: "Returns & Refunds", href: "/returns" },
+      { label: "Terms of Service", href: "/" },
+      { label: "Privacy Policy", href: "/" },
     ],
   },
 ];
@@ -43,22 +43,22 @@ const footerLinks = [
 const socialLinks = [
   {
     icon: Icons.landingPage.instagram,
-    href: "https://instagram.com",
+    href: "https://www.instagram.com/nihe_mart/",
     label: "Instagram",
   },
   {
     icon: Icons.landingPage.facebook,
-    href: "https://facebook.com",
+    href: "https://web.facebook.com/profile.php?id=61554500515881#",
     label: "Facebook",
   },
   {
     icon: Icons.landingPage.tiktok,
-    href: "https://tiktok.com",
+    href: "https://www.tiktok.com/@nihe_mart",
     label: "TikTok",
   },
   {
     icon: Icons.landingPage.youtube,
-    href: "https://youtube.com",
+    href: "https://youtube.com/@nihemart?si=ekAIqtCjygt9hgTW",
     label: "YouTube",
   },
 ];
@@ -67,26 +67,34 @@ const Footer: FC<FooterProps> = ({}) => {
   return (
     <footer className="bg-neutral-950 text-white pt-16 pb-8 mt-24 border-t border-neutral-800">
       <MaxWidthWrapper size="lg" className="flex flex-col gap-12">
-        {/* Top: Newsletter & Social */}
+        {/* Top: Customer Care & Social */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-8">
           <div>
-            <h5 className="text-2xl font-semibold mb-3">Stay in the loop</h5>
+            <h5 className="text-2xl font-semibold mb-3">Customer care</h5>
             <p className="text-neutral-400 mb-4 max-w-md">
-              Subscribe to our newsletter for exclusive offers, new arrivals,
-              and the latest updates.
+              Need help? Our support team is available Mon–Fri, 9am–6pm (EST).
             </p>
-            <form className="flex gap-2 max-w-md">
-              <Input
-                type="email"
-                placeholder="Enter your email"
-                className="bg-neutral-900 border-neutral-800 h-12 placeholder:text-lg text-base"
-                required
-              />
-              <Button variant="secondary" className="h-12 px-6 font-semibold">
-                Subscribe
-              </Button>
-            </form>
+
+            <div className="flex gap-3">
+              <a
+                href="https://apps.apple.com/us/app/nihemart/idXXXXXXXX"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-neutral-900 border border-neutral-800 px-3 py-2 rounded text-sm hover:bg-neutral-880"
+              >
+                App Store
+              </a>
+              <a
+                href="https://play.google.com/store/apps/details?id=com.nihemart"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-neutral-900 border border-neutral-800 px-3 py-2 rounded text-sm hover:bg-neutral-880"
+              >
+                Google Play
+              </a>
+            </div>
           </div>
+
           <div className="flex flex-col items-start md:items-end gap-3">
             <span className="font-semibold text-lg mb-1">Follow us</span>
             <div className="flex gap-3">

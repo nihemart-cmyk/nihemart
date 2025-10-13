@@ -34,8 +34,7 @@ import {
 import { cn, optimizeImageUrl } from "@/lib/utils";
 import {
   fetchStoreProducts,
-  fetchStoreFilterData,
-  fetchStoreSubcategories,
+  fetchAllCategoriesWithSubcategories,
 } from "@/integrations/supabase/store";
 import type {
   StoreProduct,
@@ -71,8 +70,8 @@ function ProductListingComponent() {
 
   const [expandedSections, setExpandedSections] = useState({
     category: true,
-    subcategory: true,
   });
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [isFilterOpen, setIsFilterOpen] = useState(false);
 
   const fetchProducts = useCallback(async () => {
@@ -113,8 +112,9 @@ function ProductListingComponent() {
   useEffect(() => {
     const loadFilterData = async () => {
       try {
-        const { categories } = await fetchStoreFilterData();
+        const { categories, subcategories } = await fetchAllCategoriesWithSubcategories();
         setCategories(categories);
+        setSubcategories(subcategories);
       } catch (error) {
         console.error("Failed to load category data", error);
       }
@@ -122,24 +122,8 @@ function ProductListingComponent() {
     loadFilterData();
   }, []);
 
-  useEffect(() => {
-    const loadSubcategories = async () => {
-      try {
-        const { subcategories } = await fetchStoreSubcategories(
-          filters.categories
-        );
-        setSubcategories(subcategories);
-      } catch (error) {
-        console.error("Failed to load subcategory data", error);
-      }
-    };
-    if (filters.categories.length > 0) {
-      loadSubcategories();
-    } else {
-      setSubcategories([]);
-      setFilters({ subcategories: [] });
-    }
-  }, [filters.categories, setFilters]);
+  // This useEffect is no longer needed since we load all subcategories upfront
+  // The filtering logic is now handled in the UI rendering
 
   const handleClearFilters = () => {
     setFilters({
@@ -193,6 +177,18 @@ function ProductListingComponent() {
   const toggleSection = (section: keyof typeof expandedSections) =>
     setExpandedSections((p) => ({ ...p, [section]: !p[section] }));
 
+  const toggleCategory = (categoryId: string) => {
+    setExpandedCategories((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(categoryId)) {
+        newSet.delete(categoryId);
+      } else {
+        newSet.add(categoryId);
+      }
+      return newSet;
+    });
+  };
+
   const FilterContent = () => (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -212,7 +208,7 @@ function ProductListingComponent() {
           onClick={() => toggleSection("category")}
           className="flex items-center justify-between w-full mb-3"
         >
-          <h3 className="font-medium">Category</h3>
+          <h3 className="font-medium">Categories</h3>
           {expandedSections.category ? (
             <ChevronUp className="h-4 w-4" />
           ) : (
@@ -220,64 +216,62 @@ function ProductListingComponent() {
           )}
         </button>
         {expandedSections.category && (
-          <div className="space-y-2">
-            {categories.map((c) => (
-              <div key={c.id} className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id={c.id}
-                    checked={filters.categories.includes(c.id)}
-                    onCheckedChange={(checked) =>
-                      handleCategoryToggle(c.id, !!checked)
-                    }
-                  />
-                  <label htmlFor={c.id} className="text-sm cursor-pointer">
-                    {c.name}
-                  </label>
-                </div>
-                {/* <span className="text-xs text-gray-500">
-                  ({c.products_count})
-                </span> */}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+          <div className="space-y-1">
+            {categories.map((c) => {
+              const categorySubcategories = subcategories.filter(sc => sc.category_id === c.id);
+              console.log({subcategories})
+              const isExpanded = expandedCategories.has(c.id);
+              const hasSubcategories = categorySubcategories.length > 0;
 
-      <div>
-        <button
-          onClick={() => toggleSection("subcategory")}
-          disabled={filters.categories.length === 0}
-          className="flex items-center justify-between w-full mb-3 disabled:opacity-50"
-        >
-          <h3 className="font-medium">Subcategory</h3>
-          {expandedSections.subcategory ? (
-            <ChevronUp className="h-4 w-4" />
-          ) : (
-            <ChevronDown className="h-4 w-4" />
-          )}
-        </button>
-        {expandedSections.subcategory && filters.categories.length > 0 && (
-          <div className="space-y-2">
-            {subcategories.map((sc) => (
-              <div key={sc.id} className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id={sc.id}
-                    checked={filters.subcategories.includes(sc.id)}
-                    onCheckedChange={(checked) =>
-                      handleSubcategoryToggle(sc.id, !!checked)
-                    }
-                  />
-                  <label htmlFor={sc.id} className="text-sm cursor-pointer">
-                    {sc.name}
-                  </label>
+              return (
+                <div key={c.id} className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2 flex-1">
+                      <Checkbox
+                        id={c.id}
+                        checked={filters.categories.includes(c.id)}
+                        onCheckedChange={(checked) =>
+                          handleCategoryToggle(c.id, !!checked)
+                        }
+                      />
+                      <label htmlFor={c.id} className="text-sm cursor-pointer flex-1">
+                        {c.name}
+                      </label>
+                      {hasSubcategories && (
+                        <button
+                          onClick={() => toggleCategory(c.id)}
+                          className="p-1 hover:bg-gray-100 rounded"
+                        >
+                          {isExpanded ? (
+                            <ChevronUp className="h-3 w-3" />
+                          ) : (
+                            <ChevronDown className="h-3 w-3" />
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  {isExpanded && hasSubcategories && (
+                    <div className="ml-6 space-y-1 border-l border-gray-200 pl-2">
+                      {categorySubcategories.map((sc) => (
+                        <div key={sc.id} className="flex items-center space-x-2">
+                          <Checkbox
+                            id={sc.id}
+                            checked={filters.subcategories.includes(sc.id)}
+                            onCheckedChange={(checked) =>
+                              handleSubcategoryToggle(sc.id, !!checked)
+                            }
+                          />
+                          <label htmlFor={sc.id} className="text-sm cursor-pointer">
+                            {sc.name}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                {/* <span className="text-xs text-gray-500">
-                  ({sc.products_count})
-                </span> */}
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
