@@ -343,13 +343,15 @@ export const rw: Record<string, string> = {
    "about.title": "Ibyerekeye NiheMart",
    "about.hero":
       "Duteza imbere ubucuruzi bwo kuri murandasi mu Rwanda dukoresheje ikoranabuhanga rigezweho n'ubwitange bwo gushimisha abakiriya.",
-   "about.storyTitle": "Inkomoko Yacu",
-   "about.story1":
-      "Yashinzwe mu 2024, NiheMart yaturutse ku ntego imwe: gushyiraho urubuga rwizewe kandi rworoshye rwo guhaha kuri murandasi mu Rwanda. Twabonye ko hariho icyuho cyo kubona isoko rya murandasi ryizewe rihaza ibyifuzo byihariye by'abaguzi bo mu Rwanda.",
-   "about.story2":
-      "Dutangiriye ku itsinda rito ry’abantu bafite umuhate, twabashije kwagura urubuga rwacu tukagera ku bicuruzwa byinshi kuva ku bikoresho bya elegitoroniki, imyenda, ibikoresho byo mu rugo n’ibindi.",
-   "about.story3":
-      "Uyu munsi, twishimira gukorera abakiriya bacu bose mu Rwanda, tubagezaho serivisi nziza, ibiciro byiza, no kubaha ubufasha mu Cyongereza no mu Kinyarwanda.",
+   "about.storyTitle": "Inkuru Yacu",
+   "about.story1": 
+  "Yashinzwe mu mwaka wa 2023, Nihemart ni urubuga rw’ubucuruzi bwo kuri interineti rwo mu Rwanda rugamije kugeza ibicuruzwa bifite ireme ku biciro byiza kuri buri wese mu gihugu hose.",
+
+"about.story2": 
+  "Twashinzwe dufite intego igaragara — gufasha Abanyarwanda kubona no kugura ibicuruzwa bidakunze kuboneka mu masoko asanzwe, kandi ku giciro kiboneye.",
+
+"about.story3": 
+  "Dukora uko dushoboye kugira ngo tuguhuze n’ibicuruzwa bifite ireme n’imitangire y’amasoko yizewe, tukaguha uburambe bwiza mu kugura kuri interineti. Uri i Kigali cyangwa mu ntara, turakurikirana kugeza tumenye ko ibyo watumije byakugeraho neza kandi vuba.",
    "about.teamworkImgAlt": "Ubufatanye bw'itsinda",
    "about.valuesTitle": "Indangagaciro Zacu",
    "about.valuesDesc": "Ibyo twemera kandi bidufasha gukora akazi kacu",

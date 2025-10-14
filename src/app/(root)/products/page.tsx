@@ -312,12 +312,12 @@ function ProductListingComponent() {
                       className="lg:hidden bg-transparent"
                     >
                       <Filter className="h-4 w-4 mr-2" />
-                      Filters
+                      Categories
                     </Button>
                   </SheetTrigger>
                   <SheetContent
                     side="right"
-                    className="w-full sm:w-96 overflow-y-auto"
+                    className="w-full sm:w-96 overflow-y-auto z-[9999999999999]"
                   >
                     <SheetHeader className="mb-6">
                       <SheetTitle>Filter Products</SheetTitle>

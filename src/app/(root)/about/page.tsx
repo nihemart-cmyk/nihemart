@@ -122,7 +122,7 @@ const About = () => {
       </section>
 
       {/* Team Section */}
-      <section className="p-16">
+      {/* <section className="p-16">
         <div className="container mx-auto px-4">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold mb-4">{t("about.teamTitle")}</h2>
@@ -150,7 +150,7 @@ const About = () => {
             ))}
           </div>
         </div>
-      </section>
+      </section> */}
 
       {/* Stats Section */}
       <section className="p-16 bg-muted/30">

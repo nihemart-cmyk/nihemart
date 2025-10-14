@@ -342,11 +342,11 @@ export const en: Record<string, string> = {
       "Empowering Rwanda's digital commerce revolution with innovative technology and unwavering commitment to customer satisfaction.",
    "about.storyTitle": "Our Story",
    "about.story1":
-      "Founded in 2024, NiheMart emerged from a simple vision: to create Rwanda's most trusted and accessible e-commerce platform. We recognized the growing need for a reliable online marketplace that serves the unique needs of Rwandan consumers.",
+      " Founded in 2023, Nihemart  is a Rwandan ec online shopping platform dedicated to making quality products accessible and affordable for everyone across the country.",
    "about.story2":
-      "Starting with a small team of passionate individuals, we've grown into a comprehensive platform offering thousands of products from electronics to fashion, home goods to sports equipment.",
+      "We were established with a clear vision — to help Rwandans easily find and purchase products that are not available in local markets, at an affordable price.",
    "about.story3":
-      "Today, we're proud to serve customers across Rwanda, providing fast delivery, competitive prices, and exceptional customer service in both English and Kinyarwanda.",
+      "We work hard to connect you with high-quality products and reliable delivery, giving you a smooth and enjoyable shopping experience. Whether you’re in Kigali or upcountry, we make sure your order reaches you safely and quickly..",
    "about.teamworkImgAlt": "Team collaboration",
    "about.valuesTitle": "Our Values",
    "about.valuesDesc": "The principles that guide everything we do",
