@@ -145,8 +145,8 @@ const ProductCard = ({ product }: { product: StoreProduct }) => (
       <span className="text-orange-500 text-lg md:text-xl font-bold">
         RWF{" "}
         {product?.price.toLocaleString("en-US", {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
+          // minimumFractionDigits: 2,
+          // maximumFractionDigits: 2,
         })}{" "}
       </span>
       <h4 className="font-bold text-gray-900 text-base md:text-lg line-clamp-2 truncate">

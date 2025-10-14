@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BadgePercent, Globe } from "lucide-react";
+import { BadgePercent, Flag, Globe } from "lucide-react";
 import Link from "next/link";
 import { FC } from "react";
 import MaxWidthWrapper from "../MaxWidthWrapper";
@@ -73,7 +73,7 @@ const AnnouncementBar: FC<AnnouncementBarProps> = ({}) => {
     <div className="w-full bg-brand-orange text-white py-2">
       <MaxWidthWrapper
         size={"lg"}
-        className="flex items-center justify-cener md:justify-between"
+        className="flex items-center justify-between"
       >
         <div className="flex items-center gap-3">
           <BadgePercent className="h-5 sm:h-7 w-5 sm:w-7" />
@@ -119,10 +119,10 @@ const AnnouncementBar: FC<AnnouncementBarProps> = ({}) => {
           <DropdownMenuTrigger asChild>
             <Button
               aria-label={t("nav.language") || "Select language"}
-              className="hidden lg:flex items-center bg-white text-orange-500 hover:bg-white/90 outline-none border-none"
+              className="flex lg:items-center bg-white text-orange-500 hover:bg-white/90 outline-none border-none"
             >
-              <Globe className="h-4 w-4" />
-              <span>Language</span>
+              <Flag className="h-4 w-4" />
+              <span className="hidden lg:flex">Language</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="z-[9999]">

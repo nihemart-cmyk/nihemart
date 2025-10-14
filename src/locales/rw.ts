@@ -15,6 +15,7 @@ export const rw: Record<string, string> = {
    "nav.howToBuy": "Uko Bagura",
    "nav.notifications": "Ubutumwa",
    "nav.returns": "Gusubiza ibicuruzwa",
+   "nav.rider": "Umumotari",
 
 
    // RETURNS & REFUNDS
