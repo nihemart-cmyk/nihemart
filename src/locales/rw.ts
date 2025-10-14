@@ -235,13 +235,25 @@ export const rw: Record<string, string> = {
    "footer.rights": "© 2025 NiheMart. Uburenganzira bwose burakurikizwa.",
 
    // Hero Carousel
-   "hero.slide1.title": "Murakaza neza kuri NiheMart",
-   "hero.slide1.subtitle": "Isoko rya mbere ryo kuri Murandasi mu Rwanda",
-   "hero.slide2.title": "Ibikoresho bya Elegitoroniki bigezweho",
-   "hero.slide2.subtitle": "Menya ikoranabuhanga rigezweho ku giciro cyiza",
-   "hero.slide3.title": "Imyambarire & Imyenda",
-   "hero.slide3.subtitle":
-      "Imyenda igezweho n'ibikoresho by'imyambarire kuri buri gihe",
+  "hero.slide1.title": "Ibicuruzwa bidasanzwe",
+  "hero.slide1.subtitle": "Ibicuruzwa utabona ahandi mu Rwanda ubu byakugeraho mu minota 40.",
+  "hero.slide1.button": "Tangira kugura ubu!",
+
+  "hero.slide2.title": "Kugezwa aho uri byoroshye",
+  "hero.slide2.subtitle": "N'iyo uri mu ntara, ntugire impungenge — buri wese agomba kubona ibicuruzwa byacu bidasanzwe.",
+  "hero.slide2.button": "Tanga komande yawe ubu!",
+
+  "hero.slide3.title": "Tangira kugura, wishyure nyuma",
+  "hero.slide3.subtitle": "Urabikunda, turabizana, wishyure nyuma.",
+  "hero.slide3.button": "Gura ubu",
+
+  "hero.slide4.title": "Impano n'ibindi byinshi",
+  "hero.slide4.subtitle": "Gura impano, ibikoresho byo mu rugo, ibikoresho by’abana, amasaha, n'ibindi byinshi.",
+  "hero.slide4.button": "Reba impano",
+
+  "hero.slide5.title": "Ibiciro biri hasi cyane",
+  "hero.slide5.subtitle": "Nibyo, turabizi neza — ibiciro byacu biri hasi cyane.",
+  "hero.slide5.button": "Sura ibicuruzwa",
 
    // Features
    "features.secure.title": "Guhaha Neza",

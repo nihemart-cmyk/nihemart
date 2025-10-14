@@ -14,6 +14,16 @@ import Image from "next/image";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { WishlistButton } from "../ui/wishlist-button";
 
+// ✅ Import Carousel
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "@/components/ui/carousel";
+import Autoplay from "embla-carousel-autoplay";
+
 interface FeaturedProductsProps {}
 
 const promos = [
@@ -22,17 +32,6 @@ const promos = [
   "5% ON NEW PRODUCTS",
   "5% ON NEW PRODUCTS",
 ];
-
-const ProductGridSkeleton = ({ count = 8 }: { count?: number }) => (
-  <div className="grid grid-cols-2 min-[500px]:grid-cols-3 min-[1000px]:grid-cols-4 xl:grid-cols-5 gap-5">
-    {Array.from({ length: count }).map((_, index) => (
-      <div
-        key={index}
-        className="shrink-0 aspect-[9/12] bg-gray-200 rounded-2xl animate-pulse"
-      />
-    ))}
-  </div>
-);
 
 const ProductCard = ({ product }: { product: StoreProduct }) => (
   <Link
@@ -63,8 +62,7 @@ const ProductCard = ({ product }: { product: StoreProduct }) => (
     {/* Card Content */}
     <div className="flex flex-col flex-1 px-3 md:px-4 pt-3 pb-4 gap-2">
       <span className="text-orange-500 text-lg md:text-xl font-bold">
-        RWF{" "}
-        {product?.price.toLocaleString()}{" "}
+        RWF {product?.price.toLocaleString()}
       </span>
       <h4 className="font-bold text-gray-900 text-base md:text-lg line-clamp-2 truncate">
         {product.name}
@@ -73,23 +71,18 @@ const ProductCard = ({ product }: { product: StoreProduct }) => (
   </Link>
 );
 
-const FeaturedProducts: FC<FeaturedProductsProps> = ({}) => {
+const FeaturedProducts: FC<FeaturedProductsProps> = () => {
   const { t } = useLanguage();
-
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("all");
   const [categories, setCategories] = useState<StoreCategorySimple[]>([]);
   const [products, setProducts] = useState<StoreProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingFilters, setLoadingFilters] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [offset, setOffset] = useState(0);
 
-  const initialLimit = 10;
-  const loadMoreLimit = 8;
+  const isDesktop = useMediaQuery("(min-width: 768px)");
+  const BUTTON_SIZE = isDesktop ? "lg" : "sm";
 
-  const BUTTON_SIZE = useMediaQuery("(min-width: 768px)") ? "lg" : "sm";
-
-  // Load categories and initial products
   useEffect(() => {
     const loadInitialData = async () => {
       setLoading(true);
@@ -112,7 +105,6 @@ const FeaturedProducts: FC<FeaturedProductsProps> = ({}) => {
     loadInitialData();
   }, []);
 
-  // Filter products by category
   useEffect(() => {
     if (loadingFilters) return;
     const loadFilteredProducts = async () => {
@@ -132,28 +124,14 @@ const FeaturedProducts: FC<FeaturedProductsProps> = ({}) => {
     loadFilteredProducts();
   }, [selectedCategoryId, loadingFilters]);
 
-  // Load more products
-  const handleLoadMore = async () => {
-    setLoadingMore(true);
-    try {
-      const newProducts = await fetchProductsUnder15k(
-        selectedCategoryId === "all" ? undefined : selectedCategoryId
-      );
-      setProducts((prev) => [...prev, ...newProducts]);
-      setOffset((prev) => prev + newProducts.length);
-    } catch (error) {
-      console.error("Failed to fetch more products", error);
-    } finally {
-      setLoadingMore(false);
-    }
-  };
-
   return (
     <MaxWidthWrapper size={"lg"} className="lg:my-14">
-      <h3 className="lg:text-4xl md:text-2xl text-xl font-bold text-neutral-900 mb-5">
+      <h3 className="lg:text-4xl md:text-2xl text-xl font-bold text-neutral-900 lg:mb-5">
         {t("home.under")} <span className="text-brand-orange">RWF 15,000</span>
       </h3>
-      <div className="flex items-center flex-wrap gap-3 mb-8">
+
+      {/* Category Buttons */}
+      <div className="hidden md:flex items-center flex-wrap gap-3 mb-8">
         <Button
           size={BUTTON_SIZE}
           className="rounded-full hidden md:block"
@@ -175,27 +153,79 @@ const FeaturedProducts: FC<FeaturedProductsProps> = ({}) => {
         ))}
       </div>
 
+      {/* ✅ Desktop Grid / ✅ Mobile Carousel */}
       {loading ? (
-        <ProductGridSkeleton count={8} />
+        <div className="grid grid-cols-2 min-[500px]:grid-cols-3 min-[1000px]:grid-cols-4 xl:grid-cols-5 gap-5">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div
+              key={i}
+              className="shrink-0 aspect-[9/12] bg-gray-200 rounded-2xl animate-pulse"
+            />
+          ))}
+        </div>
+      ) : isDesktop ? (
+        <div className="grid grid-cols-2 min-[500px]:grid-cols-3 min-[1000px]:grid-cols-4 xl:grid-cols-5 gap-5">
+          {products.map((product) => (
+            <ProductCard key={product.id} product={product} />
+          ))}
+        </div>
       ) : (
-        <>
-          <div className="grid grid-cols-2 min-[500px]:grid-cols-3 min-[1000px]:grid-cols-4 xl:grid-cols-5 gap-2 md:gap-5">
-            {products.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
-          {/* <div className="flex justify-center mt-10">
-            <Button
-              onClick={handleLoadMore}
-              disabled={loadingMore}
-              className="px-6 py-3 rounded-full"
-            >
-              {loadingMore ? t("common.loading") : t("common.loadMore")}
-            </Button>
-          </div> */}
-        </>
+        // ✅ Mobile Carousel (2x2 layout per slide)
+        <Carousel opts={{ loop: true }} plugins={[Autoplay()]} className="relative pt-10">
+          <CarouselContent>
+            {Array.from({ length: Math.ceil(products.length / 4) }).map((_, i) => {
+              const slideProducts = products.slice(i * 4, i * 4 + 4);
+              return (
+                <CarouselItem key={i} className="basis-full">
+                  <div className="grid grid-cols-2 gap-2">
+                    {slideProducts.map((product) => (
+                      <Link
+                        key={product.id}
+                        href={`/products/${product.id}`}
+                        className="group flex flex-col bg-white rounded-xl overflow-hidden shadow border border-gray-100 relative h-[210px]"
+                      >
+                        {/* Wishlist */}
+                        <div className="absolute z-20 right-2 top-2">
+                          <WishlistButton
+                            productId={product.id}
+                            size="sm"
+                            variant="ghost"
+                            className="bg-white/80 backdrop-blur-sm hover:bg-white shadow-sm"
+                          />
+                        </div>
+                        {/* Image */}
+                        <div className="relative w-full h-[120px] bg-gray-100">
+                          <Image
+                            src={product.main_image_url || "/placeholder.svg"}
+                            alt={product.name}
+                            fill
+                            className="object-cover transition-transform duration-300 group-hover:scale-105"
+                          />
+                        </div>
+                        {/* Content */}
+                        <div className="flex flex-col flex-1 px-2 pt-2 pb-3">
+                          <span className="text-orange-500 text-sm font-bold">
+                            RWF {product.price.toLocaleString()}
+                          </span>
+                          <h4 className="font-semibold text-gray-900 text-xs line-clamp-2">
+                            {product.name}
+                          </h4>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </CarouselItem>
+              );
+            })}
+          </CarouselContent>
+
+          {/* ✅ Move navigation inside Carousel */}
+          <CarouselPrevious className="absolute left-2 top-1/2 -translate-y-1/2 text-orange-500 hover:text-orange-600 bg-white/80 backdrop-blur-sm rounded-full shadow-sm" />
+          <CarouselNext className="absolute right-2 top-1/2 -translate-y-1/2 text-orange-500 hover:text-orange-600 bg-white/80 backdrop-blur-sm rounded-full shadow-sm" />
+        </Carousel>
       )}
 
+      {/* Promo Marquee */}
       <div className="bg-brand-orange mt-10 sm:mt-20 mb-16 sm:mb-24 text-white rounded-xl py-2 overflow-hidden">
         <div className="flex items-center">
           {promos.map((promo, i) => (
