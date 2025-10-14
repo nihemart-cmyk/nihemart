@@ -15,6 +15,7 @@ export const rw: Record<string, string> = {
    "nav.howToBuy": "Uko Bagura",
    "nav.notifications": "Ubutumwa",
    "nav.returns": "Gusubiza ibicuruzwa",
+   "nav.rider": "Umumotari",
 
 
    // RETURNS & REFUNDS
@@ -234,13 +235,25 @@ export const rw: Record<string, string> = {
    "footer.rights": "© 2025 NiheMart. Uburenganzira bwose burakurikizwa.",
 
    // Hero Carousel
-   "hero.slide1.title": "Murakaza neza kuri NiheMart",
-   "hero.slide1.subtitle": "Isoko rya mbere ryo kuri Murandasi mu Rwanda",
-   "hero.slide2.title": "Ibikoresho bya Elegitoroniki bigezweho",
-   "hero.slide2.subtitle": "Menya ikoranabuhanga rigezweho ku giciro cyiza",
-   "hero.slide3.title": "Imyambarire & Imyenda",
-   "hero.slide3.subtitle":
-      "Imyenda igezweho n'ibikoresho by'imyambarire kuri buri gihe",
+  "hero.slide1.title": "Ibicuruzwa bidasanzwe",
+  "hero.slide1.subtitle": "Ibicuruzwa utabona ahandi mu Rwanda ubu byakugeraho mu minota 40.",
+  "hero.slide1.button": "Tangira kugura ubu!",
+
+  "hero.slide2.title": "Kugezwa aho uri byoroshye",
+  "hero.slide2.subtitle": "N'iyo uri mu ntara, ntugire impungenge — buri wese agomba kubona ibicuruzwa byacu bidasanzwe.",
+  "hero.slide2.button": "Tanga komande yawe ubu!",
+
+  "hero.slide3.title": "Tangira kugura, wishyure nyuma",
+  "hero.slide3.subtitle": "Urabikunda, turabizana, wishyure nyuma.",
+  "hero.slide3.button": "Gura ubu",
+
+  "hero.slide4.title": "Impano n'ibindi byinshi",
+  "hero.slide4.subtitle": "Gura impano, ibikoresho byo mu rugo, ibikoresho by’abana, amasaha, n'ibindi byinshi.",
+  "hero.slide4.button": "Reba impano",
+
+  "hero.slide5.title": "Ibiciro biri hasi cyane",
+  "hero.slide5.subtitle": "Nibyo, turabizi neza — ibiciro byacu biri hasi cyane.",
+  "hero.slide5.button": "Sura ibicuruzwa",
 
    // Features
    "features.secure.title": "Guhaha Neza",
@@ -343,13 +356,15 @@ export const rw: Record<string, string> = {
    "about.title": "Ibyerekeye NiheMart",
    "about.hero":
       "Duteza imbere ubucuruzi bwo kuri murandasi mu Rwanda dukoresheje ikoranabuhanga rigezweho n'ubwitange bwo gushimisha abakiriya.",
-   "about.storyTitle": "Inkomoko Yacu",
-   "about.story1":
-      "Yashinzwe mu 2024, NiheMart yaturutse ku ntego imwe: gushyiraho urubuga rwizewe kandi rworoshye rwo guhaha kuri murandasi mu Rwanda. Twabonye ko hariho icyuho cyo kubona isoko rya murandasi ryizewe rihaza ibyifuzo byihariye by'abaguzi bo mu Rwanda.",
-   "about.story2":
-      "Dutangiriye ku itsinda rito ry’abantu bafite umuhate, twabashije kwagura urubuga rwacu tukagera ku bicuruzwa byinshi kuva ku bikoresho bya elegitoroniki, imyenda, ibikoresho byo mu rugo n’ibindi.",
-   "about.story3":
-      "Uyu munsi, twishimira gukorera abakiriya bacu bose mu Rwanda, tubagezaho serivisi nziza, ibiciro byiza, no kubaha ubufasha mu Cyongereza no mu Kinyarwanda.",
+   "about.storyTitle": "Inkuru Yacu",
+   "about.story1": 
+  "Yashinzwe mu mwaka wa 2023, Nihemart ni urubuga rw’ubucuruzi bwo kuri interineti rwo mu Rwanda rugamije kugeza ibicuruzwa bifite ireme ku biciro byiza kuri buri wese mu gihugu hose.",
+
+"about.story2": 
+  "Twashinzwe dufite intego igaragara — gufasha Abanyarwanda kubona no kugura ibicuruzwa bidakunze kuboneka mu masoko asanzwe, kandi ku giciro kiboneye.",
+
+"about.story3": 
+  "Dukora uko dushoboye kugira ngo tuguhuze n’ibicuruzwa bifite ireme n’imitangire y’amasoko yizewe, tukaguha uburambe bwiza mu kugura kuri interineti. Uri i Kigali cyangwa mu ntara, turakurikirana kugeza tumenye ko ibyo watumije byakugeraho neza kandi vuba.",
    "about.teamworkImgAlt": "Ubufatanye bw'itsinda",
    "about.valuesTitle": "Indangagaciro Zacu",
    "about.valuesDesc": "Ibyo twemera kandi bidufasha gukora akazi kacu",

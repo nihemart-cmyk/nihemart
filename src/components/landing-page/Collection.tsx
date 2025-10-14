@@ -82,7 +82,7 @@ const Collection: FC<CollectionProps> = ({}) => {
 
   return (
     <MaxWidthWrapper size={"lg"} className="">
-      <div className="my-10 relative">
+      <div className="my-5 lg:my-10 relative">
         <h1 className="lg:text-4xl md:text-2xl text-xl font-bold text-neutral-900 mb-5">
           {t("home.categories")}
         </h1>
@@ -109,7 +109,7 @@ const Collection: FC<CollectionProps> = ({}) => {
                 <Link
                   href={`/products?categories=${category.id}`}
                   key={category.id}
-                  className="w-60 h-60 border-2 border-blue-100 rounded-lg shrink-0 flex flex-col items-center justify-center group hover:border-orange-200 transition-colors"
+                  className="lg:w-60 w-52 h-48 lg:h-60 border-2 border-blue-100 rounded-lg shrink-0 flex flex-col items-center justify-center group hover:border-orange-200 transition-colors"
                 >
                   <Image
                     src={category.icon_url || "/placeholder.svg"}
@@ -118,7 +118,7 @@ const Collection: FC<CollectionProps> = ({}) => {
                     height={120}
                     className="group-hover:scale-105 transition-transform duration-300 mb-3"
                   />
-                  <h4 className="text-center font-medium text-gray-800 group-hover:text-orange-600 transition-colors px-2">
+                  <h4 className="text-center font-medium text-gray-800 group-hover:text-orange-600 transition-colors px-2 truncate">
                     {category.name}
                   </h4>
                 </Link>

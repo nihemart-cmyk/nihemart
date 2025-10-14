@@ -2,7 +2,7 @@ import { create } from "zustand";
 import type { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
-export type AppRole = "admin" | "user" | "rider";
+export type AppRole = "admin" | "user" | "rider" | "manager" | "staff" | "stock_manager";
 
 type AuthState = {
    user: User | null;

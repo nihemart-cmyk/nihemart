@@ -20,52 +20,53 @@ import Image from "next/image";
 import { Button } from "../ui/button";
 import MaxWidthWrapper from "../MaxWidthWrapper";
 import Link from "next/link";
-
-const carouselContent = [
-  {
-    image: carousel1,
-    heading: "Rare Products",
-    description:
-      "Products you can't find in Rwanda now delivered to you in 40 minutes.",
-    buttonText: "Start Shopping now!",
-  },
-  {
-    image: carousel2,
-    heading: "Easy Delivery",
-    description:
-      "If you are in province don't worry we deliver every one deserve access to our rare products",
-    buttonText: "Place your order now!",
-  },
-  {
-    image: carousel3,
-    heading: "Buy Now, Pay Later",
-    description: "You like it, we bring it, you pay later.",
-    buttonText: "Shop now",
-  },
-  {
-    image: carousel4,
-    heading: "Gifts & More",
-    description:
-      "Buy gifts home appliances, kids products, watches, necklaces, etc",
-    buttonText: "Explore gifts",
-  },
-  {
-    image: carousel5,
-    heading: "Low Prices",
-    description: "Yes we know, our prices are low.",
-    buttonText: "Browse products",
-  },
-];
+import { useLanguage } from "@/contexts/LanguageContext";
 
 export default function HeroCarousel() {
+  const { t } = useLanguage();
+
+  const carouselContent = [
+    {
+      image: carousel1,
+      heading: t("hero.slide1.title"),
+      description: t("hero.slide1.subtitle"),
+      buttonText: t("hero.slide1.button"),
+    },
+    {
+      image: carousel2,
+      heading: t("hero.slide2.title"),
+      description: t("hero.slide2.subtitle"),
+      buttonText: t("hero.slide2.button"),
+    },
+    {
+      image: carousel3,
+      heading: t("hero.slide3.title"),
+      description: t("hero.slide3.subtitle"),
+      buttonText: t("hero.slide3.button"),
+    },
+    {
+      image: carousel4,
+      heading: t("hero.slide4.title"),
+      description: t("hero.slide4.subtitle"),
+      buttonText: t("hero.slide4.button"),
+    },
+    {
+      image: carousel5,
+      heading: t("hero.slide5.title"),
+      description: t("hero.slide5.subtitle"),
+      buttonText: t("hero.slide5.button"),
+    },
+  ];
+
   return (
-    <MaxWidthWrapper size={"lg"} className="lg:mt-10 my-3">
+    <MaxWidthWrapper size={"lg"} className="lg:mt-10 my-3 pb-2">
       <div className="relative">
         <Carousel opts={{ loop: true }} plugins={[Autoplay()]}>
           <CarouselContent className="mb-3">
             {carouselContent.map((slide, index) => (
               <CarouselItem key={index} className="basis-[100%] sm:basis-[90%]">
-                <div className="relative h-[60vh] sm:h-[70vh] md:h-[80vh] lg:h-[90vh] rounded-2xl overflow-hidden">
+                {/* 👇 Adjusted height for different screen sizes */}
+                <div className="relative h-[45vh] sm:h-[55vh] md:h-[70vh] lg:h-[85vh] rounded-2xl overflow-hidden">
                   <Image
                     className="w-full h-full object-cover absolute inset-0 z-0"
                     alt={slide.heading}
@@ -76,15 +77,14 @@ export default function HeroCarousel() {
                     width={1200}
                     quality={85}
                     placeholder="blur"
-                    blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R+IRjWjBqO6O2mhP//Z"
                   />
                   <div className="relative h-full z-10 bg-gradient-to-t from-[#36A9EC] to-transparent flex flex-col p-4 md:p-10">
-                    <div className="mt-auto mb-12 sm:mb-20 px-5 sm:px-10 md:px-20 flex flex-col md:flex-row justify-between md:items-center gap-6 md:gap-10">
-                      <div className="flex flex-col gap-3 md:gap-4">
-                        <h3 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl text-white font-semibold">
+                    <div className="mt-auto mb-10 sm:mb-16 px-4 sm:px-8 md:px-20 flex flex-col md:flex-row justify-between md:items-center gap-4 md:gap-10">
+                      <div className="flex flex-col gap-2 md:gap-4">
+                        <h3 className="text-2xl sm:text-3xl md:text-5xl lg:text-6xl text-white font-semibold leading-tight">
                           {slide.heading}
                         </h3>
-                        <p className="text-white text-sm sm:text-lg md:text-xl">
+                        <p className="text-white text-sm sm:text-base md:text-lg lg:text-xl max-w-lg">
                           {slide.description}
                         </p>
                       </div>
@@ -102,9 +102,10 @@ export default function HeroCarousel() {
               </CarouselItem>
             ))}
           </CarouselContent>
-          <CarouselNext className="top-[90%] bottom-0 left-[85%] md:left-[90%] bg-transparent text-white hover:text-[#36A9EC]" />
-          <CarouselPrevious className="top-[90%] z-50 left-[10%] bg-transparent text-white hover:text-[#36A9EC]" />
-          <CarouselDots />
+
+          <CarouselNext className="top-[85%] md:top-[90%] left-[85%] md:left-[90%] bg-transparent text-white hover:text-[#36A9EC]" />
+          <CarouselPrevious className="top-[85%] md:top-[90%] left-[10%] bg-transparent text-white hover:text-[#36A9EC]" />
+          <CarouselDots className="mt-2" />
         </Carousel>
       </div>
     </MaxWidthWrapper>

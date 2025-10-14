@@ -15,6 +15,7 @@ export const en: Record<string, string> = {
    "nav.howToBuy": "How To Buy",
    "nav.notifications": "Notifications",
    "nav.returns": "Return & Refund Policy",
+   "nav.rider": "Rider",
 
 
    // Return and Refund Policy
@@ -258,13 +259,26 @@ export const en: Record<string, string> = {
    "footer.rights": "© 2025 NiheMart. All rights reserved.",
 
    // Hero Carousel
-   "hero.slide1.title": "Welcome to NiheMart",
-   "hero.slide1.subtitle": "Your premier online marketplace in Rwanda",
-   "hero.slide2.title": "Latest Electronics",
-   "hero.slide2.subtitle":
-      "Discover cutting-edge technology at unbeatable prices",
-   "hero.slide3.title": "Fashion & Style",
-   "hero.slide3.subtitle": "Trendy clothing and accessories for every occasion",
+  "hero.slide1.title": "Rare Products",
+  "hero.slide1.subtitle": "Products you can't find in Rwanda now delivered to you in 40 minutes.",
+  "hero.slide1.button": "Start Shopping now!",
+
+  "hero.slide2.title": "Easy Delivery",
+  "hero.slide2.subtitle": "If you are in province don't worry — everyone deserves access to our rare products.",
+  "hero.slide2.button": "Place your order now!",
+
+  "hero.slide3.title": "Buy Now, Pay Later",
+  "hero.slide3.subtitle": "You like it, we bring it, you pay later.",
+  "hero.slide3.button": "Shop now",
+
+  "hero.slide4.title": "Gifts & More",
+  "hero.slide4.subtitle": "Buy gifts, home appliances, kids products, watches, necklaces, and more.",
+  "hero.slide4.button": "Explore gifts",
+
+  "hero.slide5.title": "Low Prices",
+  "hero.slide5.subtitle": "Yes, we know — our prices are low.",
+  "hero.slide5.button": "Browse products",
+
 
    // Features
    "features.secure.title": "Secure Shopping",
@@ -342,11 +356,11 @@ export const en: Record<string, string> = {
       "Empowering Rwanda's digital commerce revolution with innovative technology and unwavering commitment to customer satisfaction.",
    "about.storyTitle": "Our Story",
    "about.story1":
-      "Founded in 2024, NiheMart emerged from a simple vision: to create Rwanda's most trusted and accessible e-commerce platform. We recognized the growing need for a reliable online marketplace that serves the unique needs of Rwandan consumers.",
+      " Founded in 2023, Nihemart  is a Rwandan ec online shopping platform dedicated to making quality products accessible and affordable for everyone across the country.",
    "about.story2":
-      "Starting with a small team of passionate individuals, we've grown into a comprehensive platform offering thousands of products from electronics to fashion, home goods to sports equipment.",
+      "We were established with a clear vision — to help Rwandans easily find and purchase products that are not available in local markets, at an affordable price.",
    "about.story3":
-      "Today, we're proud to serve customers across Rwanda, providing fast delivery, competitive prices, and exceptional customer service in both English and Kinyarwanda.",
+      "We work hard to connect you with high-quality products and reliable delivery, giving you a smooth and enjoyable shopping experience. Whether you’re in Kigali or upcountry, we make sure your order reaches you safely and quickly..",
    "about.teamworkImgAlt": "Team collaboration",
    "about.valuesTitle": "Our Values",
    "about.valuesDesc": "The principles that guide everything we do",

@@ -2,10 +2,11 @@
   "name": "nihemart",
   "version": "0.1.0",
   "private": true,
+  "homepage": "https://nihemart.rw",
   "scripts": {
-    "dev": "next dev",
+    "dev": "node server.js",
     "build": "next build",
-    "start": "next start",
+    "start": "NODE_ENV=production node server.js",
     "lint": "eslint",
     "prepare": "husky",
     "supabase:start": "supabase start",

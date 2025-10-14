@@ -206,7 +206,7 @@ const AdminSignupForm: FC<AdminSignupFormProps> = ({}) => {
                      render={({ field }) => (
                         <FormItem>
                            <FormLabel className="text-zinc-500">
-                              Full Name
+                              Username
                            </FormLabel>
                            <FormControl>
                               <div className="relative">

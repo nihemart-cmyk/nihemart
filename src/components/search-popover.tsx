@@ -67,7 +67,7 @@ export function SearchPopover() {
     return (
         <div
             ref={popoverRef}
-            className="hidden md:flex items-center flex-1 max-w-xs md:max-w-sm mx-2 md:mx-6 relative"
+            className="items-center flex-1 max-w-xs md:max-w-sm mx-2 md:mx-6 relative"
         >
             <form onSubmit={handleSearchSubmit} className="w-full">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />

@@ -4,9 +4,6 @@ import MaxWidthWrapper from "../MaxWidthWrapper";
 import { Button } from "../ui/button";
 import Image from "next/image";
 import Link from "next/link";
-import { Eye, Star } from "lucide-react";
-import MarqueeBanner from "./MarqueeBanner";
-import { Icons } from "../icons";
 import { useMediaQuery } from "@/hooks/user-media-query";
 import { fetchLandingPageProducts } from "@/integrations/supabase/store";
 import { optimizeImageUrl } from "@/lib/utils";
@@ -16,6 +13,7 @@ import type {
 } from "@/integrations/supabase/store";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { WishlistButton } from "@/components/ui/wishlist-button";
+import { Icons } from "../icons";
 
 interface MoreProductsProps {}
 
@@ -34,16 +32,7 @@ const services = [
 ];
 
 const ProductCard = ({ product }: { product: StoreProduct }) => (
-  <div className="group flex flex-col bg-white rounded-2xl overflow-hidden shadow hover:shadow-xl transition-shadow duration-300 border border-gray-100 h-full relative">
-    {/* Hot badge (hidden on mobile) */}
-    <div className="absolute z-20 left-3 top-3">
-      {/* <span className="bg-red-500 text-white text-xs font-bold px-4 py-1 rounded-full shadow-md tracking-widest">
-        HOT
-      </span> */}
-      {/* <span className="inline-block bg-brand-orange text-white text-xs font-bold rounded-full px-2 py-0.5 mr-auto">
-        RWF {product.price.toLocaleString()}
-      </span> */}
-    </div>
+  <div className="group flex flex-col bg-white rounded-2xl overflow-hidden shadow hover:shadow-xl transition-shadow duration-300 border border-gray-100 relative">
     {/* Wishlist button */}
     <div className="absolute z-20 right-3 top-3">
       <WishlistButton
@@ -53,59 +42,47 @@ const ProductCard = ({ product }: { product: StoreProduct }) => (
         className="bg-white/80 backdrop-blur-sm hover:bg-white shadow-sm"
       />
     </div>
-    {/* Product Image */}
+
+    {/* ✅ Adjusted image height for smaller mobile cards */}
     <Link
       href={`/products/${product.id}`}
-      className="relative w-full aspect-[4/5] bg-gray-100 block"
+      className="relative w-full bg-gray-100 block"
       aria-label={`View details for ${product.name}`}
       tabIndex={0}
     >
-      <Image
-        src={optimizeImageUrl(product.main_image_url, { width: 300, height: 400, quality: 80 })}
-        alt={product.name}
-        fill
-        className="object-cover transition-transform duration-300 group-hover:scale-105"
-        sizes="(max-width: 640px) 100vw, 33vw"
-      />
+      <div className="relative w-full h-[120px] md:h-[35vh] bg-gray-100">
+        <Image
+          src={optimizeImageUrl(product.main_image_url, {
+            width: 300,
+            height: 400,
+            quality: 80,
+          })}
+          alt={product.name}
+          fill
+          className="object-cover transition-transform duration-300 group-hover:scale-105"
+          sizes="(max-width: 640px) 100vw, 33vw"
+        />
+      </div>
     </Link>
-    {/* Card Content */}
-    <div className="flex flex-col flex-1 px-3 md:px-4 pt-3 pb-4 gap-2">
-      {/* Brand, Rating, Price */}
-      {/* <div className="flex flex-col md:flex-row flex-wrap md:items-center justify-between gap-x-2 gap-y-1 mb-1">
-        <span className="text-xs text-gray-500 font-semibold truncate w-full md:max-w-[40%] ">
-          {product.brand || "New Arrival"}
-        </span>
-        {(product.average_rating || null) && (
-          <span className="flex items-center gap-1 bg-gray-100 rounded-full px-2 py-0.5 text-xs font-mono">
-            <Star fill="#eab308" size={13} className="text-warning" />
-            {product?.average_rating?.toFixed(1)}
-          </span>
-        )}
-        <span className="inline-block bg-brand-orange text-white text-xs font-bold rounded-full px-2 py-0.5 mr-auto">
-          RWF {product.price.toLocaleString()}
-        </span>
-      </div> */}
-      {/* Product Name */}
-      <span className="text-orange-500 text-lg md:text-xl font-bold">
+
+    {/* ✅ Reduced vertical spacing and text size on mobile */}
+    <div className="flex flex-col flex-1 px-2 md:px-4 pt-2 pb-3 gap-1 sm:gap-2">
+      <span className="text-orange-500 text-sm sm:text-lg md:text-xl font-bold">
         RWF {product.price.toLocaleString()}
       </span>
-      <h4 className="font-bold text-gray-900 text-base md:text-lg line-clamp-2 truncate">
+      <h4 className="font-bold text-gray-900 text-xs sm:text-base md:text-lg line-clamp-2 truncate">
         {product.name}
       </h4>
-      {/* Description */}
-      {/* <p className="text-xs md:text-sm text-gray-600 line-clamp-2">
-        {product?.short_description}
-      </p> */}
     </div>
   </div>
 );
 
 const ProductGridSkeleton = ({ count = 4 }: { count?: number }) => (
-  <div className="grid grid-cols-1 min-[500px]:grid-cols-2 min-[1000px]:grid-cols-3 xl:grid-cols-4 gap-5">
+  <div className="grid grid-cols-2 min-[500px]:grid-cols-3 min-[1000px]:grid-cols-4 xl:grid-cols-5 gap-2 md:gap-5">
     {Array.from({ length: count }).map((_, index) => (
       <div
         key={index}
-        className="shrink-0 aspect-[9/12] bg-gray-200 rounded-2xl animate-pulse"
+        className="shrink-0 aspect-[3/4] sm:aspect-[4/5] bg-gray-200 rounded-2xl animate-pulse"
       />
     ))}
   </div>
@@ -113,12 +90,10 @@ const ProductGridSkeleton = ({ count = 4 }: { count?: number }) => (
 
 const MoreProducts: FC<MoreProductsProps> = ({}) => {
   const { t } = useLanguage();
-
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>("all");
   const [allFeatured, setAllFeatured] = useState<StoreProduct[]>([]);
   const [latestProducts, setLatestProducts] = useState<StoreProduct[]>([]);
   const [loading, setLoading] = useState(true);
-
   const ButtonSize = useMediaQuery("(min-width: 768px)") ? "lg" : "sm";
 
   useEffect(() => {
@@ -165,11 +140,14 @@ const MoreProducts: FC<MoreProductsProps> = ({}) => {
 
   return (
     <div>
-      <MaxWidthWrapper size={"lg"} className="">
+      <MaxWidthWrapper size={"lg"}>
+        {/* Featured Section */}
         <h3 className="lg:text-4xl md:text-2xl text-xl font-bold text-neutral-900 mb-5">
           {t("home.featured")}
         </h3>
-        <div className="flex items-center flex-wrap gap-3 mb-8">
+
+        {/* Category Buttons */}
+        <div className="flex items-center flex-wrap gap-3 mb-6">
           <Button
             size={ButtonSize}
             className="rounded-full hidden md:block"
@@ -191,10 +169,11 @@ const MoreProducts: FC<MoreProductsProps> = ({}) => {
           ))}
         </div>
 
+        {/* Featured Products */}
         {loading ? (
           <ProductGridSkeleton count={12} />
         ) : (
-          <div className="grid grid-cols-2 min-[500px]:grid-cols-3 min-[1000px]:grid-cols-4 xl:grid-cols-4 gap-2 md:gap-5">
+          <div className="grid grid-cols-2 min-[500px]:grid-cols-3 min-[1000px]:grid-cols-4 xl:grid-cols-5 gap-2 md:gap-5">
             {filteredFeaturedProducts.length > 0 ? (
               filteredFeaturedProducts.map((product) => (
                 <ProductCard key={product.id} product={product} />
@@ -207,6 +186,7 @@ const MoreProducts: FC<MoreProductsProps> = ({}) => {
           </div>
         )}
 
+        {/* Promo Banner */}
         <div className="bg-brand-orange mt-10 sm:mt-20 mb-16 sm:mb-24 text-white rounded-xl py-2 overflow-hidden">
           <div className="flex items-center">
             {promos.map((promo, i) => (
@@ -229,7 +209,7 @@ const MoreProducts: FC<MoreProductsProps> = ({}) => {
           </div>
         </div>
 
-        {/* NEW ARRIVALS */}
+        {/* New Arrivals Section */}
         <h3 className="lg:text-4xl md:text-2xl text-xl font-bold text-neutral-900 mb-8 mt-20">
           {t("home.new")}
         </h3>
@@ -237,13 +217,15 @@ const MoreProducts: FC<MoreProductsProps> = ({}) => {
         {loading ? (
           <ProductGridSkeleton count={8} />
         ) : (
-          <div className="grid grid-cols-2 min-[500px]:grid-cols-3 min-[1000px]:grid-cols-4 xl:grid-cols-4 gap-2 md:gap-5">
+          <div className="grid grid-cols-2 min-[500px]:grid-cols-3 min-[1000px]:grid-cols-4 xl:grid-cols-5 gap-2 md:gap-5">
             {latestProducts.map((product) => (
               <ProductCard key={product.id} product={product} />
             ))}
           </div>
         )}
       </MaxWidthWrapper>
+
+      {/* Services Section */}
       <MaxWidthWrapper
         size={"lg"}
         className="grid grid-cols-2 md:grid-cols-4 gap-5 my-20"
@@ -255,7 +237,6 @@ const MoreProducts: FC<MoreProductsProps> = ({}) => {
           </div>
         ))}
       </MaxWidthWrapper>
-      {/* <MarqueeBanner /> */}
     </div>
   );
 };

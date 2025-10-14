@@ -3,15 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import Image from "next/image";
 import LookingGlass from "@/components/LookingGlass";
-import {
-  Star,
-  Minus,
-  Plus,
-  Truck,
-  RotateCcw,
-  Upload,
-  X,
-} from "lucide-react";
+import { Star, Minus, Plus, Truck, RotateCcw, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -20,7 +12,14 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious, type CarouselApi } from "@/components/ui/carousel";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+  type CarouselApi,
+} from "@/components/ui/carousel";
 import { createStoreReview } from "@/integrations/supabase/store";
 import type {
   ProductPageData,
@@ -181,9 +180,9 @@ export default function ProductClientPage({
     if (!carouselApi) return;
     setCurrentIndex(carouselApi.selectedScrollSnap());
     const onSelect = () => setCurrentIndex(carouselApi.selectedScrollSnap());
-    carouselApi.on('select', onSelect);
+    carouselApi.on("select", onSelect);
     return () => {
-      carouselApi.off('select', onSelect);
+      carouselApi.off("select", onSelect);
     };
   }, [carouselApi]);
 
@@ -252,27 +251,34 @@ export default function ProductClientPage({
     setReviews((prev) => [newReview, ...prev]);
   };
 
+  console.log("Product data: ", product);
 
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
           <div className="space-y-4">
-            <Carousel setApi={setCarouselApi} opts={{ loop: true }} className="w-full">
+            <Carousel
+              setApi={setCarouselApi}
+              opts={{ loop: true }}
+              className="w-full"
+            >
               <CarouselContent>
                 {displayImages.map((image, index) => (
                   <CarouselItem key={index}>
                     <div className="relative aspect-square bg-white rounded-lg overflow-hidden">
                       <LookingGlass
-                        src={optimizeImageUrl(
-                          image,
-                          { width: 800, height: 800, quality: 85 }
-                        )}
+                        src={optimizeImageUrl(image, {
+                          width: 800,
+                          height: 800,
+                          quality: 85,
+                        })}
                         alt={`${product.name} - Image ${index + 1}`}
-                        zoomSrc={optimizeImageUrl(
-                          image,
-                          { width: 1600, height: 1600, quality: 90 }
-                        )}
+                        zoomSrc={optimizeImageUrl(image, {
+                          width: 1600,
+                          height: 1600,
+                          quality: 90,
+                        })}
                         zoomFactor={2}
                         squareMagnifier={false}
                         size={200}
@@ -299,7 +305,11 @@ export default function ProductClientPage({
                   }`}
                 >
                   <Image
-                    src={optimizeImageUrl(image, { width: 80, height: 80, quality: 70 })}
+                    src={optimizeImageUrl(image, {
+                      width: 80,
+                      height: 80,
+                      quality: 70,
+                    })}
                     alt={`Thumbnail ${index + 1}`}
                     width={80}
                     height={80}
@@ -317,9 +327,14 @@ export default function ProductClientPage({
                 <h1 className="text-3xl font-bold text-gray-900">
                   {product.name}
                 </h1>
-                <p className="text-gray-600 mt-1">
-                  {product.short_description}
-                </p>
+                <p
+                  className="text-gray-600 mt-1"
+                  dangerouslySetInnerHTML={{
+                    __html:
+                      product?.short_description ||
+                      "No description available.",
+                  }}
+                />
               </div>
               <WishlistButton
                 productId={product.id}
@@ -333,13 +348,11 @@ export default function ProductClientPage({
               {/* <div className="flex items-baseline gap-2"><span className="text-3xl font-bold text-orange-600">{currentPrice.toFixed(2)} frw</span>{comparePrice && <span className="text-lg text-gray-500 line-through">€{comparePrice.toFixed(2)}</span>}</div> */}
               <div className="flex items-baseline gap-2">
                 <span className="text-3xl font-bold text-orange-600">
-                  {currentPrice.toLocaleString()}{" "}
-                  frw
+                  {currentPrice.toLocaleString()} frw
                 </span>
                 {comparePrice && (
                   <span className="text-lg text-gray-500 line-through">
-                    {comparePrice}{" "}
-                    frw
+                    {comparePrice} frw
                   </span>
                 )}
               </div>
@@ -426,8 +439,8 @@ export default function ProductClientPage({
                 {variations.length > 0 && !singleSelectedVariation
                   ? "Select Options"
                   : !inStock
-                  ? "Out of Stock"
-                  : "Add To Cart"}
+                    ? "Out of Stock"
+                    : "Add To Cart"}
               </Button>
             </div>
             <div className="space-y-3 pt-4 border-t">
@@ -627,7 +640,11 @@ export default function ProductClientPage({
                   <CardContent className="p-4">
                     <div className="relative aspect-square mb-3 bg-gray-100 rounded-lg overflow-hidden">
                       <Image
-                        src={optimizeImageUrl(p.main_image_url, { width: 200, height: 200, quality: 75 })}
+                        src={optimizeImageUrl(p.main_image_url, {
+                          width: 200,
+                          height: 200,
+                          quality: 75,
+                        })}
                         alt={p.name}
                         fill
                         className="object-cover transition-transform"
@@ -643,9 +660,7 @@ export default function ProductClientPage({
                         />
                       </div>
                     </div>
-                    <p className="font-bold text-orange-600">
-                      FRW {p.price}
-                    </p>
+                    <p className="font-bold text-orange-600">FRW {p.price}</p>
                     <h3 className="font-medium text-sm mb-1 truncate">
                       {p.name}
                     </h3>
