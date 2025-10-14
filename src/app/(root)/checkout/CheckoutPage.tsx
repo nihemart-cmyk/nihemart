@@ -70,6 +70,7 @@ const CheckoutPage = ({
    const { user, isLoggedIn } = useAuth();
    const { createOrder } = useOrders();
    const router = useRouter();
+   const searchParams = useSearchParams();
 
    const [formData, setFormData] = useState({
       email: "",
@@ -360,6 +361,9 @@ const CheckoutPage = ({
       }
    }, [isRetryMode, retryOrderId, existingOrder, loadingExistingOrder, router]);
 
+   // Show a small banner when retrying due to timeout
+   const retryTimedOut = Boolean(searchParams?.get("timedout"));
+
    // Fetch orders_enabled flag so checkout can disable ordering when admin toggles it
    useEffect(() => {
       let mounted = true;
@@ -627,31 +631,31 @@ const CheckoutPage = ({
             return;
          }
 
-         const paymentResult = await initiatePayment(paymentRequest);
+         // Use the retry endpoint which enforces client_timeout checks
+         const resp = await fetch("/api/payments/retry", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(paymentRequest),
+         });
 
-         if (paymentResult.success) {
+         const paymentResult = await resp.json();
+
+         if (resp.ok && paymentResult.success) {
             toast.success("Initiating payment with new method...");
-            // Handle different payment methods differently
             if (
                paymentMethod === "visa_card" ||
                paymentMethod === "mastercard"
             ) {
-               // For card payments, redirect to external checkout immediately if URL is provided
                if (paymentResult.checkoutUrl) {
                   toast.success("Redirecting to secure payment...");
-                  // give a tiny delay for the toast to show on slow devices
                   const url = paymentResult.checkoutUrl as string;
-                  setTimeout(() => {
-                     window.location.href = url;
-                  }, 250);
+                  setTimeout(() => (window.location.href = url), 250);
                } else {
-                  // Fallback to payment page if no checkout URL
                   router.push(
                      `/payment/${paymentResult.paymentId}?orderId=${existingOrder.id}`
                   );
                }
             } else {
-               // For mobile money and other methods, go to payment status page
                router.push(
                   `/payment/${paymentResult.paymentId}?orderId=${existingOrder.id}`
                );
@@ -1049,6 +1053,15 @@ Total: ${total.toLocaleString()} RWF
                      </p>
                   </div>
                </div>
+            </div>
+         )}
+
+         {isRetryMode && retryTimedOut && (
+            <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+               <p className="text-xs text-yellow-900">
+                  The previous payment attempt timed out. You can try a
+                  different payment method now.
+               </p>
             </div>
          )}
 

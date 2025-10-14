@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
    Card,
@@ -59,6 +59,8 @@ export default function PaymentPage() {
    const [error, setError] = useState<string | null>(null);
    const [statusCheckCount, setStatusCheckCount] = useState(0);
    const [paymentCompleted, setPaymentCompleted] = useState(false);
+   const [stoppedPolling, setStoppedPolling] = useState(false);
+   const timeoutReportedRef = useRef(false);
 
    // Fetch payment data
    const fetchPaymentData = async () => {
@@ -84,7 +86,19 @@ export default function PaymentPage() {
 
    // Check payment status periodically with exponential backoff and cap
    const checkStatus = async () => {
-      if (!payment || paymentCompleted) return;
+      if (!payment || paymentCompleted || loading) return;
+      if (stoppedPolling) return;
+      if (timeoutReportedRef.current) return;
+
+      // stop polling for terminal statuses
+      if (
+         payment.status === "timeout" ||
+         payment.status === "failed" ||
+         payment.status === "cancelled"
+      ) {
+         setStoppedPolling(true);
+         return;
+      }
 
       // Maximum total checks to consider this a client-side timeout (2 minutes)
       const maxStatusChecks = 12;
@@ -164,11 +178,12 @@ export default function PaymentPage() {
       // increment and check for timeout
       setStatusCheckCount((prev) => {
          const next = prev + 1;
-         if (next >= maxStatusChecks) {
-            // mark timeout for UX and log to server
+         if (next >= maxStatusChecks && !timeoutReportedRef.current) {
+            // mark timeout for UX and ask server for final status (in case webhook already arrived)
+            timeoutReportedRef.current = true;
             (async () => {
                try {
-                  await fetch("/api/payments/timeout", {
+                  const resp = await fetch("/api/payments/timeout", {
                      method: "POST",
                      headers: { "Content-Type": "application/json" },
                      body: JSON.stringify({
@@ -176,26 +191,68 @@ export default function PaymentPage() {
                         reason: "Client-side timeout after polling",
                      }),
                   });
+
+                  const data = await resp.json();
+
+                  // If server already marked payment completed, treat it as success
+                  if (
+                     data?.status &&
+                     (data.status === "completed" ||
+                        data.status === "successful")
+                  ) {
+                     setPaymentCompleted(true);
+                     setPayment((prev) =>
+                        prev ? { ...prev, status: data.status } : null
+                     );
+                     toast.success("Payment completed successfully!");
+                     setTimeout(() => {
+                        router.push(
+                           `/orders/${
+                              orderId || payment.order_id
+                           }?payment=success`
+                        );
+                     }, 1200);
+                     setStoppedPolling(true);
+                     return;
+                  }
+
+                  // Otherwise, show the timeout message once
+                  setPayment((prev) =>
+                     prev
+                        ? {
+                             ...prev,
+                             status: "timeout",
+                             failure_reason:
+                                "Payment took too long to process. You can try again or use a different payment method.",
+                          }
+                        : null
+                  );
+
+                  toast.error(
+                     "Payment took too long to process. You can try again or use a different payment method.",
+                     { duration: 6000 }
+                  );
+                  setStoppedPolling(true);
                } catch (e) {
                   console.error("Failed to record timeout:", e);
+                  // fallback UX if timeout recording fails
+                  setPayment((prev) =>
+                     prev
+                        ? {
+                             ...prev,
+                             status: "timeout",
+                             failure_reason:
+                                "Payment took too long to process. You can try again or use a different payment method.",
+                          }
+                        : null
+                  );
+                  toast.error(
+                     "Payment took too long to process. You can try again or use a different payment method.",
+                     { duration: 6000 }
+                  );
+                  setStoppedPolling(true);
                }
             })();
-
-            setPayment((prev) =>
-               prev
-                  ? {
-                       ...prev,
-                       status: "timeout",
-                       failure_reason:
-                          "Payment took too long to process. You can try again or use a different payment method.",
-                    }
-                  : null
-            );
-
-            toast.error(
-               "Payment took too long to process. You can try again or use a different payment method.",
-               { duration: 6000 }
-            );
          }
 
          return next;
@@ -207,7 +264,7 @@ export default function PaymentPage() {
    }, [paymentId]);
 
    useEffect(() => {
-      if (!payment || paymentCompleted || loading) return;
+      if (!payment || paymentCompleted || loading || stoppedPolling) return;
 
       // Run an immediate check once, then poll every 10s
       checkStatus();
@@ -215,7 +272,7 @@ export default function PaymentPage() {
       const interval = setInterval(checkStatus, 10000);
       return () => clearInterval(interval);
       // note: intentionally not including statusCheckCount to avoid recreating the interval on every poll
-   }, [payment, paymentCompleted, loading]);
+   }, [payment, paymentCompleted, loading, stoppedPolling]);
 
    const getStatusIcon = (status: string) => {
       switch (status) {
@@ -646,7 +703,11 @@ export default function PaymentPage() {
                                        router.push(
                                           `/checkout?orderId=${
                                              orderId || payment.order_id
-                                          }&retry=true`
+                                          }&retry=true${
+                                             payment.status === "timeout"
+                                                ? "&timedout=true"
+                                                : ""
+                                          }`
                                        )
                                     }
                                     className="w-full bg-orange-500 hover:bg-orange-600 text-xs sm:text-sm h-9 sm:h-11"

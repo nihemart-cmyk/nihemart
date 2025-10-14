@@ -199,7 +199,11 @@ export default function RiderSettingsPage() {
                                  <UserAvatarProfile
                                     className="w-16 h-16"
                                     user={{
-                                       fullName: fullName || rider?.full_name || user?.email || "Rider",
+                                       fullName:
+                                          fullName ||
+                                          rider?.full_name ||
+                                          user?.email ||
+                                          "Rider",
                                        subTitle: rider?.location || "",
                                        imageUrl: rider?.image_url || "",
                                     }}
