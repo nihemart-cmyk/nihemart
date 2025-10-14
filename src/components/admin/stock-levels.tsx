@@ -304,9 +304,10 @@ function StockTable({
   const [selectedItems, setSelectedItems] = useState(new Set<string>())
   const [sortConfig, setSortConfig] = useState<{key: string, direction: string} | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
-  const [categoryFilter, setCategoryFilter] = useState('All Categories')
   const [stockFilter, setStockFilter] = useState('All Stock')
   const [timeFilter, setTimeFilter] = useState('All Time')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
 
   // Fetch categories for filter
   const { data: categories = [] } = useQuery({
@@ -375,10 +376,6 @@ function StockTable({
     return items
   }, [products])
 
-  const uniqueCategories = useMemo(() =>
-    ['All Categories', ...categories.map(cat => cat.name)],
-    [categories]
-  )
 
   const uniqueStocks = ['All Stock', 'In Stock', 'Low Stock', 'Out of Stock']
 
@@ -448,11 +445,6 @@ function StockTable({
       )
     }
 
-    // Category filter
-    if (categoryFilter !== 'All Categories') {
-      filtered = filtered.filter(p => p.category?.name === categoryFilter)
-    }
-
     // Stock filter
     if (stockFilter !== 'All Stock') {
       if (stockFilter === 'In Stock') {
@@ -495,7 +487,24 @@ function StockTable({
     }
 
     return filtered
-  }, [flattenedData, searchTerm, categoryFilter, stockFilter, sortConfig])
+  }, [flattenedData, searchTerm, stockFilter, sortConfig])
+
+  // Pagination logic
+  const totalItems = filteredData.length
+  const totalPages = Math.ceil(totalItems / pageSize)
+  const startIndex = (currentPage - 1) * pageSize
+  const endIndex = startIndex + pageSize
+  const paginatedData = filteredData.slice(startIndex, endIndex)
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchTerm, stockFilter, sortConfig])
+
+  // Reset to first page when page size changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [pageSize])
 
   return (
     <Card className="bg-white">
@@ -503,7 +512,7 @@ function StockTable({
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg font-semibold">{title}</CardTitle>
           <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-500">{filteredData.length}</span>
+            <span className="text-sm text-gray-500">{totalItems} items</span>
             <div className="flex items-center gap-2">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -515,20 +524,6 @@ function StockTable({
                   {uniqueTimes.map(time => (
                     <DropdownMenuItem key={time} onClick={() => setTimeFilter(time)}>
                       {time}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    {categoryFilter} <ChevronDown className="ml-2 h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  {uniqueCategories.map(cat => (
-                    <DropdownMenuItem key={cat} onClick={() => setCategoryFilter(cat)}>
-                      {cat}
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuContent>
@@ -598,7 +593,7 @@ function StockTable({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredData.map((item, index) => (
+                  {paginatedData.map((item, index) => (
                     <TableRow key={item.id} className="border-b hover:bg-gray-50">
                       <TableCell style={{ minWidth: columns[0].width }} className="border-b border-gray-100 px-4 py-3">
                         <Checkbox
@@ -607,7 +602,7 @@ function StockTable({
                           className="rounded border-gray-300"
                         />
                       </TableCell>
-                      <TableCell style={{ minWidth: columns[1].width }} className="font-medium border-b border-gray-100 px-4 py-3">{index + 1}</TableCell>
+                      <TableCell style={{ minWidth: columns[1].width }} className="font-medium border-b border-gray-100 px-4 py-3">{startIndex + index + 1}</TableCell>
                       <TableCell style={{ minWidth: columns[2].width }} className="border-b border-gray-100 px-4 py-3">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 bg-gray-100 rounded flex items-center justify-center overflow-hidden">
@@ -661,7 +656,7 @@ function StockTable({
                         <Badge className={
                           item.stock <= 0 ? 'bg-red-100 text-red-800' :
                           item.stock <= 10 ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-green-100 text-green-800'
+                          'bg-green-100 text-green-800 hover:text-white'
                         }>
                           {item.stock <= 0 ? 'Out of Stock' :
                            item.stock <= 10 ? 'Low Stock' :
@@ -713,6 +708,132 @@ function StockTable({
           </div>
         </div>
       </CardContent>
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between px-6 py-4 border-t bg-gray-50">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600">Page size:</span>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  {pageSize} <ChevronDown className="ml-2 h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                {[10, 15, 20].map(size => (
+                  <DropdownMenuItem key={size} onClick={() => setPageSize(size)}>
+                    {size}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600">
+              Page {currentPage} of {totalPages} ({totalItems} total)
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+            >
+              First
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+            >
+              Previous
+            </Button>
+
+            {/* Page Numbers with Ellipsis */}
+            {(() => {
+              const pages = []
+              const maxVisiblePages = 5
+              let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2))
+              let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1)
+
+              if (endPage - startPage + 1 < maxVisiblePages) {
+                startPage = Math.max(1, endPage - maxVisiblePages + 1)
+              }
+
+              // Add first page and ellipsis if needed
+              if (startPage > 1) {
+                pages.push(
+                  <Button
+                    key={1}
+                    variant={currentPage === 1 ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setCurrentPage(1)}
+                  >
+                    1
+                  </Button>
+                )
+                if (startPage > 2) {
+                  pages.push(<span key="start-ellipsis" className="px-2">...</span>)
+                }
+              }
+
+              // Add visible pages
+              for (let i = startPage; i <= endPage; i++) {
+                pages.push(
+                  <Button
+                    key={i}
+                    variant={currentPage === i ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setCurrentPage(i)}
+                  >
+                    {i}
+                  </Button>
+                )
+              }
+
+              // Add last page and ellipsis if needed
+              if (endPage < totalPages) {
+                if (endPage < totalPages - 1) {
+                  pages.push(<span key="end-ellipsis" className="px-2">...</span>)
+                }
+                pages.push(
+                  <Button
+                    key={totalPages}
+                    variant={currentPage === totalPages ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setCurrentPage(totalPages)}
+                  >
+                    {totalPages}
+                  </Button>
+                )
+              }
+
+              return pages
+            })()}
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages}
+            >
+              Next
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage === totalPages}
+            >
+              Last
+            </Button>
+          </div>
+        </div>
+      )}
     </Card>
   )
 }

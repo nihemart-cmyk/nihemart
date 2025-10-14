@@ -383,8 +383,6 @@ export async function fetchProductForEdit(id: string) {
     };
  }
 
-// This function is no longer used since we moved filtering logic directly into the query functions
-
 export async function fetchProductsPage({
     filters = {},
     pagination = { page: 1, limit: 10 },

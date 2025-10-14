@@ -42,7 +42,7 @@ export async function fetchProductsForStockManagement(search: string = ''): Prom
         query = query.ilike('name', `%${search.trim()}%`);
     }
 
-    const { data, error } = await query.limit(100); // Limit for performance
+    const { data, error } = await query.limit(1000_000); // Limit for performance
     if (error) throw error;
     return data as StockProduct[];
 }

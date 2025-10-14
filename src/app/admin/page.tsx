@@ -35,6 +35,7 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchRiders } from "@/integrations/supabase/riders";
+import { useUsers } from "@/hooks/useUsers";
 const sb = supabase as any;
 import {
    Area,
@@ -91,8 +92,9 @@ interface UserItemProps {
 
 // Main Dashboard Component
 const Dashboard: React.FC = () => {
-   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
-   const [calendarOpen, setCalendarOpen] = useState(false);
+    const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
+    const [calendarOpen, setCalendarOpen] = useState(false);
+    const { users: allUsers, loading: allUsersLoading } = useUsers();
 
    // Fetch data with optimized queries
    const { data: ordersResponse, isLoading: ordersLoading } = useQuery({
@@ -210,6 +212,21 @@ const Dashboard: React.FC = () => {
       refetchOnReconnect: true,
    });
 
+   const { data: totalUsersCount, isLoading: usersCountLoading } = useQuery({
+      queryKey: ['admin-total-users-count'],
+      queryFn: async () => {
+         const { count, error } = await sb
+            .from('profiles')
+            .select('*', { count: 'exact', head: true });
+         if (error) throw error;
+         return count || 0;
+      },
+      staleTime: 30 * 60 * 1000, // 30 minutes
+      gcTime: 60 * 60 * 1000, // 1 hour
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: true,
+   });
+
    const { data: usersResponse, isLoading: usersLoading } = useQuery({
       queryKey: ['admin-users'],
       queryFn: async () => {
@@ -230,60 +247,9 @@ const Dashboard: React.FC = () => {
       refetchOnReconnect: true,
    });
 
-   const { data: topUsersResponse, isLoading: topUsersLoading } = useQuery({
-      queryKey: ['admin-top-users', dateRange?.from, dateRange?.to],
-      queryFn: async () => {
-         // Get orders to calculate user spend
-         let ordersQuery = sb
-            .from('orders')
-            .select('user_id, total, created_at')
-            .not('user_id', 'is', null);
-
-         if (dateRange?.from) {
-            ordersQuery = ordersQuery.gte('created_at', dateRange.from.toISOString());
-         }
-         if (dateRange?.to) {
-            ordersQuery = ordersQuery.lte('created_at', dateRange.to.toISOString());
-         }
-
-         const { data: orders, error: ordersError } = await ordersQuery.limit(1000); // Limit for performance
-         if (ordersError) throw ordersError;
-
-         // Calculate total spend per user
-         const userSpend: Record<string, number> = {};
-         (orders || []).forEach((order: { user_id: string | number; total: any; }) => {
-            userSpend[order.user_id] = (userSpend[order.user_id] || 0) + (order.total || 0);
-         });
-
-         // Get top 5 users
-         const topUserIds = Object.entries(userSpend)
-            .sort(([,a], [,b]) => b - a)
-            .slice(0, 5)
-            .map(([id]) => id);
-
-         if (topUserIds.length === 0) return [];
-
-         const { data: users, error } = await sb
-            .from('profiles')
-            .select(`
-               *,
-               user_roles (role)
-            `)
-            .in('id', topUserIds);
-
-         if (error) throw error;
-
-         // Add totalSpend to users
-         return (users || []).map((user: { id: string | number; }) => ({
-            ...user,
-            totalSpend: userSpend[user.id] || 0
-         })).sort((a: { totalSpend: any; }, b: { totalSpend: any; }) => (b.totalSpend || 0) - (a.totalSpend || 0)) as any[];
-      },
-      staleTime: 15 * 60 * 1000, // 15 minutes
-      gcTime: 30 * 60 * 1000, // 30 minutes
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: true,
-   });
+   // Use the users from useUsers hook instead of separate query
+   const topUsersResponse = allUsers?.slice(0, 5) || [];
+   const topUsersLoading = allUsersLoading;
 
    const { data: ridersResponse, isLoading: ridersLoading } = useQuery({
       queryKey: ['admin-riders'],
@@ -313,6 +279,7 @@ const Dashboard: React.FC = () => {
    const orders = ordersResponse || [];
    const products = productsResponse || [];
    const users = usersResponse || [];
+   const totalUsers = totalUsersCount || 0;
    const riders = ridersResponse || [];
    const topProducts = topProductsResponse || [];
    const topUsers = topUsersResponse || [];
@@ -320,17 +287,18 @@ const Dashboard: React.FC = () => {
 
    // Calculate real metrics
    const metrics = useMemo(() => {
-      const totalRevenue = orders.reduce(
-         (sum, order) => sum + (order.total || 0),
-         0
-      );
-      const totalUsers = users.length;
+      const totalRevenue = orders
+         .filter(order => order.status === "delivered")
+         .reduce(
+            (sum, order) => sum + (order.total || 0),
+            0
+         );
+      const totalUsersCount = totalUsers;
       const totalOrders = orders.length;
 
       // Calculate refunds
       const refundedOrders = orders.filter(
-         (order) =>
-            order.status === "cancelled" || order.refund_status === "approved"
+         (order) => order.status === "refunded"
       );
       const totalRefunded = refundedOrders.reduce(
          (sum, order) => sum + (order.total || 0),
@@ -342,12 +310,12 @@ const Dashboard: React.FC = () => {
 
       return {
          totalRevenue,
-         totalUsers,
+         totalUsers: totalUsersCount,
          totalOrders,
          totalRefunded,
          refundedOrders: refundedOrders.length,
       };
-   }, [orders, users]);
+   }, [orders, totalUsers]);
 
    // Calculate order status breakdown
    const orderStatusData: DetailedStatsData[] = useMemo(() => {
@@ -363,10 +331,10 @@ const Dashboard: React.FC = () => {
             label: "Processing",
             value: (statusCounts.processing || 0).toString(),
          },
-         { label: "Shipped", value: (statusCounts.shipped || 0).toString() },
+         { label: "Delivered", value: (statusCounts.delivered || 0).toString() },
          {
-            label: "Delivered",
-            value: (statusCounts.delivered || 0).toString(),
+            label: "Refunded",
+            value: (statusCounts.refunded || 0).toString(),
          },
       ];
    }, [orders]);
@@ -374,8 +342,7 @@ const Dashboard: React.FC = () => {
    // Calculate refunds data
    const refundsData: DetailedStatsData[] = useMemo(() => {
       const refundedOrders = orders.filter(
-         (order) =>
-            order.status === "cancelled" || order.refund_status === "approved"
+         (order) => order.status === "refunded"
       );
       const totalRefundedAmount = refundedOrders.reduce(
          (sum, order) => sum + (order.total || 0),
@@ -718,10 +685,16 @@ const Dashboard: React.FC = () => {
                               </div>
                            </div>
 
-                           {/* Top Users */}
+                           {/* Recent Users */}
                            <div className="bg-white rounded-lg border shadow-sm">
                               <div className="flex justify-between items-center p-4 border-b">
-                                 <h3 className="font-semibold">Top Users</h3>
+                                 <h3 className="font-semibold">Users</h3>
+                                 <Link
+                                    className="text-sm text-blue-500"
+                                    href="/admin/users"
+                                 >
+                                    All users
+                                 </Link>
                               </div>
                               <div>
                                  {topUsersLoading ? (
@@ -751,16 +724,14 @@ const Dashboard: React.FC = () => {
                                              "Unknown User"
                                           }
                                           code={user.email || ""}
-                                          amount={`RWF ${(
-                                             user.totalSpend || 0
-                                          ).toLocaleString()}`}
+                                          amount={user.email || ""}
                                           avatar={(
                                              user.full_name ||
                                              user.email ||
                                              "U"
                                           )
                                              .split(" ")
-                                             .map((n: any[]) => n[0])
+                                             .map((n: string) => n[0])
                                              .join("")
                                              .toUpperCase()}
                                        />

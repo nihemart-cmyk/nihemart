@@ -50,14 +50,22 @@ export default function StockOverview({ onTabChange }: { onTabChange?: (tab: str
   const { useOrderStats } = useOrders()
   const { data: orderStats } = useOrderStats()
 
-  const { data: products = [], isLoading } = useQuery({
-    queryKey: ['products-stock'],
-    queryFn: () => fetchProductsForStockManagement(),
-    staleTime: 30 * 60 * 1000, // 30 minutes - stock data doesn't change often
-    gcTime: 60 * 60 * 1000, // 1 hour
-    refetchOnWindowFocus: false,
+  const { data: productsData, isLoading } = useQuery({
+    queryKey: ['products-stock-overview'],
+    queryFn: async () => {
+      // Fetch all products for overview (no pagination needed for summary stats)
+      const result = await fetchProductsForStockManagement(); // Large limit for overview
+      return result
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes - more frequent updates for accurate data
+    gcTime: 30 * 60 * 1000, // 30 minutes
+    refetchOnWindowFocus: true, // Refetch when window gets focus
     refetchOnReconnect: true,
+    refetchInterval: 10 * 60 * 1000, // Background refetch every 10 minutes
+    refetchIntervalInBackground: true,
   })
+
+  const products = productsData || [];
 
   const ordersQuery = useOrders().useAllOrders()
   const orders = ordersQuery.data?.data || []
@@ -118,20 +126,26 @@ export default function StockOverview({ onTabChange }: { onTabChange?: (tab: str
     { month: 'Current', inStock: metrics.inStockVariations, lowStock: metrics.lowStockVariations, outOfStock: metrics.outOfStockVariations },
   ]
 
-  // Prepare orders chart data from real data
+  // Prepare orders chart data from real data - show fulfillment rate over time
   const ordersChartData = useMemo(() => {
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const orderCounts: Record<string, number> = {};
+    const fulfillmentCounts: Record<string, { total: number, fulfilled: number }> = {};
 
     orders.forEach((order: any) => {
       const date = new Date(order.created_at);
       const month = monthNames[date.getMonth()];
-      orderCounts[month] = (orderCounts[month] || 0) + 1;
+      if (!fulfillmentCounts[month]) {
+        fulfillmentCounts[month] = { total: 0, fulfilled: 0 };
+      }
+      fulfillmentCounts[month].total += 1;
+      if (order.status === 'delivered') {
+        fulfillmentCounts[month].fulfilled += 1;
+      }
     });
 
     return monthNames.map(month => ({
       month,
-      orders: orderCounts[month] || 0
+      orders: fulfillmentCounts[month]?.fulfilled || 0
     }));
   }, [orders])
 
@@ -254,9 +268,9 @@ export default function StockOverview({ onTabChange }: { onTabChange?: (tab: str
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <div>
               <CardTitle className="text-sm font-medium text-gray-600">Order Fulfillment</CardTitle>
-              <div className="text-lg font-bold mt-2 text-blue-600">
-                {(orderStats as any)?.delivered_orders || 0} Completed
-              </div>
+                 <div className="text-lg font-bold mt-2 text-blue-600">
+                   {orders.filter((order: any) => order.status === 'delivered').length} Completed
+                 </div>
             </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
