@@ -16,41 +16,42 @@ export const en: Record<string, string> = {
    "nav.notifications": "Notifications",
    "nav.returns": "Return & Refund Policy",
 
-   // Return and Refund Policy
 
+   // Return and Refund Policy
    returnTitle: "Return and Refund Policy",
    returnHero:
       "We want you to be completely satisfied with your purchase. Please read our return and refund policy for more details.",
    termsTitle: "Return Terms and Conditions",
    termsCondition1Title: "Eligibility for Returns",
    termsCondition1Desc:
-      "You can return the product within 30 days from the date of delivery if it is in its original, unopened condition.",
+      "You may request a return within 24 hours after receiving your product other wise we will not assist you.",
    termsCondition2Title: "Non-Returnable Products",
    termsCondition2Desc:
-      "Some items such as perishable goods, custom orders, and intimate apparel cannot be returned.",
+      "The product must be in good condition, and in its original packaging.",
    termsCondition3Title: "Product Condition",
    termsCondition3Desc:
-      "Returned products must be unused, with all original tags, packaging, and accessories included.",
+      "If you simply don’t like the product but it’s in good condition, you may return it, but you will be responsible for the delivery fee for pickup.",
    termsCondition4Title: "Return Process",
    termsCondition4Desc:
       "To initiate a return, please contact our customer support team with your order details.",
    termsCondition5Title: "Return Shipping Costs",
    termsCondition5Desc:
       "The customer is responsible for paying return shipping costs, unless the product is defective or damaged.",
-   refundTitle: "Refund Policy",
+   refundTitle: "Refund Process",
    refundCondition1Title: "Refund Eligibility",
    refundCondition1Desc:
-      "Refunds are available for returns processed within 30 days of purchase and under our return policy conditions.",
+      "To request a refund, go to your Order tab on our website and click “Refund” on the item you wish to return.",
    refundCondition2Title: "Refund Method",
    refundCondition2Desc:
-      "Refunds will be processed back to the original payment method used during purchase.",
+      "Once we receive and inspect the returned product, we will process your refund according to our policy.",
    refundCondition3Title: "Processing Time",
    refundCondition3Desc:
-      "Refunds typically take 5–7 business days to process after we receive your returned product.",
+      "Refunds will be made using your original payment method, unless otherwise agreed.",
    contactTitle: "Contact Customer Support",
    contactDesc:
       "If you have any questions or need assistance with returns and refunds, feel free to contact our customer support team.",
    supportEmailLabel: "Support Email",
+   supportPhoneLabel: "Support Phone",
 
    // Homepage
    "home.hero.title": "Welcome to NiheMart",

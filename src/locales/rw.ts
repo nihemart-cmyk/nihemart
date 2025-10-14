@@ -16,39 +16,42 @@ export const rw: Record<string, string> = {
    "nav.notifications": "Ubutumwa",
    "nav.returns": "Gusubiza ibicuruzwa",
 
-   returnTitle: "Politiki y'Ukugarura no Gusubiza Amafaranga",
+
+   // RETURNS & REFUNDS
+   returnTitle: "Uburyo bwo kugarura ibicuruzwa no gusubizwa amafaranga",
    returnHero:
       "Turashaka ko wishimira kugura kwawe. Nyamuneka soma politiki yacu y'ukugarura no gusubiza amafaranga kugira ngo wumve ibisobanuro by'ibikubiye muri yo.",
    termsTitle: "Amategeko yo Gusubiza Ibicuruzwa",
    termsCondition1Title: "Uburenganzira bwo Gusubiza Ibicuruzwa",
    termsCondition1Desc:
-      "Urashobora gusubiza ibicuruzwa mu gihe cy'iminsi 30 uhereye ku itariki yo kubitanga, niba bibitswe neza kandi bitaravumburwa.",
+      "Ushobora gusaba kugarura igicuruzwa mu masaha 24 nyuma yo kugitumiza bitihise ntitwashobora kugufasha",
    termsCondition2Title: "Ibicuruzwa Bidashobora Gusubizwa",
    termsCondition2Desc:
-      "Bimwe mu bicuruzwa nk'ibikoresho bipfa vuba, ibicuruzwa byihariye, n'imyenda yo mu bwoko bw'imbere ntibishobora gusubizwa.",
+      "Igicuruzwa kigomba kuba kimeze neza kandi gifunze neza uko wagihawe.",
    termsCondition3Title: "Imiterere y'Ibicuruzwa",
    termsCondition3Desc:
-      "Ibicuruzwa bigaruwe bigomba kuba bitarakoreshwa, bifite ibirango by'ubwoko bwabyo, packaging y'ibanze, n'ibindi bikoresho byose.",
+      "Niba igicuruzwa utakishimiye ariko kikaba kitangiritse ushobora kugisubiza ariko wishyura aya transport",
    termsCondition4Title: "Uburyo bwo Gusubiza Ibicuruzwa",
    termsCondition4Desc:
       "Kugira ngo utangire igikorwa cyo gusubiza, nyamuneka twandikire itsinda ryacu ry'ubufasha n'ibikorwa by'ibicuruzwa byawe.",
    termsCondition5Title: "Ikiguzi cyo Kohereza Ibicuruzwa",
    termsCondition5Desc:
       "Ikiguzi cyo gusubiza ibicuruzwa kizatangwa n'umuguzi, uretse igihe ibicuruzwa byaba byangiritse cyangwa byangiritse mu buryo bw'amakosa.",
-   refundTitle: "Politiki yo Gusubiza Amafaranga",
+   refundTitle: "Uburyo bwo gusubizaamafaranga",
    refundCondition1Title: "Uburenganzira bwo Gusubiza Amafaranga",
    refundCondition1Desc:
-      "Gusubizwa amafaranga birashoboka ku bicuruzwa byasubijwe mu gihe cy'iminsi 30 nyuma yo kugura, kandi bihura n'amategeko yacu yo gusubiza ibicuruzwa.",
+      "Kugirango usabe gusubizwa amafaranga yawe, jya kuri paje ya komande kuri website, ukande ahanditse gusubizwa, ku gicuruzwa wifuza gusubizwa.",
    refundCondition2Title: "Uburyo bwo Gusubiza Amafaranga",
    refundCondition2Desc:
-      "Gusubizwa amafaranga bizakorwa ku buryo bwo kwishyura bwakoreshejwe mu gihe cyo kugura.",
+      "Nitumara kwakira no gusuzuma igicuruzwa cyacu, turiga ku busabe bwawe tugendeye ku murongo ngenderwaho wacu.",
    refundCondition3Title: "Igihe cyo Gukora Gusubiza Amafaranga",
    refundCondition3Desc:
-      "Gusubizwa amafaranga bikenera iminsi 5-7 y'akazi nyuma y'uko tumenye ibicuruzwa byasubijwe.",
-   contactTitle: "Twandikire Itsinda ry'Ubuvuzi",
+      "Usubizwa amafaranga mu buryo wari wakoresheje wishyura, keretse hemeranyijwe ibitandukanye.",
+   contactTitle: "Twandikire Itsinda ry'ubufasha",
    contactDesc:
       "Niba ufite ikibazo cyangwa ukaba ukeneye ubufasha ku birebana n'ukugarura no gusubiza amafaranga, turagutumiye ko wahamagara itsinda ryacu ry'ubufasha.",
-   supportEmailLabel: "Imeyili y'Ubuvuzi",
+   supportEmailLabel: "Imeyili yo gufashirizwaho",
+   supportPhoneLabel: "Telefone yo gufashirizwaho",
 
    // Homepage
    "home.hero.title": "Murakaza neza kuri NiheMart",
