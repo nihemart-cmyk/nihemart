@@ -2,8 +2,8 @@
 deployment:
   tasks:
     - export DEPLOYPATH=/home/nihemart/nihemart_v2
-    - /usr/bin/npm install
-    - /usr/bin/npm run build
+    - /usr/bin/pnpm install
+    - /usr/bin/pnpm run build
     - /bin/cp -R .next $DEPLOYPATH
     - /bin/cp -R public $DEPLOYPATH
     - /bin/cp package.json $DEPLOYPATH
