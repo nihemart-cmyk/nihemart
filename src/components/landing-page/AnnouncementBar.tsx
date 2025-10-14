@@ -27,7 +27,7 @@ const AnnouncementBar: FC<AnnouncementBarProps> = ({}) => {
 
   // Announcement state
   const [announcement, setAnnouncement] = useState(
-    "Due to Rainy season it will affect delivery"
+    "HELP LINE:0792412177"
   );
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(false);

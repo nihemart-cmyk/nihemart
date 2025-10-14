@@ -296,28 +296,28 @@ export const en: Record<string, string> = {
    "contact.getInTouchDesc":
       "Have questions about our products or services? Our team is here to help you with anything you need. Reach out through any of the channels below.",
    "contact.address": "Address",
-   "contact.addressContent": "Kigali, Rwanda\nKN 4 Ave, Nyarugenge",
+   "contact.addressContent": "Kigali, Rwanda\nKN 4 Ave, Gasabo",
    "contact.phone": "Phone",
-   "contact.phoneContent": "+250 788 123 456\n+250 722 987 654",
+   "contact.phoneContent": "0792412177",
    "contact.email": "Email",
-   "contact.emailContent": "info@nihemart.rw\nsupport@nihemart.rw",
+   "contact.emailContent": "nihemart@gmail.com",
    "contact.hours": "Business Hours",
    "contact.hoursContent":
-      "Mon - Fri: 8:00 AM - 6:00 PM\nSat - Sun: 9:00 AM - 5:00 PM",
+      "Mon - Sun: 9:00 AM - 9:00 PM",
    "contact.faqTitle": "Frequently Asked Questions",
    "contact.faqDesc": "Quick answers to common questions",
    "contact.faq1.q": "What are your delivery times?",
    "contact.faq1.a":
-      "We deliver within Kigali in 1-2 business days and nationwide within 3-5 business days.",
-   "contact.faq2.q": "Do you offer returns?",
+      "If you’re in Kigali, delivery usually takes about one hour after placing your order.",
+   "contact.faq2.q": "What if I don’t like the product?",
    "contact.faq2.a":
-      "Yes, we offer 30-day returns for most products in original condition.",
-   "contact.faq3.q": "What payment methods do you accept?",
+      "If you’re not satisfied with your product, you can return it within 24 hours after receiving it. You’ll only need to cover the delivery fee.",
+   "contact.faq3.q": "Can I pay after receiving the product?",
    "contact.faq3.a":
-      "We accept mobile money, bank transfers, and cash on delivery.",
-   "contact.faq4.q": "Is customer support available in Kinyarwanda?",
+      "Yes! We offer a Cash on Delivery option for customers in Kigali.",
+   "contact.faq4.q": "Do you deliver outside Kigali (in provinces)?",
    "contact.faq4.a":
-      "Yes, our support team is fluent in both English and Kinyarwanda.",
+      "Yes, we deliver to all provinces. At checkout, click the WhatsApp button to get help from our support team. You’ll need to pay in advance and provide your name and contact details. We’ll send your order through a courier service and give you a receipt to help you collect your package.",
 
    // Wishlist (added section)
    "wishlist.title": "My Wishlist",

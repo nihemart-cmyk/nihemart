@@ -271,28 +271,28 @@ export const rw: Record<string, string> = {
    "contact.getInTouchDesc":
       "Ufite ikibazo ku bicuruzwa cyangwa serivisi zacu? Itsinda ryacu rihari ngo rigufashe. Twandikire ukoresheje uburyo bwose bukurikira.",
    "contact.address": "Aderesi",
-   "contact.addressContent": "Kigali, Rwanda\nKN 4 Ave, Nyarugenge",
+   "contact.addressContent": "Kigali, Rwanda\nKN 4 Ave, Gasabo",
    "contact.phone": "Telefoni",
-   "contact.phoneContent": "+250 788 123 456\n+250 722 987 654",
+   "contact.phoneContent": "0792412177",
    "contact.email": "Imeyili",
-   "contact.emailContent": "info@nihemart.rw\nsupport@nihemart.rw",
+   "contact.emailContent": "nihemart@gmail.com",
    "contact.hours": "Amasaha y'akazi",
    "contact.hoursContent":
-      "Kuwa mbere - kuwa gatanu: 8:00 AM - 6:00 PM\nKuwa gatandatu - ku cyumweru: 9:00 AM - 5:00 PM",
+      "Kuwa mbere - ku cyumweru: 9:00 AM - 9:00 PM",
    "contact.faqTitle": "Ibibazo Bikunze Kubazwa",
    "contact.faqDesc": "Ibisubizo byihuse ku bibazo bikunze kubazwa",
    "contact.faq1.q": "Ni ryari mugemura ibicuruzwa?",
    "contact.faq1.a":
-      "Tugemura muri Kigali mu minsi 1-2 y'akazi no mu gihugu hose mu minsi 3-5 y'akazi.",
-   "contact.faq2.q": "Ese mugira uburyo bwo gusubiza ibicuruzwa?",
+      "Niba uri muri Kigali, ibyo watumije bitwara isaha 1 nyuma yo gutumiza.",
+   "contact.faq2.q": "Ese ndamutse ntakunze igicuruzwa?",
    "contact.faq2.a":
-      "Yego, dufite iminsi 30 yo gusubiza ibicuruzwa byinshi mu buryo byari bimeze.",
-   "contact.faq3.q": "Ni ubuhe buryo bwo kwishyura mwemera?",
+      "Niba utanyuzwe n'igicuruzwa cyacu, ushobora kuba wagisubiza mu gihe cy'amasaha 24, ukishyura gusa ayo kubikugezaho",
+   "contact.faq3.q": "Ese nakishyura nyuma yo kubona ibyo natumije?",
    "contact.faq3.a":
-      "Twemera mobile money, kubikuza kuri banki, no kwishyura igihe ibicuruzwa bigeze.",
-   "contact.faq4.q": "Ese ubufasha bw'abakiriya buboneka mu Kinyarwanda?",
+      "Yego, tugira uburyo bwo kwishyura bikugezeho ku bakiriya b'i Kigali",
+   "contact.faq4.q": "Ese mu ntara naho umuntu yatumiza bikamugeraho?",
    "contact.faq4.a":
-      "Yego, itsinda ryacu rishobora kugufasha mu Cyongereza no mu Kinyarwanda.",
+      "Yego, tubibagezaho mu ntara. Ugiye kugura, kanda ahanditse Whatsapp, kugirango tugufashe. Wishyura mbere ugatanga imyirondoro yawe, ubundi tukohereza ibyo watumije kuri courier, tukaguha icyemezo kiratuma uhabwa ibyo watumije",
 
    //  how to buy
    "howToBuy.title": "Uburyo bwo Kugura",
