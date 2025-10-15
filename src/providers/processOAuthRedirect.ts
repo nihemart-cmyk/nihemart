@@ -1,8 +1,4 @@
-import { useEffect } from "react";
-import { useAuthStore } from "@/store/auth.store";
-import { supabase } from "@/integrations/supabase/client";
-// Internal helper to process OAuth redirect — inlined for reliability.
-async function processOAuthRedirect(
+export async function processOAuthRedirect(
    supabaseClient: any,
    opts: {
       setSession: (s: any) => void;
@@ -19,6 +15,7 @@ async function processOAuthRedirect(
       const hasAccessToken = url.hash && url.hash.includes("access_token=");
       if (!hasCode && !hasAccessToken) return;
 
+      // Try SDK helper first
       let session: any = null;
       let user: any = null;
 
@@ -92,73 +89,3 @@ async function processOAuthRedirect(
       console.error("OAuth redirect handling failed:", err);
    }
 }
-
-// Exported helper to process an OAuth redirect and update client store.
-// Extracted for testability.
-
-export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-   const { initialize, setUser, setSession, fetchRoles, setRoles } =
-      useAuthStore();
-
-   useEffect(() => {
-      // Initialize auth state
-      initialize();
-
-      // If the page was loaded after an OAuth redirect, Supabase will include
-      // an authorization code or access_token in the URL. We should parse the
-      // URL to complete the session handshake immediately so the user is
-      // authenticated without having to click again.
-      const handleOAuthRedirect = async () => {
-         await processOAuthRedirect(supabase, {
-            setSession,
-            setUser,
-            fetchRoles,
-            setRoles,
-         });
-      };
-
-      handleOAuthRedirect();
-
-      // Listen to auth state changes
-      const {
-         data: { subscription },
-      } = supabase.auth.onAuthStateChange(async (event, session) => {
-         // Update session and user immediately
-         setSession(session);
-         setUser(session?.user ?? null);
-
-         // Only fetch roles when we have a user
-         if (session?.user) {
-            // fetchRoles is guarded internally to dedupe concurrent calls
-            await fetchRoles(session.user.id);
-            // Ensure profile row is present via server API
-            try {
-               const um: any = session.user.user_metadata || {};
-               fetch("/api/auth/upsert-profile", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                     userId: session.user.id,
-                     full_name: um.full_name || null,
-                     phone: um.phone || null,
-                  }),
-               }).catch((e) => console.warn("upsert-profile failed:", e));
-            } catch (e) {
-               // ignore
-            }
-         } else {
-            setRoles(new Set());
-         }
-      });
-
-      return () => {
-         try {
-            subscription?.unsubscribe();
-         } catch (e) {
-            // ignore unsubscribe errors
-         }
-      };
-   }, [initialize, setUser, setSession, fetchRoles, setRoles]);
-
-   return <>{children}</>;
-};
