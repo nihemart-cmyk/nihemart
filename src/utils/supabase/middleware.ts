@@ -39,9 +39,37 @@ export async function updateSession(request: NextRequest) {
       data: { user },
    } = await supabase.auth.getUser();
 
-   // Protect all private routes: redirect unauthenticated users to /signin
+   // Protect private routes only. Allow anonymous (not-logged-in) users
+   // to access public storefront pages such as '/', '/products', '/about',
+   // '/contact', etc. This prevents forcing anonymous shoppers to sign in
+   // while still protecting genuinely private areas like /profile, /admin,
+   // /checkout and /rider which are included in middleware matcher.
+   const publicPrefixesForAnonymous = [
+      "/",
+      "/products",
+      "/about",
+      "/contact",
+      "/how-to-buy",
+      "/_next",
+      "/static",
+      "/assets",
+      "/favicon.ico",
+      "/api",
+   ];
+
+   const isPublicForAnonymous = publicPrefixesForAnonymous.some(
+      (p) =>
+         request.nextUrl.pathname === p ||
+         request.nextUrl.pathname.startsWith(p + "/") ||
+         request.nextUrl.pathname.startsWith(p)
+   );
+
+   // If there's no user and the request is NOT for a public page, redirect
+   // to /signin. This keeps private routes protected but lets anonymous
+   // shoppers browse the storefront and add to cart without logging in.
    if (
       !user &&
+      !isPublicForAnonymous &&
       !request.nextUrl.pathname.startsWith("/signin") &&
       !request.nextUrl.pathname.startsWith("/auth") &&
       !request.nextUrl.pathname.startsWith("/error")
