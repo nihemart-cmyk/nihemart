@@ -312,7 +312,7 @@ export const ProductsTable = ({
                                  <div className="flex flex-wrap gap-1 max-w-[200px]">
                                     {product.categories && product.categories.length > 0 ? (
                                        <>
-                                          {product.categories.slice(0, 4).map((cat) => (
+                                          {product.categories.slice(0, 2).map((cat) => (
                                              <span
                                                 key={cat.id}
                                                 className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 whitespace-nowrap"
@@ -320,9 +320,9 @@ export const ProductsTable = ({
                                                 {cat.name}
                                              </span>
                                           ))}
-                                          {product.categories.length > 4 && (
+                                          {product.categories.length > 2 && (
                                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 whitespace-nowrap">
-                                                +{product.categories.length - 4} more
+                                                +{product.categories.length - 2} more
                                              </span>
                                           )}
                                        </>

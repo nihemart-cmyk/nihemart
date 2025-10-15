@@ -5,7 +5,7 @@
 
   const port = parseInt(process.env.PORT || '3000', 10);
   const dev = process.env.NODE_ENV !== 'production';
-  const hostname = process.env.NODE_ENV !== 'production' ? 'localhost' : 'api.domain.org';
+  const hostname = process.env.NODE_ENV !== 'production' ? 'localhost' : 'nihemart.rw';
   const app = next.default({ dev, hostname, port });
   const handle = app.getRequestHandler();
 
