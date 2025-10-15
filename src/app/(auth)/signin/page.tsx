@@ -7,13 +7,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuthStore } from "@/store/auth.store";
 import logo from "@/assets/logo.png";
 import AdminSigninForm from "@/components/auth/admin/AdminSigninForm";
-import type { Metadata } from "next";
-
-export const metadata: Metadata = {
-  title: "Injira",
-  description:
-    "Injira muri konti yawe ya Nihemart kugirango ubone amateka y'amabwiriza, wishlist, na porofayili.",
-};
 
 interface pageProps {}
 

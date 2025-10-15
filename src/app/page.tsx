@@ -17,15 +17,13 @@ const MoreToLove = lazy(() => import("@/components/landing-page/MoreToLove"));
 
 interface pageProps {}
 
-export const revalidate = 3600; // Revalidate every hour
+export const revalidate = 3600; 
 
 export const metadata: Metadata = {
-   // Explicitly include brand here to ensure the browser title shows the site name
-   // (If you prefer the global template, we can revert and investigate why composition
-   // doesn't apply to this top-level page.)
+   
    title: "Ahabanza - Nihemart",
    description:
-      "Nihemart — Duka ryawe rya interineti mu Rwanda. Ugura ibicuruzwa bitandukanye, wohereza byihuse kandi ku giciro cyiza.",
+      "Nihemart — Gura ibicuruzwa bitandukanye, ubigezwaho byihuse kandi ku giciro cyiza.",
 };
 
 const page: FC<pageProps> = ({}) => {

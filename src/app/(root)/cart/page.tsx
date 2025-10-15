@@ -8,13 +8,6 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useCart } from "@/contexts/CartContext";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import type { Metadata } from "next";
-
-export const metadata: Metadata = {
-   title: "Umutwaro",
-   description:
-      "Reba ibyo wagiye uhaha, ugenzure kandi ukomeze ugure kuri Nihemart.",
-};
 
 const Cart = () => {
    const { t } = useLanguage();
