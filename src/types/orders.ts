@@ -42,6 +42,8 @@ export interface Order extends OrderBase {
    refund_reason?: string | null;
    refund_status?: RefundStatus | null;
    refund_requested_at?: string | null;
+   // Runtime marker added by server to indicate whether this was a refund or reject flow
+   _mode?: "refund" | "reject";
 }
 
 export interface OrderItem {
@@ -62,6 +64,8 @@ export interface OrderItem {
    // refund_status: null | 'requested' | 'approved' | 'rejected' | 'cancelled'
    refund_status?: RefundStatus | null;
    refund_requested_at?: string | null;
+   // Runtime marker added by server to indicate whether this was a refund or reject flow
+   _mode?: "refund" | "reject";
 }
 
 export interface OrderItemInput {

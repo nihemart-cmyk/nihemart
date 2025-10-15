@@ -56,27 +56,35 @@ export async function requestRefundForItem(itemId: string, reason: string) {
    if (error) throw error;
    if (!data) throw new Error("Failed to request refund for order item");
 
-   // Notify admins that a user has requested a refund, include customer name, city and reason
+   // Determine whether this is a refund (delivered) or a reject (not delivered)
+   const mode: "refund" | "reject" = parentOrder?.delivered_at
+      ? "refund"
+      : "reject";
+
+   // Notify admins that a user has requested a refund/reject, include customer name, city and reason
    try {
       const customerName =
          `${parentOrder?.customer_first_name || ""} ${
             parentOrder?.customer_last_name || ""
          }`.trim() || "Customer";
       const city = parentOrder?.delivery_city || "";
-      const title = "Refund requested";
-      const body = `${customerName}${
-         city ? ` from ${city}` : ""
-      } requested a refund for ${existing.product_name}. Reason: ${reason}`;
+      const title = mode === "refund" ? "Refund requested" : "Reject requested";
+      const p_type =
+         mode === "refund" ? "refund_requested" : "reject_requested";
+      const body = `${customerName}${city ? ` from ${city}` : ""} requested ${
+         mode === "refund" ? "a refund" : "a reject"
+      } for ${existing.product_name}. Reason: ${reason}`;
       await sb.rpc("insert_notification", {
          p_recipient_user_id: null,
          p_recipient_role: "admin",
-         p_type: "refund_requested",
+         p_type,
          p_title: title,
          p_body: body,
          p_meta: JSON.stringify({
             order_id: existing.order_id,
             item_id: existing.id,
             reason,
+            mode,
          }),
       });
    } catch (err) {
@@ -86,6 +94,10 @@ export async function requestRefundForItem(itemId: string, reason: string) {
       );
    }
 
+   // Attach mode so client hooks can show correct toasts/labels without extra queries
+   try {
+      if (data) (data as any)._mode = mode;
+   } catch (e) {}
    return data;
 }
 
@@ -133,6 +145,11 @@ export async function requestRefundForOrder(orderId: string, reason: string) {
    if (error) throw error;
    if (!data) throw new Error("Failed to request full-order refund");
 
+   // Determine mode for order-level (delivered => refund, otherwise reject)
+   const mode: "refund" | "reject" = existing?.delivered_at
+      ? "refund"
+      : "reject";
+
    // Notify admins
    try {
       const customerName =
@@ -140,19 +157,22 @@ export async function requestRefundForOrder(orderId: string, reason: string) {
             existing?.customer_last_name || ""
          }`.trim() || "Customer";
       const city = existing?.delivery_city || "";
-      const title = "Full order refund requested";
-      const body = `${customerName}${
-         city ? ` from ${city}` : ""
-      } requested a refund for order ${
-         existing.order_number || existing.id
-      }. Reason: ${reason}`;
+      const title =
+         mode === "refund"
+            ? "Full order refund requested"
+            : "Full order reject requested";
+      const p_type =
+         mode === "refund" ? "refund_requested" : "reject_requested";
+      const body = `${customerName}${city ? ` from ${city}` : ""} requested ${
+         mode === "refund" ? "a refund" : "a reject"
+      } for order ${existing.order_number || existing.id}. Reason: ${reason}`;
       await sb.rpc("insert_notification", {
          p_recipient_user_id: null,
          p_recipient_role: "admin",
-         p_type: "refund_requested",
+         p_type,
          p_title: title,
          p_body: body,
-         p_meta: JSON.stringify({ order_id: existing.id, reason }),
+         p_meta: JSON.stringify({ order_id: existing.id, reason, mode }),
       });
    } catch (err) {
       console.warn(
@@ -161,6 +181,9 @@ export async function requestRefundForOrder(orderId: string, reason: string) {
       );
    }
 
+   try {
+      if (data) (data as any)._mode = mode;
+   } catch (e) {}
    return data;
 }
 
@@ -242,7 +265,8 @@ export async function respondToRefundRequest(
    approve: boolean,
    adminNote?: string
 ) {
-   // Fetch existing
+   // Fetch existing and parent order info to determine whether this was a refund
+   // (delivered) or a reject (not delivered)
    const { data: existing, error: fetchError } = await sb
       .from("order_items")
       .select(
@@ -264,7 +288,6 @@ export async function respondToRefundRequest(
 
    const newStatus = approve ? "approved" : "rejected";
    const updates: any = { refund_status: newStatus };
-   if (approve) updates.status = "refunded";
    if (!approve) updates.refund_reason = existing.refund_reason || null;
 
    const { data, error } = await sb
@@ -275,8 +298,24 @@ export async function respondToRefundRequest(
       .maybeSingle();
 
    if (error) throw error;
+   // Determine mode by looking up parent order delivered_at
+   let parentOrder: any = null;
+   try {
+      const { data: po } = await sb
+         .from("orders")
+         .select("delivered_at, subtotal, tax, total")
+         .eq("id", existing.order_id)
+         .maybeSingle();
+      parentOrder = po;
+   } catch (e) {
+      // ignore
+   }
 
-   // If approved, restock the single item (best-effort) and notify user that refund will be processed
+   const mode: "refund" | "reject" = parentOrder?.delivered_at
+      ? "refund"
+      : "reject";
+
+   // If approved, process approval: restock and adjust parent order totals
    if (approve) {
       try {
          const qty = Number(existing.quantity || 0);
@@ -333,8 +372,88 @@ export async function respondToRefundRequest(
       } catch (restockErr) {
          console.warn("Error restoring stock for refunded item:", restockErr);
       }
+      // Adjust parent order totals by subtracting the item's total (price * qty)
+      try {
+         const itemTotal =
+            Number(existing.price || 0) * Number(existing.quantity || 0);
+         if (parentOrder) {
+            const newSubtotal = Math.max(
+               0,
+               Number(parentOrder.subtotal || 0) - itemTotal
+            );
+            // naive total adjustment: subtract itemTotal as well
+            const newTotal = Math.max(
+               0,
+               Number(parentOrder.total || 0) - itemTotal
+            );
+            const upd: any = { subtotal: newSubtotal, total: newTotal };
+            // If mode is refund and all items are refunded, set status to 'refunded'
+            try {
+               const { data: siblingItems, error: siblingErr } = await sb
+                  .from("order_items")
+                  .select("refund_status")
+                  .eq("order_id", existing.order_id);
+               if (!siblingErr && Array.isArray(siblingItems)) {
+                  const allProcessed = siblingItems.every(
+                     (it: any) =>
+                        it.refund_status === "approved" ||
+                        it.refund_status === "refunded"
+                  );
+                  if (allProcessed) {
+                     upd.status = mode === "refund" ? "refunded" : "cancelled";
+                  }
+               }
+            } catch (e) {}
 
-      // try to fetch order owner to notify them specifically
+            try {
+               const { error: orderUpdErr } = await sb
+                  .from("orders")
+                  .update(upd)
+                  .eq("id", existing.order_id);
+               if (orderUpdErr)
+                  console.warn("Failed to update order totals:", orderUpdErr);
+            } catch (e) {
+               console.warn("Failed to update order totals:", e);
+            }
+         }
+
+         // notify user with correct type based on mode
+         try {
+            const { data: orderData } = await sb
+               .from("orders")
+               .select("user_id")
+               .eq("id", existing.order_id)
+               .maybeSingle();
+            const recipientUserId = orderData?.user_id || null;
+            const p_type =
+               mode === "refund" ? "refund_approved" : "reject_approved";
+            const p_title =
+               mode === "refund" ? "Refund approved" : "Reject approved";
+            const p_body =
+               mode === "refund"
+                  ? `Your refund request for item ${existing.product_name} has been approved.`
+                  : `Your reject request for item ${existing.product_name} has been approved.`;
+            await sb.rpc("insert_notification", {
+               p_recipient_user_id: recipientUserId,
+               p_recipient_role: null,
+               p_type,
+               p_title,
+               p_body,
+               p_meta: JSON.stringify({
+                  order_id: existing.order_id,
+                  item_id: existing.id,
+               }),
+            });
+         } catch (err) {
+            console.warn("Failed to create notification for approval:", err);
+         }
+      } catch (chkErr) {
+         console.warn("Failed to adjust order after approval:", chkErr);
+      }
+   }
+
+   // If admin rejected the request (deny), notify user of denial with appropriate type
+   if (!approve) {
       try {
          const { data: orderData } = await sb
             .from("orders")
@@ -342,62 +461,29 @@ export async function respondToRefundRequest(
             .eq("id", existing.order_id)
             .maybeSingle();
          const recipientUserId = orderData?.user_id || null;
+         const p_type =
+            mode === "refund" ? "refund_rejected" : "reject_rejected";
+         const p_title =
+            mode === "refund"
+               ? "Refund request rejected"
+               : "Reject request rejected";
+         const p_body =
+            mode === "refund"
+               ? `Your refund request for item ${existing.product_name} has been rejected by admin.`
+               : `Your reject request for item ${existing.product_name} has been rejected by admin.`;
          await sb.rpc("insert_notification", {
             p_recipient_user_id: recipientUserId,
             p_recipient_role: null,
-            p_type: "refund_approved",
-            p_title: "Refund approved",
-            p_body: `Your refund request for item ${existing.product_name} has been approved. .`,
+            p_type,
+            p_title,
+            p_body,
             p_meta: JSON.stringify({
                order_id: existing.order_id,
                item_id: existing.id,
             }),
          });
       } catch (err) {
-         // don't fail the whole flow if notification insertion fails
-         console.warn(
-            "Failed to create notification for refund approval:",
-            err
-         );
-      }
-      // After approving an item refund, check whether all items in the order
-      // are now approved/refunded. If so, update the parent order status to
-      // 'refunded' so the UI reflects that the whole order has been refunded.
-      try {
-         const { data: siblingItems, error: siblingErr } = await sb
-            .from("order_items")
-            .select("refund_status")
-            .eq("order_id", existing.order_id);
-         if (!siblingErr && Array.isArray(siblingItems)) {
-            const allRefunded = siblingItems.every(
-               (it: any) =>
-                  it.refund_status === "approved" ||
-                  it.refund_status === "refunded"
-            );
-            if (allRefunded) {
-               try {
-                  const { error: orderUpdErr } = await sb
-                     .from("orders")
-                     .update({ status: "refunded" })
-                     .eq("id", existing.order_id);
-                  if (orderUpdErr)
-                     console.warn(
-                        "Failed to mark order as refunded:",
-                        orderUpdErr
-                     );
-               } catch (oErr) {
-                  console.warn(
-                     "Failed to update order status to refunded:",
-                     oErr
-                  );
-               }
-            }
-         }
-      } catch (chkErr) {
-         console.warn(
-            "Failed to check sibling items after refund approval:",
-            chkErr
-         );
+         console.warn("Failed to notify user about rejection:", err);
       }
    }
 

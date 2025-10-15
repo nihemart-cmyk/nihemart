@@ -1,5 +1,4 @@
 "use client";
-
 import React, { useEffect, useState, useRef } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
@@ -114,6 +113,29 @@ export default function PaymentPage() {
             // Normalize statuses
             const s = statusResult.status;
             if (s === "completed" || s === "successful") {
+               // If payment is successful, attempt to mark the order as paid on the server
+               try {
+                  // best-effort: call the update-status endpoint to mark the order as paid
+                  await fetch("/api/orders/update-status", {
+                     method: "POST",
+                     headers: { "Content-Type": "application/json" },
+                     body: JSON.stringify({
+                        id: orderId || payment.order_id,
+                        status: "paid",
+                        additionalFields: {
+                           payment_reference: payment.reference,
+                           kpay_transaction_id: payment.kpay_transaction_id,
+                           payment_amount: payment.amount,
+                        },
+                     }),
+                  });
+               } catch (err) {
+                  console.warn(
+                     "Failed to notify server about payment success:",
+                     err
+                  );
+               }
+
                setPaymentCompleted(true);
                setPayment((prev) => (prev ? { ...prev, status: s } : null));
                toast.success("Payment completed successfully!");
@@ -125,7 +147,6 @@ export default function PaymentPage() {
                }, 1500);
                return;
             }
-
             if (s === "failed" || s === "cancelled") {
                setPayment((prev) =>
                   prev

@@ -28,6 +28,14 @@ export function ManageRefundDialog({ open, onOpenChange, order, item }: Props) {
    const [processing, setProcessing] = useState(false);
    const [note, setNote] = useState("");
 
+   const mode = item
+      ? order?.delivered_at
+         ? "refund"
+         : "reject"
+      : order?.delivered_at
+      ? "refund"
+      : "reject";
+
    const handleResponse = async (approve: boolean) => {
       if (processing) return;
       setProcessing(true);
@@ -42,10 +50,15 @@ export function ManageRefundDialog({ open, onOpenChange, order, item }: Props) {
                note,
             });
          }
-         toast.success(approve ? "Refund approved" : "Refund rejected");
+         // Show correct toast depending on mode
+         if (mode === "refund") {
+            toast.success(approve ? "Refund approved" : "Refund rejected");
+         } else {
+            toast.success(approve ? "Reject approved" : "Reject rejected");
+         }
          onOpenChange(false);
       } catch (err: any) {
-         toast.error(err?.message || "Failed to respond to refund");
+         toast.error(err?.message || `Failed to process ${mode}`);
       } finally {
          setProcessing(false);
       }
@@ -58,7 +71,9 @@ export function ManageRefundDialog({ open, onOpenChange, order, item }: Props) {
       >
          <DialogContent className="max-w-lg">
             <DialogHeader>
-               <DialogTitle>Manage Refund</DialogTitle>
+               <DialogTitle>
+                  {mode === "refund" ? "Manage Refund" : "Manage Reject"}
+               </DialogTitle>
             </DialogHeader>
 
             <div className="space-y-4">

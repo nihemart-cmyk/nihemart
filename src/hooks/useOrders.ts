@@ -428,6 +428,17 @@ export function useRejectOrderItem() {
          }
       },
       onSuccess: () => {
+         // If server returned a _mode marker, use it to show correct message
+         // note: some callers may not include _mode; default to refund message
+         const showMode = (data: any) => {
+            try {
+               if (data && data._mode === "reject") return "Reject requested";
+            } catch (e) {}
+            return "Refund requested";
+         };
+         // attempt to get last mutation result from queryClient is not reliable here,
+         // just show the generic refund message — individual callers (components)
+         // will inspect returned data where available. Keep backward compatible.
          toast.success("Refund requested");
       },
    });
@@ -676,7 +687,23 @@ export function useOrders() {
                }
 
                queryClient.invalidateQueries({ queryKey: orderKeys.stats() });
-               toast.success("Refund response processed");
+               try {
+                  const mode =
+                     (updatedItem as any)?._mode ||
+                     (updatedItem as any)?.refund_status
+                        ? "refund"
+                        : null;
+                  if (
+                     (updatedItem as any)?.refund_status === "rejected" &&
+                     (updatedItem as any)?._mode === "reject"
+                  ) {
+                     toast.success("Reject response processed");
+                  } else {
+                     toast.success("Refund response processed");
+                  }
+               } catch (e) {
+                  toast.success("Refund response processed");
+               }
             },
             onError: (err) => {
                console.error("Failed to respond to refund:", err);

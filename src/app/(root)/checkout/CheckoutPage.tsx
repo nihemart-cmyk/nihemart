@@ -161,7 +161,7 @@ const CheckoutPage = ({
    const [isSavingAddress, setIsSavingAddress] = useState(false);
    // Payment method state (default to Cash on Delivery)
    const [paymentMethod, setPaymentMethod] = useState<
-      keyof typeof PAYMENT_METHODS | "cash_on_delivery"
+      keyof typeof PAYMENT_METHODS | "cash_on_delivery" | ""
    >("cash_on_delivery");
 
    // Mobile money phone numbers state
@@ -173,7 +173,7 @@ const CheckoutPage = ({
    // Orders enabled flag (null = loading)
    const [ordersEnabled, setOrdersEnabled] = useState<boolean | null>(null);
 
-   // Retry mode state (now passed as props)
+   // Retry mode state (now passed as props). We also fall back to URL search params
    const [existingOrder, setExistingOrder] = useState<any>(null);
    const [loadingExistingOrder, setLoadingExistingOrder] = useState(false);
 
@@ -270,6 +270,8 @@ const CheckoutPage = ({
       }));
    };
 
+   // no hydration debug used
+
    useEffect(() => {
       try {
          const addr = (
@@ -302,64 +304,235 @@ const CheckoutPage = ({
    }, [formData.address, selectedAddress]);
 
    // Load existing order in retry mode
+   // Derive effective retry flags: prefer props, fall back to search params
+   // If searchParams is not populated (sometimes Next client hook is empty), fallback to parsing window.location.search
+   const fallbackParams =
+      typeof window !== "undefined"
+         ? new URLSearchParams(window.location.search)
+         : null;
+   const effectiveIsRetry =
+      isRetryMode ||
+      searchParams?.get("retry") === "true" ||
+      fallbackParams?.get("retry") === "true";
+   const effectiveRetryOrderId =
+      retryOrderId ??
+      searchParams?.get("orderId") ??
+      fallbackParams?.get("orderId") ??
+      null;
+
    useEffect(() => {
       if (
-         isRetryMode &&
-         retryOrderId &&
-         !existingOrder &&
-         !loadingExistingOrder
+         !effectiveIsRetry ||
+         !effectiveRetryOrderId ||
+         (existingOrder?.id === effectiveRetryOrderId && !loadingExistingOrder)
       ) {
-         setLoadingExistingOrder(true);
-         (async () => {
-            try {
-               const response = await fetch(`/api/orders/${retryOrderId}`);
-               if (response.ok) {
-                  const order = await response.json();
-                  setExistingOrder(order);
-
-                  // Pre-fill form with existing order data
-                  setFormData({
-                     email: order.email || "",
-                     firstName: order.first_name || "",
-                     lastName: order.last_name || "",
-                     address: order.delivery_address || "",
-                     city: order.delivery_city || "",
-                     phone: order.phone || "",
-                     delivery_notes: order.delivery_notes || "",
-                  });
-
-                  // Set order items from existing order
-                  if (order.order_items && Array.isArray(order.order_items)) {
-                     setOrderItems(
-                        order.order_items.map((item: any) => ({
-                           id: item.product_id,
-                           name: item.product_name,
-                           price: item.price,
-                           quantity: item.quantity,
-                           sku: item.product_sku,
-                           variation_id: item.product_variation_id,
-                           variation_name: item.variation_name,
-                        }))
-                     );
-                  }
-
-                  toast.info(
-                     "Order loaded for payment retry. Please select a payment method."
-                  );
-               } else {
-                  toast.error("Failed to load order details");
-                  router.push("/checkout");
-               }
-            } catch (error) {
-               console.error("Failed to load existing order:", error);
-               toast.error("Failed to load order details");
-               router.push("/checkout");
-            } finally {
-               setLoadingExistingOrder(false);
-            }
-         })();
+         return;
       }
+
+      setLoadingExistingOrder(true);
+      console.debug("CheckoutPage: Loading order in retry mode:", {
+         effectiveRetryOrderId,
+         currentOrderId: existingOrder?.id,
+      });
+
+      (async () => {
+         try {
+            const response = await fetch(
+               `/api/orders/${effectiveRetryOrderId}`,
+               {
+                  cache: "no-store",
+                  headers: {
+                     "Cache-Control": "no-cache",
+                     Pragma: "no-cache",
+                  },
+               }
+            );
+
+            if (!response.ok) {
+               throw new Error(`Failed to load order: ${response.status}`);
+            }
+
+            const order = await response.json();
+            console.debug("CheckoutPage: Order loaded:", order);
+
+            // Set order items first to ensure they're available
+            const rawItems = order.order_items || order.items || [];
+            if (Array.isArray(rawItems) && rawItems.length > 0) {
+               const mappedItems = rawItems.map((item: any) => ({
+                  id: item.product_id || String(item.id || ""),
+                  name: item.product_name || item.name || "Product",
+                  price: Number(item.price || item.unit_price || 0),
+                  quantity: Number(item.quantity || 0),
+                  sku: item.product_sku,
+                  variation_id: item.product_variation_id || item.variation_id,
+                  variation_name: item.variation_name,
+               }));
+
+               console.debug(
+                  "CheckoutPage: Setting mapped order items:",
+                  mappedItems
+               );
+               setOrderItems(mappedItems);
+            }
+
+            // Set order data after items are set
+            setExistingOrder(order);
+
+            // Pre-fill form with existing order data
+            setFormData((prev) => ({
+               ...prev,
+               email: order.customer_email || order.email || "",
+               firstName: order.customer_first_name || order.first_name || "",
+               lastName: order.customer_last_name || order.last_name || "",
+               address: order.delivery_address || "",
+               city: order.delivery_city || "",
+               phone: order.customer_phone || order.phone || "",
+               delivery_notes: order.delivery_notes || "",
+            }));
+
+            // Set phone input in user-friendly format
+            const rawPhone = order.customer_phone || order.phone;
+            if (rawPhone) {
+               setPhoneInput(formatPhoneInput(rawPhone));
+            }
+
+            // Handle payment method
+            const originalPaymentMethod =
+               order.payment_method || order.paymentMethod;
+            setPaymentMethod(""); // Reset payment method for retry
+
+            // Pre-fill mobile money phone if applicable
+            if (
+               originalPaymentMethod === "mtn_momo" ||
+               originalPaymentMethod === "airtel_money"
+            ) {
+               setMobileMoneyPhones((prev) => ({
+                  ...prev,
+                  [originalPaymentMethod]: formatPhoneNumber(rawPhone) || "",
+               }));
+            }
+
+            // Try to match and select saved address
+            if (Array.isArray(savedAddresses) && savedAddresses.length > 0) {
+               const orderAddrRaw = (
+                  order.delivery_address || ""
+               ).toLowerCase();
+               const orderCity = (order.delivery_city || "").toLowerCase();
+
+               const match = savedAddresses.find((addr: any) => {
+                  const addrStr = [addr.display_name, addr.street, addr.city]
+                     .filter(Boolean)
+                     .join(" ")
+                     .toLowerCase();
+
+                  return (
+                     (orderAddrRaw && addrStr.includes(orderAddrRaw)) ||
+                     (orderCity && addrStr.includes(orderCity)) ||
+                     (addr.phone &&
+                        order.customer_phone &&
+                        addr.phone === order.customer_phone)
+                  );
+               });
+
+               if (match) {
+                  selectAddress(match.id);
+                  setFormData((prev) => ({
+                     ...prev,
+                     address: match.display_name || prev.address,
+                     city: match.city || prev.city,
+                     phone: match.phone || prev.phone,
+                  }));
+               }
+            }
+
+            toast.success(
+               "Order loaded successfully. Please select a new payment method."
+            );
+         } catch (error) {
+            console.error("CheckoutPage: Failed to load order:", error);
+            toast.error("Failed to load order details");
+            router.push("/checkout");
+         } finally {
+            setLoadingExistingOrder(false);
+         }
+      })();
    }, [isRetryMode, retryOrderId, existingOrder, loadingExistingOrder, router]);
+
+   // If saved addresses finish loading after we fetched the existing order,
+   // try matching and selecting the saved address. This runs separately so
+   // that address preselection works even when addresses load asynchronously
+   // after the order fetch.
+   useEffect(() => {
+      try {
+         if (!existingOrder) return;
+         if (!Array.isArray(savedAddresses) || savedAddresses.length === 0)
+            return;
+
+         // If user already has a selected address that matches the order, do nothing
+         if (selectedAddress && existingOrder) {
+            const sel = selectedAddress;
+            const orderIdMatch =
+               sel && sel.id === existingOrder.selected_address_id;
+            if (orderIdMatch) return;
+         }
+
+         const orderAddrRaw = (
+            existingOrder.delivery_address || ""
+         ).toLowerCase();
+         const orderCity = (existingOrder.delivery_city || "").toLowerCase();
+         const orderPhone = existingOrder.customer_phone || existingOrder.phone;
+
+         const match = savedAddresses.find((addr: any) => {
+            const addrStr = [addr.display_name, addr.street, addr.city]
+               .filter(Boolean)
+               .join(" ")
+               .toLowerCase();
+
+            return (
+               (orderAddrRaw &&
+                  orderAddrRaw.length > 0 &&
+                  addrStr.includes(orderAddrRaw)) ||
+               (orderCity &&
+                  orderCity.length > 0 &&
+                  addrStr.includes(orderCity)) ||
+               (addr.phone && orderPhone && addr.phone === orderPhone)
+            );
+         });
+
+         if (match) {
+            // Don't override if already selected
+            if (selectedAddress?.id === match.id) return;
+
+            selectAddress(match.id);
+
+            // Try to set sector/district/province if we can find a match in local lists
+            const foundSector = sectors.find(
+               (s: any) =>
+                  s.sct_name === match.street ||
+                  s.sct_name === match.display_name ||
+                  s.sct_name === match.city
+            );
+            if (foundSector) {
+               setSelectedSector(foundSector.sct_id);
+               setSelectedDistrict(foundSector.sct_district);
+               const foundDistrict = districts.find(
+                  (d) => d.dst_id === foundSector.sct_district
+               );
+               if (foundDistrict)
+                  setSelectedProvince(foundDistrict.dst_province);
+            }
+
+            setFormData((prev) => ({
+               ...prev,
+               address: match.display_name || prev.address,
+               city: match.city || prev.city,
+               phone: match.phone || prev.phone,
+            }));
+         }
+      } catch (err) {
+         console.error("Address preselect error:", err);
+      }
+   }, [existingOrder, savedAddresses, selectedAddress, sectors, districts]);
 
    // Show a small banner when retrying due to timeout
    const retryTimedOut = Boolean(searchParams?.get("timedout"));
@@ -388,8 +561,15 @@ const CheckoutPage = ({
 
    // Keep local orderItems in sync with cart context
    useEffect(() => {
+      // Don't sync cart items if we're in retry mode and have an existing order
+      if (effectiveIsRetry) {
+         console.debug("CheckoutPage: Skipping cart sync in retry mode");
+         return;
+      }
+
       try {
          if (Array.isArray(cartItems)) {
+            console.debug("CheckoutPage: Syncing cart items to order items");
             const cleaned = cartItems.map((item: any) => ({
                ...item,
                id:
@@ -404,11 +584,12 @@ const CheckoutPage = ({
             setOrderItems(cleaned);
          }
       } catch (err) {
-         console.error("Error syncing cart items:", err);
+         console.error("CheckoutPage: Error syncing cart items:", err);
       }
 
       // Pre-fill user data if logged in
-      if (user) {
+      if (user && !effectiveIsRetry) {
+         console.debug("CheckoutPage: Pre-filling user data");
          setFormData((prev) => ({
             ...prev,
             email: user.email || "",
@@ -418,7 +599,7 @@ const CheckoutPage = ({
                "",
          }));
       }
-   }, [cartItems, user]);
+   }, [cartItems, user, effectiveIsRetry]);
 
    // Load location data from JSON imports
    useEffect(() => {
@@ -466,9 +647,13 @@ const CheckoutPage = ({
    }, [orderItems.length, router, isRetryMode]);
 
    const subtotal = orderItems.reduce(
-      (sum, item) => sum + item.price * item.quantity,
+      (sum, item) =>
+         sum + (Number(item.price) || 0) * (Number(item.quantity) || 0),
       0
    );
+
+   // Debug: when retrying, log order items and subtotal to help diagnose UI showing only delivery fee
+   // No debug logs here
    const selectedSectorObj = sectors.find((s) => s.sct_id === selectedSector);
    const sectorFee = selectedSectorObj
       ? (sectorsFees as any)[selectedSectorObj.sct_name]
@@ -628,6 +813,71 @@ const CheckoutPage = ({
          if (validationErrors.length > 0) {
             toast.error(`Payment validation failed: ${validationErrors[0]}`);
             router.push(`/orders/${existingOrder.id}`);
+            return;
+         }
+
+         // Before calling retry, check if there's an existing pending payment
+         // for this order. If so, request the server to mark it as timed out
+         // on behalf of the client so we can create a new retry payment.
+         try {
+            const paymentsResp = await fetch(
+               `/api/payments/order/${existingOrder.id}`
+            );
+            if (paymentsResp.ok) {
+               const payments = await paymentsResp.json();
+               if (Array.isArray(payments) && payments.length > 0) {
+                  const pending = payments.find(
+                     (p: any) => p.status === "pending" && !p.client_timeout
+                  );
+                  if (pending) {
+                     // Attempt to mark the pending payment as timed out so retry can proceed
+                     try {
+                        const timeoutResp = await fetch(
+                           "/api/payments/timeout",
+                           {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                 paymentId: pending.id,
+                                 reason: "Client requested new payment method",
+                              }),
+                           }
+                        );
+
+                        if (!timeoutResp.ok) {
+                           const j = await timeoutResp.json().catch(() => ({}));
+                           // If marking timeout failed, inform the user and stop to avoid 409
+                           toast.error(
+                              j?.error ||
+                                 "Unable to cancel existing payment. Please wait a moment and try again."
+                           );
+                           setIsSubmitting(false);
+                           return;
+                        }
+                     } catch (err) {
+                        console.error(
+                           "Failed to mark pending payment timeout:",
+                           err
+                        );
+                        toast.error(
+                           "Unable to cancel existing payment. Please wait a moment and try again."
+                        );
+                        setIsSubmitting(false);
+                        return;
+                     }
+                  }
+               }
+            }
+         } catch (err) {
+            console.warn(
+               "Failed to fetch payments for order before retry:",
+               err
+            );
+            // If we couldn't check payments, fail safe and stop so we don't hit 409
+            toast.error(
+               "Could not verify existing payment status. Please try again shortly."
+            );
+            setIsSubmitting(false);
             return;
          }
 
@@ -1045,12 +1295,29 @@ Total: ${total.toLocaleString()} RWF
                   <AlertCircle className="h-5 w-5 text-blue-600 mr-3" />
                   <div>
                      <p className="text-sm font-medium text-blue-900">
-                        Retrying payment for Order #{existingOrder.order_number}
+                        Retrying payment for Order #
+                        {existingOrder.order_number ||
+                           (existingOrder.id
+                              ? String(existingOrder.id).slice(-8)
+                              : "")}
                      </p>
                      <p className="text-xs text-blue-700 mt-1">
                         Previous payment failed or timed out. Choose a different
                         payment method below.
                      </p>
+                     <div className="mt-2 text-xs text-blue-800">
+                        {existingOrder.payment_method && (
+                           <div>
+                              Previous method: {existingOrder.payment_method}
+                           </div>
+                        )}
+                        {existingOrder.total && (
+                           <div>
+                              Amount: RWF{" "}
+                              {Number(existingOrder.total).toLocaleString()}
+                           </div>
+                        )}
+                     </div>
                   </div>
                </div>
             </div>
@@ -1733,7 +2000,7 @@ Total: ${total.toLocaleString()} RWF
                      </CollapsibleTrigger>
                      <CollapsibleContent className="mt-3 sm:mt-4">
                         <PaymentMethodSelector
-                           selectedMethod={paymentMethod}
+                           selectedMethod={paymentMethod as any}
                            onMethodChange={setPaymentMethod}
                            disabled={isSubmitting || isInitiating}
                            // Mobile Money
@@ -1889,9 +2156,15 @@ Total: ${total.toLocaleString()} RWF
                                     className="w-full bg-orange-500 hover:bg-orange-600 text-white text-sm sm:text-base h-10 sm:h-12"
                                     onClick={handleCreateOrder}
                                     disabled={
+                                       // disable while submitting/initiating or no items
                                        isSubmitting ||
                                        isInitiating ||
-                                       orderItems.length === 0
+                                       orderItems.length === 0 ||
+                                       // In retry mode require an explicit payment method selection that is not COD
+                                       (isRetryMode &&
+                                          (!paymentMethod ||
+                                             paymentMethod ===
+                                                "cash_on_delivery"))
                                     }
                                  >
                                     {isSubmitting || isInitiating ? (

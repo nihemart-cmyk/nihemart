@@ -19,7 +19,7 @@ import {
    AlertDialogHeader,
    AlertDialogTitle,
 } from "../ui/alert-dialog";
-import { Dot, MoreHorizontal } from "lucide-react";
+import { MoreHorizontal } from "lucide-react";
 import { Button } from "../ui/button";
 import { Checkbox } from "../ui/checkbox";
 import { format, isValid } from "date-fns";
@@ -54,23 +54,6 @@ const Status = ({ status }: { status: Order["status"] }) => {
       >
          {status || "unknown"}
       </Badge>
-   );
-};
-
-const Payment = ({ status }: { status?: string }) => {
-   const paymentStatus = status || "pending";
-   return (
-      <div
-         className={cn(
-            "flex items-center capitalize font-semibold",
-            { "text-green-500": paymentStatus === "paid" },
-            { "text-red-500": paymentStatus === "failed" },
-            { "text-yellow-500": paymentStatus === "pending" }
-         )}
-      >
-         <Dot strokeWidth={7} />
-         {paymentStatus}
-      </div>
    );
 };
 
@@ -265,7 +248,7 @@ export const columns: ColumnDef<Order>[] = [
    {
       id: "method",
       header: "METHOD",
-      cell: ({ row }) => <PaymentMethod method="mobile_money" />,
+      cell: () => <PaymentMethod method="mobile_money" />,
    },
    {
       accessorKey: "total",
@@ -296,6 +279,12 @@ export const columns: ColumnDef<Order>[] = [
          const [isCancelling, setIsCancelling] = useState(false);
          const refundItem =
             order.items?.find((it) => !!it.refund_status) || null;
+         // Determine the mode for the UI label: prefer item-level marker, then order-level,
+         // then fallback to delivered_at (delivered -> refund, otherwise reject)
+         const computedMode: "refund" | "reject" =
+            (refundItem && (refundItem as any)._mode) ||
+            (order as any)._mode ||
+            (order?.delivered_at ? "refund" : "reject");
 
          const handleCancelOrder = async () => {
             setIsCancelling(true);
@@ -351,7 +340,9 @@ export const columns: ColumnDef<Order>[] = [
                         <DropdownMenuItem
                            onClick={() => setShowManageRefund(true)}
                         >
-                           Manage refund
+                           {computedMode === "reject"
+                              ? "Manage reject"
+                              : "Manage refund"}
                         </DropdownMenuItem>
                      )}
                      {order.status === "pending" && (

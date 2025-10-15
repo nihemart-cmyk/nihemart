@@ -8,6 +8,15 @@ import {
    SelectItem,
 } from "@/components/ui/select";
 import {
+   Popover,
+   PopoverContent,
+   PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import type { DateRange } from "react-day-picker";
+import { Calendar } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import {
    Dialog,
    DialogContent,
    DialogHeader,
@@ -31,6 +40,10 @@ export default function RiderDetailsDialog({
    const [rider, setRider] = React.useState<any>(null);
    const [assignments, setAssignments] = React.useState<any[]>([]);
    const [timeframe, setTimeframe] = React.useState<string>("7");
+   const [dateRange, setDateRange] = React.useState<DateRange | undefined>(
+      undefined
+   );
+   const [calendarOpen, setCalendarOpen] = React.useState(false);
 
    React.useEffect(() => {
       if (!open || !riderId) return;
@@ -60,25 +73,49 @@ export default function RiderDetailsDialog({
       return isNaN(d.getTime()) ? null : d;
    };
 
-   // compute filtered assignments by timeframe
+   // compute filtered assignments by timeframe OR explicit date range if provided
    const filteredAssignments = React.useMemo(() => {
       if (!assignments || assignments.length === 0) return [] as any[];
+
+      // If explicit dateRange (from/to) is set, prefer that.
+      let from: Date | null = null;
+      let to: Date | null = null;
+      if (dateRange && dateRange.from) from = dateRange.from;
+      if (dateRange && dateRange.to) to = dateRange.to;
+
+      // Otherwise, fall back to timeframe days cutoff
       const days = Number(timeframe) || 7;
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - days);
+
+      const inRange = (d?: Date | null) => {
+         if (!d) return false;
+         if (from && d < from) return false;
+         if (to) {
+            const e = new Date(to);
+            e.setHours(23, 59, 59, 999);
+            if (d > e) return false;
+         }
+         return d >= cutoff;
+      };
+
       return assignments.filter((a: any) => {
          // prefer assignment timestamps then order timestamps
          const ts =
             parseDate(a.assigned_at) ||
+            parseDate(a.delivered_at) ||
+            parseDate(a.completed_at) ||
             parseDate(a.updated_at) ||
             parseDate(a.created_at) ||
             parseDate(a.orders?.created_at) ||
             parseDate(a.orders?.updated_at) ||
+            parseDate(a.orders?.delivered_at) ||
+            parseDate(a.orders?.completed_at) ||
             null;
          if (!ts) return false;
-         return ts >= cutoff;
+         return inRange(ts);
       });
-   }, [assignments, timeframe]);
+   }, [assignments, timeframe, dateRange]);
 
    const metrics = React.useMemo(() => {
       const m = { assigned: 0, delivered: 0, rejected: 0 };
@@ -125,24 +162,60 @@ export default function RiderDetailsDialog({
                   <div className="space-y-3">
                      <div className="flex items-center justify-between">
                         <h4 className="font-semibold">Recent Deliveries</h4>
-                        <div className="w-48">
-                           <Select
-                              value={timeframe}
-                              onValueChange={setTimeframe}
+                        <div className="flex items-center gap-2">
+                           <Popover
+                              open={calendarOpen}
+                              onOpenChange={setCalendarOpen}
                            >
-                              <SelectTrigger>
-                                 <SelectValue placeholder="Last 7 days" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                 <SelectItem value="7">Past 7 days</SelectItem>
-                                 <SelectItem value="30">
-                                    Past 30 days
-                                 </SelectItem>
-                                 <SelectItem value="365">
-                                    Past 12 months
-                                 </SelectItem>
-                              </SelectContent>
-                           </Select>
+                              <PopoverTrigger asChild>
+                                 <Button
+                                    variant="outline"
+                                    className="flex items-center gap-2"
+                                 >
+                                    <Calendar className="w-4 h-4" />
+                                    {dateRange &&
+                                    dateRange.from &&
+                                    dateRange.to ? (
+                                       <span className="text-sm">
+                                          {`${dateRange.from.toLocaleDateString()} — ${dateRange.to.toLocaleDateString()}`}
+                                       </span>
+                                    ) : (
+                                       <span className="text-sm text-muted-foreground">
+                                          Last {timeframe} days
+                                       </span>
+                                    )}
+                                 </Button>
+                              </PopoverTrigger>
+                              <PopoverContent
+                                 side="bottom"
+                                 className="w-auto p-2"
+                              >
+                                 <CalendarComponent
+                                    mode="range"
+                                    selected={dateRange}
+                                    onSelect={(selectedRange) =>
+                                       setDateRange(
+                                          selectedRange as DateRange | undefined
+                                       )
+                                    }
+                                 />
+                                 <div className="flex items-center gap-2 justify-end mt-2">
+                                    <Button
+                                       variant="ghost"
+                                       size="sm"
+                                       onClick={() => setDateRange(undefined)}
+                                    >
+                                       Clear
+                                    </Button>
+                                    <Button
+                                       size="sm"
+                                       onClick={() => setCalendarOpen(false)}
+                                    >
+                                       Done
+                                    </Button>
+                                 </div>
+                              </PopoverContent>
+                           </Popover>
                         </div>
                      </div>
 
