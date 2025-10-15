@@ -15,7 +15,7 @@
     "supabase:migrate:reset": "supabase db reset",
     "supabase:migrate:status": "supabase migration list",
     "supabase:typegen": "supabase gen types typescript --project-id $(supabase status --json | jq -r .project_id) --schema public > src/supabase/types.ts",
-    "supabase:test": "supabase db reset && pnpm test"
+    "supabase:test": "supabase db reset && npm test"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.1",

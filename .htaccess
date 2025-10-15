@@ -1,0 +1,5 @@
+PassengerEnabled on
+PassengerAppRoot /home/nihemart/nihemart_v2
+PassengerBaseURI /
+PassengerNodejs /opt/alt/alt-nodejs18/root/usr/bin/node
+PassengerStartupFile server.js
