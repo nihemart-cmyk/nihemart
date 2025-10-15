@@ -1,6 +1,13 @@
+import type { Metadata } from "next";
 import Sidebar from "@/components/Sidebar";
 import TopBar from "@/components/TopBar";
 import { ReactNode } from "react";
+
+export const metadata: Metadata = {
+   title: "Dashboard",
+   description:
+      "Imbonerahamwe y'ubuyobozi — reba ibicuruzwa, abakiriya, n'ibindi bikorwa bya Nihemart.",
+};
 
 interface LayoutProps {
    children: ReactNode;
