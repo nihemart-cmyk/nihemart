@@ -104,9 +104,20 @@ jobs:
 
       - name: Start ssh-agent (if SSH key present)
         if: env.CPANEL_SSH_PRIVATE_KEY != ''
-        uses: webfactory/ssh-agent@v0.8
-        with:
-          ssh-private-key: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          echo "Starting ssh-agent and adding deploy key"
+          mkdir -p ~/.ssh
+          # write private key to a file and add to agent (here-doc)
+          cat <<'EOF' > ~/.ssh/deploy_key
+          ${CPANEL_SSH_PRIVATE_KEY}
+          EOF
+                    chmod 600 ~/.ssh/deploy_key
+                    eval "$(ssh-agent -s)"
+                    ssh-add ~/.ssh/deploy_key
+                    echo "Loaded keys:" && ssh-add -l || true
+                    # remove private key file if you prefer (agent keeps it loaded)
+                    rm -f ~/.ssh/deploy_key
 
       - name: Deploy (SSH archive preferred, FTP fallback)
         env:
