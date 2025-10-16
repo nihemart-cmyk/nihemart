@@ -68,17 +68,16 @@ jobs:
           echo "Deploying from: ${{ steps.prepare.outputs.deploy_dir }}"
           ls -la "${{ steps.prepare.outputs.deploy_dir }}" || true
 
-      - name: Deploy via FTP to cPanel
+      - name: Deploy via FTP to cPanel (using lftp)
         if: env.CPANEL_FTP_HOST != '' && env.CPANEL_FTP_USERNAME != '' && env.CPANEL_FTP_PASSWORD != ''
-        # Use the major-version tag `v4` which is a stable, resolvable tag for this action.
-        # Specific patch versions like `4.4.0` may not exist or may have been removed.
-        uses: SamKirkland/FTP-Deploy-Action@v4
-        with:
-          server: ${{ env.CPANEL_FTP_HOST }}
-          username: ${{ env.CPANEL_FTP_USERNAME }}
-          password: ${{ env.CPANEL_FTP_PASSWORD }}
-          # reference deploy dir output from the 'prepare' step
-          local-dir: "./${{ steps.prepare.outputs.deploy_dir }}"
-          server-dir: ${{ env.CPANEL_FTP_PATH }}
+        run: |
+          set -e
+          echo "Deploying from: ./${{ steps.prepare.outputs.deploy_dir }} to ${CPANEL_FTP_HOST}:${CPANEL_FTP_PATH}"
+          sudo apt-get update -y
+          sudo apt-get install -y lftp
+          LDIR="./${{ steps.prepare.outputs.deploy_dir }}"
+          REMOTE_DIR="${CPANEL_FTP_PATH}"
+          # Use lftp to mirror the local directory to the remote path (reverse mirror)
+          lftp -u "${CPANEL_FTP_USERNAME}","${CPANEL_FTP_PASSWORD}" "${CPANEL_FTP_HOST}" -e "mirror -R --parallel=5 --delete --verbose '${LDIR}' '${REMOTE_DIR}'; bye"
 
       # SCP/SSH deploy steps removed — this workflow deploys using FTP only.
