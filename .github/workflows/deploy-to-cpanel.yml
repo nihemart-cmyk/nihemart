@@ -97,14 +97,49 @@ jobs:
           echo "Deploying from: ${{ steps.prepare.outputs.deploy_dir }}"
           ls -la "${{ steps.prepare.outputs.deploy_dir }}" || true
 
-      - name: Deploy via FTP to cPanel (using lftp)
-        if: env.CPANEL_FTP_HOST != '' && env.CPANEL_FTP_USERNAME != '' && env.CPANEL_FTP_PASSWORD != ''
+      - name: Deploy (SSH archive preferred, FTP fallback)
+        env:
+          # SSH secrets (optional)
+          CPANEL_SSH_HOST: ${{ secrets.CPANEL_SSH_HOST }}
+          CPANEL_SSH_PORT: ${{ secrets.CPANEL_SSH_PORT }}
+          CPANEL_SSH_USER: ${{ secrets.CPANEL_SSH_USER }}
+          CPANEL_DEPLOY_PATH: ${{ secrets.CPANEL_DEPLOY_PATH }}
+          SSH_KEY: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
+          # FTP secrets (fallback)
+          CPANEL_FTP_HOST: ${{ secrets.CPANEL_FTP_HOST }}
+          CPANEL_FTP_USERNAME: ${{ secrets.CPANEL_FTP_USERNAME }}
+          CPANEL_FTP_PASSWORD: ${{ secrets.CPANEL_FTP_PASSWORD }}
+          CPANEL_FTP_PATH: ${{ secrets.CPANEL_FTP_PATH }}
         run: |
-          set -e
-          echo "Deploying from: ./${{ steps.prepare.outputs.deploy_dir }} to ${CPANEL_FTP_HOST}:${CPANEL_FTP_PATH}"
-          sudo apt-get update -y
-          sudo apt-get install -y lftp
+          set -euo pipefail
           LDIR="./${{ steps.prepare.outputs.deploy_dir }}"
-          REMOTE_DIR="${CPANEL_FTP_PATH}"
-          # Use lftp to mirror the local directory to the remote path (reverse mirror)
-          lftp -u "${CPANEL_FTP_USERNAME}","${CPANEL_FTP_PASSWORD}" "${CPANEL_FTP_HOST}" -e "mirror -R --parallel=5 --delete --verbose '${LDIR}' '${REMOTE_DIR}'; bye"
+          echo "Local deploy directory size and file count:"
+          du -sh "${LDIR}" || true
+          find "${LDIR}" -type f | wc -l || true
+
+          if [ -n "${CPANEL_SSH_HOST:-}" ] && [ -n "${SSH_KEY:-}" ] && [ -n "${CPANEL_SSH_USER:-}" ]; then
+            echo "Using SSH deploy to ${CPANEL_SSH_USER}@${CPANEL_SSH_HOST}:${CPANEL_DEPLOY_PATH} (non-destructive, no delete)"
+            TAR_PATH=deploy.tar.gz
+            tar -czf "${TAR_PATH}" -C "${LDIR}" .
+            mkdir -p ~/.ssh
+            printf "%s\n" "${SSH_KEY}" > ~/.ssh/id_rsa
+            chmod 600 ~/.ssh/id_rsa
+            : "${CPANEL_SSH_PORT:=22}"
+            ssh-keyscan -p "${CPANEL_SSH_PORT}" "${CPANEL_SSH_HOST}" >> ~/.ssh/known_hosts || true
+            scp -P "${CPANEL_SSH_PORT}" "${TAR_PATH}" "${CPANEL_SSH_USER}@${CPANEL_SSH_HOST}:/tmp/${TAR_PATH}"
+            # Extract without deleting any existing files/folders not in the archive
+            ssh -p "${CPANEL_SSH_PORT}" "${CPANEL_SSH_USER}@${CPANEL_SSH_HOST}" "mkdir -p '${CPANEL_DEPLOY_PATH}' && tar -xzf /tmp/${TAR_PATH} -C '${CPANEL_DEPLOY_PATH}' && rm /tmp/${TAR_PATH}"
+            echo "SSH deploy finished (existing files/folders not overwritten unless present in archive)"
+          elif [ -n "${CPANEL_FTP_HOST:-}" ] && [ -n "${CPANEL_FTP_USERNAME:-}" ] && [ -n "${CPANEL_FTP_PASSWORD:-}" ]; then
+            echo "No SSH credentials found — falling back to FTP deploy to ${CPANEL_FTP_HOST}:${CPANEL_FTP_PATH}"
+            sudo apt-get update -qq
+            sudo apt-get install -y --no-install-recommends lftp
+            REMOTE_DIR="${CPANEL_FTP_PATH}"
+            LFTP_CMD="set net:max-retries 5; set net:reconnect-interval-base 5; set net:timeout 20; set ftp:passive-mode true; \
+              mirror -R --only-newer --parallel=10 --use-pget-n=10 --delete --verbose '${LDIR}' '${REMOTE_DIR}'"
+            echo "Running lftp with command: ${LFTP_CMD}"
+            lftp -u "${CPANEL_FTP_USERNAME}","${CPANEL_FTP_PASSWORD}" "${CPANEL_FTP_HOST}" -e "${LFTP_CMD}; bye"
+          else
+            echo "ERROR: No deploy credentials supplied. Set SSH secrets (CPANEL_SSH_HOST, CPANEL_SSH_PRIVATE_KEY, CPANEL_SSH_USER) or FTP secrets (CPANEL_FTP_HOST, CPANEL_FTP_USERNAME, CPANEL_FTP_PASSWORD)."
+            exit 1
+          fi
