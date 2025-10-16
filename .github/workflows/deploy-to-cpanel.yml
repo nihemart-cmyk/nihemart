@@ -2,7 +2,7 @@ name: CI/CD — Build and deploy to cPanel
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   workflow_dispatch: {}
 
 jobs:
@@ -20,8 +20,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'pnpm'
+          node-version: "20"
+          cache: "pnpm"
 
       - name: Install pnpm
         run: npm install -g pnpm@8
@@ -44,8 +44,9 @@ jobs:
         id: prepare
         run: |
           set -e
+          DEPLOY_DIR=""
           if [ -d out ]; then 
-            echo "DEPLOY_DIR=out" >> $GITHUB_ENV
+            DEPLOY_DIR=out
           else
             echo "Creating dist folder for Node deployment"
             rm -rf dist || true
@@ -58,22 +59,26 @@ jobs:
             if [ -f server.js ]; then cp server.js dist/; fi
             # copy next.config.js if present
             if [ -f next.config.js ]; then cp next.config.js dist/; fi
-            echo "DEPLOY_DIR=dist" >> $GITHUB_ENV
+            DEPLOY_DIR=dist
           fi
+          echo "deploy_dir=${DEPLOY_DIR}" >> $GITHUB_OUTPUT
 
       - name: Show deploy dir contents
         run: |
-          echo "Deploying from: $DEPLOY_DIR"
-          ls -la $DEPLOY_DIR || true
+          echo "Deploying from: ${{ steps.prepare.outputs.deploy_dir }}"
+          ls -la "${{ steps.prepare.outputs.deploy_dir }}" || true
 
       - name: Deploy via FTP to cPanel
         if: env.CPANEL_FTP_HOST != '' && env.CPANEL_FTP_USERNAME != '' && env.CPANEL_FTP_PASSWORD != ''
-        uses: SamKirkland/FTP-Deploy-Action@4.4.0
+        # Use the major-version tag `v4` which is a stable, resolvable tag for this action.
+        # Specific patch versions like `4.4.0` may not exist or may have been removed.
+        uses: SamKirkland/FTP-Deploy-Action@v4
         with:
           server: ${{ env.CPANEL_FTP_HOST }}
           username: ${{ env.CPANEL_FTP_USERNAME }}
           password: ${{ env.CPANEL_FTP_PASSWORD }}
-          local-dir: "./${{ env.DEPLOY_DIR }}"
+          # reference deploy dir output from the 'prepare' step
+          local-dir: "./${{ steps.prepare.outputs.deploy_dir }}"
           server-dir: ${{ env.CPANEL_FTP_PATH }}
 
       # SCP/SSH deploy steps removed — this workflow deploys using FTP only.
