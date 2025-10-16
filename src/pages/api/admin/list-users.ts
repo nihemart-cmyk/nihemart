@@ -34,15 +34,19 @@ export default async function handler(
       const limit = Math.max(1, Number(req.query.limit || 50));
 
       // Run roles, auth users and aggregates in parallel for speed
-      const [{ data: profiles }, { data: roles }, { data: authUsers }, { data: ordersAgg }] =
-         await Promise.all([
-            // fetch profiles (all) so we can union with auth users server-side
-            supabase.from("profiles").select("id, full_name, phone, created_at"),
-            supabase.from("user_roles").select("user_id, role"),
-            supabase.from("users").select("id, email, created_at"),
-            // Call RPC that aggregates orders per user (see migration)
-            supabase.rpc("get_orders_aggregate_per_user"),
-         ] as any);
+      const [
+         { data: profiles },
+         { data: roles },
+         { data: authUsers },
+         { data: ordersAgg },
+      ] = await Promise.all([
+         // fetch profiles (all) so we can union with auth users server-side
+         supabase.from("profiles").select("id, full_name, phone, created_at"),
+         supabase.from("user_roles").select("user_id, role"),
+         supabase.from("users").select("id, email, created_at"),
+         // Call RPC that aggregates orders per user (see migration)
+         supabase.rpc("get_orders_aggregate_per_user"),
+      ] as any);
 
       const profilesArr = (profiles as any[]) || [];
       const rolesArr = (roles as any[]) || [];
@@ -122,7 +126,9 @@ export default async function handler(
       const start = (page - 1) * limit;
       const paginated = usersArr.slice(start, start + limit);
 
-      return res.status(200).json({ users: paginated, count: totalCount, page, limit });
+      return res
+         .status(200)
+         .json({ users: paginated, count: totalCount, page, limit });
    } catch (err: any) {
       console.error("list-users failed", err);
       return res
