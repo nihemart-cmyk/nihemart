@@ -104,7 +104,7 @@ jobs:
 
       - name: Start ssh-agent (if SSH key present)
         if: env.CPANEL_SSH_PRIVATE_KEY != ''
-        uses: webfactory/ssh-agent@v0.8.1
+        uses: webfactory/ssh-agent@v0.8
         with:
           ssh-private-key: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
 
