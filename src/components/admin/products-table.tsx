@@ -3,6 +3,12 @@ import React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
+   DropdownMenu,
+   DropdownMenuContent,
+   DropdownMenuItem,
+   DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
    ChevronDown,
    Edit,
    Trash2,
@@ -11,6 +17,8 @@ import {
    ChevronUp,
    Search,
    UserStar,
+   MoreHorizontal,
+   MoreVertical,
 } from "lucide-react";
 
 import {
@@ -312,18 +320,33 @@ export const ProductsTable = ({
                                  <div className="flex flex-wrap gap-1 max-w-[200px]">
                                     {product.categories && product.categories.length > 0 ? (
                                        <>
-                                          {product.categories.slice(0, 2).map((cat) => (
-                                             <span
-                                                key={cat.id}
-                                                className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 whitespace-nowrap"
-                                             >
-                                                {cat.name}
-                                             </span>
-                                          ))}
-                                          {product.categories.length > 2 && (
-                                             <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 whitespace-nowrap">
-                                                +{product.categories.length - 2} more
-                                             </span>
+                                          <span
+                                             key={product.categories[0].id}
+                                             className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 whitespace-nowrap"
+                                          >
+                                             {product.categories[0].name}
+                                          </span>
+                                          {product.categories.length > 1 && (
+                                             <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                   <Button
+                                                      variant="ghost"
+                                                      size="sm"
+                                                      className="flex items-center"
+                                                   >
+                                                      <span>..more</span>
+                                                   </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent>
+                                                   {product.categories
+                                                      .slice(1)
+                                                      .map((cat) => (
+                                                         <DropdownMenuItem key={cat.id}>
+                                                            {cat.name}
+                                                         </DropdownMenuItem>
+                                                      ))}
+                                                </DropdownMenuContent>
+                                             </DropdownMenu>
                                           )}
                                        </>
                                     ) : (
