@@ -102,26 +102,33 @@ jobs:
           echo "Deploying from: ${{ steps.prepare.outputs.deploy_dir }}"
           ls -la "${{ steps.prepare.outputs.deploy_dir }}" || true
 
-      - name: Start ssh-agent (if SSH key present)
-        if: env.CPANEL_SSH_PRIVATE_KEY != ''
+      - name: Write SSH deploy key (if provided)
         run: |
           set -euo pipefail
-          echo "Starting ssh-agent and adding deploy key"
+          echo "Writing deploy key to ~/.ssh/deploy_key (if provided)"
+          if [ -z "${CPANEL_SSH_PRIVATE_KEY:-}" ]; then
+            echo "No CPANEL_SSH_PRIVATE_KEY secret found — skipping key write"
+            exit 0
+          fi
           mkdir -p ~/.ssh
-          # write private key to a file and add to agent
+          # write private key to a file (do not print the key)
           printf '%s\n' "$CPANEL_SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
           # normalize line endings (in case the secret had CRLF)
           sed -i 's/\r$//' ~/.ssh/deploy_key || true
           chmod 600 ~/.ssh/deploy_key
-          eval "$(ssh-agent -s)"
-          # try to add the key; on failure print only the key header to help debug (no secrets)
-          if ! ssh-add ~/.ssh/deploy_key; then
-            echo "ssh-add failed. Key file header:" && head -n 1 ~/.ssh/deploy_key || true
-            exit 1
+          # show the key fingerprint for debugging (safe, doesn't print the private key)
+          if command -v ssh-keygen >/dev/null 2>&1; then
+            ssh-keygen -lf ~/.ssh/deploy_key || true
+            # Also derive and print the public key (safe) so you can compare to server's authorized_keys
+            if ssh-keygen -y -f ~/.ssh/deploy_key > ~/.ssh/deploy_key.pub 2>/dev/null; then
+              echo "Derived public key (will be printed for comparison):"
+              cat ~/.ssh/deploy_key.pub || true
+              echo "Derived public key fingerprint:"
+              ssh-keygen -lf ~/.ssh/deploy_key.pub || true
+            else
+              echo "Could not derive public key from deploy_key (private key format unsupported)" || true
+            fi
           fi
-          echo "Loaded keys:" && ssh-add -l || true
-          # remove private key file if you prefer (agent keeps it loaded)
-          rm -f ~/.ssh/deploy_key
 
       - name: Deploy (SSH archive preferred, FTP fallback)
         env:
@@ -152,9 +159,17 @@ jobs:
             ssh-keyscan -p "${CPANEL_SSH_PORT}" "${CPANEL_SSH_HOST}" >> ~/.ssh/known_hosts || true
             echo "Probing SSH auth methods (verbose, won't print private key):"
             ssh -p "${CPANEL_SSH_PORT}" -o BatchMode=yes -o StrictHostKeyChecking=no -vvv "${CPANEL_SSH_USER}@${CPANEL_SSH_HOST}" exit || true
-            scp -P "${CPANEL_SSH_PORT}" "${TAR_PATH}" "${CPANEL_SSH_USER}@${CPANEL_SSH_HOST}:/tmp/${TAR_PATH}"
+            # Prefer using the explicit deploy key if present (avoids ssh-agent complexity)
+            SSH_ID_OPT=""
+            if [ -f ~/.ssh/deploy_key ]; then
+              # -o IdentitiesOnly=yes forces the client to use only the provided key
+              SSH_ID_OPT="-i ~/.ssh/deploy_key -o IdentitiesOnly=yes"
+            fi
+            scp ${SSH_ID_OPT} -P "${CPANEL_SSH_PORT}" "${TAR_PATH}" "${CPANEL_SSH_USER}@${CPANEL_SSH_HOST}:/tmp/${TAR_PATH}"
             # Extract without deleting any existing files/folders not in the archive
-            ssh -p "${CPANEL_SSH_PORT}" "${CPANEL_SSH_USER}@${CPANEL_SSH_HOST}" "mkdir -p '${CPANEL_DEPLOY_PATH}' && tar -xzf /tmp/${TAR_PATH} -C '${CPANEL_DEPLOY_PATH}' && rm /tmp/${TAR_PATH}"
+            ssh ${SSH_ID_OPT} -p "${CPANEL_SSH_PORT}" "${CPANEL_SSH_USER}@${CPANEL_SSH_HOST}" "mkdir -p '${CPANEL_DEPLOY_PATH}' && tar -xzf /tmp/${TAR_PATH} -C '${CPANEL_DEPLOY_PATH}' && rm /tmp/${TAR_PATH}"
+            # clean up the key on disk
+            rm -f ~/.ssh/deploy_key || true
             echo "SSH deploy finished (existing files/folders not overwritten unless present in archive)"
           elif [ -n "${CPANEL_FTP_HOST:-}" ] && [ -n "${CPANEL_FTP_USERNAME:-}" ] && [ -n "${CPANEL_FTP_PASSWORD:-}" ]; then
             echo "No SSH credentials found — falling back to FTP deploy to ${CPANEL_FTP_HOST}:${CPANEL_FTP_PATH}"
