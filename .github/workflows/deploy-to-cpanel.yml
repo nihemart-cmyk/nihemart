@@ -8,6 +8,11 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      CPANEL_FTP_HOST: ${{ secrets.CPANEL_FTP_HOST }}
+      CPANEL_FTP_USERNAME: ${{ secrets.CPANEL_FTP_USERNAME }}
+      CPANEL_FTP_PASSWORD: ${{ secrets.CPANEL_FTP_PASSWORD }}
+      CPANEL_FTP_PATH: ${{ secrets.CPANEL_FTP_PATH }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -62,13 +67,13 @@ jobs:
           ls -la $DEPLOY_DIR || true
 
       - name: Deploy via FTP to cPanel
-        if: secrets.CPANEL_FTP_HOST != '' && secrets.CPANEL_FTP_USERNAME != '' && secrets.CPANEL_FTP_PASSWORD != ''
+        if: env.CPANEL_FTP_HOST != '' && env.CPANEL_FTP_USERNAME != '' && env.CPANEL_FTP_PASSWORD != ''
         uses: SamKirkland/FTP-Deploy-Action@4.4.0
         with:
-          server: ${{ secrets.CPANEL_FTP_HOST }}
-          username: ${{ secrets.CPANEL_FTP_USERNAME }}
-          password: ${{ secrets.CPANEL_FTP_PASSWORD }}
+          server: ${{ env.CPANEL_FTP_HOST }}
+          username: ${{ env.CPANEL_FTP_USERNAME }}
+          password: ${{ env.CPANEL_FTP_PASSWORD }}
           local-dir: "./${{ env.DEPLOY_DIR }}"
-          server-dir: ${{ secrets.CPANEL_FTP_PATH }}
+          server-dir: ${{ env.CPANEL_FTP_PATH }}
 
       # SCP/SSH deploy steps removed — this workflow deploys using FTP only.
