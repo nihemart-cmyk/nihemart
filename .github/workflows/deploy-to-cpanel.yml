@@ -31,6 +31,29 @@ jobs:
             npm install --no-fund --no-audit
           fi
 
+      - name: Check Supabase secrets
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "${NEXT_PUBLIC_SUPABASE_URL}" ] || [ -z "${NEXT_PUBLIC_SUPABASE_ANON_KEY}" ]; then
+            echo "ERROR: Missing Supabase secrets. Make sure NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY are set in Actions repository secrets."
+            echo "NEXT_PUBLIC_SUPABASE_URL present: ${NEXT_PUBLIC_SUPABASE_URL:+yes}"
+            echo "NEXT_PUBLIC_SUPABASE_ANON_KEY present: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:+yes}"
+            exit 1
+          else
+            echo "Supabase secrets present. Proceeding to build."
+          fi
+
+      - name: Create .env.production from secrets
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+        run: |
+          echo "Creating .env.production with Supabase values (values will not be printed)"
+          printf "%s\n" "NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}" > .env.production
+          printf "%s\n" "NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}" >> .env.production
+
       - name: Build
         env:
           NODE_ENV: production
