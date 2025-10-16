@@ -397,7 +397,7 @@ export function initializeKPayService(): KPayService {
     password: process.env.KPAY_PASSWORD || '',
     retailerId: process.env.KPAY_RETAILER_ID || '',
     environment: (process.env.KPAY_ENVIRONMENT as 'sandbox' | 'live') || 'sandbox',
-    webhookUrl: process.env.KPAY_WEBHOOK_URL || 'http://localhost:3000/api/webhooks/kpay',
+    webhookUrl: process.env.KPAY_WEBHOOK_URL || 'https://nihemart.rw/api/webhooks/kpay',
   };
 
   // Validate required configuration
