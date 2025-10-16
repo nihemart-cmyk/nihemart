@@ -151,55 +151,21 @@ jobs:
           find "${LDIR}" -type f | wc -l || true
 
           if [ -n "${CPANEL_SSH_HOST:-}" ] && [ -n "${CPANEL_SSH_USER:-}" ]; then
-            echo "Using SSH deploy to ${CPANEL_SSH_USER}@${CPANEL_SSH_HOST}:${CPANEL_DEPLOY_PATH} (non-destructive, no delete)"
-            TAR_PATH=deploy.tar.gz
-            tar -czf "${TAR_PATH}" -C "${LDIR}" .
-            : "${CPANEL_SSH_PORT:=22}"
-            # ensure host key is known to avoid prompt
-            ssh-keyscan -p "${CPANEL_SSH_PORT}" "${CPANEL_SSH_HOST}" >> ~/.ssh/known_hosts || true
-            echo "Probing SSH auth methods (verbose, won't print private key):"
-            ssh -p "${CPANEL_SSH_PORT}" -o BatchMode=yes -o StrictHostKeyChecking=no -vvv "${CPANEL_SSH_USER}@${CPANEL_SSH_HOST}" exit || true
-            # Prefer using the explicit deploy key if present (avoids ssh-agent complexity)
-            SSH_ID_OPT=""
-            if [ -f ~/.ssh/deploy_key ]; then
-              # -o IdentitiesOnly=yes forces the client to use only the provided key
-              SSH_ID_OPT="-i ~/.ssh/deploy_key -o IdentitiesOnly=yes"
-            fi
-            # Attempt scp then remote extract. If scp or extract fails (for example, shell access disabled on cPanel), fall back to SFTP mirror using lftp.
-            echo "Trying scp upload of archive to remote host..."
-            if scp ${SSH_ID_OPT} -P "${CPANEL_SSH_PORT}" "${TAR_PATH}" "${CPANEL_SSH_USER}@${CPANEL_SSH_HOST}:/tmp/${TAR_PATH}"; then
-              echo "scp succeeded — attempting remote extract via ssh"
-              # capture remote extraction output to detect 'Shell access is not enabled' messages
-              REMOTE_OUTPUT=$(ssh ${SSH_ID_OPT} -p "${CPANEL_SSH_PORT}" "${CPANEL_SSH_USER}@${CPANEL_SSH_HOST}" 'set -e; echo "Remote: tar contents (top 200 lines):"; tar -tzf /tmp/${TAR_PATH} | sed -n "1,200p" || true; echo "Remote: ensuring deploy path exists:"; mkdir -p "'${CPANEL_DEPLOY_PATH}'"; echo "Remote: extracting archive to ${CPANEL_DEPLOY_PATH}"; tar -xzf /tmp/${TAR_PATH} -C "'${CPANEL_DEPLOY_PATH}'"; echo "Remote: listing top-level files in deploy path:"; ls -la --full-time "'${CPANEL_DEPLOY_PATH}'" || true; echo "Remote: listing some file timestamps (max 200 lines):"; find "'${CPANEL_DEPLOY_PATH}'" -maxdepth 3 -type f -printf "%TY-%Tm-%Td %TH:%TM:%TS %p\n" | sed -n "1,200p" || true; if [ -f "'${CPANEL_DEPLOY_PATH}'/package.json" ]; then echo "Remote: package.json checksum:"; sha256sum "'${CPANEL_DEPLOY_PATH}'/package.json" || true; fi; echo "Remote: done — removing uploaded archive"; rm -f /tmp/${TAR_PATH} || true' 2>&1) || true
+            echo "Deploying via SFTP mirror to ${CPANEL_SSH_USER}@${CPANEL_SSH_HOST}:${CPANEL_DEPLOY_PATH} (non-destructive, no delete)"
+            # Create restart trigger inside the local deploy directory so Passenger will restart the app after files update
+            mkdir -p "${LDIR}/tmp"
+            echo "Deployed at "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"" > "${LDIR}/tmp/restart.txt" || true
 
-              echo "Remote extraction output:" && echo "$REMOTE_OUTPUT"
-
-              # If the remote output contains an indication that shell is disabled, or the ssh command failed to extract, fallback
-              if echo "$REMOTE_OUTPUT" | grep -qi "Shell access is not enabled" || echo "$REMOTE_OUTPUT" | grep -qi "Permission denied" || [ -z "$REMOTE_OUTPUT" ]; then
-                echo "Remote extraction failed or shell disabled — falling back to SFTP mirror"
-                FALLBACK=1
-              else
-                echo "Remote extraction looks OK"
-                FALLBACK=0
-              fi
-            else
-              echo "scp failed — falling back to SFTP mirror"
-              FALLBACK=1
-            fi
-
-            if [ "${FALLBACK:-0}" -eq 1 ]; then
-              echo "Using lftp SFTP mirror fallback (will mirror ${LDIR} -> ${CPANEL_DEPLOY_PATH})"
-              sudo apt-get update -qq
-              sudo apt-get install -y --no-install-recommends lftp
-              # lftp will use the SSH key for sftp by instructing ssh to use it via sftp:connect-program
-              # build the connect program for the port and key
-              SFTP_CONNECT_PROG="ssh -a -x -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -p ${CPANEL_SSH_PORT}"
-              REMOTE_DIR="${CPANEL_DEPLOY_PATH}"
-              LFTP_CMD="set sftp:connect-program '${SFTP_CONNECT_PROG}'; set net:max-retries 5; set net:reconnect-interval-base 5; set net:timeout 20; set ftp:passive-mode true; mirror -R --only-newer --parallel=10 --verbose '${LDIR}' '${REMOTE_DIR}'"
-              echo "Running lftp with command: ${LFTP_CMD}"
-              # run lftp in non-interactive mode using sftp
-              lftp -u "${CPANEL_SSH_USER}", -e "${LFTP_CMD}; bye" sftp://${CPANEL_SSH_HOST}
-            fi
+            echo "Using lftp SFTP mirror (will mirror ${LDIR} -> ${CPANEL_DEPLOY_PATH})"
+            sudo apt-get update -qq
+            sudo apt-get install -y --no-install-recommends lftp
+            # lftp will use the SSH key for sftp by instructing ssh to use it via sftp:connect-program
+            SFTP_CONNECT_PROG="ssh -a -x -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -p ${CPANEL_SSH_PORT}"
+            REMOTE_DIR="${CPANEL_DEPLOY_PATH}"
+            LFTP_CMD="set sftp:connect-program '${SFTP_CONNECT_PROG}'; set net:max-retries 5; set net:reconnect-interval-base 5; set net:timeout 20; set ftp:passive-mode true; mirror -R --only-newer --parallel=10 --verbose '${LDIR}' '${REMOTE_DIR}'"
+            echo "Running lftp with command: ${LFTP_CMD}"
+            # run lftp in non-interactive mode using sftp
+            lftp -u "${CPANEL_SSH_USER}", -e "${LFTP_CMD}; bye" sftp://${CPANEL_SSH_HOST}
             # clean up the key on disk
             rm -f ~/.ssh/deploy_key || true
             echo "SSH deploy finished (existing files/folders not overwritten unless present in archive)"
