@@ -108,16 +108,20 @@ jobs:
           set -euo pipefail
           echo "Starting ssh-agent and adding deploy key"
           mkdir -p ~/.ssh
-          # write private key to a file and add to agent (here-doc)
-          cat <<'EOF' > ~/.ssh/deploy_key
-          ${CPANEL_SSH_PRIVATE_KEY}
-          EOF
-                    chmod 600 ~/.ssh/deploy_key
-                    eval "$(ssh-agent -s)"
-                    ssh-add ~/.ssh/deploy_key
-                    echo "Loaded keys:" && ssh-add -l || true
-                    # remove private key file if you prefer (agent keeps it loaded)
-                    rm -f ~/.ssh/deploy_key
+          # write private key to a file and add to agent
+          printf '%s\n' "$CPANEL_SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          # normalize line endings (in case the secret had CRLF)
+          sed -i 's/\r$//' ~/.ssh/deploy_key || true
+          chmod 600 ~/.ssh/deploy_key
+          eval "$(ssh-agent -s)"
+          # try to add the key; on failure print only the key header to help debug (no secrets)
+          if ! ssh-add ~/.ssh/deploy_key; then
+            echo "ssh-add failed. Key file header:" && head -n 1 ~/.ssh/deploy_key || true
+            exit 1
+          fi
+          echo "Loaded keys:" && ssh-add -l || true
+          # remove private key file if you prefer (agent keeps it loaded)
+          rm -f ~/.ssh/deploy_key
 
       - name: Deploy (SSH archive preferred, FTP fallback)
         env:
