@@ -1,7 +1,7 @@
 ---
 deployment:
   tasks:
-    - export DEPLOYPATH=/home/nihemart/nihemart_v2
+    - export DEPLOYPATH=/home/nihemart/v2.nihemart.rw
     - /usr/bin/npm install
     - /usr/bin/npm run build
     - /bin/cp -R .next $DEPLOYPATH
