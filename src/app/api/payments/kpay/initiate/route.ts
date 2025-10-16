@@ -336,9 +336,16 @@ export async function POST(request: NextRequest) {
             );
          }
       } catch (kpayError) {
-         console.error("KPay payment initiation failed:", kpayError);
+         // Log detailed error for diagnostics (do NOT log credentials)
+         console.error("KPay payment initiation failed:", {
+            message:
+               kpayError instanceof Error
+                  ? kpayError.message
+                  : String(kpayError),
+            stack: kpayError instanceof Error ? kpayError.stack : undefined,
+         });
 
-         // Update payment record to failed status
+         // Update payment record to failed status with available failure reason
          await supabase
             .from("payments")
             .update({
@@ -351,8 +358,17 @@ export async function POST(request: NextRequest) {
             })
             .eq("id", payment.id);
 
+         // If the error message contains known KPay authentication hint, surface it gently
+         const errMsg =
+            kpayError instanceof Error ? kpayError.message : String(kpayError);
+         const userMessage =
+            errMsg.toLowerCase().includes("invalid username") ||
+            errMsg.toLowerCase().includes("invalid password")
+               ? "Payment gateway authentication failed (invalid credentials). Please verify payment gateway configuration in production."
+               : "Failed to initiate payment with KPay";
+
          return NextResponse.json(
-            { error: "Failed to initiate payment with KPay" },
+            { error: userMessage, technicalError: errMsg },
             { status: 500 }
          );
       }

@@ -79,10 +79,22 @@ export function useKPayPayment() {
                body: JSON.stringify(request),
             });
 
-            const data = await response.json();
+            // Try to parse JSON body, but fall back to raw text for diagnostics
+            let data: any;
+            try {
+               data = await response.json();
+            } catch (e) {
+               const txt = await response.text();
+               data = { error: txt || "Failed to parse response" };
+            }
 
             if (!response.ok) {
-               throw new Error(data.error || "Failed to initiate payment");
+               const serverErr =
+                  data?.technicalError ||
+                  data?.error ||
+                  data?.message ||
+                  "Failed to initiate payment";
+               throw new Error(serverErr);
             }
 
             if (data.success) {

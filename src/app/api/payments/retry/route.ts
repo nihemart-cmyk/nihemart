@@ -71,31 +71,91 @@ export async function POST(request: NextRequest) {
       const orderReference = KPayService.generateOrderReference();
       const formattedPhone = KPayService.formatPhoneNumber(body.customerPhone);
 
-      // Create a new payment record
-      const { data: payment, error: paymentError } = await supabase
-         .from("payments")
-         .insert({
-            order_id: body.orderId,
-            amount: body.amount,
-            currency: "RWF",
-            payment_method: body.paymentMethod,
-            status: "pending",
-            reference: orderReference,
-            customer_name: body.customerName,
-            customer_email: body.customerEmail,
-            customer_phone: formattedPhone,
-            created_at: new Date().toISOString(),
-         })
-         .select()
-         .single();
+      // Create a new payment record with a simple retry on transient DB errors
+      let payment: any = null;
+      let paymentError: any = null;
+      for (let attempt = 1; attempt <= 2; attempt++) {
+         const res = await supabase
+            .from("payments")
+            .insert({
+               order_id: body.orderId,
+               amount: body.amount,
+               currency: "RWF",
+               payment_method: body.paymentMethod,
+               status: "pending",
+               reference: orderReference,
+               customer_name: body.customerName,
+               customer_email: body.customerEmail,
+               customer_phone: formattedPhone,
+               created_at: new Date().toISOString(),
+            })
+            .select()
+            .single();
+
+         payment = (res as any).data;
+         paymentError = (res as any).error;
+
+         if (!paymentError && payment) break;
+
+         // small backoff
+         await new Promise((r) => setTimeout(r, 150 * attempt));
+      }
 
       if (paymentError || !payment) {
+         const errMsg = paymentError
+            ? paymentError.message || String(paymentError)
+            : "no-data";
          logger.error("api", "Failed to create retry payment record", {
             orderId: body.orderId,
-            error: paymentError?.message,
+            error: errMsg,
          });
+
+         // Handle duplicate key on order_id: return existing payment so client can proceed
+         if (
+            errMsg.includes("duplicate key value") ||
+            errMsg.includes("payments_order_id_key")
+         ) {
+            try {
+               const { data: existing } = await supabase
+                  .from("payments")
+                  .select(
+                     "id, status, kpay_transaction_id, reference, kpay_response"
+                  )
+                  .eq("order_id", body.orderId)
+                  .order("created_at", { ascending: false })
+                  .limit(1)
+                  .single();
+
+               if (existing) {
+                  return NextResponse.json({
+                     success: true,
+                     paymentId: existing.id,
+                     transactionId: existing.kpay_transaction_id,
+                     checkoutUrl: existing.kpay_response?.url || null,
+                     status: existing.status || "pending",
+                  });
+               }
+            } catch (fetchErr) {
+               logger.warn(
+                  "api",
+                  "Failed to fetch existing payment after duplicate key",
+                  {
+                     orderId: body.orderId,
+                     error:
+                        fetchErr instanceof Error
+                           ? fetchErr.message
+                           : String(fetchErr),
+                  }
+               );
+            }
+         }
+
+         // Temporarily return technical error to help diagnose production issue
          return NextResponse.json(
-            { error: "Failed to create payment record" },
+            {
+               error: "Failed to create payment record",
+               technicalError: errMsg,
+            },
             { status: 500 }
          );
       }
