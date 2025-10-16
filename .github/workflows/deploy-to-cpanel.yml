@@ -13,6 +13,11 @@ jobs:
       CPANEL_FTP_USERNAME: ${{ secrets.CPANEL_FTP_USERNAME }}
       CPANEL_FTP_PASSWORD: ${{ secrets.CPANEL_FTP_PASSWORD }}
       CPANEL_FTP_PATH: ${{ secrets.CPANEL_FTP_PATH }}
+      CPANEL_SSH_HOST: ${{ secrets.CPANEL_SSH_HOST }}
+      CPANEL_SSH_PORT: ${{ secrets.CPANEL_SSH_PORT }}
+      CPANEL_SSH_USER: ${{ secrets.CPANEL_SSH_USER }}
+      CPANEL_SSH_PRIVATE_KEY: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
+      CPANEL_DEPLOY_PATH: ${{ secrets.CPANEL_DEPLOY_PATH }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -97,6 +102,12 @@ jobs:
           echo "Deploying from: ${{ steps.prepare.outputs.deploy_dir }}"
           ls -la "${{ steps.prepare.outputs.deploy_dir }}" || true
 
+      - name: Start ssh-agent (if SSH key present)
+        if: env.CPANEL_SSH_PRIVATE_KEY != ''
+        uses: webfactory/ssh-agent@v0.8.1
+        with:
+          ssh-private-key: ${{ secrets.CPANEL_SSH_PRIVATE_KEY }}
+
       - name: Deploy (SSH archive preferred, FTP fallback)
         env:
           # SSH secrets (optional)
@@ -117,15 +128,15 @@ jobs:
           du -sh "${LDIR}" || true
           find "${LDIR}" -type f | wc -l || true
 
-          if [ -n "${CPANEL_SSH_HOST:-}" ] && [ -n "${SSH_KEY:-}" ] && [ -n "${CPANEL_SSH_USER:-}" ]; then
+          if [ -n "${CPANEL_SSH_HOST:-}" ] && [ -n "${CPANEL_SSH_USER:-}" ]; then
             echo "Using SSH deploy to ${CPANEL_SSH_USER}@${CPANEL_SSH_HOST}:${CPANEL_DEPLOY_PATH} (non-destructive, no delete)"
             TAR_PATH=deploy.tar.gz
             tar -czf "${TAR_PATH}" -C "${LDIR}" .
-            mkdir -p ~/.ssh
-            printf "%s\n" "${SSH_KEY}" > ~/.ssh/id_rsa
-            chmod 600 ~/.ssh/id_rsa
             : "${CPANEL_SSH_PORT:=22}"
+            # ensure host key is known to avoid prompt
             ssh-keyscan -p "${CPANEL_SSH_PORT}" "${CPANEL_SSH_HOST}" >> ~/.ssh/known_hosts || true
+            echo "Probing SSH auth methods (verbose, won't print private key):"
+            ssh -p "${CPANEL_SSH_PORT}" -o BatchMode=yes -o StrictHostKeyChecking=no -vvv "${CPANEL_SSH_USER}@${CPANEL_SSH_HOST}" exit || true
             scp -P "${CPANEL_SSH_PORT}" "${TAR_PATH}" "${CPANEL_SSH_USER}@${CPANEL_SSH_HOST}:/tmp/${TAR_PATH}"
             # Extract without deleting any existing files/folders not in the archive
             ssh -p "${CPANEL_SSH_PORT}" "${CPANEL_SSH_USER}@${CPANEL_SSH_HOST}" "mkdir -p '${CPANEL_DEPLOY_PATH}' && tar -xzf /tmp/${TAR_PATH} -C '${CPANEL_DEPLOY_PATH}' && rm /tmp/${TAR_PATH}"
