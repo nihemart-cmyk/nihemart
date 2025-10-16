@@ -74,19 +74,39 @@ export async function updateSession(request: NextRequest) {
       !request.nextUrl.pathname.startsWith("/auth") &&
       !request.nextUrl.pathname.startsWith("/error")
    ) {
+      // Redirect anonymous users to signin but preserve the original
+      // requested path (including search) as a `redirect` query param so
+      // after sign-in they can be sent back to where they started.
       const url = request.nextUrl.clone();
+      const originalPathAndSearch =
+         request.nextUrl.pathname + request.nextUrl.search;
       url.pathname = "/signin";
+      // Only set redirect if it's not the signin page itself
+      if (originalPathAndSearch && originalPathAndSearch !== "/signin") {
+         url.searchParams.set("redirect", originalPathAndSearch);
+      }
       return NextResponse.redirect(url);
    }
 
    // Prevent logged-in users from accessing /signin or /auth/signin
    if (
       user &&
-      ["/signin", "/auth/signin", "/(auth)/signin"].includes(
+      ["/signin", "/auth/signin", "(auth)/signin"].includes(
          request.nextUrl.pathname
       )
    ) {
       const url = request.nextUrl.clone();
+
+      // If a safe `redirect` query param was provided (from the anonymous
+      // redirect above), prefer sending the logged-in user there first. This
+      // preserves the user's original intent (e.g. checkout) instead of always
+      // sending them to the role-based home.
+      const redirectParam = url.searchParams.get("redirect");
+      if (redirectParam && redirectParam.startsWith("/")) {
+         // Build an absolute URL to redirect to
+         const dest = new URL(redirectParam, request.nextUrl.origin);
+         return NextResponse.redirect(dest);
+      }
 
       // Fetch user roles to determine redirect. Use user metadata as a fallback
       // because the user_roles row may not exist yet immediately after admin-created users.

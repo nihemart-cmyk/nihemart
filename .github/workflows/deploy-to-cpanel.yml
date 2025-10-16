@@ -1,0 +1,74 @@
+name: CI/CD — Build and deploy to cPanel
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install pnpm
+        run: npm install -g pnpm@8
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        env:
+          NODE_ENV: production
+        run: pnpm build
+
+      - name: Prepare export (static) if needed
+        if: env.NEXT_EXPORT == 'true'
+        run: |
+          # Exporting as static if the project supports next export
+          pnpm exec next export -o out || true
+
+      - name: Prepare deploy directory (dist or out)
+        id: prepare
+        run: |
+          set -e
+          if [ -d out ]; then 
+            echo "DEPLOY_DIR=out" >> $GITHUB_ENV
+          else
+            echo "Creating dist folder for Node deployment"
+            rm -rf dist || true
+            mkdir -p dist
+            # copy build artifact and public assets
+            cp -r .next dist/ || true
+            cp -r public dist/ || true
+            # include server file and package.json so cPanel can run npm install
+            cp package.json dist/ || true
+            if [ -f server.js ]; then cp server.js dist/; fi
+            # copy next.config.js if present
+            if [ -f next.config.js ]; then cp next.config.js dist/; fi
+            echo "DEPLOY_DIR=dist" >> $GITHUB_ENV
+          fi
+
+      - name: Show deploy dir contents
+        run: |
+          echo "Deploying from: $DEPLOY_DIR"
+          ls -la $DEPLOY_DIR || true
+
+      - name: Deploy via FTP to cPanel
+        if: secrets.CPANEL_FTP_HOST != '' && secrets.CPANEL_FTP_USERNAME != '' && secrets.CPANEL_FTP_PASSWORD != ''
+        uses: SamKirkland/FTP-Deploy-Action@4.4.0
+        with:
+          server: ${{ secrets.CPANEL_FTP_HOST }}
+          username: ${{ secrets.CPANEL_FTP_USERNAME }}
+          password: ${{ secrets.CPANEL_FTP_PASSWORD }}
+          local-dir: "./${{ env.DEPLOY_DIR }}"
+          server-dir: ${{ secrets.CPANEL_FTP_PATH }}
+
+      # SCP/SSH deploy steps removed — this workflow deploys using FTP only.
