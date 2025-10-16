@@ -21,24 +21,30 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: "pnpm"
+          cache: "npm"
 
-      - name: Install pnpm
-        run: npm install -g pnpm@8
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Install dependencies (npm)
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci --no-fund --no-audit
+          else
+            npm install --no-fund --no-audit
+          fi
 
       - name: Build
         env:
           NODE_ENV: production
-        run: pnpm build
+        run: npm run build --if-present
 
       - name: Prepare export (static) if needed
-        if: env.NEXT_EXPORT == 'true'
         run: |
           # Exporting as static if the project supports next export
-          pnpm exec next export -o out || true
+          if [ "${NEXT_EXPORT}" = "true" ]; then
+            echo "NEXT_EXPORT=true — running next export"
+            npx next export -o out || true
+          else
+            echo "NEXT_EXPORT not true — skipping next export"
+          fi
 
       - name: Prepare deploy directory (dist or out)
         id: prepare
@@ -79,5 +85,3 @@ jobs:
           REMOTE_DIR="${CPANEL_FTP_PATH}"
           # Use lftp to mirror the local directory to the remote path (reverse mirror)
           lftp -u "${CPANEL_FTP_USERNAME}","${CPANEL_FTP_PASSWORD}" "${CPANEL_FTP_HOST}" -e "mirror -R --parallel=5 --delete --verbose '${LDIR}' '${REMOTE_DIR}'; bye"
-
-      # SCP/SSH deploy steps removed — this workflow deploys using FTP only.
