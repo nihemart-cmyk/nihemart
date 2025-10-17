@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
             .update({
                client_timeout: true,
                client_timeout_reason:
-                  reason || "Client-side timeout after 2 minutes",
+                  reason || "Client-side timeout after 1 minute",
                updated_at: new Date().toISOString(),
             })
             .eq("id", paymentId);

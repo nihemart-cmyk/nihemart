@@ -67,6 +67,7 @@ interface ActiveRiderProps {
 interface RecentDeliveryProps {
    id: string;
    name: string;
+   number?: string;
    location: string;
    status: string;
    amount: string;
@@ -224,6 +225,7 @@ const ActiveRiderCard: React.FC<ActiveRiderProps> = ({
 const RecentDelivery: React.FC<RecentDeliveryProps> = ({
    id,
    name,
+   number,
    location,
    amount,
    time,
@@ -239,7 +241,7 @@ const RecentDelivery: React.FC<RecentDeliveryProps> = ({
                <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2 mb-1">
                      <span className="font-semibold text-sm sm:text-base text-gray-900">
-                        #{id}
+                        #{number || id}
                      </span>
                      <Badge
                         className={`text-xs ${
@@ -780,6 +782,7 @@ const Dashboard = () => {
                                     <RecentDelivery
                                        key={r.id}
                                        id={r.id}
+                                       number={r.order_number}
                                        name={r.name}
                                        location={r.location}
                                        amount={`${r.amount}`}

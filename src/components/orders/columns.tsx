@@ -245,11 +245,16 @@ export const columns: ColumnDef<Order>[] = [
          );
       },
    },
+   /*
    {
       id: "method",
       header: "METHOD",
+      // The payment method UI cell is preserved here for reference.
+      // Commented out per request to hide the column while keeping the
+      // implementation available for future re-enablement.
       cell: () => <PaymentMethod method="mobile_money" />,
    },
+   */
    {
       accessorKey: "total",
       header: "AMOUNT",

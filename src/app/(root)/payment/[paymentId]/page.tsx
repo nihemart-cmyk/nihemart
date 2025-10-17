@@ -99,8 +99,9 @@ export default function PaymentPage() {
          return;
       }
 
-      // Maximum total checks to consider this a client-side timeout (2 minutes)
-      const maxStatusChecks = 12;
+      // Maximum total checks to consider this a client-side timeout (~1 minute)
+      // Interval is 10s, so 6 checks ~= 60s
+      const maxStatusChecks = 6;
 
       try {
          const statusResult = await checkPaymentStatus({
@@ -209,7 +210,7 @@ export default function PaymentPage() {
                      headers: { "Content-Type": "application/json" },
                      body: JSON.stringify({
                         paymentId: payment.id,
-                        reason: "Client-side timeout after polling",
+                        reason: "Client-side timeout after polling (1 minute)",
                      }),
                   });
 

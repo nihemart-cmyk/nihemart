@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { useUpdateRider, useRiderByUserId } from "@/hooks/useRiders";
+import { useRiderByUserId } from "@/hooks/useRiders";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -17,17 +17,13 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { toast } from "sonner";
 // Removed image usage; using initials avatar instead
 import {
    User,
    Phone,
    Car,
    Power,
-   Save,
-   RotateCcw,
    Settings as SettingsIcon,
-   CheckCircle2,
    XCircle,
 } from "lucide-react";
 import { UserAvatarProfile } from "@/components/user-avatar-profile";
@@ -38,7 +34,8 @@ function LanguageSelector() {
    return (
       <Select
          value={language}
-         onValueChange={(v) => setLanguage(v as any)}
+         onValueChange={() => {}}
+         disabled
       >
          <SelectTrigger className="w-full h-11">
             <SelectValue />
@@ -53,13 +50,14 @@ function LanguageSelector() {
 
 export default function RiderSettingsPage() {
    const { user } = useAuth();
+   // Editing is revoked for riders: make this page view-only
    const [saving, setSaving] = useState(false);
    const { data: rider, isLoading: loading } = useRiderByUserId(user?.id);
-   const update = useUpdateRider();
 
-   const [fullName, setFullName] = React.useState("");
-   const [phone, setPhone] = React.useState("");
-   const [vehicle, setVehicle] = React.useState("");
+   // Local state used only for display; inputs are disabled
+   const [fullName] = React.useState("");
+   const [phone] = React.useState("");
+   const [vehicle] = React.useState("");
    const [active, setActive] = React.useState<boolean>(false);
 
    const getInitials = (nameOrEmail: string) => {
@@ -76,9 +74,8 @@ export default function RiderSettingsPage() {
    // Initialize local form state from shared rider query
    useEffect(() => {
       if (!rider) return;
-      setFullName(rider?.full_name || "");
-      setPhone(rider?.phone || "");
-      setVehicle(rider?.vehicle || "");
+      // initialize display-only state
+      // note: fullName/phone/vehicle are pulled directly from rider when rendering
       setActive(!!rider?.active);
    }, [rider]);
 
@@ -133,27 +130,7 @@ export default function RiderSettingsPage() {
       );
    }
 
-   const handleSave = async () => {
-      setSaving(true);
-      try {
-         await update.mutateAsync({
-            riderId: rider.id,
-            updates: { full_name: fullName, phone, vehicle, active },
-         });
-         toast.success("Settings saved successfully");
-      } catch (err: any) {
-         console.error(err);
-         toast.error(err?.message || "Failed to save settings");
-      } finally {
-         setSaving(false);
-      }
-   };
-
-   const hasChanges =
-      fullName !== (rider?.full_name || "") ||
-      phone !== (rider?.phone || "") ||
-      vehicle !== (rider?.vehicle || "") ||
-      active !== !!rider?.active;
+   // Read-only page: no save/reset functionality
 
    return (
       <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-blue-50">
@@ -200,7 +177,6 @@ export default function RiderSettingsPage() {
                                     className="w-16 h-16"
                                     user={{
                                        fullName:
-                                          fullName ||
                                           rider?.full_name ||
                                           user?.email ||
                                           "Rider",
@@ -217,7 +193,7 @@ export default function RiderSettingsPage() {
                            </div>
                            <div className="flex-1 min-w-0">
                               <h3 className="font-bold text-lg text-gray-900 truncate">
-                                 {fullName || "Rider"}
+                                 {rider?.full_name || user?.email || "Rider"}
                               </h3>
                               <p className="text-gray-500 text-sm truncate">
                                  ID: #{rider.id.slice(0, 8)}
@@ -256,7 +232,7 @@ export default function RiderSettingsPage() {
                                  Vehicle Type
                               </p>
                               <p className="text-sm font-medium text-gray-900">
-                                 {vehicle || "Not set"}
+                                 {rider?.vehicle || "Not set"}
                               </p>
                            </div>
                         </div>
@@ -280,9 +256,9 @@ export default function RiderSettingsPage() {
                               Full Name
                            </Label>
                            <Input
-                              value={fullName}
-                              onChange={(e) => setFullName(e.target.value)}
-                              placeholder="Enter your full name"
+                              value={rider?.full_name || ""}
+                              placeholder="Full name"
+                              disabled
                               className="h-11 focus-visible:ring-orange-500"
                            />
                         </div>
@@ -294,9 +270,9 @@ export default function RiderSettingsPage() {
                               Phone Number
                            </Label>
                            <Input
-                              value={phone}
-                              onChange={(e) => setPhone(e.target.value)}
-                              placeholder="Enter your phone number"
+                              value={rider?.phone || ""}
+                              placeholder="Phone number"
+                              disabled
                               type="tel"
                               className="h-11 focus-visible:ring-orange-500"
                            />
@@ -309,8 +285,8 @@ export default function RiderSettingsPage() {
                               Vehicle Type
                            </Label>
                            <Select
-                              value={vehicle}
-                              onValueChange={(v) => setVehicle(v)}
+                              value={rider?.vehicle || ""}
+                              onValueChange={() => {}}
                            >
                               <SelectTrigger className="w-full h-11 focus:ring-orange-500">
                                  <SelectValue placeholder="Select vehicle type" />
@@ -347,98 +323,39 @@ export default function RiderSettingsPage() {
                                     </p>
                                  </div>
                               </div>
-                              <span
-                                 role="button"
-                                 onClick={async (e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    const newVal = !active;
-                                    // optimistic UI
-                                    setActive(newVal);
-                                    try {
-                                       await update.mutateAsync({
-                                          riderId: rider.id,
-                                          updates: { active: newVal },
-                                       });
-                                       toast.success(
-                                          newVal
-                                             ? "You are now available for deliveries"
-                                             : "You are now unavailable for deliveries"
-                                       );
-                                    } catch (err: any) {
-                                       // rollback
-                                       setActive(!newVal);
-                                       console.error(err);
-                                       toast.error(
-                                          err?.message ||
-                                             "Failed to update availability"
-                                       );
-                                    }
-                                 }}
-                                 className="flex-shrink-0"
-                              >
-                                 <Switch checked={active} />
-                              </span>
-                           </div>
-                        </div>
-
-                        {/* Action Buttons */}
-                        <div className="flex flex-col sm:flex-row gap-3 pt-4">
-                           <Button
-                              onClick={handleSave}
-                              disabled={saving || !hasChanges}
-                              className="flex-1 h-11 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                           >
-                              {saving ? (
-                                 <>
-                                    <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full mr-2"></div>
-                                    Saving...
-                                 </>
-                              ) : (
-                                 <>
-                                    <Save className="w-4 h-4 mr-2" />
-                                    Save Changes
-                                 </>
-                              )}
-                           </Button>
-                           <Button
-                              variant="outline"
-                              onClick={() => {
-                                 // reset
-                                 setFullName(rider?.full_name || "");
-                                 setPhone(rider?.phone || "");
-                                 setVehicle(rider?.vehicle || "");
-                                 setActive(!!rider?.active);
-                                 toast.info("Settings reset to saved values");
-                              }}
-                              disabled={saving || !hasChanges}
-                              className="h-11 border-gray-300 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed sm:w-auto w-full"
-                           >
-                              <RotateCcw className="w-4 h-4 mr-2" />
-                              Reset
-                           </Button>
-                        </div>
-
-                        {hasChanges && (
-                           <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-start gap-2">
-                              <div className="w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                                 <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                              <div className="flex-shrink-0">
+                                 {/* Availability toggle disabled for riders */}
+                                 <Switch
+                                    checked={!!rider?.active}
+                                    disabled
+                                 />
                               </div>
-                              <p className="text-xs text-blue-700">
-                                 You have unsaved changes. Click &quot;Save
-                                 Changes&quot; to update your profile.
-                              </p>
                            </div>
-                        )}
+                        </div>
 
-                        {!hasChanges && !saving && (
-                           <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2">
-                              <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0" />
-                              <p className="text-xs text-green-700">
-                                 All changes saved. Your profile is up to date.
+                        {/* Editing is disabled for riders. Show informational notice. */}
+                        <div className="pt-4">
+                           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 flex items-start gap-3">
+                              <div className="w-5 h-5 bg-yellow-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                 <svg
+                                    className="w-2 h-2 text-yellow-700"
+                                    viewBox="0 0 8 8"
+                                    fill="none"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                 >
+                                    <path
+                                       d="M4 0a4 4 0 100 8A4 4 0 004 0z"
+                                       fill="currentColor"
+                                    />
+                                 </svg>
+                              </div>
+                              <p className="text-xs text-yellow-700">
+                                 Editing has been disabled for riders. If you
+                                 need to update your profile, please contact
+                                 support or an admin.
                               </p>
                            </div>
-                        )}
+                        </div>
                      </CardContent>
                   </Card>
                </div>

@@ -534,6 +534,58 @@ const CheckoutPage = ({
       }
    }, [existingOrder, savedAddresses, selectedAddress, sectors, districts]);
 
+   // Auto-select a reasonable default address when none is selected.
+   // Priority: already-selected (do nothing) -> saved default (is_default) -> single address -> first address
+   useEffect(() => {
+      try {
+         if (!Array.isArray(savedAddresses) || savedAddresses.length === 0)
+            return;
+
+         // If there is already a selected address, do not override it
+         if (selectedAddress) return;
+
+         // Prefer the explicit default
+         let pick = savedAddresses.find((a: any) => a.is_default);
+
+         // If none marked default, but there's only one address, pick it
+         if (!pick && savedAddresses.length === 1) pick = savedAddresses[0];
+
+         // Otherwise fall back to the first address in the list
+         if (!pick) pick = savedAddresses[0];
+
+         if (pick) {
+            selectAddress(pick.id);
+
+            // Populate form fields with picked address
+            setFormData((prev) => ({
+               ...prev,
+               address: pick.display_name || prev.address,
+               city: pick.city || prev.city,
+               phone: pick.phone || prev.phone,
+            }));
+
+            // Try to match location selections based on picked address
+            const foundSector = sectors.find(
+               (s: any) =>
+                  s.sct_name === pick.street ||
+                  s.sct_name === pick.display_name ||
+                  s.sct_name === pick.city
+            );
+            if (foundSector) {
+               setSelectedSector(foundSector.sct_id);
+               setSelectedDistrict(foundSector.sct_district);
+               const foundDistrict = districts.find(
+                  (d) => d.dst_id === foundSector.sct_district
+               );
+               if (foundDistrict)
+                  setSelectedProvince(foundDistrict.dst_province);
+            }
+         }
+      } catch (err) {
+         console.error("Auto-select address error:", err);
+      }
+   }, [savedAddresses, selectedAddress, sectors, districts, selectAddress]);
+
    // Show a small banner when retrying due to timeout
    const retryTimedOut = Boolean(searchParams?.get("timedout"));
 
@@ -636,15 +688,24 @@ const CheckoutPage = ({
       setSelectedSector(null);
    }, [selectedDistrict]);
 
-   // Redirect if cart is empty (but not in retry mode)
+   // Redirect if cart is empty (but not in retry mode or while submitting/initiating payment)
    useEffect(() => {
-      if (orderItems.length === 0 && !isRetryMode) {
+      // Do not redirect while an order/payment is being processed to avoid
+      // navigating the user away (e.g. to landing page) before redirecting
+      // to the external payment gateway.
+      if (
+         orderItems.length === 0 &&
+         !isRetryMode &&
+         !isSubmitting &&
+         !isInitiating
+      ) {
          const timer = setTimeout(() => {
             router.push("/");
          }, 3000);
          return () => clearTimeout(timer);
       }
-   }, [orderItems.length, router, isRetryMode]);
+      return;
+   }, [orderItems.length, router, isRetryMode, isSubmitting, isInitiating]);
 
    const subtotal = orderItems.reduce(
       (sum, item) =>
@@ -906,9 +967,15 @@ const CheckoutPage = ({
                   );
                }
             } else {
-               router.push(
-                  `/payment/${paymentResult.paymentId}?orderId=${existingOrder.id}`
-               );
+               if (paymentResult.checkoutUrl) {
+                  const url = paymentResult.checkoutUrl as string;
+                  toast.success("Redirecting to payment gateway...");
+                  setTimeout(() => (window.location.href = url), 250);
+               } else {
+                  router.push(
+                     `/payment/${paymentResult.paymentId}?orderId=${existingOrder.id}`
+                  );
+               }
             }
          } else {
             toast.error(
@@ -1150,12 +1217,21 @@ const CheckoutPage = ({
                               );
                            }
                         } else {
-                           // For mobile money and other methods, go to payment status page
-                           router.push(
-                              `/payment/${paymentResult.paymentId}?orderId=${createdOrder.id}`
-                           );
-
-                           // For mobile money, don't open additional windows
+                           // For mobile money and other methods, prefer external checkout URL
+                           // if provided by KPay; otherwise show the payment status page.
+                           if (paymentResult.checkoutUrl) {
+                              const url = paymentResult.checkoutUrl as string;
+                              toast.success(
+                                 "Redirecting to payment gateway..."
+                              );
+                              setTimeout(() => {
+                                 window.location.href = url;
+                              }, 250);
+                           } else {
+                              router.push(
+                                 `/payment/${paymentResult.paymentId}?orderId=${createdOrder.id}`
+                              );
+                           }
                         }
                      } else {
                         toast.error(
@@ -1207,15 +1283,34 @@ const CheckoutPage = ({
 
    const generateWhatsAppMessage = () => {
       const productDetails = orderItems
-         .map(
-            (item) =>
+         .map((item) => {
+            // Prefer explicit product_id when available, otherwise use item.id
+            const productId = (item as any).product_id || item.id || "";
+            const productLink = `https://nihemart.rw/products/${productId}`;
+
+            const lines: string[] = [];
+            // Line 1: product name (variation) x qty - total
+            lines.push(
                `${item.name}${
                   item.variation_name ? ` (${item.variation_name})` : ""
                } x${item.quantity} - ${(
                   item.price * item.quantity
                ).toLocaleString()} RWF`
-         )
-         .join("\n");
+            );
+
+            // SKU line if available
+            if (item.sku) lines.push(`SKU: ${item.sku}`);
+
+            // Variation id if present
+            if ((item as any).variation_id)
+               lines.push(`Variation ID: ${(item as any).variation_id}`);
+
+            // Product link
+            lines.push(`Link: ${productLink}`);
+
+            return lines.join("\n");
+         })
+         .join("\n\n");
 
       const derivedCity = deriveCity();
 
@@ -1251,7 +1346,8 @@ Total: ${total.toLocaleString()} RWF
          return;
       }
 
-      const phoneNumber = "250784148374";
+      // Updated WhatsApp number (international format without +)
+      const phoneNumber = "250792412177";
       const message = generateWhatsAppMessage();
       const url = `https://wa.me/${phoneNumber}?text=${message}`;
       window.open(url, "_blank");

@@ -29,50 +29,106 @@ export default async function handler(
       });
    }
    try {
-      // Fetch profiles
-      const { data: profiles, error: profilesError } = await supabase
-         .from("profiles")
-         .select("id, full_name, phone, created_at");
-
-      if (profilesError) {
-         console.error("profiles fetch error", profilesError);
-         return res.status(500).json({ error: profilesError.message });
-      }
+      // Parse pagination params (defaults)
+      const page = Math.max(1, Number(req.query.page || 1));
+      const limit = Math.max(1, Number(req.query.limit || 50));
 
       // Run roles, auth users and aggregates in parallel for speed
-      const [{ data: roles }, { data: authUsers }, { data: ordersAgg }] =
-         await Promise.all([
-            supabase.from("user_roles").select("user_id, role"),
-            supabase.from("users").select("id, email"),
-            // Call RPC that aggregates orders per user (see migration)
-            supabase.rpc("get_orders_aggregate_per_user"),
-         ] as any);
+      const [
+         { data: profiles },
+         { data: roles },
+         { data: authUsers },
+         { data: ordersAgg },
+      ] = await Promise.all([
+         // fetch profiles (all) so we can union with auth users server-side
+         supabase.from("profiles").select("id, full_name, phone, created_at"),
+         supabase.from("user_roles").select("user_id, role"),
+         supabase.from("users").select("id, email, created_at"),
+         // Call RPC that aggregates orders per user (see migration)
+         supabase.rpc("get_orders_aggregate_per_user"),
+      ] as any);
 
+      const profilesArr = (profiles as any[]) || [];
+      const rolesArr = (roles as any[]) || [];
+      const authArr = (authUsers as any[]) || [];
       const ordersAggAny = (ordersAgg as any) || [];
 
-      const users = (profiles || []).map((p: any) => {
-         const role =
-            (roles || []).find((r: any) => r.user_id === p.id)?.role || "user";
-         const email =
-            (authUsers || []).find((a: any) => a.id === p.id)?.email || "";
-         const agg = ordersAggAny.find(
-            (o: any) => String(o.user_id) === String(p.id)
-         ) || {
-            order_count: 0,
-            total_spend: 0,
-         };
-         return {
+      // Create a union map keyed by user id. Profiles take precedence for name/phone
+      const byId: Record<string, any> = {};
+
+      for (const p of profilesArr) {
+         byId[String(p.id)] = {
             id: p.id,
             full_name: p.full_name,
             phone: p.phone,
-            role,
-            email,
-            order_count: Number(agg.order_count || 0),
-            total_spend: Number(agg.total_spend || 0),
+            created_at: p.created_at,
+            role: "user",
+            email: "",
+            order_count: 0,
+            total_spend: 0,
          };
+      }
+
+      for (const a of authArr) {
+         const key = String(a.id);
+         if (!byId[key]) {
+            byId[key] = {
+               id: a.id,
+               full_name: null,
+               phone: null,
+               created_at: a.created_at || null,
+               role: "user",
+               email: a.email || "",
+               order_count: 0,
+               total_spend: 0,
+            };
+         } else {
+            byId[key].email = a.email || byId[key].email || "";
+            // keep profile's created_at if present
+            byId[key].created_at = byId[key].created_at || a.created_at || null;
+         }
+      }
+
+      // Attach roles
+      for (const r of rolesArr) {
+         const key = String(r.user_id);
+         if (!byId[key]) continue;
+         byId[key].role = r.role || byId[key].role || "user";
+      }
+
+      // Attach order aggregates
+      for (const o of ordersAggAny) {
+         const key = String(o.user_id);
+         if (!byId[key]) continue;
+         byId[key].order_count = Number(o.order_count || 0);
+         byId[key].total_spend = Number(o.total_spend || 0);
+      }
+
+      // Convert to array and sort by created_at descending if available
+      const usersArr = Object.values(byId).map((u: any) => ({
+         id: u.id,
+         full_name: u.full_name,
+         phone: u.phone,
+         role: u.role || "user",
+         email: u.email || "",
+         order_count: Number(u.order_count || 0),
+         total_spend: Number(u.total_spend || 0),
+         created_at: u.created_at || null,
+      }));
+
+      usersArr.sort((a: any, b: any) => {
+         const ta = a.created_at ? Date.parse(String(a.created_at)) : 0;
+         const tb = b.created_at ? Date.parse(String(b.created_at)) : 0;
+         return tb - ta;
       });
 
-      return res.status(200).json({ users });
+      const totalCount = usersArr.length;
+      const start = (page - 1) * limit;
+      const paginated = usersArr.slice(start, start + limit);
+
+      return res
+         .status(200)
+         .json({ users: paginated, count: totalCount, page, limit });
    } catch (err: any) {
       console.error("list-users failed", err);
       return res
