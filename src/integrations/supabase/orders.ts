@@ -1112,6 +1112,40 @@ export async function createOrder({
       // to avoid reducing stock for orders that may be cancelled before fulfillment.
       // Stock will be adjusted when the order moves to `delivered` status.
 
+      // If this order uses Cash on Delivery, create an initial payment record
+      try {
+         const paymentMethod =
+            (createdOrder as any).payment_method || "cash_on_delivery";
+         if (paymentMethod === "cash_on_delivery") {
+            const paymentRow: any = {
+               order_id: createdOrder.id,
+               amount: createdOrder.total || 0,
+               currency: (createdOrder.currency as any) || "RWF",
+               payment_method: "cash_on_delivery",
+               status: "pending",
+               reference: `COD-${createdOrder.order_number || createdOrder.id}`,
+               customer_name: `${createdOrder.customer_first_name || ""} ${
+                  createdOrder.customer_last_name || ""
+               }`.trim(),
+               // DB requires customer_email and customer_phone to be NOT NULL, provide safe fallbacks
+               customer_email: (createdOrder.customer_email || "").toString(),
+               customer_phone: (createdOrder.customer_phone || "").toString(),
+            };
+
+            try {
+               const { error: pErr } = await sb
+                  .from("payments")
+                  .insert([paymentRow]);
+               if (pErr)
+                  console.warn("Failed to create COD payment record:", pErr);
+            } catch (pCatchErr) {
+               console.warn("Failed to insert COD payment record:", pCatchErr);
+            }
+         }
+      } catch (e) {
+         console.warn("Error while creating COD payment record:", e);
+      }
+
       return quickOrder;
    } catch (error) {
       console.error("Order creation failed:", error);
@@ -1173,6 +1207,54 @@ export async function updateOrderStatus(
    // If the order was marked delivered, decrement stock for items that are
    // not already refunded/approved. This runs on the server (service role).
    if (status === "delivered") {
+      // Also, if this order was paid via Cash on Delivery, mark its payment(s) as completed
+      (async () => {
+         try {
+            const { data: orderRow, error: orderErr } = await sb
+               .from("orders")
+               .select("id, payment_method")
+               .eq("id", id)
+               .maybeSingle();
+            if (orderErr) {
+               console.warn(
+                  "Failed to fetch order for COD payment update:",
+                  orderErr
+               );
+            } else if (
+               orderRow &&
+               orderRow.payment_method === "cash_on_delivery"
+            ) {
+               try {
+                  const { error: upErr } = await sb
+                     .from("payments")
+                     .update({
+                        status: "completed",
+                        completed_at: new Date().toISOString(),
+                     })
+                     .eq("order_id", id)
+                     .eq("status", "pending");
+                  if (upErr)
+                     console.warn(
+                        "Failed to update COD payment status to completed:",
+                        upErr
+                     );
+               } catch (uCatch) {
+                  console.warn(
+                     "Error updating COD payments on delivery:",
+                     uCatch
+                  );
+               }
+            }
+         } catch (e) {
+            console.warn(
+               "Error while checking/updating COD payments on delivery:",
+               e
+            );
+         }
+      })().catch((e) =>
+         console.warn("Background COD payment update failed:", e)
+      );
+
       (async () => {
          try {
             const { data: items, error: itemsErr } = await sb
