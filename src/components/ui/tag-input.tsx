@@ -28,9 +28,13 @@ export function TagInput({ value, onChange, placeholder = "Add tags...", classNa
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
+    if (e.key === "Enter" || e.key === ",") {
       e.preventDefault();
-      addTag(inputValue);
+      const tags = inputValue.split(',').map(tag => tag.trim()).filter(tag => tag && !value.includes(tag));
+      if (tags.length > 0) {
+        onChange([...value, ...tags]);
+      }
+      setInputValue("");
     } else if (e.key === "Backspace" && !inputValue && value.length > 0) {
       removeTag(value[value.length - 1]);
     }
