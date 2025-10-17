@@ -35,10 +35,97 @@ export async function POST(request: NextRequest) {
          .single();
 
       if (paymentError || !payment) {
-         logger.warn("api", "Payment not found for timeout", {
-            paymentId,
-            error: paymentError?.message,
-         });
+         logger.info(
+            "api",
+            "Payment not found in payments table for timeout; attempting payment_sessions fallback",
+            { paymentId, error: paymentError?.message }
+         );
+
+         // Try to find a session and mark it timed out instead
+         try {
+            const { data: session, error: sessionErr } = await supabase
+               .from("payment_sessions")
+               .select("id, status, reference")
+               .or(`id.eq.${paymentId},reference.eq.${paymentId}`)
+               .maybeSingle();
+
+            if (sessionErr) {
+               logger.warn(
+                  "api",
+                  "Failed to lookup payment session for timeout",
+                  {
+                     paymentId,
+                     error: sessionErr.message,
+                  }
+               );
+            }
+
+            if (session) {
+               // Only mark timeout if session is still pending/initiated
+               if (
+                  session.status === "pending" ||
+                  session.status === "initiated"
+               ) {
+                  const { error: sessUpdateErr } = await supabase
+                     .from("payment_sessions")
+                     .update({
+                        status: "timeout",
+                        updated_at: new Date().toISOString(),
+                     })
+                     .eq("id", session.id);
+
+                  if (sessUpdateErr) {
+                     logger.error(
+                        "api",
+                        "Failed to mark payment_session timeout",
+                        { paymentId: session.id, error: sessUpdateErr.message }
+                     );
+                     return NextResponse.json(
+                        { error: "Failed to update payment session timeout" },
+                        { status: 500 }
+                     );
+                  }
+
+                  logger.info(
+                     "api",
+                     "Payment session marked as timeout for client-side timeout",
+                     { paymentId: session.id, reference: session.reference }
+                  );
+
+                  return NextResponse.json({
+                     success: true,
+                     message: "Payment session marked as timed out",
+                     status: "timeout",
+                     sessionId: session.id,
+                  });
+               }
+
+               // Session exists but is not pending
+               return NextResponse.json({
+                  success: true,
+                  message: `Payment session status is ${session.status}, timeout ignored.`,
+                  status: session.status,
+                  sessionId: session.id,
+               });
+            }
+         } catch (e) {
+            logger.error(
+               "api",
+               "Error while handling payment_session fallback for timeout",
+               {
+                  paymentId,
+                  error: e instanceof Error ? e.message : String(e),
+               }
+            );
+         }
+
+         logger.warn(
+            "api",
+            "Payment not found for timeout (no payments or sessions)",
+            {
+               paymentId,
+            }
+         );
          return NextResponse.json(
             { error: "Payment not found" },
             { status: 404 }

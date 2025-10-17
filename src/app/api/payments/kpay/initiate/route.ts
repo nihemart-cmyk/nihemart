@@ -8,13 +8,16 @@ import { createServerSupabaseClient } from "@/utils/supabase/server";
 import { logger } from "@/lib/logger";
 
 export interface PaymentInitiationRequest {
-   orderId: string;
+   // orderId is now optional; if omitted the server will create a payment session
+   orderId?: string;
    amount: number;
    customerName: string;
    customerEmail: string;
    customerPhone: string;
    paymentMethod: keyof typeof PAYMENT_METHODS;
    redirectUrl: string;
+   // Optional cart snapshot for session-based payments
+   cart?: any;
 }
 
 export async function POST(request: NextRequest) {
@@ -32,34 +35,82 @@ export async function POST(request: NextRequest) {
          customerEmail: body.customerEmail,
       });
 
-      // Validate required fields
-      if (
-         !body.orderId ||
-         !body.amount ||
-         !body.customerName ||
-         !body.customerEmail ||
-         !body.customerPhone ||
-         !body.paymentMethod
-      ) {
+      // Validation: allow two flows
+      // - Order-based: body.orderId provided (server will use existing order data)
+      // - Session-based: no orderId, but a `cart` snapshot and customer contact fields are required
+
+      const missingFields: any = {
+         orderId: !body.orderId,
+         cart: !body.cart,
+         amount: !body.amount,
+         customerName: !body.customerName,
+         customerEmail: !body.customerEmail,
+         customerPhone: !body.customerPhone,
+         paymentMethod: !body.paymentMethod,
+         redirectUrl: !body.redirectUrl,
+      };
+
+      // Must have amount and paymentMethod regardless
+      if (!body.amount || !body.paymentMethod) {
          logger.warn(
             "api",
-            "KPay payment initiation failed - missing required fields",
-            {
-               orderId: body.orderId,
-               missingFields: {
-                  orderId: !body.orderId,
-                  amount: !body.amount,
-                  customerName: !body.customerName,
-                  customerEmail: !body.customerEmail,
-                  customerPhone: !body.customerPhone,
-                  paymentMethod: !body.paymentMethod,
-               },
-            }
+            "KPay payment initiation failed - missing amount or payment method",
+            { amount: body.amount, paymentMethod: body.paymentMethod }
          );
          return NextResponse.json(
-            { error: "Missing required fields" },
+            { error: "Amount and payment method are required" },
             { status: 400 }
          );
+      }
+
+      // Must have either an orderId (order-based flow) or a cart snapshot (session-based flow)
+      if (!body.orderId && !body.cart) {
+         logger.warn(
+            "api",
+            "KPay payment initiation failed - neither orderId nor cart provided",
+            { missingFields }
+         );
+         return NextResponse.json(
+            {
+               error: "Either orderId or cart snapshot is required to initiate payment",
+            },
+            { status: 400 }
+         );
+      }
+
+      // If session-based (no orderId), require contact fields and redirectUrl
+      if (!body.orderId) {
+         if (
+            !body.customerName ||
+            !body.customerEmail ||
+            !body.customerPhone ||
+            !body.redirectUrl
+         ) {
+            logger.warn(
+               "api",
+               "KPay payment initiation failed - missing required customer or redirect fields for session-based initiation",
+               { missingFields }
+            );
+            return NextResponse.json(
+               {
+                  error: "Missing customer details or redirectUrl for session-based initiation",
+               },
+               { status: 400 }
+            );
+         }
+      } else {
+         // If order-based, ensure redirectUrl is present and amount is valid (we already checked amount above)
+         if (!body.redirectUrl) {
+            logger.warn(
+               "api",
+               "KPay payment initiation failed - missing redirectUrl for order-based initiation",
+               { orderId: body.orderId }
+            );
+            return NextResponse.json(
+               { error: "Redirect URL is required" },
+               { status: 400 }
+            );
+         }
       }
 
       // Validate payment method
@@ -81,120 +132,123 @@ export async function POST(request: NextRequest) {
       // Initialize Supabase client
       const supabase = await createServerSupabaseClient();
 
-      // Verify the order exists with retry logic for database consistency
+      // If an orderId was provided, verify the order exists and is payable
       let order: any = null;
-      let orderError: any = null;
-      let attempts = 0;
-      const maxAttempts = 3;
+      if (body.orderId) {
+         let orderError: any = null;
+         let attempts = 0;
+         const maxAttempts = 3;
 
-      while (attempts < maxAttempts && !order) {
-         attempts++;
+         while (attempts < maxAttempts && !order) {
+            attempts++;
+            if (attempts > 1) {
+               await new Promise((resolve) =>
+                  setTimeout(resolve, 200 * attempts)
+               );
+               logger.info(
+                  "api",
+                  `Order verification retry attempt ${attempts}`,
+                  {
+                     orderId: body.orderId,
+                  }
+               );
+            }
 
-         if (attempts > 1) {
-            // Wait longer between retries
-            await new Promise((resolve) => setTimeout(resolve, 200 * attempts));
-            logger.info("api", `Order verification retry attempt ${attempts}`, {
-               orderId: body.orderId,
-            });
+            const result = await supabase
+               .from("orders")
+               .select(
+                  "id, total, status, customer_first_name, customer_last_name, customer_email, customer_phone"
+               )
+               .eq("id", body.orderId)
+               .single();
+
+            order = result.data;
+            orderError = result.error;
+
+            if (order) {
+               logger.info("api", `Order found on attempt ${attempts}`, {
+                  orderId: body.orderId,
+                  orderData: {
+                     id: order.id,
+                     status: order.status,
+                     total: order.total,
+                     customer_email: order.customer_email,
+                  },
+               });
+               break;
+            }
          }
 
-         const result = await supabase
-            .from("orders")
-            .select(
-               "id, total, status, customer_first_name, customer_last_name, customer_email, customer_phone"
-            )
-            .eq("id", body.orderId)
-            .single();
-
-         order = result.data;
-         orderError = result.error;
-
-         if (order) {
-            logger.info("api", `Order found on attempt ${attempts}`, {
-               orderId: body.orderId,
-               orderData: {
-                  id: order.id,
-                  status: order.status,
-                  total: order.total,
-                  customer_email: order.customer_email,
-               },
-            });
-            break;
-         }
-      }
-
-      logger.info("api", "Final order verification result", {
-         orderId: body.orderId,
-         attempts,
-         found: !!order,
-         error: orderError?.message,
-      });
-
-      if (orderError || !order) {
-         return NextResponse.json(
-            { error: "Order not found" },
-            { status: 404 }
-         );
-      }
-
-      // Verify order status (should be pending)
-      if (order.status !== "pending") {
-         return NextResponse.json(
-            { error: "Order cannot be paid - invalid status" },
-            { status: 400 }
-         );
-      }
-
-      // Verify amount matches order total
-      if (Math.abs(body.amount - order.total) > 0.01) {
-         return NextResponse.json(
-            { error: "Amount mismatch with order total" },
-            { status: 400 }
-         );
-      }
-
-      // Ensure the order is not already paid via another successful payment
-      // and prevent creating a new payment while a pending payment is still active
-      const { data: latestPayment, error: latestPaymentErr } = await supabase
-         .from("payments")
-         .select("id, status, client_timeout, created_at")
-         .eq("order_id", body.orderId)
-         .order("created_at", { ascending: false })
-         .limit(1)
-         .single();
-
-      if (latestPaymentErr && latestPaymentErr.code !== "PGRST116") {
-         // ignore "no rows" style errors but log others
-         logger.warn("api", "Failed to fetch latest payment for order", {
+         logger.info("api", "Final order verification result", {
             orderId: body.orderId,
-            error: latestPaymentErr?.message,
+            attempts,
+            found: !!order,
+            error: orderError?.message,
          });
-      }
 
-      if (latestPayment) {
-         // If the last payment completed successfully, do not allow creating another payment
-         if (
-            latestPayment.status === "completed" ||
-            latestPayment.status === "successful"
-         ) {
+         if (orderError || !order) {
             return NextResponse.json(
-               { error: "Order already paid" },
+               { error: "Order not found" },
+               { status: 404 }
+            );
+         }
+
+         // Verify order status (should be pending)
+         if (order.status !== "pending") {
+            return NextResponse.json(
+               { error: "Order cannot be paid - invalid status" },
                { status: 400 }
             );
          }
 
-         // If a pending payment exists and the client hasn't reported a timeout yet,
-         // block creating a new payment to avoid duplicate in-flight payments.
-         if (
-            latestPayment.status === "pending" &&
-            !latestPayment.client_timeout
-         ) {
+         // Verify amount matches order total
+         if (Math.abs(body.amount - order.total) > 0.01) {
             return NextResponse.json(
-               {
-                  error: "A payment is already in progress for this order. Please wait for it to complete or try again after it times out.",
-               },
-               { status: 409 }
+               { error: "Amount mismatch with order total" },
+               { status: 400 }
             );
+         }
+
+         // Ensure the order is not already paid via another successful payment
+         // and prevent creating a new payment while a pending payment is still active
+         const { data: latestPayment, error: latestPaymentErr } = await supabase
+            .from("payments")
+            .select("id, status, client_timeout, created_at")
+            .eq("order_id", body.orderId)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .single();
+
+         if (latestPaymentErr && latestPaymentErr.code !== "PGRST116") {
+            // ignore "no rows" style errors but log others
+            logger.warn("api", "Failed to fetch latest payment for order", {
+               orderId: body.orderId,
+               error: latestPaymentErr?.message,
+            });
+         }
+
+         if (latestPayment) {
+            if (
+               latestPayment.status === "completed" ||
+               latestPayment.status === "successful"
+            ) {
+               return NextResponse.json(
+                  { error: "Order already paid" },
+                  { status: 400 }
+               );
+            }
+
+            if (
+               latestPayment.status === "pending" &&
+               !latestPayment.client_timeout
+            ) {
+               return NextResponse.json(
+                  {
+                     error: "A payment is already in progress for this order. Please wait for it to complete or try again after it times out.",
+                  },
+                  { status: 409 }
+               );
+            }
          }
       }
 
@@ -223,73 +277,235 @@ export async function POST(request: NextRequest) {
          paymentMethod: body.paymentMethod,
       });
 
-      // Create payment record in database before initiating payment
-      const { data: payment, error: paymentError } = await supabase
-         .from("payments")
-         .insert({
-            order_id: body.orderId,
-            amount: body.amount,
-            currency: "RWF",
-            payment_method: body.paymentMethod,
-            status: "pending",
-            reference: orderReference,
-            customer_name: body.customerName,
-            customer_email: body.customerEmail,
-            customer_phone: formattedPhone,
-            created_at: new Date().toISOString(),
-         })
-         .select()
-         .single();
+      // If orderId was provided, create the payment record associated with the order.
+      // Otherwise create a payment_session to avoid persisting an order before payment
+      let payment: any = null;
+      if (body.orderId) {
+         const { data: paymentRow, error: paymentError } = await supabase
+            .from("payments")
+            .insert({
+               order_id: body.orderId,
+               amount: body.amount,
+               currency: "RWF",
+               payment_method: body.paymentMethod,
+               status: "pending",
+               reference: orderReference,
+               customer_name: body.customerName,
+               customer_email: body.customerEmail,
+               customer_phone: formattedPhone,
+               created_at: new Date().toISOString(),
+            })
+            .select()
+            .single();
 
-      if (paymentError || !payment) {
-         console.error("Failed to create payment record:", paymentError);
-         return NextResponse.json(
-            { error: "Failed to create payment record" },
-            { status: 500 }
-         );
+         if (paymentError || !paymentRow) {
+            console.error("Failed to create payment record:", paymentError);
+            return NextResponse.json(
+               { error: "Failed to create payment record" },
+               { status: 500 }
+            );
+         }
+         payment = paymentRow;
+      } else {
+         // Create a payments row that acts as a session: order_id is null until finalize
+         // Note: don't include `cart` in the initial insert because some deployments
+         // may not have a `cart` column on `payments` yet (migrations may be pending).
+         const { data: paymentRow, error: paymentError } = await supabase
+            .from("payments")
+            .insert({
+               order_id: null,
+               amount: body.amount,
+               currency: "RWF",
+               payment_method: body.paymentMethod,
+               status: "pending",
+               reference: orderReference,
+               customer_name: body.customerName,
+               customer_email: body.customerEmail,
+               customer_phone: formattedPhone,
+               created_at: new Date().toISOString(),
+            })
+            .select()
+            .single();
+
+         if (paymentError || !paymentRow) {
+            console.error(
+               "Failed to create payment record for session:",
+               paymentError
+            );
+            return NextResponse.json(
+               { error: "Failed to create payment record" },
+               { status: 500 }
+            );
+         }
+
+         payment = paymentRow;
       }
 
       try {
          // Initiate payment with KPay
+         // Determine the best customer number: prefer existing order phone (if present),
+         // otherwise use the formatted phone from the request.
+         const customerNumber =
+            (order && (order.customer_phone || order.phone)) || formattedPhone;
+
          const kpayResponse = await kpayService.initiatePayment({
             amount: body.amount,
             customerName: body.customerName,
             customerEmail: body.customerEmail,
             customerPhone: formattedPhone,
-            customerNumber: order.customer_phone || formattedPhone,
+            customerNumber,
             paymentMethod: body.paymentMethod,
             orderReference,
-            orderDetails: `Order #${body.orderId} from Nihemart`,
+            orderDetails: `Order #${body.orderId || "(session)"} from Nihemart`,
             redirectUrl: body.redirectUrl,
             logoUrl: `${request.nextUrl.origin}/logo.png`,
          });
 
-         // Update payment record with KPay transaction details
-         const { error: updateError } = await supabase
-            .from("payments")
-            .update({
-               kpay_transaction_id: kpayResponse.tid,
-               kpay_auth_key: kpayResponse.authkey,
-               kpay_return_code: kpayResponse.retcode,
-               kpay_response: kpayResponse,
-               updated_at: new Date().toISOString(),
-            })
-            .eq("id", payment.id);
+         // Update payment record or session with KPay transaction details
+         if (payment.id) {
+            const { error: payUpdateErr } = await supabase
+               .from("payments")
+               .update({
+                  kpay_transaction_id: kpayResponse.tid,
+                  kpay_auth_key: kpayResponse.authkey,
+                  kpay_return_code: kpayResponse.retcode,
+                  kpay_response: kpayResponse,
+                  updated_at: new Date().toISOString(),
+               })
+               .eq("id", payment.id);
+            if (payUpdateErr)
+               console.error("Failed to update payment record:", payUpdateErr);
 
-         if (updateError) {
-            console.error("Failed to update payment record:", updateError);
-            // Continue anyway, as the payment was initiated successfully
+            // Best-effort: attempt to write the cart into payments.cart if provided.
+            // Some DBs may not have the `cart` column yet; swallow errors to avoid hard failures.
+            if (body.cart) {
+               try {
+                  const { error: cartErr } = await supabase
+                     .from("payments")
+                     .update({
+                        cart: body.cart,
+                        updated_at: new Date().toISOString(),
+                     })
+                     .eq("id", payment.id);
+                  if (cartErr) {
+                     // Log a warning but don't abort the flow. Likely the column doesn't exist.
+                     logger.warn(
+                        "api",
+                        "Failed to write cart to payments row (column may be missing)",
+                        {
+                           paymentId: payment.id,
+                           error: cartErr.message || cartErr,
+                        }
+                     );
+                  }
+               } catch (e) {
+                  logger.warn(
+                     "api",
+                     "Failed to write cart to payments row (caught exception)",
+                     {
+                        paymentId: payment.id,
+                        error: e instanceof Error ? e.message : String(e),
+                     }
+                  );
+               }
+            }
+         } else if (payment && !payment.id) {
+            // Shouldn't happen; defensive: if payment has no id treat as error
+         } else {
+            // session-based payments were inserted into payments table above, so just update by reference
+            const { error: payUpdateErr2 } = await supabase
+               .from("payments")
+               .update({
+                  kpay_transaction_id: kpayResponse.tid,
+                  kpay_response: kpayResponse,
+                  status: "pending",
+                  updated_at: new Date().toISOString(),
+               })
+               .eq("reference", orderReference);
+            if (payUpdateErr2)
+               console.error(
+                  "Failed to update session-like payment record:",
+                  payUpdateErr2
+               );
+
+            // Best-effort cart write by reference when payment was updated by reference
+            if (body.cart) {
+               try {
+                  const { error: cartErr2 } = await supabase
+                     .from("payments")
+                     .update({
+                        cart: body.cart,
+                        updated_at: new Date().toISOString(),
+                     })
+                     .eq("reference", orderReference);
+                  if (cartErr2) {
+                     logger.warn(
+                        "api",
+                        "Failed to write cart to payments row by reference (column may be missing)",
+                        {
+                           reference: orderReference,
+                           error: cartErr2.message || cartErr2,
+                        }
+                     );
+                  }
+               } catch (e) {
+                  logger.warn(
+                     "api",
+                     "Failed to write cart to payments row by reference (caught exception)",
+                     {
+                        reference: orderReference,
+                        error: e instanceof Error ? e.message : String(e),
+                     }
+                  );
+               }
+            }
          }
+
+         // Note: individual update errors are logged above. Continue anyway,
+         // as the payment was initiated successfully.
+
+         // Normalize possible checkout/redirect URL fields from KPay
+         const kr: any = kpayResponse as any;
+         const rawCheckout =
+            kr?.url ||
+            kr?.redirecturl ||
+            kr?.redirectUrl ||
+            kr?.checkoutUrl ||
+            null;
+         const checkoutUrl =
+            typeof rawCheckout === "string" && rawCheckout.trim().length > 0
+               ? rawCheckout.trim()
+               : null;
+
+         // Log the KPay response including any redirect URL for diagnostics
+         logger.info("api", "KPay response after initiation", {
+            refid: orderReference,
+            tid: kpayResponse?.tid,
+            retcode: kpayResponse?.retcode,
+            checkoutUrl,
+            raw: kpayResponse,
+         });
 
          // Check if payment was successful immediately (some payments are processed instantly)
          if (kpayResponse.retcode === 0) {
+            if (!checkoutUrl) {
+               logger.warn(
+                  "api",
+                  "KPay initiation returned success but no checkout URL was provided",
+                  { refid: orderReference, tid: kpayResponse.tid }
+               );
+            }
             // Payment initiated successfully
             return NextResponse.json({
                success: true,
-               paymentId: payment.id,
+               paymentId: payment.id || null,
+               // return sessionId top-level for easier client redirects
+               sessionId: payment.session?.id || null,
+               session: payment.session || null,
                transactionId: kpayResponse.tid,
                reference: orderReference,
-               checkoutUrl: kpayResponse.url,
+               checkoutUrl,
+               kpayResponse,
                status: "pending",
                message: "Payment initiated successfully",
             });
@@ -299,15 +515,27 @@ export async function POST(request: NextRequest) {
                kpayResponse.retcode
             );
 
-            await supabase
-               .from("payments")
-               .update({
-                  status: "failed",
-                  failure_reason: errorMessage,
-                  kpay_return_code: kpayResponse.retcode,
-                  updated_at: new Date().toISOString(),
-               })
-               .eq("id", payment.id);
+            if (payment.id) {
+               await supabase
+                  .from("payments")
+                  .update({
+                     status: "failed",
+                     failure_reason: errorMessage,
+                     kpay_return_code: kpayResponse.retcode,
+                     updated_at: new Date().toISOString(),
+                  })
+                  .eq("id", payment.id);
+            } else if (payment.session) {
+               await supabase
+                  .from("payment_sessions")
+                  .update({
+                     status: "failed",
+                     failure_reason: errorMessage,
+                     kpay_return_code: kpayResponse.retcode,
+                     updated_at: new Date().toISOString(),
+                  })
+                  .eq("id", payment.session.id);
+            }
 
             // Provide more user-friendly error messages
             let userFriendlyError = errorMessage;
@@ -331,6 +559,7 @@ export async function POST(request: NextRequest) {
                   error: userFriendlyError,
                   errorCode: kpayResponse.retcode,
                   technicalError: errorMessage,
+                  kpayResponse,
                },
                { status: 400 }
             );
@@ -346,17 +575,31 @@ export async function POST(request: NextRequest) {
          });
 
          // Update payment record to failed status with available failure reason
-         await supabase
-            .from("payments")
-            .update({
-               status: "failed",
-               failure_reason:
-                  kpayError instanceof Error
-                     ? kpayError.message
-                     : "Unknown error",
-               updated_at: new Date().toISOString(),
-            })
-            .eq("id", payment.id);
+         if (payment.id) {
+            await supabase
+               .from("payments")
+               .update({
+                  status: "failed",
+                  failure_reason:
+                     kpayError instanceof Error
+                        ? kpayError.message
+                        : "Unknown error",
+                  updated_at: new Date().toISOString(),
+               })
+               .eq("id", payment.id);
+         } else if (payment.session) {
+            await supabase
+               .from("payment_sessions")
+               .update({
+                  status: "failed",
+                  failure_reason:
+                     kpayError instanceof Error
+                        ? kpayError.message
+                        : "Unknown error",
+                  updated_at: new Date().toISOString(),
+               })
+               .eq("id", payment.session.id);
+         }
 
          // If the error message contains known KPay authentication hint, surface it gently
          const errMsg =

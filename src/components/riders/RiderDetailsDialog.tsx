@@ -12,9 +12,7 @@ import {
    PopoverContent,
    PopoverTrigger,
 } from "@/components/ui/popover";
-import { Calendar as CalendarComponent } from "@/components/ui/calendar";
-import type { DateRange } from "react-day-picker";
-import { Calendar } from "lucide-react";
+import { Calendar, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
    Dialog,
@@ -40,10 +38,12 @@ export default function RiderDetailsDialog({
    const [rider, setRider] = React.useState<any>(null);
    const [assignments, setAssignments] = React.useState<any[]>([]);
    const [timeframe, setTimeframe] = React.useState<string>("7");
-   const [dateRange, setDateRange] = React.useState<DateRange | undefined>(
-      undefined
-   );
+   const [dateRange, setDateRange] = React.useState<{
+      from?: string;
+      to?: string;
+   }>({});
    const [calendarOpen, setCalendarOpen] = React.useState(false);
+   const [showAll, setShowAll] = React.useState(false);
 
    React.useEffect(() => {
       if (!open || !riderId) return;
@@ -77,25 +77,29 @@ export default function RiderDetailsDialog({
    const filteredAssignments = React.useMemo(() => {
       if (!assignments || assignments.length === 0) return [] as any[];
 
-      // If explicit dateRange (from/to) is set, prefer that.
-      let from: Date | null = null;
-      let to: Date | null = null;
-      if (dateRange && dateRange.from) from = dateRange.from;
-      if (dateRange && dateRange.to) to = dateRange.to;
+      // Parse start and end dates from string inputs
+      const startDate = dateRange.from ? parseDate(dateRange.from) : null;
+      const endDate = dateRange.to ? parseDate(dateRange.to) : null;
+
+      // Handle "all" timeframe - show all assignments
+      if (timeframe === "all") {
+         if (!startDate && !endDate) return assignments;
+      }
 
       // Otherwise, fall back to timeframe days cutoff
-      const days = Number(timeframe) || 7;
+      const days = timeframe === "all" ? 0 : Number(timeframe) || 7;
       const cutoff = new Date();
-      cutoff.setDate(cutoff.getDate() - days);
+      if (days > 0) cutoff.setDate(cutoff.getDate() - days);
 
       const inRange = (d?: Date | null) => {
          if (!d) return false;
-         if (from && d < from) return false;
-         if (to) {
-            const e = new Date(to);
+         if (startDate && d < startDate) return false;
+         if (endDate) {
+            const e = new Date(endDate);
             e.setHours(23, 59, 59, 999);
             if (d > e) return false;
          }
+         if (timeframe === "all" && !startDate && !endDate) return true;
          return d >= cutoff;
       };
 
@@ -118,24 +122,38 @@ export default function RiderDetailsDialog({
    }, [assignments, timeframe, dateRange]);
 
    const metrics = React.useMemo(() => {
-      const m = { assigned: 0, delivered: 0, rejected: 0 };
+      const m = { assigned: 0, delivered: 0, rejected: 0, totalEarnings: 0 };
       for (const a of filteredAssignments) {
          const s = (a.status || "").toString().toLowerCase();
          if (s === "assigned") m.assigned++;
-         else if (s === "accepted" || s === "completed" || s === "delivered")
+         else if (s === "accepted" || s === "completed" || s === "delivered") {
             m.delivered++;
-         else if (s === "rejected" || s === "declined" || s === "cancelled")
+            // Calculate earnings for completed deliveries
+            const o = a.orders || a.order || null;
+            const fee =
+               o?.tax ?? o?.delivery_fee ?? a.delivery_fee ?? a.fee ?? 0;
+            const feeNum =
+               typeof fee === "string" ? parseFloat(fee) : Number(fee || 0);
+            if (!isNaN(feeNum)) {
+               m.totalEarnings += feeNum;
+            }
+         } else if (s === "rejected" || s === "declined" || s === "cancelled")
             m.rejected++;
       }
       return m;
    }, [filteredAssignments]);
+
+   // Show only first 5 deliveries unless "View More" is clicked
+   const displayedAssignments = showAll
+      ? filteredAssignments
+      : filteredAssignments.slice(0, 5);
 
    return (
       <Dialog
          open={open}
          onOpenChange={onOpenChange}
       >
-         <DialogContent className="max-w-3xl">
+         <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
                <DialogTitle>Rider Details</DialogTitle>
             </DialogHeader>
@@ -159,10 +177,38 @@ export default function RiderDetailsDialog({
                      </div>
                   </div>
 
-                  <div className="space-y-3">
-                     <div className="flex items-center justify-between">
-                        <h4 className="font-semibold">Recent Deliveries</h4>
-                        <div className="flex items-center gap-2">
+                  {/* Filters Section - Moved to top */}
+                  <div className="space-y-3 bg-gray-50 p-4 rounded-lg border">
+                     <h4 className="font-semibold text-sm text-gray-700">
+                        Filters
+                     </h4>
+                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                        {/* Timeframe Select */}
+                        <div className="flex-1">
+                           <Select
+                              value={timeframe}
+                              onValueChange={(val) => {
+                                 setTimeframe(val);
+                                 // clear explicit date range when switching to a fixed timeframe
+                                 if (val !== "all") setDateRange({});
+                              }}
+                           >
+                              <SelectTrigger className="bg-white">
+                                 <SelectValue placeholder="Select period" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                 <SelectItem value="7">Last 7 days</SelectItem>
+                                 <SelectItem value="30">
+                                    Last 30 days
+                                 </SelectItem>
+                                 <SelectItem value="365">Last year</SelectItem>
+                                 <SelectItem value="all">All time</SelectItem>
+                              </SelectContent>
+                           </Select>
+                        </div>
+
+                        {/* Date Range Picker */}
+                        <div className="flex-1">
                            <Popover
                               open={calendarOpen}
                               onOpenChange={setCalendarOpen}
@@ -170,92 +216,144 @@ export default function RiderDetailsDialog({
                               <PopoverTrigger asChild>
                                  <Button
                                     variant="outline"
-                                    className="flex items-center gap-2"
+                                    className="w-full justify-start text-left font-normal bg-white"
                                  >
-                                    <Calendar className="w-4 h-4" />
-                                    {dateRange &&
-                                    dateRange.from &&
-                                    dateRange.to ? (
+                                    <Calendar className="w-4 h-4 mr-2" />
+                                    {dateRange.from && dateRange.to ? (
                                        <span className="text-sm">
-                                          {`${dateRange.from.toLocaleDateString()} — ${dateRange.to.toLocaleDateString()}`}
+                                          {`${dateRange.from} — ${dateRange.to}`}
+                                       </span>
+                                    ) : dateRange.from ? (
+                                       <span className="text-sm">
+                                          {`${dateRange.from} — Now`}
                                        </span>
                                     ) : (
                                        <span className="text-sm text-muted-foreground">
-                                          Last {timeframe} days
+                                          Select date range
                                        </span>
                                     )}
                                  </Button>
                               </PopoverTrigger>
                               <PopoverContent
                                  side="bottom"
-                                 className="w-auto p-2"
+                                 className="w-auto p-4"
+                                 align="start"
                               >
-                                 <CalendarComponent
-                                    mode="range"
-                                    selected={dateRange}
-                                    onSelect={(selectedRange) =>
-                                       setDateRange(
-                                          selectedRange as DateRange | undefined
-                                       )
-                                    }
-                                 />
-                                 <div className="flex items-center gap-2 justify-end mt-2">
-                                    <Button
-                                       variant="ghost"
-                                       size="sm"
-                                       onClick={() => setDateRange(undefined)}
-                                    >
-                                       Clear
-                                    </Button>
-                                    <Button
-                                       size="sm"
-                                       onClick={() => setCalendarOpen(false)}
-                                    >
-                                       Done
-                                    </Button>
+                                 <div className="space-y-3">
+                                    <div>
+                                       <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                                          Start Date
+                                       </label>
+                                       <input
+                                          type="date"
+                                          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                          value={dateRange.from || ""}
+                                          onChange={(e) =>
+                                             setDateRange((prev) => ({
+                                                ...prev,
+                                                from:
+                                                   e.target.value || undefined,
+                                             }))
+                                          }
+                                       />
+                                    </div>
+                                    <div>
+                                       <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                                          End Date
+                                       </label>
+                                       <input
+                                          type="date"
+                                          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                          value={dateRange.to || ""}
+                                          onChange={(e) =>
+                                             setDateRange((prev) => ({
+                                                ...prev,
+                                                to: e.target.value || undefined,
+                                             }))
+                                          }
+                                          placeholder="Now (optional)"
+                                       />
+                                       <p className="text-xs text-gray-500 mt-1">
+                                          Leave empty to use current date
+                                       </p>
+                                    </div>
+                                    <div className="flex items-center gap-2 justify-end pt-2 border-t">
+                                       <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => setDateRange({})}
+                                       >
+                                          Clear
+                                       </Button>
+                                       <Button
+                                          size="sm"
+                                          onClick={() => setCalendarOpen(false)}
+                                       >
+                                          Apply
+                                       </Button>
+                                    </div>
                                  </div>
                               </PopoverContent>
                            </Popover>
                         </div>
                      </div>
+                  </div>
 
-                     <div className="grid grid-cols-3 gap-3">
-                        {/* Metric cards: assigned, delivered, rejected */}
-                        <div className="p-3 rounded border bg-white">
-                           <div className="text-xs text-muted-foreground">
-                              Currently Assigned
-                           </div>
-                           <div className="text-lg font-semibold">
-                              {metrics.assigned}
-                           </div>
+                  {/* Metrics Cards */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                     <div className="p-4 rounded-lg border bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+                        <div className="text-xs font-medium text-blue-700 mb-1">
+                           Currently Assigned
                         </div>
-                        <div className="p-3 rounded border bg-white">
-                           <div className="text-xs text-muted-foreground">
-                              Completed Deliveries
-                           </div>
-                           <div className="text-lg font-semibold">
-                              {metrics.delivered}
-                           </div>
-                        </div>
-                        <div className="p-3 rounded border bg-white">
-                           <div className="text-xs text-muted-foreground">
-                              Declined / Rejected
-                           </div>
-                           <div className="text-lg font-semibold">
-                              {metrics.rejected}
-                           </div>
+                        <div className="text-2xl font-bold text-blue-900">
+                           {metrics.assigned}
                         </div>
                      </div>
+                     <div className="p-4 rounded-lg border bg-gradient-to-br from-green-50 to-green-100 border-green-200">
+                        <div className="text-xs font-medium text-green-700 mb-1">
+                           Completed Deliveries
+                        </div>
+                        <div className="text-2xl font-bold text-green-900">
+                           {metrics.delivered}
+                        </div>
+                     </div>
+                     <div className="p-4 rounded-lg border bg-gradient-to-br from-red-50 to-red-100 border-red-200">
+                        <div className="text-xs font-medium text-red-700 mb-1">
+                           Declined / Rejected
+                        </div>
+                        <div className="text-2xl font-bold text-red-900">
+                           {metrics.rejected}
+                        </div>
+                     </div>
+                     <div className="p-4 rounded-lg border bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200">
+                        <div className="text-xs font-medium text-orange-700 mb-1">
+                           Total Earnings
+                        </div>
+                        <div className="text-2xl font-bold text-orange-900">
+                           {metrics.totalEarnings.toLocaleString()} RWF
+                        </div>
+                     </div>
+                  </div>
 
-                     <div className="divide-y rounded border">
-                        {assignments.length === 0 && (
-                           <div className="p-3 text-sm text-muted-foreground">
-                              No deliveries yet.
+                  {/* Recent Deliveries Section */}
+                  <div className="space-y-3">
+                     <div className="flex items-center justify-between">
+                        <h4 className="text-lg font-semibold text-gray-900">
+                           Recent Deliveries
+                        </h4>
+                        <span className="text-sm text-gray-500">
+                           {filteredAssignments.length} total
+                        </span>
+                     </div>
+
+                     <div className="divide-y rounded-lg border bg-white">
+                        {filteredAssignments.length === 0 && (
+                           <div className="p-6 text-center text-sm text-muted-foreground">
+                              No deliveries found for the selected period.
                            </div>
                         )}
-                        {filteredAssignments.map((a: any) => {
+                        {displayedAssignments.map((a: any) => {
                            const o = a.orders || a.order || null;
-                           // Prefer delivery fee from order.tax or order.delivery_fee or assignment.delivery_fee
                            const fee =
                               o?.tax ??
                               o?.delivery_fee ??
@@ -269,20 +367,21 @@ export default function RiderDetailsDialog({
                            return (
                               <div
                                  key={a.id}
-                                 className="p-3 flex items-center justify-between"
+                                 className="p-4 flex items-center justify-between hover:bg-gray-50 transition-colors"
                               >
-                                 <div className="text-sm">
-                                    <div className="font-medium">
+                                 <div className="text-sm flex-1 min-w-0">
+                                    <div className="font-medium text-gray-900 mb-1">
+                                       Order #
                                        {o?.order_number || o?.id || a.order_id}
                                     </div>
-                                    <div className="text-muted-foreground">
+                                    <div className="text-muted-foreground truncate">
                                        {o?.delivery_address ||
                                           o?.delivery_city ||
                                           a.location ||
                                           "—"}
                                     </div>
                                  </div>
-                                 <div className="text-sm">
+                                 <div className="text-sm font-semibold text-gray-900 ml-4">
                                     {isNaN(feeNum)
                                        ? "-"
                                        : feeNum.toLocaleString()}{" "}
@@ -292,6 +391,29 @@ export default function RiderDetailsDialog({
                            );
                         })}
                      </div>
+
+                     {/* View More Button */}
+                     {filteredAssignments.length > 5 && (
+                        <div className="flex justify-center pt-2">
+                           <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setShowAll(!showAll)}
+                              className="gap-2"
+                           >
+                              {showAll
+                                 ? "Show Less"
+                                 : `View More (${
+                                      filteredAssignments.length - 5
+                                   } more)`}
+                              <ChevronRight
+                                 className={`w-4 h-4 transition-transform ${
+                                    showAll ? "rotate-90" : ""
+                                 }`}
+                              />
+                           </Button>
+                        </div>
+                     )}
                   </div>
                </div>
             ) : null}

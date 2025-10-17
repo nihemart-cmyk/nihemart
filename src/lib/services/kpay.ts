@@ -396,10 +396,13 @@ export class KPayService {
    validateWebhookPayload(payload: any): payload is WebhookPayload {
       return (
          payload &&
-         typeof payload.tid === "string" &&
-         typeof payload.refid === "string" &&
-         typeof payload.statusid === "string" &&
-         typeof payload.statusdesc === "string"
+         (typeof payload.tid === "string" || typeof payload.tid === "number") &&
+         (typeof payload.refid === "string" ||
+            typeof payload.refid === "number") &&
+         (typeof payload.statusid === "string" ||
+            typeof payload.statusid === "number") &&
+         (typeof payload.statusdesc === "string" ||
+            typeof payload.statusdesc === "number")
       );
    }
 
@@ -414,12 +417,15 @@ export class KPayService {
       orderReference: string;
       statusMessage: string;
    } {
-      const isSuccessful: boolean = payload.statusid === "01";
+      // Normalize status id: handle numeric values like 1 or strings like '1' and '01'
+      const statusIdStr = String(payload.statusid || "").padStart(2, "0");
+
+      const isSuccessful: boolean = statusIdStr === "01";
 
       // Check if payment is pending
       const isPending: boolean =
-         payload.statusid === "02" ||
-         (payload.statusid === "03" &&
+         statusIdStr === "02" ||
+         (statusIdStr === "03" &&
             Boolean(
                payload.statusdesc &&
                   payload.statusdesc.toLowerCase().includes("pending")
@@ -427,7 +433,7 @@ export class KPayService {
 
       // Status '03' is failed only if it's not described as pending
       const isFailed: boolean =
-         payload.statusid === "03" &&
+         statusIdStr === "03" &&
          !Boolean(
             payload.statusdesc &&
                payload.statusdesc.toLowerCase().includes("pending")

@@ -142,9 +142,8 @@ export default function PaymentPage() {
                toast.success("Payment completed successfully!");
 
                setTimeout(() => {
-                  router.push(
-                     `/orders/${orderId || payment.order_id}?payment=success`
-                  );
+                  // Order may not exist yet for session-based flows — return user to checkout
+                  router.push(`/checkout?payment=success`);
                }, 1500);
                return;
             }
@@ -172,6 +171,10 @@ export default function PaymentPage() {
                   );
                }
 
+               // Return to checkout so user can retry or choose another method
+               setTimeout(() => {
+                  router.push(`/checkout?payment=failed`);
+               }, 1500);
                return;
             }
 
@@ -228,11 +231,8 @@ export default function PaymentPage() {
                      );
                      toast.success("Payment completed successfully!");
                      setTimeout(() => {
-                        router.push(
-                           `/orders/${
-                              orderId || payment.order_id
-                           }?payment=success`
-                        );
+                        // Order may not exist yet for session-based flows — return user to checkout
+                        router.push(`/checkout?payment=success`);
                      }, 1200);
                      setStoppedPolling(true);
                      return;
@@ -255,6 +255,10 @@ export default function PaymentPage() {
                      { duration: 6000 }
                   );
                   setStoppedPolling(true);
+                  // After showing timeout message, send user back to checkout to retry
+                  setTimeout(() => {
+                     router.push(`/checkout?payment=timeout`);
+                  }, 2200);
                } catch (e) {
                   console.error("Failed to record timeout:", e);
                   // fallback UX if timeout recording fails
@@ -708,13 +712,18 @@ export default function PaymentPage() {
                            <Button
                               variant="outline"
                               onClick={() =>
+                                 // Return to checkout because order may not exist yet
                                  router.push(
-                                    `/orders/${orderId || payment.order_id}`
+                                    `/checkout${
+                                       paymentCompleted
+                                          ? "?payment=success"
+                                          : ""
+                                    }`
                                  )
                               }
                               className="w-full border-blue-300 text-blue-700 hover:bg-blue-50 text-xs sm:text-sm h-9 sm:h-11"
                            >
-                              View Order Details
+                              Back to Checkout
                            </Button>
 
                            {(payment.status === "failed" ||
@@ -775,16 +784,13 @@ export default function PaymentPage() {
                            {paymentCompleted && (
                               <Button
                                  onClick={() =>
-                                    router.push(
-                                       `/orders/${
-                                          orderId || payment.order_id
-                                       }?payment=success`
-                                    )
+                                    // Navigate back to checkout; order may be created by finalize flow there
+                                    router.push(`/checkout?payment=success`)
                                  }
                                  className="w-full bg-green-500 hover:bg-green-600 text-xs sm:text-sm h-9 sm:h-11"
                               >
                                  <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
-                                 Continue to Order
+                                 Continue to Checkout
                               </Button>
                            )}
                         </div>

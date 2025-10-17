@@ -34,12 +34,18 @@ export async function POST(request: NextRequest) {
       }
 
       const { data: payment, error: paymentError } =
-         await paymentQuery.single();
-
+         await paymentQuery.maybeSingle();
       if (paymentError || !payment) {
+         // Return a soft 'not found' so clients polling can retry instead of treating 404 as terminal
          return NextResponse.json(
-            { error: "Payment not found" },
-            { status: 404 }
+            {
+               success: false,
+               message: "Payment not found",
+               status: "unknown",
+               paymentId: null,
+               reference: reference || null,
+            },
+            { status: 200 }
          );
       }
 
@@ -106,7 +112,12 @@ export async function POST(request: NextRequest) {
             kpayRetCode: kpayResponse.retcode,
          });
 
-         if (kpayResponse.statusid === "01" && payment.status !== "completed") {
+         const statusIdStr = String(kpayResponse.statusid || "").padStart(
+            2,
+            "0"
+         );
+
+         if (statusIdStr === "01" && payment.status !== "completed") {
             // Payment successful
             updatedStatus = "completed";
             updateData.status = "completed";
@@ -119,7 +130,7 @@ export async function POST(request: NextRequest) {
                newStatus: "completed",
                momTransactionId: kpayResponse.momtransactionid,
             });
-         } else if (kpayResponse.statusid === "02") {
+         } else if (statusIdStr === "02") {
             // Payment is being processed (waiting for SMS confirmation)
             updatedStatus = "pending";
             // For long-running payments, don't update the database unless status actually changes
@@ -134,7 +145,7 @@ export async function POST(request: NextRequest) {
                currentStatus: payment.status,
                willUpdate: needsUpdate,
             });
-         } else if (kpayResponse.statusid === "03") {
+         } else if (statusIdStr === "03") {
             // Check if this is actually a failure or still pending
             // For some payment methods like Airtel, '03' with 'Pending' status description means still processing
             if (
@@ -218,40 +229,60 @@ export async function POST(request: NextRequest) {
             // Update only the order.payment_status field so we don't inadvertently change
             // the order lifecycle/status without explicit business logic elsewhere.
             if (updatedStatus === "completed") {
-               const { error: orderUpdateError } = await supabase
-                  .from("orders")
-                  .update({
-                     payment_status: "paid",
-                     updated_at: new Date().toISOString(),
-                  })
-                  .eq("id", payment.order_id);
+               if (payment.order_id) {
+                  const { error: orderUpdateError } = await supabase
+                     .from("orders")
+                     .update({
+                        payment_status: "paid",
+                        updated_at: new Date().toISOString(),
+                     })
+                     .eq("id", payment.order_id);
 
-               if (orderUpdateError) {
-                  console.error(
-                     "Failed to update order.payment_status:",
-                     orderUpdateError
+                  if (orderUpdateError) {
+                     console.error(
+                        "Failed to update order.payment_status:",
+                        orderUpdateError
+                     );
+                  }
+               } else {
+                  // No order associated yet; this is a session-like payment. Finalize will create order later.
+                  console.log(
+                     "Payment completed for session-like payments row; no order to update yet",
+                     {
+                        paymentId: payment.id,
+                     }
                   );
                }
             }
 
             if (updatedStatus === "failed") {
-               const { error: orderUpdateError } = await supabase
-                  .from("orders")
-                  .update({
-                     payment_status: "failed",
-                     updated_at: new Date().toISOString(),
-                  })
-                  .eq("id", payment.order_id);
+               if (payment.order_id) {
+                  const { error: orderUpdateError } = await supabase
+                     .from("orders")
+                     .update({
+                        payment_status: "failed",
+                        updated_at: new Date().toISOString(),
+                     })
+                     .eq("id", payment.order_id);
 
-               if (orderUpdateError) {
-                  console.error(
-                     "Failed to update order.payment_status on payment failure:",
-                     orderUpdateError
+                  if (orderUpdateError) {
+                     console.error(
+                        "Failed to update order.payment_status on payment failure:",
+                        orderUpdateError
+                     );
+                  }
+               } else {
+                  console.log(
+                     "Payment failed for session-like payments row; no order to update",
+                     {
+                        paymentId: payment.id,
+                     }
                   );
                }
             }
          }
 
+         const p: any = payment as any;
          return NextResponse.json({
             success: true,
             paymentId: payment.id,
@@ -259,6 +290,16 @@ export async function POST(request: NextRequest) {
             amount: payment.amount,
             currency: payment.currency,
             reference: payment.reference,
+            checkoutUrl: (() => {
+               const raw =
+                  p.kpay_response?.url ||
+                  p.kpay_response?.redirecturl ||
+                  p.kpay_response?.redirectUrl ||
+                  null;
+               return typeof raw === "string" && raw.trim().length > 0
+                  ? raw.trim()
+                  : null;
+            })(),
             transactionId: payment.kpay_transaction_id,
             message: kpayResponse.statusdesc || `Payment is ${updatedStatus}`,
             needsUpdate: needsUpdate,
