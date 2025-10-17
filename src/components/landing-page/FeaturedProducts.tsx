@@ -27,21 +27,25 @@ import Autoplay from "embla-carousel-autoplay";
 interface FeaturedProductsProps {}
 
 const promos = [
-  "5% ON NEW PRODUCTS",
-  "5% ON NEW PRODUCTS",
-  "5% ON NEW PRODUCTS",
-  "5% ON NEW PRODUCTS",
+  "Delivery is only 40 mins in Kigali",
+  "Delivery is only 40 mins in Kigali",
+  "Delivery is only 40 mins in Kigali",
+  "Delivery is only 40 mins in Kigali",
 ];
 
+// smaller / shorter ProductCard on mobile (reduced image area, reduced text sizes)
 const ProductCard = ({ product }: { product: StoreProduct }) => (
   <Link
     href={`/products/${product.id}`}
-    className="group flex flex-col bg-white rounded-2xl overflow-hidden shadow hover:shadow-xl transition-shadow duration-300 border border-gray-100 h-full relative"
+    className="group flex flex-col bg-white rounded-2xl overflow-hidden shadow hover:shadow-xl transition-shadow duration-300 border border-gray-100 relative h-[260px] md:h-auto"
     aria-label={`View details for ${product.name}`}
     tabIndex={0}
   >
     {/* Wishlist button */}
-    <div className="absolute z-20 right-3 top-3">
+    <div className="absolute z-20 top-3 flex justify-between w-full px-2">
+      <span className="md:hidden text-white bg-orange-500 my-auto py-1 px-3 text-center rounded-lg text-sm font-bold">
+        RWF {product?.price.toLocaleString()}
+      </span>
       <WishlistButton
         productId={product.id}
         size="sm"
@@ -49,8 +53,9 @@ const ProductCard = ({ product }: { product: StoreProduct }) => (
         className="bg-white/80 backdrop-blur-sm hover:bg-white shadow-sm"
       />
     </div>
-    {/* Product Image */}
-    <div className="relative w-full aspect-[4/5] bg-gray-100">
+
+    {/* Product Image: smaller on mobile */}
+    <div className="relative w-full aspect-[3/4] md:aspect-[4/5] bg-gray-100">
       <Image
         src={product.main_image_url || "/placeholder.svg"}
         alt={product.name}
@@ -59,12 +64,13 @@ const ProductCard = ({ product }: { product: StoreProduct }) => (
         sizes="(max-width: 640px) 100vw, 33vw"
       />
     </div>
-    {/* Card Content */}
-    <div className="flex flex-col flex-1 px-3 md:px-4 pt-3 pb-4 gap-2">
-      <span className="text-orange-500 text-lg md:text-xl font-bold">
+
+    {/* Card Content: reduced text sizes on mobile */}
+    <div className="flex-col flex-1 px-3 md:px-4 pt-2 md:pt-3 pb-3 gap-1 hidden md:flex ">
+      <span className="text-orange-500 text-base md:text-lg font-bold">
         RWF {product?.price.toLocaleString()}
       </span>
-      <h4 className="font-bold text-gray-900 text-base md:text-lg line-clamp-2 truncate">
+      <h4 className="font-bold text-gray-900 text-sm md:text-base line-clamp-2 truncate">
         {product.name}
       </h4>
     </div>
@@ -170,63 +176,29 @@ const FeaturedProducts: FC<FeaturedProductsProps> = () => {
           ))}
         </div>
       ) : (
-        // ✅ Mobile Carousel (2x2 layout per slide)
-        <Carousel opts={{ loop: true }} plugins={[Autoplay()]} className="relative pt-10">
+        // ✅ Mobile: single-row carousel (one smaller product card per slide)
+        <Carousel
+          opts={{ loop: true }}
+          plugins={[Autoplay()]}
+          className="relative pt-6"
+        >
           <CarouselContent>
-            {Array.from({ length: Math.ceil(products.length / 4) }).map((_, i) => {
-              const slideProducts = products.slice(i * 4, i * 4 + 4);
-              return (
-                <CarouselItem key={i} className="basis-full">
-                  <div className="grid grid-cols-2 gap-2">
-                    {slideProducts.map((product) => (
-                      <Link
-                        key={product.id}
-                        href={`/products/${product.id}`}
-                        className="group flex flex-col bg-white rounded-xl overflow-hidden shadow border border-gray-100 relative h-[210px]"
-                      >
-                        {/* Wishlist */}
-                        <div className="absolute z-20 right-2 top-2">
-                          <WishlistButton
-                            productId={product.id}
-                            size="sm"
-                            variant="ghost"
-                            className="bg-white/80 backdrop-blur-sm hover:bg-white shadow-sm"
-                          />
-                        </div>
-                        {/* Image */}
-                        <div className="relative w-full h-[120px] bg-gray-100">
-                          <Image
-                            src={product.main_image_url || "/placeholder.svg"}
-                            alt={product.name}
-                            fill
-                            className="object-cover transition-transform duration-300 group-hover:scale-105"
-                          />
-                        </div>
-                        {/* Content */}
-                        <div className="flex flex-col flex-1 px-2 pt-2 pb-3">
-                          <span className="text-orange-500 text-sm font-bold">
-                            RWF {product.price.toLocaleString()}
-                          </span>
-                          <h4 className="font-semibold text-gray-900 text-xs line-clamp-2">
-                            {product.name}
-                          </h4>
-                        </div>
-                      </Link>
-                    ))}
-                  </div>
-                </CarouselItem>
-              );
-            })}
+            {products.map((product) => (
+              <CarouselItem key={product.id} className="basis-3/4 sm:basis-3/4">
+                <div className="px-3">
+                  <ProductCard product={product} />
+                </div>
+              </CarouselItem>
+            ))}
           </CarouselContent>
 
-          {/* ✅ Move navigation inside Carousel */}
           <CarouselPrevious className="absolute left-2 top-1/2 -translate-y-1/2 text-orange-500 hover:text-orange-600 bg-white/80 backdrop-blur-sm rounded-full shadow-sm" />
           <CarouselNext className="absolute right-2 top-1/2 -translate-y-1/2 text-orange-500 hover:text-orange-600 bg-white/80 backdrop-blur-sm rounded-full shadow-sm" />
         </Carousel>
       )}
 
       {/* Promo Marquee */}
-      <div className="bg-brand-orange mt-10 sm:mt-20 mb-16 sm:mb-24 text-white rounded-xl py-2 overflow-hidden">
+      <div className="bg-brand-orange my-5 sm:my-20 text-white rounded-xl py-2 overflow-hidden">
         <div className="flex items-center">
           {promos.map((promo, i) => (
             <p

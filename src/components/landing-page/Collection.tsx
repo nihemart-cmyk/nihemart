@@ -21,7 +21,11 @@ const Collection: FC<CollectionProps> = ({}) => {
     right: false,
   });
   const sliderRef: RefObject<HTMLDivElement | null> = useRef(null);
-  
+  const [isMobile, setIsMobile] = useState(false);
+
+  // current page for mobile indicators
+  const [currentPage, setCurrentPage] = useState(0);
+
   useEffect(() => {
     const loadCategories = async () => {
       setLoading(true);
@@ -38,25 +42,74 @@ const Collection: FC<CollectionProps> = ({}) => {
     loadCategories();
   }, []);
 
+  // reset current page when categories change
+  useEffect(() => {
+    setCurrentPage(0);
+    if (sliderRef.current) {
+      sliderRef.current.scrollLeft = 0;
+    }
+  }, [categories.length]);
+
+  // track mobile breakpoint
+  useEffect(() => {
+    const checkMobile = () => setIsMobile(window.innerWidth < 768);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
+
   const handleSliderScroll = () => {
     const slider = sliderRef.current;
     if (!slider) return;
 
     const scrollWidth = slider.scrollLeft + slider.offsetWidth;
     const isLeft = slider.scrollLeft > 2;
-    const isRight = scrollWidth < slider.scrollWidth - 2; // Added a small buffer
+    const isRight = scrollWidth < slider.scrollWidth - 2; // small buffer
 
     setChevApp({ left: isLeft, right: isRight });
+
+    if (isMobile) {
+      const page = Math.round(slider.scrollLeft / slider.offsetWidth);
+      setCurrentPage(page);
+    }
   };
 
   const handleLeftChevClick = () => {
     const slider = sliderRef.current;
-    if (slider) slider.scrollLeft -= 320; // Card width (w-80 = 320px) + gap
+    if (!slider) return;
+
+    if (isMobile) {
+      // move by one full page (viewport width of slider)
+      slider.scrollTo({
+        left: Math.max(0, slider.scrollLeft - slider.offsetWidth),
+        behavior: "smooth",
+      });
+    } else {
+      slider.scrollLeft -= 320; // Card width (w-80 = 320px) + gap
+    }
   };
 
   const handleRightChevClick = () => {
     const slider = sliderRef.current;
-    if (slider) slider.scrollLeft += 320;
+    if (!slider) return;
+
+    if (isMobile) {
+      slider.scrollTo({
+        left: slider.scrollLeft + slider.offsetWidth,
+        behavior: "smooth",
+      });
+    } else {
+      slider.scrollLeft += 320;
+    }
+  };
+
+  // programmatic page jump for indicators
+  const scrollToPage = (pageIndex: number) => {
+    const slider = sliderRef.current;
+    if (!slider) return;
+    const left = pageIndex * slider.offsetWidth;
+    slider.scrollTo({ left, behavior: "smooth" });
+    setCurrentPage(pageIndex);
   };
 
   useEffect(() => {
@@ -78,7 +131,20 @@ const Collection: FC<CollectionProps> = ({}) => {
     window.addEventListener("resize", checkChevrons);
 
     return () => window.removeEventListener("resize", checkChevrons);
-  }, [loading, categories]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, categories, isMobile]);
+
+  // chunk helper for mobile pages
+  const chunkArray = <T,>(arr: T[], size: number) => {
+    const res: T[][] = [];
+    for (let i = 0; i < arr.length; i += size) {
+      res.push(arr.slice(i, i + size));
+    }
+    return res;
+  };
+
+  // build pages for mobile (4 items per page)
+  const mobilePages = chunkArray(categories, 4);
 
   return (
     <MaxWidthWrapper size={"lg"} className="">
@@ -86,44 +152,124 @@ const Collection: FC<CollectionProps> = ({}) => {
         <h1 className="lg:text-4xl md:text-2xl text-xl font-bold text-neutral-900 mb-5">
           {t("home.categories")}
         </h1>
+
+        {/* Slider container */}
         <div
-          className="flex overflow-x-scroll scroll-smooth gap-2 md:gap-3 scrollbar-hidden"
+          className={cn(
+            "flex overflow-x-scroll scroll-smooth gap-2 md:gap-3 scrollbar-hidden",
+            { "snap-x snap-mandatory": isMobile }
+          )}
           ref={sliderRef}
           onScroll={handleSliderScroll}
         >
           {loading
-            ? Array(8)
-                .fill(0)
-                .map((_, i) => (
+            ? // Loading placeholders
+              isMobile
+              ? // show 2 placeholder pages on mobile
+                Array(2)
+                  .fill(0)
+                  .map((_, pageIdx) => (
+                    <div
+                      key={pageIdx}
+                      className="min-w-full snap-start grid grid-cols-2 grid-rows-2 gap-2"
+                    >
+                      {Array(4)
+                        .fill(0)
+                        .map((__, i) => (
+                          <div
+                            key={i}
+                            className="w-full h-32 md:h-60 bg-gray-200 rounded-2xl animate-pulse"
+                          />
+                        ))}
+                    </div>
+                  ))
+              : // desktop single row placeholders
+                Array(8)
+                  .fill(0)
+                  .map((_, i) => (
+                    <div
+                      key={i}
+                      className="w-56 md:w-60 h-60 shrink-0 aspect-[9/12] bg-gray-200 rounded-2xl animate-pulse"
+                    />
+                  ))
+            : isMobile
+              ? // Mobile: pages with 2 rows x 2 cols per page
+                mobilePages.map((page, pageIndex) => (
                   <div
-                    key={i}
-                    className="w-56 md:w-60 h-60 shrink-0 aspect-[9/12] bg-gray-200 rounded-2xl animate-pulse"
-                  />
+                    key={pageIndex}
+                    className="min-w-full snap-start grid grid-cols-2 grid-rows-2 gap-2"
+                    aria-hidden={false}
+                  >
+                    {page.map((category) => (
+                      <Link
+                        href={`/products?categories=${category.id}`}
+                        key={category.id}
+                        className="w-full h-32 md:h-40 border-2 border-blue-100 rounded-lg flex flex-col items-center justify-center group hover:border-orange-200 transition-colors p-2"
+                      >
+                        <Image
+                          src={category.icon_url || "/placeholder.svg"}
+                          alt={category.name}
+                          width={80}
+                          height={80}
+                          className="group-hover:scale-105 transition-transform duration-300 mb-2"
+                        />
+                        <h4 className="text-center font-medium text-gray-800 group-hover:text-orange-600 transition-colors px-2 truncate text-sm">
+                          {category.name}
+                        </h4>
+                      </Link>
+                    ))}
+
+                    {/* If last page has <4 items, fill empty slots so layout remains consistent */}
+                    {page.length < 4 &&
+                      Array(4 - page.length)
+                        .fill(0)
+                        .map((_, idx) => (
+                          <div
+                            key={`empty-${idx}`}
+                            className="w-full h-32 md:h-40 border-2 border-transparent rounded-lg"
+                            aria-hidden
+                          />
+                        ))}
+                  </div>
                 ))
-            : categories.map((category) => (
-                // <Link
-                //   href={`/products?categories=${category.id}`}
-                //   key={category.id}
-                //   className="w-60 h-60 shrink-0 aspect-[9/12] border-2 border-blue-100 rounded-lg overflow-hidden group flex flex-col items-center justify-around gap-2"
-                // >
-                <Link
-                  href={`/products?categories=${category.id}`}
-                  key={category.id}
-                  className="lg:w-60 w-52 h-48 lg:h-60 border-2 border-blue-100 rounded-lg shrink-0 flex flex-col items-center justify-center group hover:border-orange-200 transition-colors"
-                >
-                  <Image
-                    src={category.icon_url || "/placeholder.svg"}
-                    alt={category.name}
-                    width={120}
-                    height={120}
-                    className="group-hover:scale-105 transition-transform duration-300 mb-3"
-                  />
-                  <h4 className="text-center font-medium text-gray-800 group-hover:text-orange-600 transition-colors px-2 truncate">
-                    {category.name}
-                  </h4>
-                </Link>
-              ))}
+              : // Desktop / large screens: single row slider as before
+                categories.map((category) => (
+                  <Link
+                    href={`/products?categories=${category.id}`}
+                    key={category.id}
+                    className="lg:w-60 w-52 h-48 lg:h-60 border-2 border-blue-100 rounded-lg shrink-0 flex flex-col items-center justify-center group hover:border-orange-200 transition-colors"
+                  >
+                    <Image
+                      src={category.icon_url || "/placeholder.svg"}
+                      alt={category.name}
+                      width={120}
+                      height={120}
+                      className="group-hover:scale-105 transition-transform duration-300 mb-3"
+                    />
+                    <h4 className="text-center font-medium text-gray-800 group-hover:text-orange-600 transition-colors px-2 truncate">
+                      {category.name}
+                    </h4>
+                  </Link>
+                ))}
         </div>
+
+        {/* Mobile page indicators */}
+        {!loading && isMobile && mobilePages.length > 1 && (
+          <div className="flex justify-center mt-3 gap-2">
+            {mobilePages.map((_, idx) => (
+              <button
+                key={`dot-${idx}`}
+                onClick={() => scrollToPage(idx)}
+                aria-current={currentPage === idx}
+                aria-label={`Go to page ${idx + 1}`}
+                className={cn(
+                  "w-2 h-2 rounded-full transition-colors",
+                  currentPage === idx ? "bg-orange-500" : "bg-neutral-400/50"
+                )}
+              />
+            ))}
+          </div>
+        )}
 
         {!loading && (
           <div className="absolute inset-x-3 xs:inset-x-5 sm:inset-x-10 lg:inset-x-20 z-20 flex items-center justify-between top-1/2 -translate-y-1/2 pointer-events-none">

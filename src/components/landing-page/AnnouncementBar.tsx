@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BadgePercent, Flag, Globe } from "lucide-react";
+import { BadgePercent, Flag, Globe, Languages } from "lucide-react";
 import Link from "next/link";
 import { FC } from "react";
 import MaxWidthWrapper from "../MaxWidthWrapper";
@@ -79,11 +79,13 @@ const AnnouncementBar: FC<AnnouncementBarProps> = ({}) => {
           <BadgePercent className="h-5 sm:h-7 w-5 sm:w-7" />
           {editing ? (
             <input
-              className="text-black px-2 py-1 rounded text-sm md:text-base font-semibold"
+              title="Announcement"
+              placeholder="Enter announcement..."
+              aria-label="Announcement input"
+              className="text-black px-2 py-1 rounded text-sm md:text-base font-semibold min-w-[200px] max-w-[400px]"
               value={announcement}
               onChange={(e) => setAnnouncement(e.target.value)}
               disabled={loading}
-              style={{ minWidth: 200, maxWidth: 400 }}
             />
           ) : (
             <p className="font-semibold text-sm md:text-base">{announcement}</p>
@@ -121,7 +123,7 @@ const AnnouncementBar: FC<AnnouncementBarProps> = ({}) => {
               aria-label={t("nav.language") || "Select language"}
               className="flex lg:items-center bg-white text-orange-500 hover:bg-white/90 outline-none border-none"
             >
-              <Flag className="h-4 w-4" />
+              <Languages className="h-4 w-4" />
               <span className="hidden lg:flex">Language</span>
             </Button>
           </DropdownMenuTrigger>
