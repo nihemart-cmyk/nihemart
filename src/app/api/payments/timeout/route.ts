@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/utils/supabase/server";
+import { createServiceSupabaseClient } from "@/utils/supabase/service";
 import { logger } from "@/lib/logger";
 
 interface RouteParams {
@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Initialize Supabase client
-      const supabase = await createServerSupabaseClient();
+      const supabase = createServiceSupabaseClient();
 
       // Get the payment record
       const { data: payment, error: paymentError } = await supabase
@@ -139,7 +139,7 @@ export async function POST(request: NextRequest) {
             .update({
                client_timeout: true,
                client_timeout_reason:
-                  reason || "Client-side timeout after 1 minute",
+                  reason || "Client-side timeout after 5 minutes",
                updated_at: new Date().toISOString(),
             })
             .eq("id", paymentId);

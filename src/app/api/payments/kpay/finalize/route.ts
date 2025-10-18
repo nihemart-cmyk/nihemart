@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/utils/supabase/server";
+import { createServiceSupabaseClient } from "@/utils/supabase/service";
 import { initializeKPayService } from "@/lib/services/kpay";
 import { createOrder } from "@/integrations/supabase/orders";
 import { logger } from "@/lib/logger";
@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
          );
       }
 
-      const supabase = await createServerSupabaseClient();
+      const supabase = createServiceSupabaseClient();
 
       // Find matching payments row (session-like payment with order_id null)
       let payment: any = null;
@@ -150,7 +150,7 @@ export async function POST(request: NextRequest) {
          canCreateOrder: payment.status === "completed" && !payment.order_id,
          message:
             payment.status === "completed"
-               ? "Payment completed. Call create-order to create an order."
+               ? "Payment completed."
                : "Payment is not completed yet",
       });
    } catch (error) {

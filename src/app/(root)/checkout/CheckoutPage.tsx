@@ -81,6 +81,55 @@ const CheckoutPage = ({
       phone: "",
       delivery_notes: "",
    });
+   // LocalStorage persistence keys and helpers
+   const CHECKOUT_STORAGE_KEY = "nihemart_checkout_v1";
+
+   const loadCheckoutFromStorage = () => {
+      try {
+         if (typeof window === "undefined") return null;
+         const raw = localStorage.getItem(CHECKOUT_STORAGE_KEY);
+         if (!raw) return null;
+         return JSON.parse(raw);
+      } catch (err) {
+         console.warn("Failed to load checkout from storage:", err);
+         return null;
+      }
+   };
+
+   const saveCheckoutToStorage = (payload: any) => {
+      try {
+         if (typeof window === "undefined") return;
+         localStorage.setItem(CHECKOUT_STORAGE_KEY, JSON.stringify(payload));
+      } catch (err) {
+         console.warn("Failed to save checkout to storage:", err);
+      }
+   };
+
+   const clearCheckoutStorage = () => {
+      try {
+         if (typeof window === "undefined") return;
+         localStorage.removeItem(CHECKOUT_STORAGE_KEY);
+      } catch (err) {
+         /* ignore */
+      }
+   };
+
+   // Clear all client-side checkout state after successful order creation
+   const clearAllCheckoutClientState = () => {
+      try {
+         clearCheckoutStorage();
+      } catch (e) {}
+      try {
+         if (typeof window !== "undefined") {
+            sessionStorage.removeItem("kpay_reference");
+         }
+      } catch (e) {}
+      try {
+         if (typeof window !== "undefined") {
+            localStorage.removeItem("cart");
+         }
+      } catch (e) {}
+   };
    const [orderItems, setOrderItems] = useState<CartItem[]>([]);
    const [errors, setErrors] = useState<any>({});
 
@@ -167,13 +216,10 @@ const CheckoutPage = ({
    // Track when a payment flow is actively being initiated to avoid
    // the empty-cart redirect racing the redirect to external gateway
    const [paymentInProgress, setPaymentInProgress] = useState(false);
-   const [autoPaymentTriggeredFor, setAutoPaymentTriggeredFor] = useState<
-      string | null
-   >(null);
-   // Payment method state (default to Cash on Delivery)
+   // Payment method state (start empty so user must explicitly choose)
    const [paymentMethod, setPaymentMethod] = useState<
       keyof typeof PAYMENT_METHODS | "cash_on_delivery" | ""
-   >("cash_on_delivery");
+   >("");
 
    // Mobile money phone numbers state
    const [mobileMoneyPhones, setMobileMoneyPhones] = useState<{
@@ -469,6 +515,48 @@ const CheckoutPage = ({
       })();
    }, [isRetryMode, retryOrderId, existingOrder, loadingExistingOrder, router]);
 
+   // Restore persisted checkout state (if any) on mount
+   useEffect(() => {
+      try {
+         const persisted = loadCheckoutFromStorage();
+         if (!persisted) return;
+
+         // Only restore when not in retry mode and when user hasn't already filled fields
+         if (!effectiveIsRetry) {
+            if (persisted.formData)
+               setFormData((prev) => ({ ...prev, ...persisted.formData }));
+            if (persisted.paymentMethod)
+               setPaymentMethod(persisted.paymentMethod);
+            if (persisted.mobileMoneyPhones)
+               setMobileMoneyPhones(persisted.mobileMoneyPhones);
+            if ((!orderItems || orderItems.length === 0) && persisted.cart) {
+               // restore lightweight cart snapshot
+               try {
+                  setOrderItems(persisted.cart);
+               } catch (e) {
+                  /* ignore */
+               }
+            }
+         }
+      } catch (err) {
+         console.warn("Failed to restore checkout state:", err);
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+   }, []);
+
+   // Persist checkout state when relevant parts change (debounced)
+   useEffect(() => {
+      const toSave = {
+         formData,
+         paymentMethod,
+         mobileMoneyPhones,
+         cart: orderItems,
+      };
+
+      const id = setTimeout(() => saveCheckoutToStorage(toSave), 250);
+      return () => clearTimeout(id);
+   }, [formData, paymentMethod, mobileMoneyPhones, orderItems]);
+
    // Detect return from payment flow (e.g. ?payment=success&orderId=...)
    useEffect(() => {
       try {
@@ -524,7 +612,10 @@ const CheckoutPage = ({
    // Detect session-based return from KPay (no orderId in query). We store
    // the kpay_reference in sessionStorage before redirecting. On return we
    // poll the status endpoint by reference until the webhook has created the
-   // order (or a timeout occurs), then allow the user to finalize.
+   // order (or a timeout occurs), then allow the user to finalize. If the
+   // query includes payment=success without an orderId, treat it as a
+   // session-based success and show a non-intrusive banner instead of
+   // re-initiating payments.
    useEffect(() => {
       let mounted = true;
 
@@ -577,6 +668,9 @@ const CheckoutPage = ({
                         try {
                            sessionStorage.removeItem("kpay_reference");
                         } catch (e) {}
+                        try {
+                           clearCheckoutStorage();
+                        } catch (e) {}
                         return;
                      }
                   } catch (e) {
@@ -628,6 +722,9 @@ const CheckoutPage = ({
                                           "kpay_reference"
                                        );
                                     } catch (e) {}
+                                    try {
+                                       clearCheckoutStorage();
+                                    } catch (e) {}
                                     setTimeout(
                                        () =>
                                           router.push(
@@ -660,6 +757,9 @@ const CheckoutPage = ({
                try {
                   sessionStorage.removeItem("kpay_reference");
                } catch (e) {}
+               try {
+                  clearCheckoutStorage();
+               } catch (e) {}
             }
          } catch (err) {
             console.error("Failed to poll payment status by reference:", err);
@@ -681,7 +781,40 @@ const CheckoutPage = ({
          // If already handled by the orderId-based flow above, skip
          if (p === "success" && oid) return;
 
-         // Check for stored reference
+         // If the URL indicates a success but there is no orderId (session-based)
+         // then clear any stored reference and show success banner; do NOT
+         // start polling or re-initiate payments from the checkout page.
+         if (p === "success" && !oid) {
+            // If we have a stored reference, trigger a status check to ensure the database reflects completion
+            try {
+               const ref =
+                  typeof window !== "undefined"
+                     ? sessionStorage.getItem("kpay_reference")
+                     : null;
+               if (ref) {
+                  fetch(`/api/payments/kpay/status`, {
+                     method: "POST",
+                     headers: { "Content-Type": "application/json" },
+                     body: JSON.stringify({ reference: ref }),
+                  }).catch(() => {});
+               }
+            } catch (e) {}
+            try {
+               sessionStorage.removeItem("kpay_reference");
+            } catch (e) {}
+            // Inform the user that payment was successful and they can place order
+            toast.success(
+               "Payment completed successfully. You can now finalize your order on this page."
+            );
+            // Mark payment as verified for session-based flows so the Place Order button becomes enabled
+            try {
+               setPaymentVerified(true);
+            } catch (e) {}
+            // Prevent further auto-trigger behavior by ensuring paymentReturnedOrderId remains null
+            return;
+         }
+
+         // Check for stored reference and start polling by reference only if present
          const ref =
             typeof window !== "undefined"
                ? sessionStorage.getItem("kpay_reference")
@@ -993,11 +1126,26 @@ const CheckoutPage = ({
    const paymentRequiresVerification =
       paymentMethod && paymentMethod !== "cash_on_delivery";
 
+   // If user returned from a session-based payment success (payment=success with no orderId),
+   // treat the payment as verified and don't show the "Proceed to payment" button.
+   const urlPaymentParam =
+      typeof window !== "undefined"
+         ? new URLSearchParams(window.location.search).get("payment")
+         : null;
+   const urlOrderIdParam =
+      typeof window !== "undefined"
+         ? new URLSearchParams(window.location.search).get("orderId")
+         : null;
+   const sessionPaymentSuccess =
+      urlPaymentParam === "success" && !urlOrderIdParam;
+
    const allStepsCompleted =
       hasItems &&
       hasAddress &&
       hasEmail &&
       hasValidPhone &&
+      // Require that the user has explicitly selected a payment method
+      Boolean(paymentMethod) &&
       // If payment requires verification, user must have completed payment return + verification
       (!paymentRequiresVerification ||
          paymentVerified ||
@@ -1012,59 +1160,6 @@ const CheckoutPage = ({
    if (paymentRequiresVerification && !paymentVerified)
       missingSteps.push("Complete the payment (you will be redirected)");
 
-   // Auto-trigger payment when user selects a non-COD method and all basic info is present.
-   useEffect(() => {
-      // Only auto-trigger in non-retry mode (fresh checkout) and when not already
-      // initiating a payment for this order and when required fields are present.
-      if (
-         isRetryMode ||
-         !paymentRequiresVerification ||
-         paymentInProgress ||
-         isSubmitting
-      )
-         return;
-      // Basic validation for auto-trigger: accept a normalized phone where possible
-      const normalizedPhone = formatPhoneNumber(
-         (selectedAddress?.phone || formData.phone || "") as string
-      );
-      const phoneOk = /^07\d{8}$/.test(normalizedPhone || "");
-
-      if (!hasItems || !hasAddress || !hasEmail || !paymentMethod) return;
-
-      // If the selected method is mobile money, require a valid normalized phone
-      if (
-         (paymentMethod === "mtn_momo" || paymentMethod === "airtel_money") &&
-         !phoneOk
-      )
-         return;
-
-      // Avoid triggering multiple times for the same order snapshot
-      // Use a simple guard: if we've already auto-triggered during this component
-      // lifecycle for the current cart snapshot (orderItems length + total), don't run again.
-      const cartSnapshot = `${orderItems.length}:${total}`;
-      if (autoPaymentTriggeredFor === cartSnapshot) return;
-
-      // Mark guard and call create order flow (which will initiate payment)
-      setAutoPaymentTriggeredFor(cartSnapshot);
-      // Set paymentInProgress early to prevent empty-cart redirect race
-      setPaymentInProgress(true);
-      // Defer a tiny bit to allow UI updates to render, then start the flow
-      setTimeout(() => {
-         handleCreateOrder();
-      }, 30);
-   }, [
-      paymentMethod,
-      hasItems,
-      hasAddress,
-      hasEmail,
-      hasValidPhone,
-      paymentRequiresVerification,
-      paymentInProgress,
-      isSubmitting,
-      isRetryMode,
-      orderItems.length,
-      total,
-   ]);
 
    // Determine if the selected location is Kigali
    const selectedProvinceObj = provinces.find(
@@ -1217,6 +1312,9 @@ const CheckoutPage = ({
          const validationErrors = validatePaymentRequest(paymentRequest);
          if (validationErrors.length > 0) {
             toast.error(`Payment validation failed: ${validationErrors[0]}`);
+            try {
+               clearCheckoutStorage();
+            } catch (e) {}
             router.push(`/orders/${existingOrder.id}`);
             return;
          }
@@ -1327,6 +1425,9 @@ const CheckoutPage = ({
                   paymentResult.error || "Unknown error"
                }`
             );
+            try {
+               clearCheckoutStorage();
+            } catch (e) {}
             router.push(`/orders/${existingOrder.id}`);
          }
       } catch (paymentError) {
@@ -1334,6 +1435,9 @@ const CheckoutPage = ({
          toast.error(
             "Payment initiation failed. Please try again or contact support."
          );
+         try {
+            clearCheckoutStorage();
+         } catch (e) {}
          router.push(`/orders/${existingOrder.id}`);
       } finally {
          setIsSubmitting(false);
@@ -1476,6 +1580,117 @@ const CheckoutPage = ({
          // Pre-pay flow: do NOT create an order yet. Create a server-side payment
          // session containing the cart snapshot and customer details, redirect
          // to KPay, and rely on the webhook to create the order after payment.
+         // If payment was already verified in a session-based flow, create the order now
+         if (
+            paymentMethod &&
+            paymentMethod !== "cash_on_delivery" &&
+            paymentVerified
+         ) {
+            // Create the order now (payment already completed)
+            try {
+               createOrder.mutate(orderData as CreateOrderRequest, {
+                  onSuccess: async (createdOrder: any) => {
+                     try {
+                        clearCart();
+                     } catch (e) {
+                        /* ignore */
+                     }
+                     setOrderItems([]);
+
+                     // Attempt to link the completed session payment to the new order
+                     try {
+                        const ref =
+                           typeof window !== "undefined"
+                              ? sessionStorage.getItem("kpay_reference")
+                              : null;
+                        if (ref) {
+                           console.log("Linking payment to order", { reference: ref, orderId: createdOrder.id });
+                           try {
+                              const statusResp = await fetch(
+                                 "/api/payments/kpay/status",
+                                 {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ reference: ref }),
+                                 }
+                              );
+                              if (statusResp.ok) {
+                                 const statusData = await statusResp.json();
+                                 const payId = statusData?.paymentId;
+                                 if (payId) {
+                                    console.log("Found payment to link", { paymentId: payId, orderId: createdOrder.id });
+                                    try {
+                                       const linkResp = await fetch(`/api/payments/${payId}`, {
+                                          method: "PATCH",
+                                          headers: { "Content-Type": "application/json" },
+                                          body: JSON.stringify({ order_id: createdOrder.id }),
+                                       });
+                                       if (linkResp.ok) {
+                                          console.log("Successfully linked payment to order", { paymentId: payId, orderId: createdOrder.id });
+                                       } else {
+                                          const linkErr = await linkResp.json().catch(() => ({}));
+                                          console.error("Failed to link payment to order", { paymentId: payId, orderId: createdOrder.id, error: linkErr });
+                                       }
+                                    } catch (linkError) {
+                                       console.error("Error linking payment to order", { paymentId: payId, orderId: createdOrder.id, error: linkError });
+                                    }
+                                 } else {
+                                    console.warn("No paymentId in status response", { statusData });
+                                 }
+                              } else {
+                                 console.warn("Failed to fetch payment status", { reference: ref, status: statusResp.status });
+                              }
+                           } catch (fetchError) {
+                              console.error("Error fetching payment status for linking", { reference: ref, error: fetchError });
+                           }
+                        } else {
+                           console.log("No kpay_reference in sessionStorage, skipping payment linking");
+                        }
+                     } catch (outerError) {
+                        console.error("Unexpected error during payment linking", { orderId: createdOrder.id, error: outerError });
+                     }
+
+                     try {
+                        clearAllCheckoutClientState();
+                     } catch (e) {}
+                     toast.success(
+                        `Order #${createdOrder.order_number} has been created successfully!`
+                     );
+                     router.push(`/orders/${createdOrder.id}`);
+                  },
+                  onError: (error: any) => {
+                     console.error("createOrder.onError", error);
+                     try {
+                        setPaymentInProgress(false);
+                     } catch (e) {
+                        /* ignore */
+                     }
+                     toast.error(
+                        `Failed to create order: ${
+                           error?.message || "Unknown error"
+                        }`
+                     );
+                  },
+                  onSettled: () => {
+                     setIsSubmitting(false);
+                  },
+               });
+            } catch (error: any) {
+               console.error("Order creation failed (sync):", error);
+               try {
+                  setPaymentInProgress(false);
+               } catch (e) {
+                  /* ignore */
+               }
+               toast.error(
+                  `Failed to create order: ${error?.message || "Unknown error"}`
+               );
+               setIsSubmitting(false);
+            }
+
+            return;
+         }
+
          if (paymentMethod && paymentMethod !== "cash_on_delivery") {
             try {
                setPaymentInProgress(true);
@@ -1614,9 +1829,13 @@ const CheckoutPage = ({
                try {
                   clearCart();
                } catch (e) {
-                  localStorage.removeItem("cart");
+                  /* ignore */
                }
                setOrderItems([]);
+               // Clear persisted checkout and session state now that order is created
+               try {
+                  clearAllCheckoutClientState();
+               } catch (e) {}
                toast.success(
                   `Order #${createdOrder.order_number} has been created successfully!`
                );
@@ -1766,6 +1985,49 @@ Total: ${total.toLocaleString()} RWF
                : t("checkout.title")}
          </h1>
 
+         {/* Persistent banner at top showing missing steps */}
+         {missingSteps.length > 0 && (
+            <div className="sticky top-4 z-40 mb-4">
+               <div className="mx-auto max-w-[90vw] sm:max-w-7xl px-2 sm:px-0">
+                  <div className="p-3 rounded-lg bg-red-50 border border-red-100 text-red-800 shadow-sm">
+                     <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                           <div className="font-semibold text-sm">
+                              Please complete the following before placing your
+                              order:
+                           </div>
+                           <ul className="mt-1 text-sm list-disc pl-5 space-y-0.5">
+                              {missingSteps.map((m) => (
+                                 <li key={m}>{m}</li>
+                              ))}
+                           </ul>
+                        </div>
+                        <div className="flex-shrink-0">
+                           <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                 // Scroll to order section to help the user
+                                 const el = document.querySelector(
+                                    "[data-checkout-order-section]"
+                                 );
+                                 if (el) {
+                                    (el as HTMLElement).scrollIntoView({
+                                       behavior: "smooth",
+                                       block: "center",
+                                    });
+                                 }
+                              }}
+                           >
+                              Take me there
+                           </Button>
+                        </div>
+                     </div>
+                  </div>
+               </div>
+            </div>
+         )}
+
          {/* Retry mode banner */}
          {isRetryMode && existingOrder && (
             <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
@@ -1787,6 +2049,89 @@ Total: ${total.toLocaleString()} RWF
                         {existingOrder.payment_method && (
                            <div>
                               Previous method: {existingOrder.payment_method}
+                           </div>
+                        )}
+
+                        {/* Session-based payment success banner */}
+                        {(searchParams?.get("payment") === "success" ||
+                           (typeof window !== "undefined" &&
+                              new URLSearchParams(window.location.search).get(
+                                 "payment"
+                              ) === "success")) && (
+                           <div className="mb-6 p-4 rounded-lg bg-green-50 border border-green-200 text-green-900">
+                              <div className="flex items-center justify-between">
+                                 <div>
+                                    <p className="font-medium">
+                                       Payment completed
+                                    </p>
+                                    <p className="text-xs">
+                                       We received confirmation of your payment.
+                                       You can now place your order on this
+                                       page.
+                                    </p>
+                                 </div>
+                                 <div className="flex items-center gap-2">
+                                    {searchParams?.get("orderId") ? (
+                                       <Button
+                                          size="sm"
+                                          onClick={() =>
+                                             router.push(
+                                                `/orders/${searchParams.get(
+                                                   "orderId"
+                                                )}`
+                                             )
+                                          }
+                                          className="bg-green-600 hover:bg-green-700 text-white"
+                                       >
+                                          View Order
+                                       </Button>
+                                    ) : (
+                                       <Button
+                                          size="sm"
+                                          onClick={() => {
+                                             // If user hasn't completed required steps, prompt them
+                                             if (!allStepsCompleted) {
+                                                if (missingSteps.length > 0) {
+                                                   toast.error(
+                                                      `Please complete: ${missingSteps.join(
+                                                         ", "
+                                                      )}`
+                                                   );
+                                                } else {
+                                                   toast.error(
+                                                      "Please complete all required steps before placing your order."
+                                                   );
+                                                }
+                                                return;
+                                             }
+
+                                             // All good — clear session reference and create the order
+                                             try {
+                                                sessionStorage.removeItem(
+                                                   "kpay_reference"
+                                                );
+                                             } catch (e) {}
+                                             try {
+                                                // Start the shared create order flow
+                                                handleCreateOrder();
+                                             } catch (e) {
+                                                console.error(
+                                                   "Place Order (banner) failed:",
+                                                   e
+                                                );
+                                                toast.error(
+                                                   "Failed to place order. Please try again."
+                                                );
+                                             }
+                                          }}
+                                          className="bg-green-600 hover:bg-green-700 text-white"
+                                          disabled={!allStepsCompleted}
+                                       >
+                                          Place Order
+                                       </Button>
+                                    )}
+                                 </div>
+                              </div>
                            </div>
                         )}
                         {existingOrder.total && (
@@ -2631,57 +2976,74 @@ Total: ${total.toLocaleString()} RWF
                            {isKigali ? (
                               isLoggedIn ? (
                                  <div className="space-y-2">
-                                    {/* Show missing steps when not all completed */}
-                                    {!allStepsCompleted && (
-                                       <div className="mb-2 p-2 rounded bg-red-50 border border-red-100 text-red-800 text-sm">
-                                          <div className="font-medium text-xs mb-1">
-                                             Please complete the following
-                                             before placing your order:
-                                          </div>
-                                          <ul className="text-xs list-disc pl-4 space-y-0.5">
-                                             {missingSteps.map((m) => (
-                                                <li key={m}>{m}</li>
-                                             ))}
-                                          </ul>
-                                       </div>
-                                    )}
+                                    {/* Missing steps are shown in the persistent top banner */}
 
                                     {/* For non-COD methods: allow proceeding to payment (creates order + initiates payment)
                                         but only enable if basic fields are present (not requiring paymentVerified). */}
                                     {paymentMethod &&
                                     paymentMethod !== "cash_on_delivery" ? (
                                        <>
-                                          <Button
-                                             className="w-full bg-orange-500 hover:bg-orange-600 text-white text-sm sm:text-base h-10 sm:h-12"
-                                             onClick={handleCreateOrder}
-                                             disabled={
-                                                isSubmitting ||
-                                                isInitiating ||
-                                                !hasItems ||
-                                                !hasAddress ||
-                                                !hasEmail ||
-                                                !hasValidPhone ||
-                                                !paymentMethod
-                                             }
-                                          >
-                                             {isSubmitting || isInitiating ? (
-                                                <>
-                                                   <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 animate-spin" />
-                                                   {isInitiating
-                                                      ? "Initiating Payment..."
-                                                      : t(
-                                                           "checkout.processing"
-                                                        )}
-                                                </>
-                                             ) : (
-                                                <>
-                                                   <CheckCircle2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                                                   {isRetryMode
-                                                      ? "Pay with Different Method"
-                                                      : "Proceed to payment"}
-                                                </>
-                                             )}
-                                          </Button>
+                                          {!sessionPaymentSuccess && (
+                                             <Button
+                                                className="w-full bg-orange-500 hover:bg-orange-600 text-white text-sm sm:text-base h-10 sm:h-12"
+                                                onClick={() => {
+                                                   const disabled =
+                                                      isSubmitting ||
+                                                      isInitiating ||
+                                                      !hasItems ||
+                                                      !hasAddress ||
+                                                      !hasEmail ||
+                                                      !hasValidPhone ||
+                                                      !paymentMethod;
+                                                   if (disabled) {
+                                                      if (
+                                                         missingSteps.length > 0
+                                                      ) {
+                                                         toast.error(
+                                                            `Please complete: ${missingSteps.join(
+                                                               ", "
+                                                            )}`
+                                                         );
+                                                      } else {
+                                                         toast.error(
+                                                            "Please complete all required steps before proceeding to payment."
+                                                         );
+                                                      }
+                                                      return;
+                                                   }
+
+                                                   handleCreateOrder();
+                                                }}
+                                                disabled={
+                                                   isSubmitting ||
+                                                   isInitiating ||
+                                                   !hasItems ||
+                                                   !hasAddress ||
+                                                   !hasEmail ||
+                                                   !hasValidPhone ||
+                                                   !paymentMethod
+                                                }
+                                             >
+                                                {isSubmitting ||
+                                                isInitiating ? (
+                                                   <>
+                                                      <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 animate-spin" />
+                                                      {isInitiating
+                                                         ? "Initiating Payment..."
+                                                         : t(
+                                                              "checkout.processing"
+                                                           )}
+                                                   </>
+                                                ) : (
+                                                   <>
+                                                      <CheckCircle2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                                                      {isRetryMode
+                                                         ? "Pay with Different Method"
+                                                         : "Proceed to payment"}
+                                                   </>
+                                                )}
+                                             </Button>
+                                          )}
 
                                           {/* Finalize button: disabled until paymentVerified */}
                                           {/* Finalize button: disabled until paymentVerified (for pre-pay) or until allStepsCompleted for COD */}
@@ -2697,12 +3059,12 @@ Total: ${total.toLocaleString()} RWF
                                                       : "bg-gray-100 text-gray-500 border-gray-200 cursor-not-allowed"
                                                 }`}
                                                 onClick={() => {
-                                                   if (
+                                                   // If disabled, surface a helpful message
+                                                   const disabled =
                                                       paymentRequiresVerification
                                                          ? !paymentVerified
-                                                         : !allStepsCompleted
-                                                   ) {
-                                                      // If disabled, show missing steps in toast for screen reader + user
+                                                         : !allStepsCompleted;
+                                                   if (disabled) {
                                                       if (
                                                          missingSteps.length > 0
                                                       ) {
@@ -2711,6 +3073,17 @@ Total: ${total.toLocaleString()} RWF
                                                                ", "
                                                             )}`
                                                          );
+                                                      } else if (
+                                                         paymentRequiresVerification &&
+                                                         !paymentVerified
+                                                      ) {
+                                                         toast.error(
+                                                            "Please complete the payment before placing the order."
+                                                         );
+                                                      } else {
+                                                         toast.error(
+                                                            "Please complete all required steps before placing your order."
+                                                         );
                                                       }
                                                       return;
                                                    }
@@ -2718,15 +3091,50 @@ Total: ${total.toLocaleString()} RWF
                                                    const oid =
                                                       paymentReturnedOrderId ||
                                                       existingOrder?.id;
-                                                   if (oid)
+                                                   if (oid) {
                                                       router.push(
                                                          `/orders/${oid}`
                                                       );
+                                                      return;
+                                                   }
+
+                                                   // If payment was already verified (session-based) but
+                                                   // no order exists yet, create the order now.
+                                                   if (
+                                                      paymentRequiresVerification &&
+                                                      paymentVerified &&
+                                                      !oid
+                                                   ) {
+                                                      try {
+                                                         handleCreateOrder();
+                                                      } catch (e) {
+                                                         console.error(
+                                                            "Place Order (create) failed:",
+                                                            e
+                                                         );
+                                                         toast.error(
+                                                            "Failed to place order. Please try again."
+                                                         );
+                                                      }
+                                                   }
                                                 }}
+                                                // Make the button truly disabled for assistive tech and interaction
+                                                disabled={
+                                                   paymentRequiresVerification
+                                                      ? !paymentVerified
+                                                      : !allStepsCompleted
+                                                }
                                                 aria-disabled={
                                                    paymentRequiresVerification
                                                       ? !paymentVerified
                                                       : !allStepsCompleted
+                                                }
+                                                title={
+                                                   missingSteps.length > 0
+                                                      ? `Please complete: ${missingSteps.join(
+                                                           ", "
+                                                        )}`
+                                                      : undefined
                                                 }
                                                 aria-describedby={
                                                    missingSteps.length > 0

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/utils/supabase/server";
+import { createServiceSupabaseClient } from "@/utils/supabase/service";
 import { logger } from "@/lib/logger";
 
 interface RouteParams {
@@ -22,7 +22,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       }
 
       // Initialize Supabase client
-      const supabase = await createServerSupabaseClient();
+      const supabase = createServiceSupabaseClient();
 
       // Fetch payment details - use maybeSingle to avoid coercion errors
       const { data: payment, error: paymentError } = await supabase
@@ -189,6 +189,158 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
          paymentId,
          error: error instanceof Error ? error.message : String(error),
          stack: error instanceof Error ? error.stack : undefined,
+      });
+
+      return NextResponse.json(
+         { error: "Internal server error" },
+         { status: 500 }
+      );
+   }
+}
+
+/**
+ * PATCH /api/payments/[paymentId]
+ * Links a payment to an order after order creation
+ */
+export async function PATCH(request: NextRequest, { params }: RouteParams) {
+   try {
+      const { paymentId } = await params;
+      const body = await request.json();
+      const { order_id } = body;
+
+      if (!order_id) {
+         return NextResponse.json(
+            { error: "order_id is required" },
+            { status: 400 }
+         );
+      }
+
+      logger.info("api", "Linking payment to order", {
+         paymentId,
+         orderId: order_id,
+      });
+
+      const supabase = createServiceSupabaseClient();
+
+      // Get payment
+      const { data: payment, error: paymentError } = await supabase
+         .from("payments")
+         .select("id, status, order_id")
+         .eq("id", paymentId)
+         .single();
+
+      if (paymentError || !payment) {
+         logger.error("api", "Payment not found", {
+            paymentId,
+            error: paymentError?.message,
+         });
+         return NextResponse.json(
+            { error: "Payment not found" },
+            { status: 404 }
+         );
+      }
+
+      // Check if payment is already linked
+      if (payment.order_id && payment.order_id !== order_id) {
+         logger.warn("api", "Payment already linked to different order", {
+            paymentId,
+            existingOrderId: payment.order_id,
+            newOrderId: order_id,
+         });
+         return NextResponse.json(
+            { error: "Payment already linked to a different order" },
+            { status: 409 }
+         );
+      }
+
+      // Only link completed payments
+      if (payment.status !== "completed" && payment.status !== "successful") {
+         logger.warn("api", "Cannot link non-completed payment", {
+            paymentId,
+            status: payment.status,
+         });
+         return NextResponse.json(
+            { error: "Can only link completed payments to orders" },
+            { status: 400 }
+         );
+      }
+
+      // Verify order exists
+      const { data: order, error: orderError } = await supabase
+         .from("orders")
+         .select("id, status")
+         .eq("id", order_id)
+         .single();
+
+      if (orderError || !order) {
+         logger.error("api", "Order not found", {
+            orderId: order_id,
+            error: orderError?.message,
+         });
+         return NextResponse.json(
+            { error: "Order not found" },
+            { status: 404 }
+         );
+      }
+
+      // Link payment to order and update order status
+      const { error: updateError } = await supabase
+         .from("payments")
+         .update({
+            order_id: order_id,
+            updated_at: new Date().toISOString(),
+         })
+         .eq("id", paymentId);
+
+      if (updateError) {
+         logger.error("api", "Failed to link payment to order", {
+            paymentId,
+            orderId: order_id,
+            error: updateError.message,
+            code: updateError.code,
+            details: updateError.details,
+         });
+         return NextResponse.json(
+            { error: "Failed to link payment to order" },
+            { status: 500 }
+         );
+      }
+
+      // Update order's payment_status to 'paid' since payment was completed
+      const { error: orderUpdateError } = await supabase
+         .from("orders")
+         .update({
+            payment_status: "paid",
+            updated_at: new Date().toISOString(),
+         })
+         .eq("id", order_id);
+
+      if (orderUpdateError) {
+         logger.warn("api", "Failed to update order payment_status", {
+            orderId: order_id,
+            error: orderUpdateError.message,
+         });
+         // Don't fail the request since payment link succeeded
+      } else {
+         logger.info("api", "Order payment_status updated to paid", {
+            orderId: order_id,
+         });
+      }
+
+      logger.info("api", "Payment successfully linked to order", {
+         paymentId,
+         orderId: order_id,
+      });
+
+      return NextResponse.json({
+         success: true,
+         message: "Payment linked to order successfully",
+         paymentId,
+         orderId: order_id,
+      });
+   } catch (error) {
+      logger.error("api", "Payment link endpoint error", {
+         error: error instanceof Error ? error.message : String(error),
       });
 
       return NextResponse.json(

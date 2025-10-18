@@ -164,19 +164,16 @@ export function useKPayPayment() {
          transactionId?: string;
          reference?: string;
       }): Promise<PaymentStatusResponse> => {
+         // If a check is already running, wait for it to finish (serialize)
          if (checkingRef.current) {
-            return {
-               success: false,
-               paymentId: params.paymentId || "",
-               status: "unknown",
-               amount: 0,
-               currency: "RWF",
-               reference: params.reference || "",
-               transactionId: params.transactionId,
-               message: "Status check already in progress",
-               needsUpdate: false,
-               error: "Status check already in progress",
-            };
+            // wait up to 5s for the existing check to finish
+            const start = Date.now();
+            while (checkingRef.current && Date.now() - start < 5000) {
+               // small sleep
+               // eslint-disable-next-line no-await-in-loop
+               await new Promise((r) => setTimeout(r, 150));
+            }
+            // If still running after wait, proceed but allow new check to start
          }
 
          checkingRef.current = true;

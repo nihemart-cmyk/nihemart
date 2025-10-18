@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { initializeKPayService } from "@/lib/services/kpay";
-import { createServerSupabaseClient } from "@/utils/supabase/server";
+import { createServiceSupabaseClient } from "@/utils/supabase/service";
 
 export async function POST(request: NextRequest) {
    try {
@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Initialize Supabase client
-      const supabase = await createServerSupabaseClient();
+      const supabase = createServiceSupabaseClient();
 
       // Find the payment record
       let paymentQuery = supabase
@@ -62,6 +62,7 @@ export async function POST(request: NextRequest) {
          return NextResponse.json({
             success: true,
             paymentId: payment.id,
+            orderId: payment.order_id || null,
             status: payment.status,
             amount: payment.amount,
             currency: payment.currency,
@@ -85,10 +86,17 @@ export async function POST(request: NextRequest) {
       }
 
       try {
+         // Prefer transactionId/reference from the request body if present,
+         // otherwise fall back to the stored payment row values. This helps when
+         // the payments row hasn't yet been populated with the kpay_transaction_id.
+         const effectiveTransactionId =
+            transactionId || payment.kpay_transaction_id || undefined;
+         const effectiveReference = reference || payment.reference || undefined;
+
          // Check payment status with KPay
          const kpayResponse = await kpayService.checkPaymentStatus({
-            transactionId: payment.kpay_transaction_id,
-            orderReference: payment.reference,
+            transactionId: effectiveTransactionId,
+            orderReference: effectiveReference,
          });
 
          console.log("KPay status check response:", {
@@ -101,6 +109,7 @@ export async function POST(request: NextRequest) {
          let needsUpdate = false;
          const updateData: any = {
             updated_at: new Date().toISOString(),
+            kpay_response: kpayResponse,
          };
 
          // Check if status has changed based on statusid
@@ -123,6 +132,13 @@ export async function POST(request: NextRequest) {
             updateData.status = "completed";
             updateData.completed_at = new Date().toISOString();
             updateData.kpay_mom_transaction_id = kpayResponse.momtransactionid;
+            // Persist KPay tid if present and not already stored
+            if (
+               kpayResponse.tid &&
+               kpayResponse.tid !== payment.kpay_transaction_id
+            ) {
+               updateData.kpay_transaction_id = String(kpayResponse.tid);
+            }
             needsUpdate = true;
             console.log("Payment marked as completed:", {
                paymentId: payment.id,
@@ -170,6 +186,12 @@ export async function POST(request: NextRequest) {
                // Payment failed or cancelled
                updatedStatus = "failed";
                updateData.status = "failed";
+               if (
+                  kpayResponse.tid &&
+                  kpayResponse.tid !== payment.kpay_transaction_id
+               ) {
+                  updateData.kpay_transaction_id = String(kpayResponse.tid);
+               }
                updateData.failure_reason =
                   kpayResponse.statusdesc || "Payment failed";
                needsUpdate = true;
@@ -185,6 +207,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({
                success: true,
                paymentId: payment.id,
+               orderId: payment.order_id || null,
                status: payment.status,
                amount: payment.amount,
                currency: payment.currency,
@@ -200,18 +223,33 @@ export async function POST(request: NextRequest) {
          if (needsUpdate) {
             console.log("Updating payment in database:", {
                paymentId: payment.id,
-               updateData: updateData,
+               updateData: {
+                  status: updateData.status,
+                  hasKpayResponse: Boolean(updateData.kpay_response),
+                  hasMomTxId: Boolean(updateData.kpay_mom_transaction_id),
+                  hasCompletedAt: Boolean(updateData.completed_at),
+                  hasTid: Boolean(updateData.kpay_transaction_id),
+               },
                previousStatus: payment.status,
                newStatus: updatedStatus,
             });
 
-            const { error: updateError } = await supabase
+            // Perform the update (don't gate on current status) so session-like
+            // payments are always updated immediately when KPay reports completion.
+            const { data: updatedPayment, error: updateError } = await supabase
                .from("payments")
                .update(updateData)
-               .eq("id", payment.id);
+               .eq("id", payment.id)
+               .select("*")
+               .maybeSingle();
 
             if (updateError) {
-               console.error("Failed to update payment status:", updateError);
+               console.error("Failed to update payment status:", {
+                  error: updateError.message,
+                  code: updateError.code,
+                  details: updateError.details,
+                  paymentId: payment.id,
+               });
                return NextResponse.json(
                   { error: "Failed to update payment status" },
                   { status: 500 }
@@ -221,10 +259,25 @@ export async function POST(request: NextRequest) {
             console.log("Payment successfully updated in database:", {
                paymentId: payment.id,
                newStatus: updatedStatus,
+               dbStatus: updatedPayment?.status,
+               hasWebhookData: Boolean((updatedPayment as any)?.kpay_webhook_data),
             });
 
             // Update the payment object with the new status for immediate return
-            payment.status = updatedStatus;
+            if (updatedPayment) {
+               payment.status = updatedPayment.status;
+               // copy other known safe fields that may have been updated
+               if (
+                  typeof (updatedPayment as any).kpay_transaction_id ===
+                  "string"
+               ) {
+                  payment.kpay_transaction_id = (
+                     updatedPayment as any
+                  ).kpay_transaction_id;
+               }
+            } else {
+               payment.status = updatedStatus;
+            }
 
             // Update only the order.payment_status field so we don't inadvertently change
             // the order lifecycle/status without explicit business logic elsewhere.
@@ -286,6 +339,7 @@ export async function POST(request: NextRequest) {
          return NextResponse.json({
             success: true,
             paymentId: payment.id,
+            orderId: payment.order_id || null,
             status: updatedStatus,
             amount: payment.amount,
             currency: payment.currency,
@@ -317,6 +371,7 @@ export async function POST(request: NextRequest) {
          return NextResponse.json({
             success: true,
             paymentId: payment.id,
+            orderId: payment.order_id || null,
             status: payment.status,
             amount: payment.amount,
             currency: payment.currency,
