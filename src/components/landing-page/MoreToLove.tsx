@@ -82,10 +82,9 @@ const MoreToLove: FC<MoreToLoveProps> = ({}) => {
       try {
         const products = await fetchLandingPageProducts({
           limit: initialLimit,
-          offset: 0,
+          sortBy: "short_description",
         });
         setMoreToLove(products);
-        setOffset(initialLimit);
       } catch (error) {
         console.error("Failed to load landing page data", error);
       } finally {
@@ -102,6 +101,7 @@ const MoreToLove: FC<MoreToLoveProps> = ({}) => {
       const newProducts = await fetchLandingPageProducts({
         limit: loadMoreLimit,
         offset,
+        sortBy: "short_description",
       });
       setMoreToLove((prev) => [...prev, ...newProducts]);
       setOffset((prev) => prev + newProducts.length);

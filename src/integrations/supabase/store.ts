@@ -443,26 +443,35 @@ export const fetchLandingPageProducts = cache(async ({
   featured,
   limit,
   offset = 0,
+  sortBy,
 }: {
   categoryId?: string;
   featured?: boolean;
   limit: number;
   offset?: number;
+  sortBy?: string;
 }): Promise<StoreProduct[]> => {
   let query = sb
     .from("products")
     .select(
       "id, name, price, short_description, main_image_url, average_rating, brand, category:categories(id, name)"
     )
-    .in("status", ["active", "out_of_stock"])
-    .order("created_at", { ascending: false })
-    .range(offset, offset + limit - 1); // ✅ use range instead of limit only
+    .in("status", ["active", "out_of_stock"]);
 
   if (featured !== undefined) {
     query = query.eq("featured", featured);
   }
   if (categoryId && categoryId !== "all") {
     query = query.eq("category_id", categoryId);
+  }
+
+  // Apply ordering and pagination
+  if (sortBy) {
+    // Custom sorting by specified column
+    query = query.order(sortBy, { ascending: true }).range(offset, offset + limit - 1);
+  } else {
+    // Default to latest ordering
+    query = query.order("created_at", { ascending: false }).range(offset, offset + limit - 1);
   }
 
   const { data, error } = await query;

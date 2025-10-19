@@ -3,6 +3,7 @@
 import { Users, Target, Award, Globe } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useLanguage } from "@/contexts/LanguageContext";
+import Image from "next/image";
 
 const About = () => {
   const { t } = useLanguage();
@@ -83,10 +84,13 @@ const About = () => {
               </div>
             </div>
             <div>
-              <img
+              <Image
+                priority
                 src="/about.jpg"
+                width={500}
+                height={500}
                 alt={t("about.teamworkImgAlt")}
-                className="rounded-lg shadow-lg"
+                className="rounded-lg shadow-lg w-full"
               />
             </div>
           </div>
