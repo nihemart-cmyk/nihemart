@@ -515,8 +515,10 @@ export class KPayService {
     */
    static generateOrderReference(prefix = "NIHEMART"): string {
       const timestamp = Date.now();
+      // 6-digit zero-padded random number for compactness and readability
       const random = Math.floor(Math.random() * 1000000);
-      return `${prefix}_${timestamp}_${random}`;
+      const padded = String(random).padStart(6, "0");
+      return `${prefix}_${timestamp}_${padded}`;
    }
 }
 

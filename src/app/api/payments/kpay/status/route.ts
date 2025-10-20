@@ -49,14 +49,6 @@ export async function POST(request: NextRequest) {
          );
       }
 
-      console.log("Payment found in database:", {
-         paymentId: payment.id,
-         currentStatus: payment.status,
-         orderId: payment.order_id,
-         reference: payment.reference,
-         kpayTransactionId: payment.kpay_transaction_id,
-      });
-
       // If payment is already in final state, return current status
       if (payment.status === "completed" || payment.status === "failed") {
          return NextResponse.json({
@@ -260,7 +252,9 @@ export async function POST(request: NextRequest) {
                paymentId: payment.id,
                newStatus: updatedStatus,
                dbStatus: updatedPayment?.status,
-               hasWebhookData: Boolean((updatedPayment as any)?.kpay_webhook_data),
+               hasWebhookData: Boolean(
+                  (updatedPayment as any)?.kpay_webhook_data
+               ),
             });
 
             // Update the payment object with the new status for immediate return
@@ -287,6 +281,7 @@ export async function POST(request: NextRequest) {
                      .from("orders")
                      .update({
                         payment_status: "paid",
+                        is_paid: true,
                         updated_at: new Date().toISOString(),
                      })
                      .eq("id", payment.order_id);

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceSupabaseClient } from "@/utils/supabase/service";
 import { logger } from "@/lib/logger";
+import { initializeKPayService } from "@/lib/services/kpay";
 
 interface RouteParams {
    params: Promise<{
@@ -39,7 +40,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             { paymentId, error: paymentError?.message }
          );
 
-         // Try lookup by reference in payments
          try {
             const { data: byRef, error: byRefErr } = await supabase
                .from("payments")
@@ -65,63 +65,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
             });
          }
 
-         logger.info(
-            "api",
-            "Payment not found in payments table, checking payment_sessions",
-            { paymentId }
-         );
-
-         // Try to find a session-based payment (payment_sessions) by id or reference
-         try {
-            const { data: session, error: sessionErr } = await supabase
-               .from("payment_sessions")
-               .select(
-                  "id, status, amount, currency, reference, payment_method, customer_name, customer_email, customer_phone, cart, kpay_transaction_id, kpay_response, kpay_webhook_data, created_at, updated_at"
-               )
-               .or(`id.eq.${paymentId},reference.eq.${paymentId}`)
-               .maybeSingle();
-
-            if (sessionErr) {
-               logger.warn("api", "Failed to lookup payment session", {
-                  paymentId,
-                  error: sessionErr.message,
-               });
-            }
-
-            if (session) {
-               // Map session fields into the same shape expected by the payment page
-               const mapped = {
-                  id: session.id,
-                  order_id: null,
-                  amount: session.amount || 0,
-                  currency: session.currency || "RWF",
-                  payment_method: session.payment_method || "kpay",
-                  status: session.status || "pending",
-                  reference: session.reference || null,
-                  kpay_transaction_id: session.kpay_transaction_id || null,
-                  customer_name: session.customer_name || null,
-                  customer_email: session.customer_email || null,
-                  customer_phone: session.customer_phone || null,
-                  created_at: session.created_at || new Date().toISOString(),
-                  checkout_url:
-                     session.kpay_response?.url ||
-                     session.kpay_response?.redirecturl ||
-                     null,
-                  failure_reason:
-                     session.kpay_response?.failure_reason ||
-                     session.kpay_webhook_data?.statusdesc ||
-                     null,
-               } as any;
-
-               return NextResponse.json(mapped);
-            }
-         } catch (e) {
-            logger.error("api", "Error while querying payment_sessions", {
-               paymentId,
-               error: e instanceof Error ? e.message : String(e),
-            });
-         }
-
          logger.warn("api", "Payment not found", { paymentId });
          return NextResponse.json(
             { error: "Payment not found" },
@@ -136,53 +79,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
          amount: payment.amount,
       });
 
-      // If payment is pending, automatically check for status update
-      if (payment.status === "pending" && payment.kpay_transaction_id) {
-         logger.info("api", "Payment is pending, checking for updates", {
-            paymentId,
-         });
-
-         try {
-            // Make a status check request internally
-            const statusResponse = await fetch(
-               `${request.nextUrl.origin}/api/payments/kpay/status`,
-               {
-                  method: "POST",
-                  headers: {
-                     "Content-Type": "application/json",
-                  },
-                  body: JSON.stringify({ paymentId }),
-               }
-            );
-
-            if (statusResponse.ok) {
-               const statusData = await statusResponse.json();
-               logger.info("api", "Status check completed", {
-                  paymentId,
-                  newStatus: statusData.status,
-                  needsUpdate: statusData.needsUpdate,
-               });
-
-               // Return the updated status
-               if (statusData.needsUpdate) {
-                  payment.status = statusData.status;
-               }
-            }
-         } catch (statusError) {
-            logger.warn(
-               "api",
-               "Status check failed, returning current status",
-               {
-                  paymentId,
-                  error:
-                     statusError instanceof Error
-                        ? statusError.message
-                        : String(statusError),
-               }
-            );
-         }
-      }
-
+      // Return payment as-is; clients control status checks to avoid excessive server load
       return NextResponse.json(payment);
    } catch (error) {
       logger.error("api", "Failed to retrieve payment details", {
@@ -222,17 +119,23 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
 
       const supabase = createServiceSupabaseClient();
 
-      // Get payment
-      const { data: payment, error: paymentError } = await supabase
-         .from("payments")
-         .select("id, status, order_id")
-         .eq("id", paymentId)
-         .single();
+      // Get payment from payments table (by id or reference)
+      let payment: any = null;
+      try {
+         const { data: p, error: pErr } = await supabase
+            .from("payments")
+            .select("id, status, order_id, reference, kpay_transaction_id")
+            .or(`id.eq.${paymentId},reference.eq.${paymentId}`)
+            .maybeSingle();
 
-      if (paymentError || !payment) {
-         logger.error("api", "Payment not found", {
+         if (p && !pErr) payment = p;
+      } catch (e) {
+         logger.error("api", "Error fetching payment", { paymentId, error: e });
+      }
+
+      if (!payment) {
+         logger.error("api", "Payment not found in payments table", {
             paymentId,
-            error: paymentError?.message,
          });
          return NextResponse.json(
             { error: "Payment not found" },
@@ -253,16 +156,57 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
          );
       }
 
-      // Only link completed payments
+      // If payment is not completed yet, attempt reconciliation with KPay
       if (payment.status !== "completed" && payment.status !== "successful") {
-         logger.warn("api", "Cannot link non-completed payment", {
-            paymentId,
-            status: payment.status,
-         });
-         return NextResponse.json(
-            { error: "Can only link completed payments to orders" },
-            { status: 400 }
-         );
+         try {
+            const kpayService = initializeKPayService();
+            const kpayResp = await kpayService.checkPaymentStatus({
+               transactionId: payment.kpay_transaction_id || undefined,
+               orderReference: payment.reference || undefined,
+            });
+
+            const statusIdStr = String(kpayResp?.statusid || "").padStart(
+               2,
+               "0"
+            );
+
+            if (statusIdStr === "01") {
+               // Persist KPay completion info
+               const updateData: any = {
+                  status: "completed",
+                  completed_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                  kpay_response: kpayResp,
+                  kpay_return_code: kpayResp.retcode,
+               };
+               if (kpayResp.tid) updateData.kpay_transaction_id = kpayResp.tid;
+               if (kpayResp.momtransactionid)
+                  updateData.kpay_mom_transaction_id =
+                     kpayResp.momtransactionid;
+
+               const { error: reconcileErr } = await supabase
+                  .from("payments")
+                  .update(updateData)
+                  .eq("id", payment.id);
+
+               if (!reconcileErr) {
+                  payment.status = "completed";
+               }
+            } else {
+               return NextResponse.json(
+                  { error: "Payment not completed at gateway" },
+                  { status: 409 }
+               );
+            }
+         } catch (e) {
+            logger.warn("api", "KPay reconciliation failed during PATCH link", {
+               error: e,
+            });
+            return NextResponse.json(
+               { error: "Unable to verify payment status with gateway" },
+               { status: 503 }
+            );
+         }
       }
 
       // Verify order exists
@@ -284,13 +228,14 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       }
 
       // Link payment to order and update order status
+      const linkedPaymentId = payment?.id || paymentId;
       const { error: updateError } = await supabase
          .from("payments")
          .update({
             order_id: order_id,
             updated_at: new Date().toISOString(),
          })
-         .eq("id", paymentId);
+         .eq("id", linkedPaymentId);
 
       if (updateError) {
          logger.error("api", "Failed to link payment to order", {
@@ -311,6 +256,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
          .from("orders")
          .update({
             payment_status: "paid",
+            is_paid: true,
             updated_at: new Date().toISOString(),
          })
          .eq("id", order_id);
@@ -335,7 +281,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json({
          success: true,
          message: "Payment linked to order successfully",
-         paymentId,
+         paymentId: linkedPaymentId,
          orderId: order_id,
       });
    } catch (error) {

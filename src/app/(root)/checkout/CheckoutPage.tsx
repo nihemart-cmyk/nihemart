@@ -117,7 +117,19 @@ const CheckoutPage = ({
    // Clear all client-side checkout state after successful order creation
    const clearAllCheckoutClientState = () => {
       try {
+         // primary checkout storage key
          clearCheckoutStorage();
+      } catch (e) {}
+      try {
+         // Make double-sure to remove the key if different casing or older keys exist
+         if (typeof window !== "undefined") {
+            try {
+               localStorage.removeItem("nihemart_checkout_v1");
+            } catch (e) {}
+            try {
+               localStorage.removeItem("checkout");
+            } catch (e) {}
+         }
       } catch (e) {}
       try {
          if (typeof window !== "undefined") {
@@ -231,8 +243,6 @@ const CheckoutPage = ({
    const [ordersEnabled, setOrdersEnabled] = useState<boolean | null>(null);
 
    // Retry mode state (now passed as props). We also fall back to URL search params
-   const [existingOrder, setExistingOrder] = useState<any>(null);
-   const [loadingExistingOrder, setLoadingExistingOrder] = useState(false);
 
    // Enhanced phone formatting function
    const formatPhoneInput = (input: string) => {
@@ -360,7 +370,6 @@ const CheckoutPage = ({
       }
    }, [formData.address, selectedAddress]);
 
-   // Load existing order in retry mode
    // Derive effective retry flags: prefer props, fall back to search params
    // If searchParams is not populated (sometimes Next client hook is empty), fallback to parsing window.location.search
    const fallbackParams =
@@ -371,149 +380,17 @@ const CheckoutPage = ({
       isRetryMode ||
       searchParams?.get("retry") === "true" ||
       fallbackParams?.get("retry") === "true";
-   const effectiveRetryOrderId =
+
+   // Normalize orderId from props/query; treat literal 'null'/'undefined' as null
+   const _rawOrderId =
       retryOrderId ??
       searchParams?.get("orderId") ??
-      fallbackParams?.get("orderId") ??
+      (fallbackParams ? fallbackParams.get("orderId") : null) ??
       null;
-
-   useEffect(() => {
-      if (
-         !effectiveIsRetry ||
-         !effectiveRetryOrderId ||
-         (existingOrder?.id === effectiveRetryOrderId && !loadingExistingOrder)
-      ) {
-         return;
-      }
-
-      setLoadingExistingOrder(true);
-      console.debug("CheckoutPage: Loading order in retry mode:", {
-         effectiveRetryOrderId,
-         currentOrderId: existingOrder?.id,
-      });
-
-      (async () => {
-         try {
-            const response = await fetch(
-               `/api/orders/${effectiveRetryOrderId}`,
-               {
-                  cache: "no-store",
-                  headers: {
-                     "Cache-Control": "no-cache",
-                     Pragma: "no-cache",
-                  },
-               }
-            );
-
-            if (!response.ok) {
-               throw new Error(`Failed to load order: ${response.status}`);
-            }
-
-            const order = await response.json();
-            console.debug("CheckoutPage: Order loaded:", order);
-
-            // Set order items first to ensure they're available
-            const rawItems = order.order_items || order.items || [];
-            if (Array.isArray(rawItems) && rawItems.length > 0) {
-               const mappedItems = rawItems.map((item: any) => ({
-                  id: item.product_id || String(item.id || ""),
-                  name: item.product_name || item.name || "Product",
-                  price: Number(item.price || item.unit_price || 0),
-                  quantity: Number(item.quantity || 0),
-                  sku: item.product_sku,
-                  variation_id: item.product_variation_id || item.variation_id,
-                  variation_name: item.variation_name,
-               }));
-
-               console.debug(
-                  "CheckoutPage: Setting mapped order items:",
-                  mappedItems
-               );
-               setOrderItems(mappedItems);
-            }
-
-            // Set order data after items are set
-            setExistingOrder(order);
-
-            // Pre-fill form with existing order data
-            setFormData((prev) => ({
-               ...prev,
-               email: order.customer_email || order.email || "",
-               firstName: order.customer_first_name || order.first_name || "",
-               lastName: order.customer_last_name || order.last_name || "",
-               address: order.delivery_address || "",
-               city: order.delivery_city || "",
-               phone: order.customer_phone || order.phone || "",
-               delivery_notes: order.delivery_notes || "",
-            }));
-
-            // Set phone input in user-friendly format
-            const rawPhone = order.customer_phone || order.phone;
-            if (rawPhone) {
-               setPhoneInput(formatPhoneInput(rawPhone));
-            }
-
-            // Handle payment method
-            const originalPaymentMethod =
-               order.payment_method || order.paymentMethod;
-            setPaymentMethod(""); // Reset payment method for retry
-
-            // Pre-fill mobile money phone if applicable
-            if (
-               originalPaymentMethod === "mtn_momo" ||
-               originalPaymentMethod === "airtel_money"
-            ) {
-               setMobileMoneyPhones((prev) => ({
-                  ...prev,
-                  [originalPaymentMethod]: formatPhoneNumber(rawPhone) || "",
-               }));
-            }
-
-            // Try to match and select saved address
-            if (Array.isArray(savedAddresses) && savedAddresses.length > 0) {
-               const orderAddrRaw = (
-                  order.delivery_address || ""
-               ).toLowerCase();
-               const orderCity = (order.delivery_city || "").toLowerCase();
-
-               const match = savedAddresses.find((addr: any) => {
-                  const addrStr = [addr.display_name, addr.street, addr.city]
-                     .filter(Boolean)
-                     .join(" ")
-                     .toLowerCase();
-
-                  return (
-                     (orderAddrRaw && addrStr.includes(orderAddrRaw)) ||
-                     (orderCity && addrStr.includes(orderCity)) ||
-                     (addr.phone &&
-                        order.customer_phone &&
-                        addr.phone === order.customer_phone)
-                  );
-               });
-
-               if (match) {
-                  selectAddress(match.id);
-                  setFormData((prev) => ({
-                     ...prev,
-                     address: match.display_name || prev.address,
-                     city: match.city || prev.city,
-                     phone: match.phone || prev.phone,
-                  }));
-               }
-            }
-
-            toast.success(
-               "Order loaded successfully. Please select a new payment method."
-            );
-         } catch (error) {
-            console.error("CheckoutPage: Failed to load order:", error);
-            toast.error("Failed to load order details");
-            router.push("/checkout");
-         } finally {
-            setLoadingExistingOrder(false);
-         }
-      })();
-   }, [isRetryMode, retryOrderId, existingOrder, loadingExistingOrder, router]);
+   const effectiveRetryOrderId =
+      _rawOrderId && _rawOrderId !== "null" && _rawOrderId !== "undefined"
+         ? _rawOrderId
+         : null;
 
    // Restore persisted checkout state (if any) on mount
    useEffect(() => {
@@ -749,7 +626,11 @@ const CheckoutPage = ({
                await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
             }
 
-            // If we exit loop without finding an order, notify and clear reference
+            // If we exit loop without finding an order, notify and clear only
+            // the KPay reference. Preserve the checkout snapshot so the user
+            // can still complete the order on this page (avoids losing delivery
+            // instructions or other form data). The checkout storage will be
+            // cleared only after an actual order creation.
             if (mounted) {
                toast.error(
                   "Payment returned but verification timed out. Please check your orders page later."
@@ -757,9 +638,7 @@ const CheckoutPage = ({
                try {
                   sessionStorage.removeItem("kpay_reference");
                } catch (e) {}
-               try {
-                  clearCheckoutStorage();
-               } catch (e) {}
+               // NOTE: do NOT clear nihemart_checkout_v1 here — preserve checkout state
             }
          } catch (err) {
             console.error("Failed to poll payment status by reference:", err);
@@ -785,13 +664,17 @@ const CheckoutPage = ({
          // then clear any stored reference and show success banner; do NOT
          // start polling or re-initiate payments from the checkout page.
          if (p === "success" && !oid) {
-            // If we have a stored reference, trigger a status check to ensure the database reflects completion
+            // User returned from payment provider but no orderId was created by
+            // the webhook yet. Do NOT remove the stored kpay_reference here -
+            // preserve it so the checkout page (or the auto-link flow after
+            // order creation) can link the payment to the newly created order.
             try {
                const ref =
                   typeof window !== "undefined"
                      ? sessionStorage.getItem("kpay_reference")
                      : null;
                if (ref) {
+                  // trigger a best-effort status check so DB may be up-to-date
                   fetch(`/api/payments/kpay/status`, {
                      method: "POST",
                      headers: { "Content-Type": "application/json" },
@@ -799,9 +682,7 @@ const CheckoutPage = ({
                   }).catch(() => {});
                }
             } catch (e) {}
-            try {
-               sessionStorage.removeItem("kpay_reference");
-            } catch (e) {}
+
             // Inform the user that payment was successful and they can place order
             toast.success(
                "Payment completed successfully. You can now finalize your order on this page."
@@ -810,7 +691,7 @@ const CheckoutPage = ({
             try {
                setPaymentVerified(true);
             } catch (e) {}
-            // Prevent further auto-trigger behavior by ensuring paymentReturnedOrderId remains null
+            // Do not clear paymentReturnedOrderId - allow user to create order which will trigger linking
             return;
          }
 
@@ -838,75 +719,75 @@ const CheckoutPage = ({
    // after the order fetch.
    useEffect(() => {
       try {
-         if (!existingOrder) return;
+         // If there are no saved addresses, nothing to do
          if (!Array.isArray(savedAddresses) || savedAddresses.length === 0)
             return;
 
-         // If user already has a selected address that matches the order, do nothing
-         if (selectedAddress && existingOrder) {
-            const sel = selectedAddress;
-            const orderIdMatch =
-               sel && sel.id === existingOrder.selected_address_id;
-            if (orderIdMatch) return;
-         }
+         // If we're in retry mode, attempt to restore a previously persisted
+         // checkout snapshot from localStorage and match the saved address.
+         if (effectiveIsRetry) {
+            const persisted = loadCheckoutFromStorage();
+            if (persisted && persisted.formData) {
+               const orderAddrRaw = (
+                  persisted.formData.address || ""
+               ).toLowerCase();
+               const orderCity = (persisted.formData.city || "").toLowerCase();
+               const orderPhone = persisted.formData.phone || "";
 
-         const orderAddrRaw = (
-            existingOrder.delivery_address || ""
-         ).toLowerCase();
-         const orderCity = (existingOrder.delivery_city || "").toLowerCase();
-         const orderPhone = existingOrder.customer_phone || existingOrder.phone;
+               const match = savedAddresses.find((addr: any) => {
+                  const addrStr = [addr.display_name, addr.street, addr.city]
+                     .filter(Boolean)
+                     .join(" ")
+                     .toLowerCase();
 
-         const match = savedAddresses.find((addr: any) => {
-            const addrStr = [addr.display_name, addr.street, addr.city]
-               .filter(Boolean)
-               .join(" ")
-               .toLowerCase();
+                  return (
+                     (orderAddrRaw &&
+                        orderAddrRaw.length > 0 &&
+                        addrStr.includes(orderAddrRaw)) ||
+                     (orderCity &&
+                        orderCity.length > 0 &&
+                        addrStr.includes(orderCity)) ||
+                     (addr.phone && orderPhone && addr.phone === orderPhone)
+                  );
+               });
 
-            return (
-               (orderAddrRaw &&
-                  orderAddrRaw.length > 0 &&
-                  addrStr.includes(orderAddrRaw)) ||
-               (orderCity &&
-                  orderCity.length > 0 &&
-                  addrStr.includes(orderCity)) ||
-               (addr.phone && orderPhone && addr.phone === orderPhone)
-            );
-         });
+               if (match) {
+                  if (selectedAddress?.id !== match.id) {
+                     selectAddress(match.id);
+                     const foundSector = sectors.find(
+                        (s: any) =>
+                           s.sct_name === match.street ||
+                           s.sct_name === match.display_name ||
+                           s.sct_name === match.city
+                     );
+                     if (foundSector) {
+                        setSelectedSector(foundSector.sct_id);
+                        setSelectedDistrict(foundSector.sct_district);
+                        const foundDistrict = districts.find(
+                           (d) => d.dst_id === foundSector.sct_district
+                        );
+                        if (foundDistrict)
+                           setSelectedProvince(foundDistrict.dst_province);
+                     }
 
-         if (match) {
-            // Don't override if already selected
-            if (selectedAddress?.id === match.id) return;
-
-            selectAddress(match.id);
-
-            // Try to set sector/district/province if we can find a match in local lists
-            const foundSector = sectors.find(
-               (s: any) =>
-                  s.sct_name === match.street ||
-                  s.sct_name === match.display_name ||
-                  s.sct_name === match.city
-            );
-            if (foundSector) {
-               setSelectedSector(foundSector.sct_id);
-               setSelectedDistrict(foundSector.sct_district);
-               const foundDistrict = districts.find(
-                  (d) => d.dst_id === foundSector.sct_district
-               );
-               if (foundDistrict)
-                  setSelectedProvince(foundDistrict.dst_province);
+                     setFormData((prev) => ({
+                        ...prev,
+                        address: match.display_name || prev.address,
+                        city: match.city || prev.city,
+                        phone: match.phone || prev.phone,
+                     }));
+                  }
+               }
             }
 
-            setFormData((prev) => ({
-               ...prev,
-               address: match.display_name || prev.address,
-               city: match.city || prev.city,
-               phone: match.phone || prev.phone,
-            }));
+            return;
          }
+
+         // If not in retry mode, do nothing here.
       } catch (err) {
          console.error("Address preselect error:", err);
       }
-   }, [existingOrder, savedAddresses, selectedAddress, sectors, districts]);
+   }, [effectiveIsRetry, savedAddresses, selectedAddress, sectors, districts]);
 
    // Auto-select a reasonable default address when none is selected.
    // Priority: already-selected (do nothing) -> saved default (is_default) -> single address -> first address
@@ -989,13 +870,38 @@ const CheckoutPage = ({
 
    // Keep local orderItems in sync with cart context
    useEffect(() => {
-      // Don't sync cart items if we're in retry mode and have an existing order
-      if (effectiveIsRetry) {
-         console.debug("CheckoutPage: Skipping cart sync in retry mode");
-         return;
-      }
-
       try {
+         if (effectiveIsRetry) {
+            // Try restoring a lightweight cart snapshot from localStorage
+            const persisted = loadCheckoutFromStorage();
+            if (persisted) {
+               if (persisted.cart && Array.isArray(persisted.cart)) {
+                  try {
+                     setOrderItems(persisted.cart);
+                  } catch (e) {
+                     console.warn("Failed to restore persisted cart:", e);
+                  }
+               }
+
+               if (persisted.formData) {
+                  setFormData((prev) => ({ ...prev, ...persisted.formData }));
+               }
+
+               if (persisted.paymentMethod) {
+                  setPaymentMethod(persisted.paymentMethod);
+               }
+               if (persisted.mobileMoneyPhones) {
+                  setMobileMoneyPhones(persisted.mobileMoneyPhones);
+               }
+
+               console.debug(
+                  "CheckoutPage: Restored checkout snapshot from storage for retry mode"
+               );
+               return;
+            }
+            // If no persisted snapshot, fall through to sync from cart context
+         }
+
          if (Array.isArray(cartItems)) {
             console.debug("CheckoutPage: Syncing cart items to order items");
             const cleaned = cartItems.map((item: any) => ({
@@ -1012,10 +918,13 @@ const CheckoutPage = ({
             setOrderItems(cleaned);
          }
       } catch (err) {
-         console.error("CheckoutPage: Error syncing cart items:", err);
+         console.error(
+            "CheckoutPage: Error syncing/restoring cart items:",
+            err
+         );
       }
 
-      // Pre-fill user data if logged in
+      // Pre-fill user data if logged in (only when not in retry mode)
       if (user && !effectiveIsRetry) {
          console.debug("CheckoutPage: Pre-filling user data");
          setFormData((prev) => ({
@@ -1151,7 +1060,7 @@ const CheckoutPage = ({
          paymentVerified ||
          String(paymentMethod) === "cash_on_delivery");
 
-   const missingSteps: string[] = [];
+   let missingSteps: string[] = [];
    if (!hasItems) missingSteps.push("Add items to your cart");
    if (!hasAddress) missingSteps.push("Select or add a delivery address");
    if (!hasEmail) missingSteps.push("Provide a valid email");
@@ -1160,6 +1069,15 @@ const CheckoutPage = ({
    if (paymentRequiresVerification && !paymentVerified)
       missingSteps.push("Complete the payment (you will be redirected)");
 
+   // When in retry mode we restore state from localStorage. To avoid showing
+   // misleading missing-step messages while restoration completes (or when
+   // the URL contains orderId=null), simplify the message: only prompt to
+   // select another payment method rather than listing cart/email items.
+   if (effectiveIsRetry) {
+      const retryOnly: string[] = [];
+      if (!paymentMethod) retryOnly.push("Select another payment method");
+      missingSteps = retryOnly;
+   }
 
    // Determine if the selected location is Kigali
    const selectedProvinceObj = provinces.find(
@@ -1270,179 +1188,10 @@ const CheckoutPage = ({
       return formErrors;
    };
 
-   // Handle retry payment for existing orders
-   const handleRetryPayment = async () => {
-      if (paymentMethod === "cash_on_delivery") {
-         toast.error(
-            "Cannot retry payment with Cash on Delivery. Please select a different payment method."
-         );
-         return;
-      }
-
-      // Prevent duplicate submissions
-      if (isSubmitting || isInitiating) return;
-      setIsSubmitting(true);
-
-      try {
-         // Use mobile money phone number if available, otherwise fallback to address/form phone
-         const customerPhone =
-            paymentMethod === "mtn_momo" || paymentMethod === "airtel_money"
-               ? mobileMoneyPhones[paymentMethod] ||
-                 formatPhoneNumber(
-                    selectedAddress?.phone || formData.phone || ""
-                 )
-               : formatPhoneNumber(
-                    selectedAddress?.phone || formData.phone || ""
-                 );
-
-         const derivedFullName =
-            user?.user_metadata?.full_name?.trim() ||
-            `${formData.firstName || ""} ${formData.lastName || ""}`.trim();
-
-         const paymentRequest = {
-            orderId: existingOrder.id,
-            amount: existingOrder.total,
-            customerName: derivedFullName || undefined,
-            customerEmail: formData.email,
-            customerPhone,
-            paymentMethod: paymentMethod as keyof typeof PAYMENT_METHODS,
-            redirectUrl: `${window.location.origin}/checkout?payment=success&orderId=${existingOrder.id}`,
-         };
-
-         const validationErrors = validatePaymentRequest(paymentRequest);
-         if (validationErrors.length > 0) {
-            toast.error(`Payment validation failed: ${validationErrors[0]}`);
-            try {
-               clearCheckoutStorage();
-            } catch (e) {}
-            router.push(`/orders/${existingOrder.id}`);
-            return;
-         }
-
-         // Before calling retry, check if there's an existing pending payment
-         // for this order. If so, request the server to mark it as timed out
-         // on behalf of the client so we can create a new retry payment.
-         try {
-            const paymentsResp = await fetch(
-               `/api/payments/order/${existingOrder.id}`
-            );
-            if (paymentsResp.ok) {
-               const payments = await paymentsResp.json();
-               if (Array.isArray(payments) && payments.length > 0) {
-                  const pending = payments.find(
-                     (p: any) => p.status === "pending" && !p.client_timeout
-                  );
-                  if (pending) {
-                     // Attempt to mark the pending payment as timed out so retry can proceed
-                     try {
-                        const timeoutResp = await fetch(
-                           "/api/payments/timeout",
-                           {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({
-                                 paymentId: pending.id,
-                                 reason: "Client requested new payment method",
-                              }),
-                           }
-                        );
-
-                        if (!timeoutResp.ok) {
-                           const j = await timeoutResp.json().catch(() => ({}));
-                           // If marking timeout failed, inform the user and stop to avoid 409
-                           toast.error(
-                              j?.error ||
-                                 "Unable to cancel existing payment. Please wait a moment and try again."
-                           );
-                           setIsSubmitting(false);
-                           return;
-                        }
-                     } catch (err) {
-                        console.error(
-                           "Failed to mark pending payment timeout:",
-                           err
-                        );
-                        toast.error(
-                           "Unable to cancel existing payment. Please wait a moment and try again."
-                        );
-                        setIsSubmitting(false);
-                        return;
-                     }
-                  }
-               }
-            }
-         } catch (err) {
-            console.warn(
-               "Failed to fetch payments for order before retry:",
-               err
-            );
-            // If we couldn't check payments, fail safe and stop so we don't hit 409
-            toast.error(
-               "Could not verify existing payment status. Please try again shortly."
-            );
-            setIsSubmitting(false);
-            return;
-         }
-
-         // Use the retry endpoint which enforces client_timeout checks
-         const resp = await fetch("/api/payments/retry", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(paymentRequest),
-         });
-
-         const paymentResult = await resp.json();
-
-         if (resp.ok && paymentResult.success) {
-            toast.success("Initiating payment with new method...");
-            if (
-               paymentMethod === "visa_card" ||
-               paymentMethod === "mastercard"
-            ) {
-               if (paymentResult.checkoutUrl) {
-                  toast.success("Redirecting to secure payment...");
-                  const url = paymentResult.checkoutUrl as string;
-                  setTimeout(() => (window.location.href = url), 250);
-               } else {
-                  router.push(
-                     `/payment/${paymentResult.paymentId}?orderId=${existingOrder.id}`
-                  );
-               }
-            } else {
-               if (paymentResult.checkoutUrl) {
-                  const url = paymentResult.checkoutUrl as string;
-                  toast.success("Redirecting to payment gateway...");
-                  setTimeout(() => (window.location.href = url), 250);
-               } else {
-                  router.push(
-                     `/payment/${paymentResult.paymentId}?orderId=${existingOrder.id}`
-                  );
-               }
-            }
-         } else {
-            toast.error(
-               `Payment initiation failed: ${
-                  paymentResult.error || "Unknown error"
-               }`
-            );
-            try {
-               clearCheckoutStorage();
-            } catch (e) {}
-            router.push(`/orders/${existingOrder.id}`);
-         }
-      } catch (paymentError) {
-         console.error("Payment initiation failed:", paymentError);
-         toast.error(
-            "Payment initiation failed. Please try again or contact support."
-         );
-         try {
-            clearCheckoutStorage();
-         } catch (e) {}
-         router.push(`/orders/${existingOrder.id}`);
-      } finally {
-         setIsSubmitting(false);
-      }
-   };
+   // NOTE: Retry flows no longer rely on fetching existing orders server-side.
+   // We removed server-order-dependent retry logic. The checkout now uses the
+   // persisted local storage snapshot (CHECKOUT_STORAGE_KEY) and the current
+   // in-memory cart to initiate a new payment session.
 
    // Handle order creation or retry payment
    const handleCreateOrder = async () => {
@@ -1475,10 +1224,8 @@ const CheckoutPage = ({
       setIsSubmitting(true);
       setErrors({});
 
-      // If in retry mode, skip order creation and go directly to payment
-      if (isRetryMode && existingOrder) {
-         return handleRetryPayment();
-      }
+      // If in retry mode, we still allow the pre-pay flow using the local
+      // persisted checkout snapshot instead of fetching the server order.
 
       // Block creation early if orders are disabled
       if (ordersEnabled === false) {
@@ -1599,64 +1346,130 @@ const CheckoutPage = ({
 
                      // Attempt to link the completed session payment to the new order
                      try {
+                        let linkSucceeded = false;
                         const ref =
                            typeof window !== "undefined"
                               ? sessionStorage.getItem("kpay_reference")
                               : null;
-                        if (ref) {
-                           console.log("Linking payment to order", { reference: ref, orderId: createdOrder.id });
+
+                        if (!ref) {
+                           // No reference to link — treat as success for cleanup
+                           linkSucceeded = true;
+                        } else {
+                           console.log(
+                              "Linking payment to order via reference",
+                              { reference: ref, orderId: createdOrder.id }
+                           );
+                           // Primary linking path: server will find completed payment by reference and link
                            try {
-                              const statusResp = await fetch(
-                                 "/api/payments/kpay/status",
+                              const linkResp = await fetch(
+                                 "/api/payments/link",
                                  {
                                     method: "POST",
-                                    headers: { "Content-Type": "application/json" },
-                                    body: JSON.stringify({ reference: ref }),
+                                    headers: {
+                                       "Content-Type": "application/json",
+                                    },
+                                    body: JSON.stringify({
+                                       orderId: createdOrder.id,
+                                       reference: ref,
+                                    }),
                                  }
                               );
-                              if (statusResp.ok) {
-                                 const statusData = await statusResp.json();
-                                 const payId = statusData?.paymentId;
-                                 if (payId) {
-                                    console.log("Found payment to link", { paymentId: payId, orderId: createdOrder.id });
-                                    try {
-                                       const linkResp = await fetch(`/api/payments/${payId}`, {
-                                          method: "PATCH",
-                                          headers: { "Content-Type": "application/json" },
-                                          body: JSON.stringify({ order_id: createdOrder.id }),
-                                       });
-                                       if (linkResp.ok) {
-                                          console.log("Successfully linked payment to order", { paymentId: payId, orderId: createdOrder.id });
-                                       } else {
-                                          const linkErr = await linkResp.json().catch(() => ({}));
-                                          console.error("Failed to link payment to order", { paymentId: payId, orderId: createdOrder.id, error: linkErr });
-                                       }
-                                    } catch (linkError) {
-                                       console.error("Error linking payment to order", { paymentId: payId, orderId: createdOrder.id, error: linkError });
-                                    }
-                                 } else {
-                                    console.warn("No paymentId in status response", { statusData });
-                                 }
+                              if (linkResp.ok) {
+                                 linkSucceeded = true;
                               } else {
-                                 console.warn("Failed to fetch payment status", { reference: ref, status: statusResp.status });
+                                 const linkErr = await linkResp
+                                    .json()
+                                    .catch(() => ({}));
+                                 console.warn(
+                                    "/api/payments/link failed, falling back to status->PATCH",
+                                    linkErr
+                                 );
+                                 // Fallback: query status to obtain paymentId, then PATCH link
+                                 try {
+                                    const statusResp = await fetch(
+                                       "/api/payments/kpay/status",
+                                       {
+                                          method: "POST",
+                                          headers: {
+                                             "Content-Type": "application/json",
+                                          },
+                                          body: JSON.stringify({
+                                             reference: ref,
+                                          }),
+                                       }
+                                    );
+                                    if (statusResp.ok) {
+                                       const statusData =
+                                          await statusResp.json();
+                                       const payId = statusData?.paymentId;
+                                       if (payId) {
+                                          const patchResp = await fetch(
+                                             `/api/payments/${payId}`,
+                                             {
+                                                method: "PATCH",
+                                                headers: {
+                                                   "Content-Type":
+                                                      "application/json",
+                                                },
+                                                body: JSON.stringify({
+                                                   order_id: createdOrder.id,
+                                                }),
+                                             }
+                                          );
+                                          if (patchResp.ok) {
+                                             linkSucceeded = true;
+                                          } else {
+                                             const pErr = await patchResp
+                                                .json()
+                                                .catch(() => ({}));
+                                             console.error(
+                                                "Failed to PATCH link payment to order",
+                                                pErr
+                                             );
+                                          }
+                                       }
+                                    }
+                                 } catch (fbe) {
+                                    console.error(
+                                       "Fallback linking path failed",
+                                       fbe
+                                    );
+                                 }
                               }
-                           } catch (fetchError) {
-                              console.error("Error fetching payment status for linking", { reference: ref, error: fetchError });
+                           } catch (linkErr) {
+                              console.error(
+                                 "Error linking payment via reference",
+                                 linkErr
+                              );
                            }
-                        } else {
-                           console.log("No kpay_reference in sessionStorage, skipping payment linking");
                         }
-                     } catch (outerError) {
-                        console.error("Unexpected error during payment linking", { orderId: createdOrder.id, error: outerError });
-                     }
+                        if (linkSucceeded) {
+                           try {
+                              clearAllCheckoutClientState();
+                           } catch (e) {}
+                        } else {
+                           // Do not clear checkout snapshot — preserve user's data so they can retry
+                           toast(
+                              "Order created but payment linking did not complete. Your checkout data has been preserved — please check your orders page or retry linking from the payment page."
+                           );
+                        }
 
-                     try {
-                        clearAllCheckoutClientState();
-                     } catch (e) {}
-                     toast.success(
-                        `Order #${createdOrder.order_number} has been created successfully!`
-                     );
-                     router.push(`/orders/${createdOrder.id}`);
+                        toast.success(
+                           `Order #${createdOrder.order_number} has been created successfully!`
+                        );
+                        router.push(`/orders/${createdOrder.id}`);
+                     } catch (outerError) {
+                        console.error(
+                           "Unexpected error during payment linking",
+                           { orderId: createdOrder.id, error: outerError }
+                        );
+                        // In the unexpected error case, avoid clearing checkout snapshot
+                        toast(
+                           "Order created but an unexpected error occurred during payment linking. Your checkout data has been preserved."
+                        );
+                        router.push(`/orders/${createdOrder.id}`);
+                     }
                   },
                   onError: (error: any) => {
                      console.error("createOrder.onError", error);
@@ -1955,7 +1768,7 @@ Total: ${total.toLocaleString()} RWF
    };
 
    // Show empty cart message (but not in retry mode)
-   if (orderItems.length === 0 && !isRetryMode && !loadingExistingOrder) {
+   if (orderItems.length === 0 && !isRetryMode) {
       return (
          <div className="container mx-auto px-4 py-8 max-w-7xl">
             <div className="text-center py-12">
@@ -2028,118 +1841,22 @@ Total: ${total.toLocaleString()} RWF
             </div>
          )}
 
-         {/* Retry mode banner */}
-         {isRetryMode && existingOrder && (
+         {/* Retry mode banner (generic) */}
+         {isRetryMode && (
             <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                <div className="flex items-center">
                   <AlertCircle className="h-5 w-5 text-blue-600 mr-3" />
                   <div>
                      <p className="text-sm font-medium text-blue-900">
-                        Retrying payment for Order #
-                        {existingOrder.order_number ||
-                           (existingOrder.id
-                              ? String(existingOrder.id).slice(-8)
-                              : "")}
+                        Retry Payment
                      </p>
                      <p className="text-xs text-blue-700 mt-1">
                         Previous payment failed or timed out. Choose a different
-                        payment method below.
+                        payment method below. Your cart and delivery details
+                        were restored from your browser.
                      </p>
                      <div className="mt-2 text-xs text-blue-800">
-                        {existingOrder.payment_method && (
-                           <div>
-                              Previous method: {existingOrder.payment_method}
-                           </div>
-                        )}
-
-                        {/* Session-based payment success banner */}
-                        {(searchParams?.get("payment") === "success" ||
-                           (typeof window !== "undefined" &&
-                              new URLSearchParams(window.location.search).get(
-                                 "payment"
-                              ) === "success")) && (
-                           <div className="mb-6 p-4 rounded-lg bg-green-50 border border-green-200 text-green-900">
-                              <div className="flex items-center justify-between">
-                                 <div>
-                                    <p className="font-medium">
-                                       Payment completed
-                                    </p>
-                                    <p className="text-xs">
-                                       We received confirmation of your payment.
-                                       You can now place your order on this
-                                       page.
-                                    </p>
-                                 </div>
-                                 <div className="flex items-center gap-2">
-                                    {searchParams?.get("orderId") ? (
-                                       <Button
-                                          size="sm"
-                                          onClick={() =>
-                                             router.push(
-                                                `/orders/${searchParams.get(
-                                                   "orderId"
-                                                )}`
-                                             )
-                                          }
-                                          className="bg-green-600 hover:bg-green-700 text-white"
-                                       >
-                                          View Order
-                                       </Button>
-                                    ) : (
-                                       <Button
-                                          size="sm"
-                                          onClick={() => {
-                                             // If user hasn't completed required steps, prompt them
-                                             if (!allStepsCompleted) {
-                                                if (missingSteps.length > 0) {
-                                                   toast.error(
-                                                      `Please complete: ${missingSteps.join(
-                                                         ", "
-                                                      )}`
-                                                   );
-                                                } else {
-                                                   toast.error(
-                                                      "Please complete all required steps before placing your order."
-                                                   );
-                                                }
-                                                return;
-                                             }
-
-                                             // All good — clear session reference and create the order
-                                             try {
-                                                sessionStorage.removeItem(
-                                                   "kpay_reference"
-                                                );
-                                             } catch (e) {}
-                                             try {
-                                                // Start the shared create order flow
-                                                handleCreateOrder();
-                                             } catch (e) {
-                                                console.error(
-                                                   "Place Order (banner) failed:",
-                                                   e
-                                                );
-                                                toast.error(
-                                                   "Failed to place order. Please try again."
-                                                );
-                                             }
-                                          }}
-                                          className="bg-green-600 hover:bg-green-700 text-white"
-                                          disabled={!allStepsCompleted}
-                                       >
-                                          Place Order
-                                       </Button>
-                                    )}
-                                 </div>
-                              </div>
-                           </div>
-                        )}
-                        {existingOrder.total && (
-                           <div>
-                              Amount: RWF{" "}
-                              {Number(existingOrder.total).toLocaleString()}
-                           </div>
-                        )}
+                        <div>Amount: RWF {Number(total).toLocaleString()}</div>
                      </div>
                   </div>
                </div>
@@ -2156,14 +1873,7 @@ Total: ${total.toLocaleString()} RWF
          )}
 
          {/* Loading existing order */}
-         {isRetryMode && loadingExistingOrder && (
-            <div className="mb-6 flex items-center justify-center p-4 bg-gray-50 rounded-lg">
-               <Loader2 className="h-4 w-4 animate-spin mr-2" />
-               <span className="text-sm text-gray-600">
-                  Loading order details...
-               </span>
-            </div>
-         )}
+         {/* No server-side order loading in retry mode; state is restored from localStorage */}
 
          <div className="grid lg:grid-cols-2 gap-6 sm:gap-8">
             {/* Left Column - Forms */}
@@ -3090,7 +2800,7 @@ Total: ${total.toLocaleString()} RWF
 
                                                    const oid =
                                                       paymentReturnedOrderId ||
-                                                      existingOrder?.id;
+                                                      effectiveRetryOrderId;
                                                    if (oid) {
                                                       router.push(
                                                          `/orders/${oid}`

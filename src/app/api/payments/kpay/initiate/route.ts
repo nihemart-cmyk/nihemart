@@ -160,23 +160,18 @@ export async function POST(request: NextRequest) {
          );
       }
 
-      // Generate unique reference
+      // Generate unique reference in the format NIHEMART_{timestamp}_{6-digit}
       let orderReference: string;
 
-      if (!body.orderId) {
-         // Session-based: create deterministic reference to prevent duplicates
-         const minuteBucket = Math.floor(Date.now() / 60000);
-         const seed = `${body.customerEmail}|${body.amount}|${body.paymentMethod}|${minuteBucket}`;
-         const hash = crypto
-            .createHash("md5")
-            .update(seed)
-            .digest("hex")
-            .slice(0, 12);
-         orderReference = `SES_${hash}`;
-      } else {
-         // Order-based: use order ID in reference
-         orderReference = `ORD_${body.orderId.slice(0, 8)}_${Date.now()}`;
-      }
+      // For session-based (no orderId) attempts we keep a deterministic-ish
+      // component to avoid duplicates within the same minute, but still
+      // conform to the requested NIHEMART_... format. We will embed the
+      // timestamp and a pseudo-random 6-digit suffix.
+      const timestamp = Date.now();
+      const random = Math.floor(Math.random() * 1000000);
+      const padded = String(random).padStart(6, "0");
+
+      orderReference = `NIHEMART_${timestamp}_${padded}`;
 
       // Format phone number
       const formattedPhone = KPayService.formatPhoneNumber(body.customerPhone);

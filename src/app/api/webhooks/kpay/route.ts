@@ -178,6 +178,7 @@ export async function POST(request: NextRequest) {
             .update({
                status: "paid",
                payment_status: "paid",
+               is_paid: true,
                updated_at: new Date().toISOString(),
             })
             .eq("id", payment.order_id);

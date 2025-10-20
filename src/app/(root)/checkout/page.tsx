@@ -3,9 +3,9 @@ import CheckoutWrapper from "./CheckoutWrapper";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-   title: "Gusoza Ibyaguzwe",
+   title: "Checkout",
    description:
-      "Hagarika ibikorwa byawe, hitamo uburyo bwo kwishyura kandi wemeze itegeko ryawe kuri Nihemart.",
+      "Genzura ibikorwa byawe, hitamo uburyo bwo kwishyura kandi wemeze itegeko ryawe kuri Nihemart.",
 };
 
 const CheckoutPageWithSuspense = () => {
