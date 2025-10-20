@@ -12,6 +12,7 @@ import type { CreateOrderRequest } from "@/types/orders";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrders } from "@/hooks/useOrders";
 import { useCart } from "@/contexts/CartContext";
+import { supabase } from "@/integrations/supabase/client";
 import {
    Collapsible,
    CollapsibleTrigger,
@@ -228,6 +229,11 @@ const CheckoutPage = ({
    // Track when a payment flow is actively being initiated to avoid
    // the empty-cart redirect racing the redirect to external gateway
    const [paymentInProgress, setPaymentInProgress] = useState(false);
+   // When true, suppress automatic redirect to landing even if cart becomes empty.
+   // This prevents the UX where clearing the cart during order creation briefly
+   // navigates the user to the homepage before we navigate to the order page.
+   const [suppressEmptyCartRedirect, setSuppressEmptyCartRedirect] =
+      useState(false);
    // Payment method state (start empty so user must explicitly choose)
    const [paymentMethod, setPaymentMethod] = useState<
       keyof typeof PAYMENT_METHODS | "cash_on_delivery" | ""
@@ -846,25 +852,51 @@ const CheckoutPage = ({
    // Show a small banner when retrying due to timeout
    const retryTimedOut = Boolean(searchParams?.get("timedout"));
 
-   // Fetch orders_enabled flag so checkout can disable ordering when admin toggles it
+   // Fetch orders_enabled flag and subscribe for realtime changes
    useEffect(() => {
       let mounted = true;
       (async () => {
          try {
             const res = await fetch("/api/admin/settings/orders-enabled");
             if (!res.ok) {
-               if (mounted) setOrdersEnabled(true); // default to enabled on error
-               return;
+               if (mounted) setOrdersEnabled(true);
+            } else {
+               const j = await res.json();
+               if (mounted) setOrdersEnabled(Boolean(j.enabled));
             }
-            const j = await res.json();
-            if (mounted) setOrdersEnabled(Boolean(j.enabled));
          } catch (err) {
             console.warn("Failed to fetch orders_enabled flag:", err);
             if (mounted) setOrdersEnabled(true);
          }
       })();
+
+      // Realtime subscription to site_settings changes
+      const channel = supabase
+         .channel("site_settings_orders_enabled")
+         .on(
+            "postgres_changes",
+            {
+               event: "*",
+               schema: "public",
+               table: "site_settings",
+               filter: "key=eq.orders_enabled",
+            },
+            (payload: any) => {
+               try {
+                  const next = payload?.new?.value;
+                  const enabled =
+                     next === true || String(next) === "true" || (next && next === "true");
+                  setOrdersEnabled(Boolean(enabled));
+               } catch (e) {}
+            }
+         )
+         .subscribe();
+
       return () => {
          mounted = false;
+         try {
+            supabase.removeChannel(channel);
+         } catch (e) {}
       };
    }, []);
 
@@ -983,7 +1015,8 @@ const CheckoutPage = ({
          !isRetryMode &&
          !isSubmitting &&
          !isInitiating &&
-         !paymentInProgress
+         !paymentInProgress &&
+         !suppressEmptyCartRedirect
       ) {
          const timer = setTimeout(() => {
             router.push("/");
@@ -1335,6 +1368,8 @@ const CheckoutPage = ({
          ) {
             // Create the order now (payment already completed)
             try {
+               // Prevent the empty-cart redirect while we create the order and navigate
+               setSuppressEmptyCartRedirect(true);
                createOrder.mutate(orderData as CreateOrderRequest, {
                   onSuccess: async (createdOrder: any) => {
                      try {
@@ -1486,6 +1521,7 @@ const CheckoutPage = ({
                   },
                   onSettled: () => {
                      setIsSubmitting(false);
+                     setSuppressEmptyCartRedirect(false);
                   },
                });
             } catch (error: any) {
@@ -1637,6 +1673,8 @@ const CheckoutPage = ({
          }
 
          // Cash on delivery: create the order now
+         // Prevent the empty-cart redirect while we create the order and navigate
+         setSuppressEmptyCartRedirect(true);
          createOrder.mutate(orderData as CreateOrderRequest, {
             onSuccess: async (createdOrder: any) => {
                try {
@@ -1679,6 +1717,7 @@ const CheckoutPage = ({
             },
             onSettled: () => {
                setIsSubmitting(false);
+               setSuppressEmptyCartRedirect(false);
             },
          });
       } catch (error: any) {

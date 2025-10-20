@@ -8,7 +8,7 @@ import { logger } from "@/lib/logger";
  */
 export async function GET(request: NextRequest) {
    try {
-      logger.info("webhook-test", "Webhook test endpoint called", {
+      logger.info("webhook", "Webhook test endpoint called", {
          timestamp: new Date().toISOString(),
          origin: request.headers.get("origin"),
          userAgent: request.headers.get("user-agent"),
@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
          note: "Make sure this URL is configured in your KPay dashboard and is publicly accessible (not localhost unless using ngrok/tunneling)",
       });
    } catch (error) {
-      logger.error("webhook-test", "Webhook test failed", {
+      logger.error("webhook", "Webhook test failed", {
          error: error instanceof Error ? error.message : String(error),
       });
 
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
    try {
       const payload = await request.json();
 
-      logger.info("webhook-test", "Test webhook payload received", {
+      logger.info("webhook", "Test webhook payload received", {
          payload,
          timestamp: new Date().toISOString(),
       });
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
          timestamp: new Date().toISOString(),
       });
    } catch (error) {
-      logger.error("webhook-test", "Test webhook POST failed", {
+      logger.error("webhook", "Test webhook POST failed", {
          error: error instanceof Error ? error.message : String(error),
       });
 
