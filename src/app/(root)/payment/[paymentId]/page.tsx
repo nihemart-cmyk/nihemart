@@ -56,10 +56,15 @@ export default function PaymentPage() {
    const [payment, setPayment] = useState<PaymentData | null>(null);
    const [loading, setLoading] = useState(true);
    const [error, setError] = useState<string | null>(null);
-   const [statusCheckCount, setStatusCheckCount] = useState(0);
    const [paymentCompleted, setPaymentCompleted] = useState(false);
    const [stoppedPolling, setStoppedPolling] = useState(false);
    const timeoutReportedRef = useRef(false);
+   const pollingIntervalRef = useRef<number | null>(null);
+   const lastStatusCheckRef = useRef<number>(0);
+   const countdownIntervalRef = useRef<number | null>(null);
+   const deadlineRef = useRef<number | null>(null);
+   const [remainingSeconds, setRemainingSeconds] = useState<number | null>(300);
+   const statusCheckCountRef = useRef(0); // Add missing variable
 
    // Fetch payment data
    const fetchPaymentData = async () => {
@@ -83,11 +88,17 @@ export default function PaymentPage() {
       }
    };
 
-   // Check payment status periodically with exponential backoff and cap
+   // Check payment status periodically (interval configured elsewhere)
    const checkStatus = async () => {
       if (!payment || paymentCompleted || loading) return;
       if (stoppedPolling) return;
       if (timeoutReportedRef.current) return;
+      // Throttle: ensure at most one status check every 30s regardless of callers
+      const now = Date.now();
+      if (now - lastStatusCheckRef.current < 29500) return;
+      lastStatusCheckRef.current = now;
+      // Avoid making a status check if one is already in progress
+      if (isCheckingStatus) return;
 
       // stop polling for terminal statuses
       if (
@@ -98,10 +109,6 @@ export default function PaymentPage() {
          setStoppedPolling(true);
          return;
       }
-
-      // Maximum total checks to consider this a client-side timeout (~1 minute)
-      // Interval is 10s, so 6 checks ~= 60s
-      const maxStatusChecks = 6;
 
       try {
          const statusResult = await checkPaymentStatus({
@@ -117,19 +124,30 @@ export default function PaymentPage() {
                // If payment is successful, attempt to mark the order as paid on the server
                try {
                   // best-effort: call the update-status endpoint to mark the order as paid
-                  await fetch("/api/orders/update-status", {
-                     method: "POST",
-                     headers: { "Content-Type": "application/json" },
-                     body: JSON.stringify({
-                        id: orderId || payment.order_id,
-                        status: "paid",
-                        additionalFields: {
-                           payment_reference: payment.reference,
-                           kpay_transaction_id: payment.kpay_transaction_id,
-                           payment_amount: payment.amount,
-                        },
-                     }),
-                  });
+                  // Only call update-status when we have an order id (order-based flow).
+                  const targetOrderId = orderId || payment.order_id;
+                  if (targetOrderId) {
+                     await fetch("/api/orders/update-status", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                           id: targetOrderId,
+                           status: "paid",
+                           additionalFields: {
+                              payment_reference: payment.reference,
+                              kpay_transaction_id: payment.kpay_transaction_id,
+                              payment_amount: payment.amount,
+                           },
+                        }),
+                     });
+                  } else {
+                     // Session-based flow: there's no order to update yet. Ensure checkout does not re-initiate payment.
+                     // IMPORTANT: Do NOT remove the stored kpay_reference here.
+                     // The checkout page will read this reference after redirect and
+                     // perform the server-side linking when the user creates the
+                     // order. Removing it here causes the checkout to be unable
+                     // to link payments to newly created orders.
+                  }
                } catch (err) {
                   console.warn(
                      "Failed to notify server about payment success:",
@@ -137,15 +155,27 @@ export default function PaymentPage() {
                   );
                }
 
+               // Stop further polling immediately
+               setStoppedPolling(true);
+               // clear any running intervals immediately
+               if (pollingIntervalRef.current) {
+                  clearInterval(
+                     pollingIntervalRef.current as unknown as number
+                  );
+                  pollingIntervalRef.current = null;
+               }
+               if (countdownIntervalRef.current) {
+                  clearInterval(
+                     countdownIntervalRef.current as unknown as number
+                  );
+                  countdownIntervalRef.current = null;
+               }
                setPaymentCompleted(true);
                setPayment((prev) => (prev ? { ...prev, status: s } : null));
                toast.success("Payment completed successfully!");
 
-               setTimeout(() => {
-                  router.push(
-                     `/orders/${orderId || payment.order_id}?payment=success`
-                  );
-               }, 1500);
+               // Immediate redirect on success (no delay)
+               router.push(`/checkout?payment=success`);
                return;
             }
             if (s === "failed" || s === "cancelled") {
@@ -172,15 +202,32 @@ export default function PaymentPage() {
                   );
                }
 
+               // Return to checkout so user can retry or choose another method
+               // Stop polling immediately and then redirect
+               setStoppedPolling(true);
+               if (pollingIntervalRef.current) {
+                  clearInterval(
+                     pollingIntervalRef.current as unknown as number
+                  );
+                  pollingIntervalRef.current = null;
+               }
+               setTimeout(() => {
+                  router.push(`/checkout?payment=failed`);
+               }, 800);
                return;
             }
 
-            // Update intermediate/pending status
-            setPayment((prev) => (prev ? { ...prev, status: s } : null));
+            // Update status only if it changed, to avoid unnecessary rerenders/interval resets
+            if (payment && s && s !== payment.status) {
+               setPayment((prev) => (prev ? { ...prev, status: s } : null));
+            }
          } else if (statusResult.error) {
             console.error("Payment status check error:", statusResult.error);
+            // Increment status check count
+            statusCheckCountRef.current++;
+            const NOTICE_THRESHOLD = 3; // Define the threshold
             // Inform user if checks are taking long
-            if (statusCheckCount >= 6) {
+            if (statusCheckCountRef.current >= NOTICE_THRESHOLD) {
                toast.info(
                   "Payment is taking longer than usual. We'll keep checking for a bit longer...",
                   { duration: 4000 }
@@ -189,97 +236,15 @@ export default function PaymentPage() {
          }
       } catch (err) {
          console.error("Failed to check payment status:", err);
-         if (statusCheckCount >= 6) {
-            toast.error(
-               "Having trouble checking payment status. Please refresh the page or try a different payment method.",
-               { duration: 5000 }
-            );
-         }
+         toast.error(
+            "Having trouble checking payment status. Please refresh the page or try a different payment method.",
+            { duration: 5000 }
+         );
       }
 
-      // increment and check for timeout
-      setStatusCheckCount((prev) => {
-         const next = prev + 1;
-         if (next >= maxStatusChecks && !timeoutReportedRef.current) {
-            // mark timeout for UX and ask server for final status (in case webhook already arrived)
-            timeoutReportedRef.current = true;
-            (async () => {
-               try {
-                  const resp = await fetch("/api/payments/timeout", {
-                     method: "POST",
-                     headers: { "Content-Type": "application/json" },
-                     body: JSON.stringify({
-                        paymentId: payment.id,
-                        reason: "Client-side timeout after polling (1 minute)",
-                     }),
-                  });
-
-                  const data = await resp.json();
-
-                  // If server already marked payment completed, treat it as success
-                  if (
-                     data?.status &&
-                     (data.status === "completed" ||
-                        data.status === "successful")
-                  ) {
-                     setPaymentCompleted(true);
-                     setPayment((prev) =>
-                        prev ? { ...prev, status: data.status } : null
-                     );
-                     toast.success("Payment completed successfully!");
-                     setTimeout(() => {
-                        router.push(
-                           `/orders/${
-                              orderId || payment.order_id
-                           }?payment=success`
-                        );
-                     }, 1200);
-                     setStoppedPolling(true);
-                     return;
-                  }
-
-                  // Otherwise, show the timeout message once
-                  setPayment((prev) =>
-                     prev
-                        ? {
-                             ...prev,
-                             status: "timeout",
-                             failure_reason:
-                                "Payment took too long to process. You can try again or use a different payment method.",
-                          }
-                        : null
-                  );
-
-                  toast.error(
-                     "Payment took too long to process. You can try again or use a different payment method.",
-                     { duration: 6000 }
-                  );
-                  setStoppedPolling(true);
-               } catch (e) {
-                  console.error("Failed to record timeout:", e);
-                  // fallback UX if timeout recording fails
-                  setPayment((prev) =>
-                     prev
-                        ? {
-                             ...prev,
-                             status: "timeout",
-                             failure_reason:
-                                "Payment took too long to process. You can try again or use a different payment method.",
-                          }
-                        : null
-                  );
-                  toast.error(
-                     "Payment took too long to process. You can try again or use a different payment method.",
-                     { duration: 6000 }
-                  );
-                  setStoppedPolling(true);
-               }
-            })();
-         }
-
-         return next;
-      });
-   };
+      // Timeout handled by countdown; do nothing here.
+      // Countdown-driven timeout handles termination; no per-check timeout here.
+   }; // Removed extra closing brace
 
    useEffect(() => {
       fetchPaymentData();
@@ -288,12 +253,117 @@ export default function PaymentPage() {
    useEffect(() => {
       if (!payment || paymentCompleted || loading || stoppedPolling) return;
 
-      // Run an immediate check once, then poll every 10s
+      // Set deadline once
+      if (!deadlineRef.current) {
+         deadlineRef.current = Date.now() + 5 * 60 * 1000; // 5 minutes
+      }
+
+      // Run an immediate check once, then poll every 30s
       checkStatus();
 
-      const interval = setInterval(checkStatus, 10000);
-      return () => clearInterval(interval);
-      // note: intentionally not including statusCheckCount to avoid recreating the interval on every poll
+      // initialize remainingSeconds if null (5 minutes)
+      setRemainingSeconds((s) => (s == null ? 300 : s));
+
+      // create polling interval and store id
+      // NOTE: window.setInterval returns a number in browsers
+      pollingIntervalRef.current = window.setInterval(() => {
+         // Poll for status every 30s (countdown is handled separately every second)
+         checkStatus();
+      }, 30000) as unknown as number;
+
+      return () => {
+         if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current as unknown as number);
+            pollingIntervalRef.current = null;
+         }
+      };
+   }, [payment?.id, paymentCompleted, loading, stoppedPolling]);
+
+   // Start a 1s countdown timer for UX
+   useEffect(() => {
+      // start countdown only when pending and not stopped
+      if (!payment || paymentCompleted || loading || stoppedPolling) return;
+      if (payment.status !== "pending") return;
+
+      // Ensure deadline exists
+      if (!deadlineRef.current) {
+         deadlineRef.current = Date.now() + 5 * 60 * 1000;
+      }
+
+      // Immediate compute
+      setRemainingSeconds(() => {
+         const d = deadlineRef.current!;
+         return Math.max(0, Math.ceil((d - Date.now()) / 1000));
+      });
+
+      countdownIntervalRef.current = window.setInterval(() => {
+         const d = deadlineRef.current!;
+         const remaining = Math.max(0, Math.ceil((d - Date.now()) / 1000));
+         setRemainingSeconds(remaining);
+
+         if (remaining === 0 && !timeoutReportedRef.current) {
+            timeoutReportedRef.current = true;
+            // Stop polling and countdown
+            setStoppedPolling(true);
+            if (pollingIntervalRef.current) {
+               clearInterval(pollingIntervalRef.current as unknown as number);
+               pollingIntervalRef.current = null;
+            }
+            if (countdownIntervalRef.current) {
+               clearInterval(countdownIntervalRef.current as unknown as number);
+               countdownIntervalRef.current = null;
+            }
+            // Ask server to record timeout and update UI
+            (async () => {
+               try {
+                  const resp = await fetch("/api/payments/timeout", {
+                     method: "POST",
+                     headers: { "Content-Type": "application/json" },
+                     body: JSON.stringify({
+                        paymentId: payment.id,
+                        reason: "Client-side timeout after 5 minutes",
+                     }),
+                  });
+                  const data = await resp.json();
+                  if (
+                     data?.status === "completed" ||
+                     data?.status === "successful"
+                  ) {
+                     setPaymentCompleted(true);
+                     setPayment((prev) =>
+                        prev ? { ...prev, status: data.status } : null
+                     );
+                     toast.success("Payment completed successfully!");
+                     router.push(`/checkout?payment=success`);
+                     return;
+                  }
+                  setPayment((prev) =>
+                     prev
+                        ? {
+                             ...prev,
+                             status: "timeout",
+                             failure_reason:
+                                "Payment took too long to process. You can try again or use a different payment method.",
+                          }
+                        : null
+                  );
+                  toast.error(
+                     "Payment took too long to process. You can try again or use a different payment method.",
+                     { duration: 6000 }
+                  );
+               } catch (e) {
+                  console.error("Failed to record timeout:", e);
+               }
+            })();
+         }
+      }, 1000) as unknown as number;
+
+      return () => {
+         if (countdownIntervalRef.current) {
+            clearInterval(countdownIntervalRef.current as unknown as number);
+            countdownIntervalRef.current = null;
+         }
+      };
    }, [payment, paymentCompleted, loading, stoppedPolling]);
 
    const getStatusIcon = (status: string) => {
@@ -697,6 +767,61 @@ export default function PaymentPage() {
                                  Checking payment status...
                               </div>
                            )}
+
+                           {/* Remaining time UI */}
+                           {remainingSeconds != null &&
+                              remainingSeconds > 0 &&
+                              payment.status === "pending" &&
+                              !paymentCompleted && (
+                                 <div className="mt-3 sm:mt-4 p-3 bg-white rounded-lg border text-xs text-gray-600 flex items-center justify-between">
+                                    <div>
+                                       <strong>Timeout in:</strong>{" "}
+                                       <span>
+                                          {(() => {
+                                             const s = remainingSeconds || 0;
+                                             const mm = Math.floor(s / 60)
+                                                .toString()
+                                                .padStart(2, "0");
+                                             const ss = (s % 60)
+                                                .toString()
+                                                .padStart(2, "0");
+                                             return `${mm}:${ss}`;
+                                          })()}
+                                       </span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                       <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          onClick={() => {
+                                             // Let user stop polling but remain on page
+                                             setStoppedPolling(true);
+                                             if (pollingIntervalRef.current) {
+                                                clearInterval(
+                                                   pollingIntervalRef.current as unknown as number
+                                                );
+                                                pollingIntervalRef.current =
+                                                   null;
+                                             }
+                                             toast.info(
+                                                "Stopped automatic checks. You can refresh to retry or return to checkout."
+                                             );
+                                          }}
+                                       >
+                                          Stop Checking
+                                       </Button>
+                                       <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() =>
+                                             router.push(`/checkout`)
+                                          }
+                                       >
+                                          Return to Checkout
+                                       </Button>
+                                    </div>
+                                 </div>
+                              )}
                         </CardContent>
                      </Card>
                   )}
@@ -708,13 +833,18 @@ export default function PaymentPage() {
                            <Button
                               variant="outline"
                               onClick={() =>
+                                 // Return to checkout because order may not exist yet
                                  router.push(
-                                    `/orders/${orderId || payment.order_id}`
+                                    `/checkout${
+                                       paymentCompleted
+                                          ? "?payment=success"
+                                          : ""
+                                    }`
                                  )
                               }
                               className="w-full border-blue-300 text-blue-700 hover:bg-blue-50 text-xs sm:text-sm h-9 sm:h-11"
                            >
-                              View Order Details
+                              Back to Checkout
                            </Button>
 
                            {(payment.status === "failed" ||
@@ -775,16 +905,13 @@ export default function PaymentPage() {
                            {paymentCompleted && (
                               <Button
                                  onClick={() =>
-                                    router.push(
-                                       `/orders/${
-                                          orderId || payment.order_id
-                                       }?payment=success`
-                                    )
+                                    // Navigate back to checkout; order may be created by finalize flow there
+                                    router.push(`/checkout?payment=success`)
                                  }
                                  className="w-full bg-green-500 hover:bg-green-600 text-xs sm:text-sm h-9 sm:h-11"
                               >
                                  <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
-                                 Continue to Order
+                                 Continue to Checkout
                               </Button>
                            )}
                         </div>

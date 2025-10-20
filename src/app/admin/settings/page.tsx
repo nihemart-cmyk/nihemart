@@ -249,6 +249,34 @@ const AdminSettings: FC = () => {
       loadProfile();
       loadStats();
       loadOrderSettings();
+
+      // Realtime reflect orders_enabled changes in admin UI
+      const channel = supabase
+         .channel("admin_site_settings_orders_enabled")
+         .on(
+            "postgres_changes",
+            {
+               event: "*",
+               schema: "public",
+               table: "site_settings",
+               filter: "key=eq.orders_enabled",
+            },
+            (payload: any) => {
+               try {
+                  const next = payload?.new?.value;
+                  const enabled =
+                     next === true || String(next) === "true" || (next && next === "true");
+                  orderSettingsForm.setValue("ordersEnabled", Boolean(enabled));
+               } catch (e) {}
+            }
+         )
+         .subscribe();
+
+      return () => {
+         try {
+            supabase.removeChannel(channel);
+         } catch (e) {}
+      };
    }, [user, profileForm, orderSettingsForm, ridersData]);
 
    const onProfileSubmit = async (data: TProfileSchema) => {

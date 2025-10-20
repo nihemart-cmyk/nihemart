@@ -2,286 +2,192 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function updateSession(request: NextRequest) {
-   let supabaseResponse = NextResponse.next({
-      request,
-   });
+  let supabaseResponse = NextResponse.next({
+    request,
+  });
 
-   const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-         cookies: {
-            getAll() {
-               return request.cookies.getAll();
-            },
-            setAll(cookiesToSet) {
-               cookiesToSet.forEach(({ name, value, options }) =>
-                  request.cookies.set(name, value)
-               );
-               supabaseResponse = NextResponse.next({
-                  request,
-               });
-               cookiesToSet.forEach(({ name, value, options }) =>
-                  supabaseResponse.cookies.set(name, value, options)
-               );
-            },
-         },
-      }
-   );
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) =>
+            request.cookies.set(name, value)
+          );
+          supabaseResponse = NextResponse.next({
+            request,
+          });
+          cookiesToSet.forEach(({ name, value, options }) =>
+            supabaseResponse.cookies.set(name, value, options)
+          );
+        },
+      },
+    }
+  );
 
-   // Do not run code between createServerClient and
-   // supabase.auth.getUser(). A simple mistake could make it very hard to debug
-   // issues with users being randomly logged out.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-   // IMPORTANT: DO NOT REMOVE auth.getUser()
+  // Define public routes that don't require authentication
+  const publicRoutes = [
+    "/",
+    "/signin",
+    "/auth/signin",
+    "/products",
+    "/products/:path*",
+    "/about",
+    "/contact",
+    "/how-to-buy",
+    "/error",
+    // Add API routes that should be public (be careful with this)
+    "/api/auth/callback", // OAuth callback
+  ];
 
-   const {
-      data: { user },
-   } = await supabase.auth.getUser();
+  const isPublicRoute = publicRoutes.some(route => {
+    if (route.includes(':path*')) {
+      const baseRoute = route.replace('/:path*', '');
+      return request.nextUrl.pathname === baseRoute || 
+             request.nextUrl.pathname.startsWith(baseRoute + '/');
+    }
+    return request.nextUrl.pathname === route;
+  });
 
-   // Protect private routes only. Allow anonymous (not-logged-in) users
-   // to access public storefront pages such as '/', '/products', '/about',
-   // '/contact', etc. This prevents forcing anonymous shoppers to sign in
-   // while still protecting genuinely private areas like /profile, /admin,
-   // /checkout and /rider which are included in middleware matcher.
-   const publicPrefixesForAnonymous = [
-      "/",
-      "/products",
-      "/about",
-      "/contact",
-      "/how-to-buy",
-      "/_next",
-      "/static",
-      "/assets",
-      "/favicon.ico",
-      "/api",
-   ];
+  // Define protected routes
+  const protectedRoutes = [
+    "/checkout",
+    "/checkout/:path*",
+    "/profile",
+    "/profile/:path*",
+    "/admin",
+    "/admin/:path*",
+    "/rider",
+    "/rider/:path*",
+  ];
 
-   const isPublicForAnonymous = publicPrefixesForAnonymous.some(
-      (p) =>
-         request.nextUrl.pathname === p ||
-         request.nextUrl.pathname.startsWith(p + "/") ||
-         request.nextUrl.pathname.startsWith(p)
-   );
+  const isProtectedRoute = protectedRoutes.some(route => {
+    if (route.includes(':path*')) {
+      const baseRoute = route.replace('/:path*', '');
+      return request.nextUrl.pathname === baseRoute || 
+             request.nextUrl.pathname.startsWith(baseRoute + '/');
+    }
+    return request.nextUrl.pathname === route;
+  });
 
-   // If there's no user and the request is NOT for a public page, redirect
-   // to /signin. This keeps private routes protected but lets anonymous
-   // shoppers browse the storefront and add to cart without logging in.
-   if (
-      !user &&
-      !isPublicForAnonymous &&
-      !request.nextUrl.pathname.startsWith("/signin") &&
-      !request.nextUrl.pathname.startsWith("/auth") &&
-      !request.nextUrl.pathname.startsWith("/error")
-   ) {
-      // Redirect anonymous users to signin but preserve the original
-      // requested path (including search) as a `redirect` query param so
-      // after sign-in they can be sent back to where they started.
-      const url = request.nextUrl.clone();
-      const originalPathAndSearch =
-         request.nextUrl.pathname + request.nextUrl.search;
-      url.pathname = "/signin";
-      // Only set redirect if it's not the signin page itself
-      if (originalPathAndSearch && originalPathAndSearch !== "/signin") {
-         url.searchParams.set("redirect", originalPathAndSearch);
-      }
-      return NextResponse.redirect(url);
-   }
+  // If user is NOT logged in and trying to access protected route
+  if (!user && isProtectedRoute) {
+    const redirectUrl = new URL('/signin', request.url);
+    redirectUrl.searchParams.set('redirect', request.nextUrl.pathname + request.nextUrl.search);
+    return NextResponse.redirect(redirectUrl);
+  }
 
-   // Prevent logged-in users from accessing /signin or /auth/signin
-   if (
-      user &&
-      ["/signin", "/auth/signin", "(auth)/signin"].includes(
-         request.nextUrl.pathname
-      )
-   ) {
-      const url = request.nextUrl.clone();
+  // If user IS logged in and trying to access signin page
+  if (user && (request.nextUrl.pathname === '/signin' || request.nextUrl.pathname === '/auth/signin')) {
+    // Check if there's a redirect parameter first
+    const redirectParam = request.nextUrl.searchParams.get('redirect');
+    if (redirectParam && redirectParam.startsWith('/')) {
+      return NextResponse.redirect(new URL(redirectParam, request.url));
+    }
 
-      // If a safe `redirect` query param was provided (from the anonymous
-      // redirect above), prefer sending the logged-in user there first. This
-      // preserves the user's original intent (e.g. checkout) instead of always
-      // sending them to the role-based home.
-      const redirectParam = url.searchParams.get("redirect");
-      if (redirectParam && redirectParam.startsWith("/")) {
-         // Build an absolute URL to redirect to
-         const dest = new URL(redirectParam, request.nextUrl.origin);
-         return NextResponse.redirect(dest);
-      }
+    // Otherwise redirect based on role
+    const { data: roles } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id);
 
-      // Fetch user roles to determine redirect. Use user metadata as a fallback
-      // because the user_roles row may not exist yet immediately after admin-created users.
+    const metaRole = (user as any)?.user_metadata?.role as string | undefined;
+    const isAdmin = roles?.some((r: any) => r.role === "admin") || metaRole === "admin";
+    
+    let isRider = roles?.some((r: any) => r.role === "rider") || metaRole === "rider";
+    if (!isRider) {
+      const { data: riderRow } = await supabase
+        .from("riders")
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (riderRow) isRider = true;
+    }
+
+    if (isAdmin) {
+      return NextResponse.redirect(new URL('/admin', request.url));
+    } else if (isRider) {
+      return NextResponse.redirect(new URL('/rider', request.url));
+    } else {
+      return NextResponse.redirect(new URL('/', request.url));
+    }
+  }
+
+  // Role-based route protection
+  if (user) {
+    // Protect admin routes
+    if (request.nextUrl.pathname.startsWith('/admin')) {
       const { data: roles } = await supabase
-         .from("user_roles")
-         .select("role")
-         .eq("user_id", user.id);
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id);
 
       const metaRole = (user as any)?.user_metadata?.role as string | undefined;
-
-      const isAdmin =
-         roles?.some((r: any) => r.role === "admin") || metaRole === "admin";
-      let isRider =
-         roles?.some((r: any) => r.role === "rider") || metaRole === "rider";
-
-      // Fallback: if no explicit role found, check if a rider row exists for this user
-      // This helps newly-created rider accounts (admin-created) which may not have
-      // a user_roles row yet but do have a riders record.
-      if (!isRider) {
-         try {
-            const { data: riderRow } = await supabase
-               .from("riders")
-               .select("id")
-               .eq("user_id", user.id)
-               .maybeSingle();
-            if (riderRow && (riderRow as any).id) isRider = true;
-         } catch (e) {
-            // ignore errors and assume not a rider
-         }
-      }
-
-      if (isAdmin) {
-         url.pathname = "/admin";
-      } else if (isRider) {
-         url.pathname = "/rider";
-      } else {
-         url.pathname = "/";
-      }
-
-      return NextResponse.redirect(url);
-   }
-
-   // Protect /admin routes: only allow users with admin role
-   if (user && request.nextUrl.pathname.startsWith("/admin")) {
-      const { data: roles } = await supabase
-         .from("user_roles")
-         .select("role")
-         .eq("user_id", user.id);
-
-      const metaRole = (user as any)?.user_metadata?.role as string | undefined;
-      const isAdmin =
-         roles?.some((r: any) => r.role === "admin") || metaRole === "admin";
+      const isAdmin = roles?.some((r: any) => r.role === "admin") || metaRole === "admin";
 
       if (!isAdmin) {
-         const url = request.nextUrl.clone();
-         url.pathname = "/";
-         return NextResponse.redirect(url);
+        return NextResponse.redirect(new URL('/', request.url));
       }
-   }
+    }
 
-   // Protect /rider routes: only allow users with rider role
-   if (user && request.nextUrl.pathname.startsWith("/rider")) {
+    // Protect rider routes
+    if (request.nextUrl.pathname.startsWith('/rider')) {
       const { data: roles } = await supabase
-         .from("user_roles")
-         .select("role")
-         .eq("user_id", user.id);
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id);
 
       const metaRole = (user as any)?.user_metadata?.role as string | undefined;
-      const isRider =
-         roles?.some((r: any) => r.role === "rider") || metaRole === "rider";
+      let isRider = roles?.some((r: any) => r.role === "rider") || metaRole === "rider";
 
-      // Fallback: check riders table to allow rider users access if they have a riders row
       if (!isRider) {
-         const url = request.nextUrl.clone();
-         try {
-            const { data: riderRow } = await supabase
-               .from("riders")
-               .select("id")
-               .eq("user_id", user.id)
-               .maybeSingle();
-            if (!riderRow || !(riderRow as any).id) {
-               url.pathname = "/";
-               return NextResponse.redirect(url);
-            }
-            // else: riderRow exists, allow through
-         } catch (e) {
-            url.pathname = "/";
-            return NextResponse.redirect(url);
-         }
+        const { data: riderRow } = await supabase
+          .from("riders")
+          .select("id")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        if (!riderRow) {
+          return NextResponse.redirect(new URL('/', request.url));
+        }
+      }
+    }
+
+    // Redirect riders away from non-public, non-rider pages
+    if (!request.nextUrl.pathname.startsWith('/rider') && 
+        !request.nextUrl.pathname.startsWith('/api') &&
+        !isPublicRoute) {
+      
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id);
+
+      const metaRole = (user as any)?.user_metadata?.role as string | undefined;
+      let isRider = roles?.some((r: any) => r.role === "rider") || metaRole === "rider";
+
+      if (!isRider) {
+        const { data: riderRow } = await supabase
+          .from("riders")
+          .select("id")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        if (riderRow) isRider = true;
       }
 
-      // Riders are allowed through the /rider protection block; do not
-      // perform additional redirects here because that would cause a
-      // redirect-to-self loop when visiting /rider.
-   }
-
-   // Redirect authenticated riders away from non-public storefront pages
-   // Run this check only for requests NOT already under /rider to avoid
-   // self-redirect loops.
-   if (
-      user &&
-      !request.nextUrl.pathname.startsWith("/rider") &&
-      !request.nextUrl.pathname.startsWith("/auth") &&
-      !request.nextUrl.pathname.startsWith("/signin")
-   ) {
-      const pathname = request.nextUrl.pathname;
-
-      // Whitelist of paths/prefixes riders are allowed to visit
-      const riderAllowedPrefixes = [
-         "/about",
-         "/contact",
-         "/how-to-buy",
-         "/auth",
-         "/signin",
-         "/error",
-         "/api",
-         "/_next",
-         "/static",
-         "/assets",
-         "/favicon.ico",
-      ];
-
-      const isAllowed = riderAllowedPrefixes.some(
-         (p) =>
-            pathname === p ||
-            pathname.startsWith(p + "/") ||
-            pathname.startsWith(p)
-      );
-
-      if (!isAllowed) {
-         // Determine if the user is a rider (check user_roles, metadata, and riders table)
-         const { data: roles } = await supabase
-            .from("user_roles")
-            .select("role")
-            .eq("user_id", user.id);
-
-         const metaRole = (user as any)?.user_metadata?.role as
-            | string
-            | undefined;
-         let isRider =
-            roles?.some((r: any) => r.role === "rider") || metaRole === "rider";
-
-         if (!isRider) {
-            try {
-               const { data: riderRow } = await supabase
-                  .from("riders")
-                  .select("id")
-                  .eq("user_id", user.id)
-                  .maybeSingle();
-               if (riderRow && (riderRow as any).id) isRider = true;
-            } catch (e) {
-               // ignore fallback errors
-            }
-         }
-
-         if (isRider) {
-            const url = request.nextUrl.clone();
-            url.pathname = "/rider";
-            return NextResponse.redirect(url);
-         }
+      // If user is a rider, only allow rider routes and public routes
+      if (isRider) {
+        return NextResponse.redirect(new URL('/rider', request.url));
       }
-   }
+    }
+  }
 
-   // IMPORTANT: You *must* return the supabaseResponse object as it is.
-   // If you're creating a new response object with NextResponse.next() make sure to:
-   // 1. Pass the request in it, like so:
-   //    const myNewResponse = NextResponse.next({ request })
-   // 2. Copy over the cookies, like so:
-   //    myNewResponse.cookies.setAll(supabaseResponse.cookies.getAll())
-   // 3. Change the myNewResponse object to fit your needs, but avoid changing
-   //    the cookies!
-   // 4. Finally:
-   //    return myNewResponse
-   // If this is not done, you may be causing the browser and server to go out
-   // of sync and terminate the user's session prematurely!
-
-   return supabaseResponse;
+  return supabaseResponse;
 }

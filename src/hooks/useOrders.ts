@@ -187,6 +187,66 @@ export function useCreateOrder() {
                queryKey: orderKeys.userOrders(user.id),
             });
          }
+         // Safety: if a KPay session reference is present in sessionStorage,
+         // attempt to link the payment to the newly created order. This makes
+         // the linking resilient if the checkout page failed to perform the
+         // linking step (race or client navigation issues).
+         try {
+            if (typeof window !== "undefined") {
+               const ref = sessionStorage.getItem("kpay_reference");
+               if (ref && data?.id) {
+                  // Retry linking up to 3 times with exponential backoff. Only
+                  // clear the stored reference on success. This ensures the
+                  // checkout snapshot remains available until linking completes.
+                  (async () => {
+                     const maxAttempts = 3;
+                     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+                        try {
+                           const resp = await fetch("/api/payments/link", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                 orderId: data.id,
+                                 reference: ref,
+                              }),
+                           });
+
+                           if (resp.ok) {
+                              try {
+                                 sessionStorage.removeItem("kpay_reference");
+                              } catch (e) {}
+                              break;
+                           }
+
+                           // If the response is a 409 (already linked) treat as success
+                           if (resp.status === 409) {
+                              try {
+                                 sessionStorage.removeItem("kpay_reference");
+                              } catch (e) {}
+                              break;
+                           }
+
+                           // Non-OK responses will retry unless last attempt
+                           const body = await resp.json().catch(() => ({}));
+                           console.warn("Auto-link attempt failed:", {
+                              attempt,
+                              body,
+                           });
+                        } catch (e) {
+                           console.warn("Auto-link payment attempt failed:", e);
+                        }
+
+                        if (attempt < maxAttempts) {
+                           // backoff
+                           await new Promise((r) =>
+                              setTimeout(r, 500 * attempt)
+                           );
+                        }
+                     }
+                  })();
+               }
+            }
+         } catch (e) {}
       },
       onError: (error: Error) => {
          console.error("Regular Order Mutation - onError:", error);

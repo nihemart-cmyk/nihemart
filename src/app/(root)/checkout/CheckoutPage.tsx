@@ -12,6 +12,7 @@ import type { CreateOrderRequest } from "@/types/orders";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrders } from "@/hooks/useOrders";
 import { useCart } from "@/contexts/CartContext";
+import { supabase } from "@/integrations/supabase/client";
 import {
    Collapsible,
    CollapsibleTrigger,
@@ -81,6 +82,67 @@ const CheckoutPage = ({
       phone: "",
       delivery_notes: "",
    });
+   // LocalStorage persistence keys and helpers
+   const CHECKOUT_STORAGE_KEY = "nihemart_checkout_v1";
+
+   const loadCheckoutFromStorage = () => {
+      try {
+         if (typeof window === "undefined") return null;
+         const raw = localStorage.getItem(CHECKOUT_STORAGE_KEY);
+         if (!raw) return null;
+         return JSON.parse(raw);
+      } catch (err) {
+         console.warn("Failed to load checkout from storage:", err);
+         return null;
+      }
+   };
+
+   const saveCheckoutToStorage = (payload: any) => {
+      try {
+         if (typeof window === "undefined") return;
+         localStorage.setItem(CHECKOUT_STORAGE_KEY, JSON.stringify(payload));
+      } catch (err) {
+         console.warn("Failed to save checkout to storage:", err);
+      }
+   };
+
+   const clearCheckoutStorage = () => {
+      try {
+         if (typeof window === "undefined") return;
+         localStorage.removeItem(CHECKOUT_STORAGE_KEY);
+      } catch (err) {
+         /* ignore */
+      }
+   };
+
+   // Clear all client-side checkout state after successful order creation
+   const clearAllCheckoutClientState = () => {
+      try {
+         // primary checkout storage key
+         clearCheckoutStorage();
+      } catch (e) {}
+      try {
+         // Make double-sure to remove the key if different casing or older keys exist
+         if (typeof window !== "undefined") {
+            try {
+               localStorage.removeItem("nihemart_checkout_v1");
+            } catch (e) {}
+            try {
+               localStorage.removeItem("checkout");
+            } catch (e) {}
+         }
+      } catch (e) {}
+      try {
+         if (typeof window !== "undefined") {
+            sessionStorage.removeItem("kpay_reference");
+         }
+      } catch (e) {}
+      try {
+         if (typeof window !== "undefined") {
+            localStorage.removeItem("cart");
+         }
+      } catch (e) {}
+   };
    const [orderItems, setOrderItems] = useState<CartItem[]>([]);
    const [errors, setErrors] = useState<any>({});
 
@@ -159,10 +221,23 @@ const CheckoutPage = ({
       null
    );
    const [isSavingAddress, setIsSavingAddress] = useState(false);
-   // Payment method state (default to Cash on Delivery)
+   // Pre-pay flow state: track when a payment returned to checkout and whether it's verified
+   const [paymentReturnedOrderId, setPaymentReturnedOrderId] = useState<
+      string | null
+   >(null);
+   const [paymentVerified, setPaymentVerified] = useState<boolean>(false);
+   // Track when a payment flow is actively being initiated to avoid
+   // the empty-cart redirect racing the redirect to external gateway
+   const [paymentInProgress, setPaymentInProgress] = useState(false);
+   // When true, suppress automatic redirect to landing even if cart becomes empty.
+   // This prevents the UX where clearing the cart during order creation briefly
+   // navigates the user to the homepage before we navigate to the order page.
+   const [suppressEmptyCartRedirect, setSuppressEmptyCartRedirect] =
+      useState(false);
+   // Payment method state (start empty so user must explicitly choose)
    const [paymentMethod, setPaymentMethod] = useState<
       keyof typeof PAYMENT_METHODS | "cash_on_delivery" | ""
-   >("cash_on_delivery");
+   >("");
 
    // Mobile money phone numbers state
    const [mobileMoneyPhones, setMobileMoneyPhones] = useState<{
@@ -174,8 +249,6 @@ const CheckoutPage = ({
    const [ordersEnabled, setOrdersEnabled] = useState<boolean | null>(null);
 
    // Retry mode state (now passed as props). We also fall back to URL search params
-   const [existingOrder, setExistingOrder] = useState<any>(null);
-   const [loadingExistingOrder, setLoadingExistingOrder] = useState(false);
 
    // Enhanced phone formatting function
    const formatPhoneInput = (input: string) => {
@@ -303,7 +376,6 @@ const CheckoutPage = ({
       }
    }, [formData.address, selectedAddress]);
 
-   // Load existing order in retry mode
    // Derive effective retry flags: prefer props, fall back to search params
    // If searchParams is not populated (sometimes Next client hook is empty), fallback to parsing window.location.search
    const fallbackParams =
@@ -314,110 +386,359 @@ const CheckoutPage = ({
       isRetryMode ||
       searchParams?.get("retry") === "true" ||
       fallbackParams?.get("retry") === "true";
-   const effectiveRetryOrderId =
+
+   // Normalize orderId from props/query; treat literal 'null'/'undefined' as null
+   const _rawOrderId =
       retryOrderId ??
       searchParams?.get("orderId") ??
-      fallbackParams?.get("orderId") ??
+      (fallbackParams ? fallbackParams.get("orderId") : null) ??
       null;
+   const effectiveRetryOrderId =
+      _rawOrderId && _rawOrderId !== "null" && _rawOrderId !== "undefined"
+         ? _rawOrderId
+         : null;
 
+   // Restore persisted checkout state (if any) on mount
    useEffect(() => {
-      if (
-         !effectiveIsRetry ||
-         !effectiveRetryOrderId ||
-         (existingOrder?.id === effectiveRetryOrderId && !loadingExistingOrder)
-      ) {
-         return;
+      try {
+         const persisted = loadCheckoutFromStorage();
+         if (!persisted) return;
+
+         // Only restore when not in retry mode and when user hasn't already filled fields
+         if (!effectiveIsRetry) {
+            if (persisted.formData)
+               setFormData((prev) => ({ ...prev, ...persisted.formData }));
+            if (persisted.paymentMethod)
+               setPaymentMethod(persisted.paymentMethod);
+            if (persisted.mobileMoneyPhones)
+               setMobileMoneyPhones(persisted.mobileMoneyPhones);
+            if ((!orderItems || orderItems.length === 0) && persisted.cart) {
+               // restore lightweight cart snapshot
+               try {
+                  setOrderItems(persisted.cart);
+               } catch (e) {
+                  /* ignore */
+               }
+            }
+         }
+      } catch (err) {
+         console.warn("Failed to restore checkout state:", err);
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+   }, []);
+
+   // Persist checkout state when relevant parts change (debounced)
+   useEffect(() => {
+      const toSave = {
+         formData,
+         paymentMethod,
+         mobileMoneyPhones,
+         cart: orderItems,
+      };
+
+      const id = setTimeout(() => saveCheckoutToStorage(toSave), 250);
+      return () => clearTimeout(id);
+   }, [formData, paymentMethod, mobileMoneyPhones, orderItems]);
+
+   // Detect return from payment flow (e.g. ?payment=success&orderId=...)
+   useEffect(() => {
+      try {
+         const p =
+            searchParams?.get("payment") ||
+            (typeof window !== "undefined"
+               ? new URLSearchParams(window.location.search).get("payment")
+               : null);
+         const oid =
+            searchParams?.get("orderId") ||
+            (typeof window !== "undefined"
+               ? new URLSearchParams(window.location.search).get("orderId")
+               : null);
+         if (p === "success" && oid) {
+            setPaymentReturnedOrderId(oid);
+
+            // verify payment server-side to avoid spoofing
+            (async () => {
+               try {
+                  const resp = await fetch(`/api/payments/order/${oid}`);
+                  if (!resp.ok) {
+                     setPaymentVerified(false);
+                     return;
+                  }
+                  const payments = await resp.json();
+                  const ok =
+                     Array.isArray(payments) &&
+                     payments.some(
+                        (p: any) =>
+                           p.status === "completed" || p.status === "successful"
+                     );
+                  setPaymentVerified(!!ok);
+                  if (ok) {
+                     toast.success(
+                        "Payment completed successfully. You can now finalize your order."
+                     );
+                  } else {
+                     toast.error(
+                        "Payment returned but no successful payment was found. Please check your order or try another method."
+                     );
+                  }
+               } catch (e) {
+                  console.error("Failed to verify returned payment:", e);
+                  setPaymentVerified(false);
+               }
+            })();
+         }
+      } catch (e) {
+         // ignore
+      }
+   }, [searchParams]);
+
+   // Detect session-based return from KPay (no orderId in query). We store
+   // the kpay_reference in sessionStorage before redirecting. On return we
+   // poll the status endpoint by reference until the webhook has created the
+   // order (or a timeout occurs), then allow the user to finalize. If the
+   // query includes payment=success without an orderId, treat it as a
+   // session-based success and show a non-intrusive banner instead of
+   // re-initiating payments.
+   useEffect(() => {
+      let mounted = true;
+
+      const checkReference = async (reference: string) => {
+         try {
+            // Poll with exponential backoff up to ~12s
+            const maxAttempts = 6;
+            for (let attempt = 0; attempt < maxAttempts && mounted; attempt++) {
+               const resp = await fetch(`/api/payments/kpay/status`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ reference }),
+               });
+
+               if (!resp.ok) {
+                  // wait and retry
+                  await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+                  continue;
+               }
+
+               const data = await resp.json();
+
+               // If the status endpoint returned an order id (webhook created it), we can verify payments
+               if (data.orderId) {
+                  // Verify payments for the order
+                  try {
+                     const paymentsResp = await fetch(
+                        `/api/payments/order/${data.orderId}`
+                     );
+                     if (paymentsResp.ok) {
+                        const payments = await paymentsResp.json();
+                        const ok =
+                           Array.isArray(payments) &&
+                           payments.some(
+                              (p: any) =>
+                                 p.status === "completed" ||
+                                 p.status === "successful"
+                           );
+                        setPaymentReturnedOrderId(data.orderId);
+                        setPaymentVerified(!!ok);
+                        if (ok) {
+                           toast.success(
+                              "Payment completed successfully. You can now finalize your order."
+                           );
+                        } else {
+                           toast.error(
+                              "Payment returned but no successful payment was found. Please check your order or contact support."
+                           );
+                        }
+                        try {
+                           sessionStorage.removeItem("kpay_reference");
+                        } catch (e) {}
+                        try {
+                           clearCheckoutStorage();
+                        } catch (e) {}
+                        return;
+                     }
+                  } catch (e) {
+                     // continue polling
+                  }
+               }
+
+               // If the status endpoint returned the session info but no orderId,
+               // and the session status is 'completed', call the finalize endpoint
+               // to create the order and link payments.
+               if (!data.orderId && data.status === "completed") {
+                  try {
+                     // Call finalize endpoint with the reference
+                     const finResp = await fetch(
+                        `/api/payments/kpay/finalize`,
+                        {
+                           method: "POST",
+                           headers: { "Content-Type": "application/json" },
+                           body: JSON.stringify({ reference }),
+                        }
+                     );
+
+                     if (finResp.ok) {
+                        const finData = await finResp.json();
+                        if (finData?.success && finData.orderId) {
+                           setPaymentReturnedOrderId(finData.orderId);
+                           // Verify payments for the created order
+                           try {
+                              const paymentsResp2 = await fetch(
+                                 `/api/payments/order/${finData.orderId}`
+                              );
+                              if (paymentsResp2.ok) {
+                                 const payments2 = await paymentsResp2.json();
+                                 const ok2 =
+                                    Array.isArray(payments2) &&
+                                    payments2.some(
+                                       (p: any) =>
+                                          p.status === "completed" ||
+                                          p.status === "successful"
+                                    );
+                                 setPaymentVerified(!!ok2);
+                                 if (ok2) {
+                                    toast.success(
+                                       "Payment verified and order created. Redirecting to order..."
+                                    );
+                                    // Clear reference and navigate to order
+                                    try {
+                                       sessionStorage.removeItem(
+                                          "kpay_reference"
+                                       );
+                                    } catch (e) {}
+                                    try {
+                                       clearCheckoutStorage();
+                                    } catch (e) {}
+                                    setTimeout(
+                                       () =>
+                                          router.push(
+                                             `/orders/${finData.orderId}`
+                                          ),
+                                       250
+                                    );
+                                    return;
+                                 }
+                              }
+                           } catch (e) {
+                              // ignore verification error
+                           }
+                        }
+                     }
+                  } catch (err) {
+                     console.error("Failed to finalize session:", err);
+                  }
+               }
+
+               // If not found yet, wait then retry
+               await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+            }
+
+            // If we exit loop without finding an order, notify and clear only
+            // the KPay reference. Preserve the checkout snapshot so the user
+            // can still complete the order on this page (avoids losing delivery
+            // instructions or other form data). The checkout storage will be
+            // cleared only after an actual order creation.
+            if (mounted) {
+               toast.error(
+                  "Payment returned but verification timed out. Please check your orders page later."
+               );
+               try {
+                  sessionStorage.removeItem("kpay_reference");
+               } catch (e) {}
+               // NOTE: do NOT clear nihemart_checkout_v1 here — preserve checkout state
+            }
+         } catch (err) {
+            console.error("Failed to poll payment status by reference:", err);
+         }
+      };
+
+      try {
+         const p =
+            searchParams?.get("payment") ||
+            (typeof window !== "undefined"
+               ? new URLSearchParams(window.location.search).get("payment")
+               : null);
+         const oid =
+            searchParams?.get("orderId") ||
+            (typeof window !== "undefined"
+               ? new URLSearchParams(window.location.search).get("orderId")
+               : null);
+
+         // If already handled by the orderId-based flow above, skip
+         if (p === "success" && oid) return;
+
+         // If the URL indicates a success but there is no orderId (session-based)
+         // then clear any stored reference and show success banner; do NOT
+         // start polling or re-initiate payments from the checkout page.
+         if (p === "success" && !oid) {
+            // User returned from payment provider but no orderId was created by
+            // the webhook yet. Do NOT remove the stored kpay_reference here -
+            // preserve it so the checkout page (or the auto-link flow after
+            // order creation) can link the payment to the newly created order.
+            try {
+               const ref =
+                  typeof window !== "undefined"
+                     ? sessionStorage.getItem("kpay_reference")
+                     : null;
+               if (ref) {
+                  // trigger a best-effort status check so DB may be up-to-date
+                  fetch(`/api/payments/kpay/status`, {
+                     method: "POST",
+                     headers: { "Content-Type": "application/json" },
+                     body: JSON.stringify({ reference: ref }),
+                  }).catch(() => {});
+               }
+            } catch (e) {}
+
+            // Inform the user that payment was successful and they can place order
+            toast.success(
+               "Payment completed successfully. You can now finalize your order on this page."
+            );
+            // Mark payment as verified for session-based flows so the Place Order button becomes enabled
+            try {
+               setPaymentVerified(true);
+            } catch (e) {}
+            // Do not clear paymentReturnedOrderId - allow user to create order which will trigger linking
+            return;
+         }
+
+         // Check for stored reference and start polling by reference only if present
+         const ref =
+            typeof window !== "undefined"
+               ? sessionStorage.getItem("kpay_reference")
+               : null;
+         if (ref) {
+            // start polling
+            checkReference(ref);
+         }
+      } catch (e) {
+         /* ignore */
       }
 
-      setLoadingExistingOrder(true);
-      console.debug("CheckoutPage: Loading order in retry mode:", {
-         effectiveRetryOrderId,
-         currentOrderId: existingOrder?.id,
-      });
+      return () => {
+         mounted = false;
+      };
+   }, [searchParams]);
 
-      (async () => {
-         try {
-            const response = await fetch(
-               `/api/orders/${effectiveRetryOrderId}`,
-               {
-                  cache: "no-store",
-                  headers: {
-                     "Cache-Control": "no-cache",
-                     Pragma: "no-cache",
-                  },
-               }
-            );
+   // If saved addresses finish loading after we fetched the existing order,
+   // try matching and selecting the saved address. This runs separately so
+   // that address preselection works even when addresses load asynchronously
+   // after the order fetch.
+   useEffect(() => {
+      try {
+         // If there are no saved addresses, nothing to do
+         if (!Array.isArray(savedAddresses) || savedAddresses.length === 0)
+            return;
 
-            if (!response.ok) {
-               throw new Error(`Failed to load order: ${response.status}`);
-            }
-
-            const order = await response.json();
-            console.debug("CheckoutPage: Order loaded:", order);
-
-            // Set order items first to ensure they're available
-            const rawItems = order.order_items || order.items || [];
-            if (Array.isArray(rawItems) && rawItems.length > 0) {
-               const mappedItems = rawItems.map((item: any) => ({
-                  id: item.product_id || String(item.id || ""),
-                  name: item.product_name || item.name || "Product",
-                  price: Number(item.price || item.unit_price || 0),
-                  quantity: Number(item.quantity || 0),
-                  sku: item.product_sku,
-                  variation_id: item.product_variation_id || item.variation_id,
-                  variation_name: item.variation_name,
-               }));
-
-               console.debug(
-                  "CheckoutPage: Setting mapped order items:",
-                  mappedItems
-               );
-               setOrderItems(mappedItems);
-            }
-
-            // Set order data after items are set
-            setExistingOrder(order);
-
-            // Pre-fill form with existing order data
-            setFormData((prev) => ({
-               ...prev,
-               email: order.customer_email || order.email || "",
-               firstName: order.customer_first_name || order.first_name || "",
-               lastName: order.customer_last_name || order.last_name || "",
-               address: order.delivery_address || "",
-               city: order.delivery_city || "",
-               phone: order.customer_phone || order.phone || "",
-               delivery_notes: order.delivery_notes || "",
-            }));
-
-            // Set phone input in user-friendly format
-            const rawPhone = order.customer_phone || order.phone;
-            if (rawPhone) {
-               setPhoneInput(formatPhoneInput(rawPhone));
-            }
-
-            // Handle payment method
-            const originalPaymentMethod =
-               order.payment_method || order.paymentMethod;
-            setPaymentMethod(""); // Reset payment method for retry
-
-            // Pre-fill mobile money phone if applicable
-            if (
-               originalPaymentMethod === "mtn_momo" ||
-               originalPaymentMethod === "airtel_money"
-            ) {
-               setMobileMoneyPhones((prev) => ({
-                  ...prev,
-                  [originalPaymentMethod]: formatPhoneNumber(rawPhone) || "",
-               }));
-            }
-
-            // Try to match and select saved address
-            if (Array.isArray(savedAddresses) && savedAddresses.length > 0) {
+         // If we're in retry mode, attempt to restore a previously persisted
+         // checkout snapshot from localStorage and match the saved address.
+         if (effectiveIsRetry) {
+            const persisted = loadCheckoutFromStorage();
+            if (persisted && persisted.formData) {
                const orderAddrRaw = (
-                  order.delivery_address || ""
+                  persisted.formData.address || ""
                ).toLowerCase();
-               const orderCity = (order.delivery_city || "").toLowerCase();
+               const orderCity = (persisted.formData.city || "").toLowerCase();
+               const orderPhone = persisted.formData.phone || "";
 
                const match = savedAddresses.find((addr: any) => {
                   const addrStr = [addr.display_name, addr.street, addr.city]
@@ -426,113 +747,53 @@ const CheckoutPage = ({
                      .toLowerCase();
 
                   return (
-                     (orderAddrRaw && addrStr.includes(orderAddrRaw)) ||
-                     (orderCity && addrStr.includes(orderCity)) ||
-                     (addr.phone &&
-                        order.customer_phone &&
-                        addr.phone === order.customer_phone)
+                     (orderAddrRaw &&
+                        orderAddrRaw.length > 0 &&
+                        addrStr.includes(orderAddrRaw)) ||
+                     (orderCity &&
+                        orderCity.length > 0 &&
+                        addrStr.includes(orderCity)) ||
+                     (addr.phone && orderPhone && addr.phone === orderPhone)
                   );
                });
 
                if (match) {
-                  selectAddress(match.id);
-                  setFormData((prev) => ({
-                     ...prev,
-                     address: match.display_name || prev.address,
-                     city: match.city || prev.city,
-                     phone: match.phone || prev.phone,
-                  }));
+                  if (selectedAddress?.id !== match.id) {
+                     selectAddress(match.id);
+                     const foundSector = sectors.find(
+                        (s: any) =>
+                           s.sct_name === match.street ||
+                           s.sct_name === match.display_name ||
+                           s.sct_name === match.city
+                     );
+                     if (foundSector) {
+                        setSelectedSector(foundSector.sct_id);
+                        setSelectedDistrict(foundSector.sct_district);
+                        const foundDistrict = districts.find(
+                           (d) => d.dst_id === foundSector.sct_district
+                        );
+                        if (foundDistrict)
+                           setSelectedProvince(foundDistrict.dst_province);
+                     }
+
+                     setFormData((prev) => ({
+                        ...prev,
+                        address: match.display_name || prev.address,
+                        city: match.city || prev.city,
+                        phone: match.phone || prev.phone,
+                     }));
+                  }
                }
             }
 
-            toast.success(
-               "Order loaded successfully. Please select a new payment method."
-            );
-         } catch (error) {
-            console.error("CheckoutPage: Failed to load order:", error);
-            toast.error("Failed to load order details");
-            router.push("/checkout");
-         } finally {
-            setLoadingExistingOrder(false);
-         }
-      })();
-   }, [isRetryMode, retryOrderId, existingOrder, loadingExistingOrder, router]);
-
-   // If saved addresses finish loading after we fetched the existing order,
-   // try matching and selecting the saved address. This runs separately so
-   // that address preselection works even when addresses load asynchronously
-   // after the order fetch.
-   useEffect(() => {
-      try {
-         if (!existingOrder) return;
-         if (!Array.isArray(savedAddresses) || savedAddresses.length === 0)
             return;
-
-         // If user already has a selected address that matches the order, do nothing
-         if (selectedAddress && existingOrder) {
-            const sel = selectedAddress;
-            const orderIdMatch =
-               sel && sel.id === existingOrder.selected_address_id;
-            if (orderIdMatch) return;
          }
 
-         const orderAddrRaw = (
-            existingOrder.delivery_address || ""
-         ).toLowerCase();
-         const orderCity = (existingOrder.delivery_city || "").toLowerCase();
-         const orderPhone = existingOrder.customer_phone || existingOrder.phone;
-
-         const match = savedAddresses.find((addr: any) => {
-            const addrStr = [addr.display_name, addr.street, addr.city]
-               .filter(Boolean)
-               .join(" ")
-               .toLowerCase();
-
-            return (
-               (orderAddrRaw &&
-                  orderAddrRaw.length > 0 &&
-                  addrStr.includes(orderAddrRaw)) ||
-               (orderCity &&
-                  orderCity.length > 0 &&
-                  addrStr.includes(orderCity)) ||
-               (addr.phone && orderPhone && addr.phone === orderPhone)
-            );
-         });
-
-         if (match) {
-            // Don't override if already selected
-            if (selectedAddress?.id === match.id) return;
-
-            selectAddress(match.id);
-
-            // Try to set sector/district/province if we can find a match in local lists
-            const foundSector = sectors.find(
-               (s: any) =>
-                  s.sct_name === match.street ||
-                  s.sct_name === match.display_name ||
-                  s.sct_name === match.city
-            );
-            if (foundSector) {
-               setSelectedSector(foundSector.sct_id);
-               setSelectedDistrict(foundSector.sct_district);
-               const foundDistrict = districts.find(
-                  (d) => d.dst_id === foundSector.sct_district
-               );
-               if (foundDistrict)
-                  setSelectedProvince(foundDistrict.dst_province);
-            }
-
-            setFormData((prev) => ({
-               ...prev,
-               address: match.display_name || prev.address,
-               city: match.city || prev.city,
-               phone: match.phone || prev.phone,
-            }));
-         }
+         // If not in retry mode, do nothing here.
       } catch (err) {
          console.error("Address preselect error:", err);
       }
-   }, [existingOrder, savedAddresses, selectedAddress, sectors, districts]);
+   }, [effectiveIsRetry, savedAddresses, selectedAddress, sectors, districts]);
 
    // Auto-select a reasonable default address when none is selected.
    // Priority: already-selected (do nothing) -> saved default (is_default) -> single address -> first address
@@ -554,22 +815,24 @@ const CheckoutPage = ({
          if (!pick) pick = savedAddresses[0];
 
          if (pick) {
-            selectAddress(pick.id);
+            // capture values locally to avoid TS complaints about possibly undefined pick within closures
+            const _pick = pick as any;
+            selectAddress(_pick.id);
 
             // Populate form fields with picked address
             setFormData((prev) => ({
                ...prev,
-               address: pick.display_name || prev.address,
-               city: pick.city || prev.city,
-               phone: pick.phone || prev.phone,
+               address: _pick.display_name || prev.address,
+               city: _pick.city || prev.city,
+               phone: _pick.phone || prev.phone,
             }));
 
             // Try to match location selections based on picked address
             const foundSector = sectors.find(
                (s: any) =>
-                  s.sct_name === pick.street ||
-                  s.sct_name === pick.display_name ||
-                  s.sct_name === pick.city
+                  s.sct_name === _pick.street ||
+                  s.sct_name === _pick.display_name ||
+                  s.sct_name === _pick.city
             );
             if (foundSector) {
                setSelectedSector(foundSector.sct_id);
@@ -589,37 +852,88 @@ const CheckoutPage = ({
    // Show a small banner when retrying due to timeout
    const retryTimedOut = Boolean(searchParams?.get("timedout"));
 
-   // Fetch orders_enabled flag so checkout can disable ordering when admin toggles it
+   // Fetch orders_enabled flag and subscribe for realtime changes
    useEffect(() => {
       let mounted = true;
       (async () => {
          try {
             const res = await fetch("/api/admin/settings/orders-enabled");
             if (!res.ok) {
-               if (mounted) setOrdersEnabled(true); // default to enabled on error
-               return;
+               if (mounted) setOrdersEnabled(true);
+            } else {
+               const j = await res.json();
+               if (mounted) setOrdersEnabled(Boolean(j.enabled));
             }
-            const j = await res.json();
-            if (mounted) setOrdersEnabled(Boolean(j.enabled));
          } catch (err) {
             console.warn("Failed to fetch orders_enabled flag:", err);
             if (mounted) setOrdersEnabled(true);
          }
       })();
+
+      // Realtime subscription to site_settings changes
+      const channel = supabase
+         .channel("site_settings_orders_enabled")
+         .on(
+            "postgres_changes",
+            {
+               event: "*",
+               schema: "public",
+               table: "site_settings",
+               filter: "key=eq.orders_enabled",
+            },
+            (payload: any) => {
+               try {
+                  const next = payload?.new?.value;
+                  const enabled =
+                     next === true || String(next) === "true" || (next && next === "true");
+                  setOrdersEnabled(Boolean(enabled));
+               } catch (e) {}
+            }
+         )
+         .subscribe();
+
       return () => {
          mounted = false;
+         try {
+            supabase.removeChannel(channel);
+         } catch (e) {}
       };
    }, []);
 
    // Keep local orderItems in sync with cart context
    useEffect(() => {
-      // Don't sync cart items if we're in retry mode and have an existing order
-      if (effectiveIsRetry) {
-         console.debug("CheckoutPage: Skipping cart sync in retry mode");
-         return;
-      }
-
       try {
+         if (effectiveIsRetry) {
+            // Try restoring a lightweight cart snapshot from localStorage
+            const persisted = loadCheckoutFromStorage();
+            if (persisted) {
+               if (persisted.cart && Array.isArray(persisted.cart)) {
+                  try {
+                     setOrderItems(persisted.cart);
+                  } catch (e) {
+                     console.warn("Failed to restore persisted cart:", e);
+                  }
+               }
+
+               if (persisted.formData) {
+                  setFormData((prev) => ({ ...prev, ...persisted.formData }));
+               }
+
+               if (persisted.paymentMethod) {
+                  setPaymentMethod(persisted.paymentMethod);
+               }
+               if (persisted.mobileMoneyPhones) {
+                  setMobileMoneyPhones(persisted.mobileMoneyPhones);
+               }
+
+               console.debug(
+                  "CheckoutPage: Restored checkout snapshot from storage for retry mode"
+               );
+               return;
+            }
+            // If no persisted snapshot, fall through to sync from cart context
+         }
+
          if (Array.isArray(cartItems)) {
             console.debug("CheckoutPage: Syncing cart items to order items");
             const cleaned = cartItems.map((item: any) => ({
@@ -636,10 +950,13 @@ const CheckoutPage = ({
             setOrderItems(cleaned);
          }
       } catch (err) {
-         console.error("CheckoutPage: Error syncing cart items:", err);
+         console.error(
+            "CheckoutPage: Error syncing/restoring cart items:",
+            err
+         );
       }
 
-      // Pre-fill user data if logged in
+      // Pre-fill user data if logged in (only when not in retry mode)
       if (user && !effectiveIsRetry) {
          console.debug("CheckoutPage: Pre-filling user data");
          setFormData((prev) => ({
@@ -697,7 +1014,9 @@ const CheckoutPage = ({
          orderItems.length === 0 &&
          !isRetryMode &&
          !isSubmitting &&
-         !isInitiating
+         !isInitiating &&
+         !paymentInProgress &&
+         !suppressEmptyCartRedirect
       ) {
          const timer = setTimeout(() => {
             router.push("/");
@@ -705,7 +1024,14 @@ const CheckoutPage = ({
          return () => clearTimeout(timer);
       }
       return;
-   }, [orderItems.length, router, isRetryMode, isSubmitting, isInitiating]);
+   }, [
+      orderItems.length,
+      router,
+      isRetryMode,
+      isSubmitting,
+      isInitiating,
+      paymentInProgress,
+   ]);
 
    const subtotal = orderItems.reduce(
       (sum, item) =>
@@ -721,6 +1047,70 @@ const CheckoutPage = ({
       : undefined;
    const transport = sectorFee ?? 2000;
    const total = subtotal + transport;
+
+   // Pre-pay gating: compute required completion flags
+   const hasItems = orderItems.length > 0;
+   const hasAddress = Boolean(
+      (selectedAddress &&
+         (selectedAddress.display_name || selectedAddress.city)) ||
+         (formData.address && formData.address.trim())
+   );
+   const hasEmail = Boolean(formData.email && formData.email.trim());
+   const phoneForCheck = (
+      selectedAddress?.phone ||
+      formData.phone ||
+      ""
+   ).toString();
+   const formattedPhoneForCheck = formatPhoneNumber(phoneForCheck || "");
+   const hasValidPhone = /^07\d{8}$/.test(formattedPhoneForCheck);
+
+   // Payment selection: For pre-pay we require a non-COD method to be selected and verified
+   const paymentRequiresVerification =
+      paymentMethod && paymentMethod !== "cash_on_delivery";
+
+   // If user returned from a session-based payment success (payment=success with no orderId),
+   // treat the payment as verified and don't show the "Proceed to payment" button.
+   const urlPaymentParam =
+      typeof window !== "undefined"
+         ? new URLSearchParams(window.location.search).get("payment")
+         : null;
+   const urlOrderIdParam =
+      typeof window !== "undefined"
+         ? new URLSearchParams(window.location.search).get("orderId")
+         : null;
+   const sessionPaymentSuccess =
+      urlPaymentParam === "success" && !urlOrderIdParam;
+
+   const allStepsCompleted =
+      hasItems &&
+      hasAddress &&
+      hasEmail &&
+      hasValidPhone &&
+      // Require that the user has explicitly selected a payment method
+      Boolean(paymentMethod) &&
+      // If payment requires verification, user must have completed payment return + verification
+      (!paymentRequiresVerification ||
+         paymentVerified ||
+         String(paymentMethod) === "cash_on_delivery");
+
+   let missingSteps: string[] = [];
+   if (!hasItems) missingSteps.push("Add items to your cart");
+   if (!hasAddress) missingSteps.push("Select or add a delivery address");
+   if (!hasEmail) missingSteps.push("Provide a valid email");
+   if (!hasValidPhone) missingSteps.push("Provide a valid Rwanda phone number");
+   if (!paymentMethod) missingSteps.push("Select a payment method");
+   if (paymentRequiresVerification && !paymentVerified)
+      missingSteps.push("Complete the payment (you will be redirected)");
+
+   // When in retry mode we restore state from localStorage. To avoid showing
+   // misleading missing-step messages while restoration completes (or when
+   // the URL contains orderId=null), simplify the message: only prompt to
+   // select another payment method rather than listing cart/email items.
+   if (effectiveIsRetry) {
+      const retryOnly: string[] = [];
+      if (!paymentMethod) retryOnly.push("Select another payment method");
+      missingSteps = retryOnly;
+   }
 
    // Determine if the selected location is Kigali
    const selectedProvinceObj = provinces.find(
@@ -831,170 +1221,10 @@ const CheckoutPage = ({
       return formErrors;
    };
 
-   // Handle retry payment for existing orders
-   const handleRetryPayment = async () => {
-      if (paymentMethod === "cash_on_delivery") {
-         toast.error(
-            "Cannot retry payment with Cash on Delivery. Please select a different payment method."
-         );
-         return;
-      }
-
-      // Prevent duplicate submissions
-      if (isSubmitting || isInitiating) return;
-      setIsSubmitting(true);
-
-      try {
-         // Use mobile money phone number if available, otherwise fallback to address/form phone
-         const customerPhone =
-            paymentMethod === "mtn_momo" || paymentMethod === "airtel_money"
-               ? mobileMoneyPhones[paymentMethod] ||
-                 formatPhoneNumber(
-                    selectedAddress?.phone || formData.phone || ""
-                 )
-               : formatPhoneNumber(
-                    selectedAddress?.phone || formData.phone || ""
-                 );
-
-         const derivedFullName =
-            user?.user_metadata?.full_name?.trim() ||
-            `${formData.firstName || ""} ${formData.lastName || ""}`.trim();
-
-         const paymentRequest = {
-            orderId: existingOrder.id,
-            amount: existingOrder.total,
-            customerName: derivedFullName || undefined,
-            customerEmail: formData.email,
-            customerPhone,
-            paymentMethod: paymentMethod as keyof typeof PAYMENT_METHODS,
-            redirectUrl: `${window.location.origin}/orders/${existingOrder.id}?payment=success`,
-         };
-
-         const validationErrors = validatePaymentRequest(paymentRequest);
-         if (validationErrors.length > 0) {
-            toast.error(`Payment validation failed: ${validationErrors[0]}`);
-            router.push(`/orders/${existingOrder.id}`);
-            return;
-         }
-
-         // Before calling retry, check if there's an existing pending payment
-         // for this order. If so, request the server to mark it as timed out
-         // on behalf of the client so we can create a new retry payment.
-         try {
-            const paymentsResp = await fetch(
-               `/api/payments/order/${existingOrder.id}`
-            );
-            if (paymentsResp.ok) {
-               const payments = await paymentsResp.json();
-               if (Array.isArray(payments) && payments.length > 0) {
-                  const pending = payments.find(
-                     (p: any) => p.status === "pending" && !p.client_timeout
-                  );
-                  if (pending) {
-                     // Attempt to mark the pending payment as timed out so retry can proceed
-                     try {
-                        const timeoutResp = await fetch(
-                           "/api/payments/timeout",
-                           {
-                              method: "POST",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({
-                                 paymentId: pending.id,
-                                 reason: "Client requested new payment method",
-                              }),
-                           }
-                        );
-
-                        if (!timeoutResp.ok) {
-                           const j = await timeoutResp.json().catch(() => ({}));
-                           // If marking timeout failed, inform the user and stop to avoid 409
-                           toast.error(
-                              j?.error ||
-                                 "Unable to cancel existing payment. Please wait a moment and try again."
-                           );
-                           setIsSubmitting(false);
-                           return;
-                        }
-                     } catch (err) {
-                        console.error(
-                           "Failed to mark pending payment timeout:",
-                           err
-                        );
-                        toast.error(
-                           "Unable to cancel existing payment. Please wait a moment and try again."
-                        );
-                        setIsSubmitting(false);
-                        return;
-                     }
-                  }
-               }
-            }
-         } catch (err) {
-            console.warn(
-               "Failed to fetch payments for order before retry:",
-               err
-            );
-            // If we couldn't check payments, fail safe and stop so we don't hit 409
-            toast.error(
-               "Could not verify existing payment status. Please try again shortly."
-            );
-            setIsSubmitting(false);
-            return;
-         }
-
-         // Use the retry endpoint which enforces client_timeout checks
-         const resp = await fetch("/api/payments/retry", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(paymentRequest),
-         });
-
-         const paymentResult = await resp.json();
-
-         if (resp.ok && paymentResult.success) {
-            toast.success("Initiating payment with new method...");
-            if (
-               paymentMethod === "visa_card" ||
-               paymentMethod === "mastercard"
-            ) {
-               if (paymentResult.checkoutUrl) {
-                  toast.success("Redirecting to secure payment...");
-                  const url = paymentResult.checkoutUrl as string;
-                  setTimeout(() => (window.location.href = url), 250);
-               } else {
-                  router.push(
-                     `/payment/${paymentResult.paymentId}?orderId=${existingOrder.id}`
-                  );
-               }
-            } else {
-               if (paymentResult.checkoutUrl) {
-                  const url = paymentResult.checkoutUrl as string;
-                  toast.success("Redirecting to payment gateway...");
-                  setTimeout(() => (window.location.href = url), 250);
-               } else {
-                  router.push(
-                     `/payment/${paymentResult.paymentId}?orderId=${existingOrder.id}`
-                  );
-               }
-            }
-         } else {
-            toast.error(
-               `Payment initiation failed: ${
-                  paymentResult.error || "Unknown error"
-               }`
-            );
-            router.push(`/orders/${existingOrder.id}`);
-         }
-      } catch (paymentError) {
-         console.error("Payment initiation failed:", paymentError);
-         toast.error(
-            "Payment initiation failed. Please try again or contact support."
-         );
-         router.push(`/orders/${existingOrder.id}`);
-      } finally {
-         setIsSubmitting(false);
-      }
-   };
+   // NOTE: Retry flows no longer rely on fetching existing orders server-side.
+   // We removed server-order-dependent retry logic. The checkout now uses the
+   // persisted local storage snapshot (CHECKOUT_STORAGE_KEY) and the current
+   // in-memory cart to initiate a new payment session.
 
    // Handle order creation or retry payment
    const handleCreateOrder = async () => {
@@ -1027,10 +1257,8 @@ const CheckoutPage = ({
       setIsSubmitting(true);
       setErrors({});
 
-      // If in retry mode, skip order creation and go directly to payment
-      if (isRetryMode && existingOrder) {
-         return handleRetryPayment();
-      }
+      // If in retry mode, we still allow the pre-pay flow using the local
+      // persisted checkout snapshot instead of fetching the server order.
 
       // Block creation early if orders are disabled
       if (ordersEnabled === false) {
@@ -1129,129 +1357,348 @@ const CheckoutPage = ({
             return;
          }
 
+         // Pre-pay flow: do NOT create an order yet. Create a server-side payment
+         // session containing the cart snapshot and customer details, redirect
+         // to KPay, and rely on the webhook to create the order after payment.
+         // If payment was already verified in a session-based flow, create the order now
+         if (
+            paymentMethod &&
+            paymentMethod !== "cash_on_delivery" &&
+            paymentVerified
+         ) {
+            // Create the order now (payment already completed)
+            try {
+               // Prevent the empty-cart redirect while we create the order and navigate
+               setSuppressEmptyCartRedirect(true);
+               createOrder.mutate(orderData as CreateOrderRequest, {
+                  onSuccess: async (createdOrder: any) => {
+                     try {
+                        clearCart();
+                     } catch (e) {
+                        /* ignore */
+                     }
+                     setOrderItems([]);
+
+                     // Attempt to link the completed session payment to the new order
+                     try {
+                        let linkSucceeded = false;
+                        const ref =
+                           typeof window !== "undefined"
+                              ? sessionStorage.getItem("kpay_reference")
+                              : null;
+
+                        if (!ref) {
+                           // No reference to link — treat as success for cleanup
+                           linkSucceeded = true;
+                        } else {
+                           console.log(
+                              "Linking payment to order via reference",
+                              { reference: ref, orderId: createdOrder.id }
+                           );
+                           // Primary linking path: server will find completed payment by reference and link
+                           try {
+                              const linkResp = await fetch(
+                                 "/api/payments/link",
+                                 {
+                                    method: "POST",
+                                    headers: {
+                                       "Content-Type": "application/json",
+                                    },
+                                    body: JSON.stringify({
+                                       orderId: createdOrder.id,
+                                       reference: ref,
+                                    }),
+                                 }
+                              );
+                              if (linkResp.ok) {
+                                 linkSucceeded = true;
+                              } else {
+                                 const linkErr = await linkResp
+                                    .json()
+                                    .catch(() => ({}));
+                                 console.warn(
+                                    "/api/payments/link failed, falling back to status->PATCH",
+                                    linkErr
+                                 );
+                                 // Fallback: query status to obtain paymentId, then PATCH link
+                                 try {
+                                    const statusResp = await fetch(
+                                       "/api/payments/kpay/status",
+                                       {
+                                          method: "POST",
+                                          headers: {
+                                             "Content-Type": "application/json",
+                                          },
+                                          body: JSON.stringify({
+                                             reference: ref,
+                                          }),
+                                       }
+                                    );
+                                    if (statusResp.ok) {
+                                       const statusData =
+                                          await statusResp.json();
+                                       const payId = statusData?.paymentId;
+                                       if (payId) {
+                                          const patchResp = await fetch(
+                                             `/api/payments/${payId}`,
+                                             {
+                                                method: "PATCH",
+                                                headers: {
+                                                   "Content-Type":
+                                                      "application/json",
+                                                },
+                                                body: JSON.stringify({
+                                                   order_id: createdOrder.id,
+                                                }),
+                                             }
+                                          );
+                                          if (patchResp.ok) {
+                                             linkSucceeded = true;
+                                          } else {
+                                             const pErr = await patchResp
+                                                .json()
+                                                .catch(() => ({}));
+                                             console.error(
+                                                "Failed to PATCH link payment to order",
+                                                pErr
+                                             );
+                                          }
+                                       }
+                                    }
+                                 } catch (fbe) {
+                                    console.error(
+                                       "Fallback linking path failed",
+                                       fbe
+                                    );
+                                 }
+                              }
+                           } catch (linkErr) {
+                              console.error(
+                                 "Error linking payment via reference",
+                                 linkErr
+                              );
+                           }
+                        }
+                        if (linkSucceeded) {
+                           try {
+                              clearAllCheckoutClientState();
+                           } catch (e) {}
+                        } else {
+                           // Do not clear checkout snapshot — preserve user's data so they can retry
+                           toast(
+                              "Order created but payment linking did not complete. Your checkout data has been preserved — please check your orders page or retry linking from the payment page."
+                           );
+                        }
+
+                        toast.success(
+                           `Order #${createdOrder.order_number} has been created successfully!`
+                        );
+                        router.push(`/orders/${createdOrder.id}`);
+                     } catch (outerError) {
+                        console.error(
+                           "Unexpected error during payment linking",
+                           { orderId: createdOrder.id, error: outerError }
+                        );
+                        // In the unexpected error case, avoid clearing checkout snapshot
+                        toast(
+                           "Order created but an unexpected error occurred during payment linking. Your checkout data has been preserved."
+                        );
+                        router.push(`/orders/${createdOrder.id}`);
+                     }
+                  },
+                  onError: (error: any) => {
+                     console.error("createOrder.onError", error);
+                     try {
+                        setPaymentInProgress(false);
+                     } catch (e) {
+                        /* ignore */
+                     }
+                     toast.error(
+                        `Failed to create order: ${
+                           error?.message || "Unknown error"
+                        }`
+                     );
+                  },
+                  onSettled: () => {
+                     setIsSubmitting(false);
+                     setSuppressEmptyCartRedirect(false);
+                  },
+               });
+            } catch (error: any) {
+               console.error("Order creation failed (sync):", error);
+               try {
+                  setPaymentInProgress(false);
+               } catch (e) {
+                  /* ignore */
+               }
+               toast.error(
+                  `Failed to create order: ${error?.message || "Unknown error"}`
+               );
+               setIsSubmitting(false);
+            }
+
+            return;
+         }
+
+         if (paymentMethod && paymentMethod !== "cash_on_delivery") {
+            try {
+               setPaymentInProgress(true);
+
+               const customerPhone =
+                  paymentMethod === "mtn_momo" ||
+                  paymentMethod === "airtel_money"
+                     ? mobileMoneyPhones[paymentMethod] ||
+                       formatPhoneNumber(
+                          selectedAddress?.phone || formData.phone || ""
+                       )
+                     : formatPhoneNumber(
+                          selectedAddress?.phone || formData.phone || ""
+                       );
+
+               const derivedFullName =
+                  user?.user_metadata?.full_name?.trim() ||
+                  `${formData.firstName || ""} ${
+                     formData.lastName || ""
+                  }`.trim();
+
+               const cartSnapshot = orderItems.map((it) => ({
+                  product_id: (it as any).product_id || it.id,
+                  name: it.name,
+                  price: it.price,
+                  quantity: it.quantity,
+                  sku: it.sku,
+                  variation_id: it.variation_id,
+                  variation_name: it.variation_name,
+               }));
+
+               const paymentRequest = {
+                  amount: total,
+                  customerName: derivedFullName || undefined,
+                  customerEmail: formData.email,
+                  customerPhone,
+                  paymentMethod: paymentMethod as keyof typeof PAYMENT_METHODS,
+                  redirectUrl: `${window.location.origin}/checkout?payment=success`,
+                  cart: cartSnapshot,
+               } as any;
+
+               const validationErrors = validatePaymentRequest(paymentRequest);
+               if (validationErrors.length > 0) {
+                  setPaymentInProgress(false);
+                  toast.error(
+                     `Payment validation failed: ${validationErrors[0]}`
+                  );
+                  return;
+               }
+
+               const paymentResult = await initiatePayment(paymentRequest);
+
+               if (paymentResult.success) {
+                  toast.success("Redirecting to payment gateway...");
+
+                  if (paymentResult.reference) {
+                     try {
+                        sessionStorage.setItem(
+                           "kpay_reference",
+                           String(paymentResult.reference)
+                        );
+                     } catch (e) {
+                        /* ignore */
+                     }
+                  }
+
+                  if (paymentResult.checkoutUrl) {
+                     setTimeout(
+                        () =>
+                           (window.location.href =
+                              paymentResult.checkoutUrl as string),
+                        150
+                     );
+                     return;
+                  }
+                  // For mobile-money flows (no external redirect) we should
+                  // redirect the user to the local payment page which shows
+                  // instructions and polls for status: /payment/[paymentId]
+                  // server returns session info at `paymentResult.session` or paymentId in `paymentResult.paymentId`
+                  const sessionId =
+                     paymentResult.sessionId ||
+                     paymentResult.paymentId ||
+                     paymentResult.session?.id;
+
+                  if (sessionId) {
+                     try {
+                        sessionStorage.setItem(
+                           "kpay_reference",
+                           String(paymentResult.reference)
+                        );
+                     } catch (e) {}
+
+                     // Redirect to our internal payment status page which provides helpful instructions
+                     setTimeout(
+                        () => router.push(`/payment/${sessionId}`),
+                        150
+                     );
+                     return;
+                  }
+
+                  // If there's no session id (unexpected), fallback to keeping cart and polling by reference
+                  if (paymentResult.reference) {
+                     try {
+                        sessionStorage.setItem(
+                           "kpay_reference",
+                           String(paymentResult.reference)
+                        );
+                     } catch (e) {}
+                  }
+
+                  toast.success(
+                     "Payment started. Awaiting confirmation — please complete the payment on your phone."
+                  );
+                  // Start polling immediately using the existing effect which reads sessionStorage
+                  return;
+               } else {
+                  setPaymentInProgress(false);
+                  toast.error(
+                     `Payment initiation failed: ${
+                        paymentResult.error || "Unknown error"
+                     }`
+                  );
+                  return;
+               }
+            } catch (err) {
+               console.error("Session-based payment initiation failed:", err);
+               setPaymentInProgress(false);
+               toast.error("Failed to start payment. Please try again.");
+               return;
+            }
+         }
+
+         // Cash on delivery: create the order now
+         // Prevent the empty-cart redirect while we create the order and navigate
+         setSuppressEmptyCartRedirect(true);
          createOrder.mutate(orderData as CreateOrderRequest, {
             onSuccess: async (createdOrder: any) => {
                try {
                   clearCart();
                } catch (e) {
-                  localStorage.removeItem("cart");
+                  /* ignore */
                }
                setOrderItems([]);
-
-               // Handle payment processing based on method
-               if (paymentMethod === "cash_on_delivery") {
-                  // Cash on delivery - redirect to order page
-                  toast.success(
-                     `Order #${createdOrder.order_number} has been created successfully!`
-                  );
-                  router.push(`/orders/${createdOrder.id}`);
-               } else {
-                  // KPay payment - initiate payment
-                  try {
-                     // Use mobile money phone number if available, otherwise fallback to address/form phone
-                     const customerPhone =
-                        paymentMethod === "mtn_momo" ||
-                        paymentMethod === "airtel_money"
-                           ? mobileMoneyPhones[paymentMethod] ||
-                             formatPhoneNumber(
-                                selectedAddress?.phone || formData.phone || ""
-                             )
-                           : formatPhoneNumber(
-                                selectedAddress?.phone || formData.phone || ""
-                             );
-
-                     const derivedFullName =
-                        user?.user_metadata?.full_name?.trim() ||
-                        `${formData.firstName || ""} ${
-                           formData.lastName || ""
-                        }`.trim();
-
-                     const paymentRequest = {
-                        orderId: createdOrder.id,
-                        amount: total,
-                        customerName: derivedFullName || undefined,
-                        customerEmail: formData.email,
-                        customerPhone,
-                        paymentMethod:
-                           paymentMethod as keyof typeof PAYMENT_METHODS,
-                        redirectUrl: `${window.location.origin}/orders/${createdOrder.id}?payment=success`,
-                     };
-
-                     const validationErrors =
-                        validatePaymentRequest(paymentRequest);
-                     if (validationErrors.length > 0) {
-                        toast.error(
-                           `Payment validation failed: ${validationErrors[0]}`
-                        );
-                        router.push(`/orders/${createdOrder.id}`);
-                        return;
-                     }
-
-                     const paymentResult = await initiatePayment(
-                        paymentRequest
-                     );
-
-                     if (paymentResult.success) {
-                        toast.success(
-                           `Order #${createdOrder.order_number} created! Redirecting to payment...`
-                        );
-                        // Handle different payment methods differently
-                        if (
-                           paymentMethod === "visa_card" ||
-                           paymentMethod === "mastercard"
-                        ) {
-                           // For card payments, redirect to external checkout immediately if URL is provided
-                           if (paymentResult.checkoutUrl) {
-                              toast.success(
-                                 `Order #${createdOrder.order_number} created! Redirecting to secure payment...`
-                              );
-                              // Small delay so the toast is visible before navigation on slow devices
-                              const url = paymentResult.checkoutUrl as string;
-                              setTimeout(() => {
-                                 window.location.href = url;
-                              }, 250);
-                           } else {
-                              // Fallback to payment page if no checkout URL
-                              router.push(
-                                 `/payment/${paymentResult.paymentId}?orderId=${createdOrder.id}`
-                              );
-                           }
-                        } else {
-                           // For mobile money and other methods, prefer external checkout URL
-                           // if provided by KPay; otherwise show the payment status page.
-                           if (paymentResult.checkoutUrl) {
-                              const url = paymentResult.checkoutUrl as string;
-                              toast.success(
-                                 "Redirecting to payment gateway..."
-                              );
-                              setTimeout(() => {
-                                 window.location.href = url;
-                              }, 250);
-                           } else {
-                              router.push(
-                                 `/payment/${paymentResult.paymentId}?orderId=${createdOrder.id}`
-                              );
-                           }
-                        }
-                     } else {
-                        toast.error(
-                           `Order created but payment failed: ${
-                              paymentResult.error || "Unknown error"
-                           }`
-                        );
-                        router.push(`/orders/${createdOrder.id}`);
-                     }
-                  } catch (paymentError) {
-                     console.error("Payment initiation failed:", paymentError);
-                     toast.error(
-                        `Order #${createdOrder.order_number} created, but payment initiation failed. You can try to pay from the order page.`
-                     );
-                     router.push(`/orders/${createdOrder.id}`);
-                  }
-               }
+               // Clear persisted checkout and session state now that order is created
+               try {
+                  clearAllCheckoutClientState();
+               } catch (e) {}
+               toast.success(
+                  `Order #${createdOrder.order_number} has been created successfully!`
+               );
+               router.push(`/orders/${createdOrder.id}`);
             },
             onError: (error: any) => {
                console.error("createOrder.onError", error);
+               try {
+                  setPaymentInProgress(false);
+               } catch (e) {
+                  /* ignore */
+               }
                if (error?.message?.includes("uuid")) {
                   toast.error(
                      "Invalid product data. Please refresh and try again."
@@ -1270,10 +1717,16 @@ const CheckoutPage = ({
             },
             onSettled: () => {
                setIsSubmitting(false);
+               setSuppressEmptyCartRedirect(false);
             },
          });
       } catch (error: any) {
          console.error("Order creation failed (sync):", error);
+         try {
+            setPaymentInProgress(false);
+         } catch (e) {
+            /* ignore */
+         }
          toast.error(
             `Failed to create order: ${error?.message || "Unknown error"}`
          );
@@ -1354,7 +1807,7 @@ Total: ${total.toLocaleString()} RWF
    };
 
    // Show empty cart message (but not in retry mode)
-   if (orderItems.length === 0 && !isRetryMode && !loadingExistingOrder) {
+   if (orderItems.length === 0 && !isRetryMode) {
       return (
          <div className="container mx-auto px-4 py-8 max-w-7xl">
             <div className="text-center py-12">
@@ -1384,35 +1837,65 @@ Total: ${total.toLocaleString()} RWF
                : t("checkout.title")}
          </h1>
 
-         {/* Retry mode banner */}
-         {isRetryMode && existingOrder && (
+         {/* Persistent banner at top showing missing steps */}
+         {missingSteps.length > 0 && (
+            <div className="sticky top-4 z-40 mb-4">
+               <div className="mx-auto max-w-[90vw] sm:max-w-7xl px-2 sm:px-0">
+                  <div className="p-3 rounded-lg bg-red-50 border border-red-100 text-red-800 shadow-sm">
+                     <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                           <div className="font-semibold text-sm">
+                              Please complete the following before placing your
+                              order:
+                           </div>
+                           <ul className="mt-1 text-sm list-disc pl-5 space-y-0.5">
+                              {missingSteps.map((m) => (
+                                 <li key={m}>{m}</li>
+                              ))}
+                           </ul>
+                        </div>
+                        <div className="flex-shrink-0">
+                           <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                 // Scroll to order section to help the user
+                                 const el = document.querySelector(
+                                    "[data-checkout-order-section]"
+                                 );
+                                 if (el) {
+                                    (el as HTMLElement).scrollIntoView({
+                                       behavior: "smooth",
+                                       block: "center",
+                                    });
+                                 }
+                              }}
+                           >
+                              Take me there
+                           </Button>
+                        </div>
+                     </div>
+                  </div>
+               </div>
+            </div>
+         )}
+
+         {/* Retry mode banner (generic) */}
+         {isRetryMode && (
             <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                <div className="flex items-center">
                   <AlertCircle className="h-5 w-5 text-blue-600 mr-3" />
                   <div>
                      <p className="text-sm font-medium text-blue-900">
-                        Retrying payment for Order #
-                        {existingOrder.order_number ||
-                           (existingOrder.id
-                              ? String(existingOrder.id).slice(-8)
-                              : "")}
+                        Retry Payment
                      </p>
                      <p className="text-xs text-blue-700 mt-1">
                         Previous payment failed or timed out. Choose a different
-                        payment method below.
+                        payment method below. Your cart and delivery details
+                        were restored from your browser.
                      </p>
                      <div className="mt-2 text-xs text-blue-800">
-                        {existingOrder.payment_method && (
-                           <div>
-                              Previous method: {existingOrder.payment_method}
-                           </div>
-                        )}
-                        {existingOrder.total && (
-                           <div>
-                              Amount: RWF{" "}
-                              {Number(existingOrder.total).toLocaleString()}
-                           </div>
-                        )}
+                        <div>Amount: RWF {Number(total).toLocaleString()}</div>
                      </div>
                   </div>
                </div>
@@ -1429,14 +1912,7 @@ Total: ${total.toLocaleString()} RWF
          )}
 
          {/* Loading existing order */}
-         {isRetryMode && loadingExistingOrder && (
-            <div className="mb-6 flex items-center justify-center p-4 bg-gray-50 rounded-lg">
-               <Loader2 className="h-4 w-4 animate-spin mr-2" />
-               <span className="text-sm text-gray-600">
-                  Loading order details...
-               </span>
-            </div>
-         )}
+         {/* No server-side order loading in retry mode; state is restored from localStorage */}
 
          <div className="grid lg:grid-cols-2 gap-6 sm:gap-8">
             {/* Left Column - Forms */}
@@ -2248,38 +2724,225 @@ Total: ${total.toLocaleString()} RWF
                            )}
                            {isKigali ? (
                               isLoggedIn ? (
-                                 <Button
-                                    className="w-full bg-orange-500 hover:bg-orange-600 text-white text-sm sm:text-base h-10 sm:h-12"
-                                    onClick={handleCreateOrder}
-                                    disabled={
-                                       // disable while submitting/initiating or no items
-                                       isSubmitting ||
-                                       isInitiating ||
-                                       orderItems.length === 0 ||
-                                       // In retry mode require an explicit payment method selection that is not COD
-                                       (isRetryMode &&
-                                          (!paymentMethod ||
-                                             paymentMethod ===
-                                                "cash_on_delivery"))
-                                    }
-                                 >
-                                    {isSubmitting || isInitiating ? (
+                                 <div className="space-y-2">
+                                    {/* Missing steps are shown in the persistent top banner */}
+
+                                    {/* For non-COD methods: allow proceeding to payment (creates order + initiates payment)
+                                        but only enable if basic fields are present (not requiring paymentVerified). */}
+                                    {paymentMethod &&
+                                    paymentMethod !== "cash_on_delivery" ? (
                                        <>
-                                          <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 animate-spin" />
-                                          {isInitiating
-                                             ? "Initiating Payment..."
-                                             : t("checkout.processing")}
+                                          {!sessionPaymentSuccess && (
+                                             <Button
+                                                className="w-full bg-orange-500 hover:bg-orange-600 text-white text-sm sm:text-base h-10 sm:h-12"
+                                                onClick={() => {
+                                                   const disabled =
+                                                      isSubmitting ||
+                                                      isInitiating ||
+                                                      !hasItems ||
+                                                      !hasAddress ||
+                                                      !hasEmail ||
+                                                      !hasValidPhone ||
+                                                      !paymentMethod;
+                                                   if (disabled) {
+                                                      if (
+                                                         missingSteps.length > 0
+                                                      ) {
+                                                         toast.error(
+                                                            `Please complete: ${missingSteps.join(
+                                                               ", "
+                                                            )}`
+                                                         );
+                                                      } else {
+                                                         toast.error(
+                                                            "Please complete all required steps before proceeding to payment."
+                                                         );
+                                                      }
+                                                      return;
+                                                   }
+
+                                                   handleCreateOrder();
+                                                }}
+                                                disabled={
+                                                   isSubmitting ||
+                                                   isInitiating ||
+                                                   !hasItems ||
+                                                   !hasAddress ||
+                                                   !hasEmail ||
+                                                   !hasValidPhone ||
+                                                   !paymentMethod
+                                                }
+                                             >
+                                                {isSubmitting ||
+                                                isInitiating ? (
+                                                   <>
+                                                      <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 animate-spin" />
+                                                      {isInitiating
+                                                         ? "Initiating Payment..."
+                                                         : t(
+                                                              "checkout.processing"
+                                                           )}
+                                                   </>
+                                                ) : (
+                                                   <>
+                                                      <CheckCircle2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                                                      {isRetryMode
+                                                         ? "Pay with Different Method"
+                                                         : "Proceed to payment"}
+                                                   </>
+                                                )}
+                                             </Button>
+                                          )}
+
+                                          {/* Finalize button: disabled until paymentVerified */}
+                                          {/* Finalize button: disabled until paymentVerified (for pre-pay) or until allStepsCompleted for COD */}
+                                          <div className="mt-2">
+                                             <button
+                                                className={`w-full mt-2 h-10 sm:h-12 text-sm sm:text-base font-medium rounded-md border px-3 py-2 transition-colors ${
+                                                   paymentRequiresVerification
+                                                      ? paymentVerified
+                                                         ? "bg-orange-500 text-white hover:bg-orange-600 border-transparent"
+                                                         : "bg-gray-100 text-gray-500 border-gray-200 cursor-not-allowed"
+                                                      : allStepsCompleted
+                                                      ? "bg-orange-500 text-white hover:bg-orange-600 border-transparent"
+                                                      : "bg-gray-100 text-gray-500 border-gray-200 cursor-not-allowed"
+                                                }`}
+                                                onClick={() => {
+                                                   // If disabled, surface a helpful message
+                                                   const disabled =
+                                                      paymentRequiresVerification
+                                                         ? !paymentVerified
+                                                         : !allStepsCompleted;
+                                                   if (disabled) {
+                                                      if (
+                                                         missingSteps.length > 0
+                                                      ) {
+                                                         toast.error(
+                                                            `Please complete: ${missingSteps.join(
+                                                               ", "
+                                                            )}`
+                                                         );
+                                                      } else if (
+                                                         paymentRequiresVerification &&
+                                                         !paymentVerified
+                                                      ) {
+                                                         toast.error(
+                                                            "Please complete the payment before placing the order."
+                                                         );
+                                                      } else {
+                                                         toast.error(
+                                                            "Please complete all required steps before placing your order."
+                                                         );
+                                                      }
+                                                      return;
+                                                   }
+
+                                                   const oid =
+                                                      paymentReturnedOrderId ||
+                                                      effectiveRetryOrderId;
+                                                   if (oid) {
+                                                      router.push(
+                                                         `/orders/${oid}`
+                                                      );
+                                                      return;
+                                                   }
+
+                                                   // If payment was already verified (session-based) but
+                                                   // no order exists yet, create the order now.
+                                                   if (
+                                                      paymentRequiresVerification &&
+                                                      paymentVerified &&
+                                                      !oid
+                                                   ) {
+                                                      try {
+                                                         handleCreateOrder();
+                                                      } catch (e) {
+                                                         console.error(
+                                                            "Place Order (create) failed:",
+                                                            e
+                                                         );
+                                                         toast.error(
+                                                            "Failed to place order. Please try again."
+                                                         );
+                                                      }
+                                                   }
+                                                }}
+                                                // Make the button truly disabled for assistive tech and interaction
+                                                disabled={
+                                                   paymentRequiresVerification
+                                                      ? !paymentVerified
+                                                      : !allStepsCompleted
+                                                }
+                                                aria-disabled={
+                                                   paymentRequiresVerification
+                                                      ? !paymentVerified
+                                                      : !allStepsCompleted
+                                                }
+                                                title={
+                                                   missingSteps.length > 0
+                                                      ? `Please complete: ${missingSteps.join(
+                                                           ", "
+                                                        )}`
+                                                      : undefined
+                                                }
+                                                aria-describedby={
+                                                   missingSteps.length > 0
+                                                      ? "checkout-missing-steps"
+                                                      : undefined
+                                                }
+                                             >
+                                                {paymentRequiresVerification
+                                                   ? paymentVerified
+                                                      ? "Place Order"
+                                                      : "Place Order (complete payment first)"
+                                                   : allStepsCompleted
+                                                   ? "Place Order"
+                                                   : "Place Order (complete all steps)"}
+                                             </button>
+
+                                             {/* Hidden accessible region describing missing steps */}
+                                             {missingSteps.length > 0 && (
+                                                <div
+                                                   id="checkout-missing-steps"
+                                                   className="sr-only"
+                                                >
+                                                   {missingSteps.join(". ")}
+                                                </div>
+                                             )}
+                                          </div>
                                        </>
                                     ) : (
+                                       // Cash on delivery: single action creates the order immediately
                                        <>
-                                          <CheckCircle2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                                          {isRetryMode
-                                             ? "Pay with Different Method"
-                                             : t("checkout.placeOrder") ||
-                                               "Place Order"}
+                                          <Button
+                                             className="w-full bg-orange-500 hover:bg-orange-600 text-white text-sm sm:text-base h-10 sm:h-12"
+                                             onClick={handleCreateOrder}
+                                             disabled={
+                                                isSubmitting ||
+                                                isInitiating ||
+                                                !allStepsCompleted
+                                             }
+                                          >
+                                             {isSubmitting || isInitiating ? (
+                                                <>
+                                                   <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 animate-spin" />
+                                                   {isInitiating
+                                                      ? "Processing..."
+                                                      : t(
+                                                           "checkout.processing"
+                                                        )}
+                                                </>
+                                             ) : (
+                                                <>
+                                                   <CheckCircle2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                                                   {t("checkout.placeOrder") ||
+                                                      "Place Order"}
+                                                </>
+                                             )}
+                                          </Button>
                                        </>
                                     )}
-                                 </Button>
+                                 </div>
                               ) : (
                                  <div className="space-y-2">
                                     <p className="text-xs sm:text-sm text-gray-600 text-center">

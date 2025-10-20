@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerSupabaseClient } from '@/utils/supabase/server';
+import { createServiceSupabaseClient } from '@/utils/supabase/service';
 import { logger } from '@/lib/logger';
 
 interface RouteParams {
@@ -22,7 +22,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     // Initialize Supabase client
-    const supabase = await createServerSupabaseClient();
+    const supabase = createServiceSupabaseClient();
 
     // Fetch all payments for this order
     const { data: payments, error: paymentsError } = await supabase

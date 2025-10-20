@@ -22,116 +22,139 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
 import { Mail, Lock, Eye, EyeOff, Loader } from "lucide-react";
 import { toast } from "sonner";
-import { redirect } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { GoogleSignInButton } from "./google-signin-button";
 
-interface AdminSigninFormProps {}
+interface AdminSigninFormProps {
+   redirect?: string | null;
+}
 
-const AdminSigninForm: FC<AdminSigninFormProps> = ({}) => {
+const AdminSigninForm: FC<AdminSigninFormProps> = ({ redirect }) => {
    const [showPassword, setShowPassword] = useState<boolean>(false);
    const [googleLoading, setGoogleLoading] = useState(false);
    const { signIn, hasRole, user, loading } = useAuth();
    const router = useRouter();
-   // Google sign-in handler
+   // Use the prop if provided, otherwise derive from window.location in effect
+   const [redirectParamState, setRedirectParamState] = useState<string | null>(
+      null
+   );
+
+   const redirectParam = redirect ?? redirectParamState;
+
+   // Read redirect param on mount (client-only)
+   useEffect(() => {
+      try {
+         const params = new URLSearchParams(window.location.search);
+         setRedirectParamState(params.get("redirect") ?? null);
+      } catch (err) {
+         setRedirectParamState(null);
+      }
+   }, []);
+
+   // Google sign-in handler - FIXED
    const handleGoogleSignIn = async () => {
       try {
          setGoogleLoading(true);
-         // Preserve redirect query param so OAuth callback can send the user back
-         const redirectParam =
-            typeof window !== "undefined"
-               ? new URL(window.location.href).searchParams.get("redirect") ||
-                 "/"
-               : "/";
+
+         // Build redirect URL that preserves the redirect parameter
          const origin =
             typeof window !== "undefined" ? window.location.origin : "";
-         // Build a redirectTo that includes the redirect query so after OAuth returns
-         // the signin page can pick it up and redirect the user back.
-         const redirectTo = `${origin}/signin${
-            redirectParam && redirectParam !== "/"
-               ? `?redirect=${encodeURIComponent(redirectParam)}`
-               : ""
-         }`;
+         let redirectTo = `${origin}/auth/callback`;
+
+         // Add redirect parameter if it exists
+         if (redirectParam) {
+            redirectTo += `?redirect=${encodeURIComponent(redirectParam)}`;
+         }
 
          const { error } = await supabase.auth.signInWithOAuth({
             provider: "google",
             options: {
                redirectTo,
+               queryParams: {
+                  // This ensures the redirect parameter is passed through the OAuth flow
+                  access_type: "offline",
+                  prompt: "consent",
+               },
             },
          });
 
-         // If supabase returns an error, show it and clear loading. Otherwise the
-         // SDK will perform a redirect; we don't need to do anything else here.
          if (error) {
             setGoogleLoading(false);
             toast.error(error.message || "Google sign-in failed");
          }
+         // If successful, the browser will redirect - no need to handle further
       } catch (err: any) {
          setGoogleLoading(false);
          toast.error(err?.message || "Google sign-in failed");
       }
    };
 
-   // When the user becomes logged in (either via password sign-in or OAuth redirect),
-   // send them to the requested redirect path if present, otherwise fall back to role-based routing.
+   // SIMPLIFIED redirect logic - only handle OAuth callbacks here
    useEffect(() => {
-      if (loading) return; // wait until auth initialization completes
-      if (!user) return;
-
-      // Stop any loading state for the Google button if set
-      setGoogleLoading(false);
-
-      // try to use redirect param first
-      const redirect =
-         typeof window !== "undefined"
-            ? new URL(window.location.href).searchParams.get("redirect")
-            : null;
-
-      // safety: only allow relative internal redirects
-      const safeRedirect = (() => {
-         if (!redirect) return null;
+      // Only handle OAuth redirect scenarios
+      const handleOAuthRedirect = async () => {
          try {
-            // If user passed an absolute url matching our origin, strip origin
-            const url = new URL(
-               redirect,
-               typeof window !== "undefined"
-                  ? window.location.origin
-                  : undefined
-            );
-            if (
-               url.origin ===
-               (typeof window !== "undefined"
-                  ? window.location.origin
-                  : url.origin)
-            ) {
-               return url.pathname + url.search + url.hash;
+            const url = new URL(window.location.href);
+            const hasCode = url.searchParams.has("code");
+            const hasAccessToken =
+               url.hash && url.hash.includes("access_token=");
+
+            if (!hasCode && !hasAccessToken) return;
+
+            // Process OAuth callback
+            const result: any =
+               typeof (supabase.auth as any).getSessionFromUrl === "function"
+                  ? await (supabase.auth as any).getSessionFromUrl()
+                  : typeof (supabase.auth as any)._getSessionFromURL ===
+                    "function"
+                  ? await (supabase.auth as any)._getSessionFromURL(
+                       window.location.href
+                    )
+                  : null;
+
+            const { data, error } = result || {};
+            if (error) {
+               console.warn("OAuth callback error:", error);
+               toast.error("Authentication failed");
+               return;
             }
-            // if redirect does not share origin, reject it
-            return null;
-         } catch (e) {
-            // invalid URL -> if it starts with / treat as internal
-            if (redirect.startsWith("/")) return redirect;
-            return null;
+
+            if (data?.session) {
+               toast.success("Signed in successfully!");
+
+               // Get redirect parameter from URL (for OAuth flow)
+               const oauthRedirect = url.searchParams.get("redirect");
+               const safeRedirect =
+                  oauthRedirect && oauthRedirect.startsWith("/")
+                     ? oauthRedirect
+                     : redirectParam && redirectParam.startsWith("/")
+                     ? redirectParam
+                     : null;
+
+               if (safeRedirect) {
+                  router.push(safeRedirect);
+               } else {
+                  // Fallback to role-based routing
+                  if (hasRole("admin")) {
+                     router.push("/admin");
+                  } else if (hasRole("rider")) {
+                     router.push("/rider");
+                  } else {
+                     router.push("/");
+                  }
+               }
+            }
+         } catch (err) {
+            console.warn("OAuth handler failed:", err);
+            toast.error("Authentication failed");
          }
-      })();
+      };
 
-      if (safeRedirect) {
-         router.push(safeRedirect);
-         return;
-      }
-
-      // fallback: role-based redirect for admin/rider/regular user
-      if (hasRole("admin")) {
-         router.push("/admin");
-      } else if (hasRole("rider")) {
-         router.push("/rider");
-      } else {
-         router.push("/");
-      }
-   }, [user, loading, hasRole, router]);
+      handleOAuthRedirect();
+   }, [router, hasRole, redirectParam]);
 
    const form = useForm<TAdminSigninSchema>({
       resolver: zodResolver(AdminSigninSchema),
@@ -143,42 +166,47 @@ const AdminSigninForm: FC<AdminSigninFormProps> = ({}) => {
    });
 
    const onSubmit = async (formData: TAdminSigninSchema) => {
-      const { email, password } = formData;
-      const { error } = await signIn(email, password);
-      if (error) {
-         toast.error(error);
-         return;
-      }
+      try {
+         const { email, password } = formData;
+         const { error } = await signIn(email, password);
 
-      toast.success("Logged in successfully");
-      form.reset();
+         if (error) {
+            toast.error(error);
+            return;
+         }
 
-      // If there's a redirect query param, prefer it (safely). Otherwise role-based routing.
-      const redirect =
-         typeof window !== "undefined"
-            ? new URL(window.location.href).searchParams.get("redirect")
-            : null;
-      const safeRedirect =
-         redirect && redirect.startsWith("/") ? redirect : null;
-      if (safeRedirect) {
-         router.push(safeRedirect);
-         return;
-      }
+         toast.success("Logged in successfully");
+         form.reset();
 
-      // Redirect based on role
-      if (hasRole("admin")) {
-         router.push("/admin");
-      } else if (hasRole("rider")) {
-         router.push("/rider");
-      } else {
-         router.push("/");
+         // Use redirect parameter if available and safe
+         const safeRedirect =
+            redirectParam && redirectParam.startsWith("/")
+               ? redirectParam
+               : null;
+
+         if (safeRedirect) {
+            router.push(safeRedirect);
+         } else {
+            // Fallback to role-based routing
+            if (hasRole("admin")) {
+               router.push("/admin");
+            } else if (hasRole("rider")) {
+               router.push("/rider");
+            } else {
+               router.push("/");
+            }
+         }
+      } catch (error: any) {
+         toast.error(error?.message || "Sign in failed");
       }
    };
 
    return (
       <Card className="w-full max-w-md mx-auto shadow-none border-0 lg:mt-7">
          <CardHeader className="text-center">
-            <CardTitle className="text-3xl font-bold">Welcome Back <span className="lg:hidden">to Nihemart</span>!</CardTitle>
+            <CardTitle className="text-3xl font-bold">
+               Welcome Back <span className="lg:hidden">to Nihemart</span>!
+            </CardTitle>
          </CardHeader>
          <CardContent>
             <GoogleSignInButton
@@ -298,11 +326,24 @@ const AdminSigninForm: FC<AdminSigninFormProps> = ({}) => {
                      size="lg"
                      disabled={form.formState.isSubmitting}
                   >
-                     {form.formState.isSubmitting ? "Signing In..." : "Sign In"}
+                     {form.formState.isSubmitting ? (
+                        <>
+                           <Loader className="mr-2 h-4 w-4 animate-spin" />
+                           Signing In...
+                        </>
+                     ) : (
+                        "Sign In"
+                     )}
                   </Button>
                   <Link
-                     className="text-sm text-center mt-4 text-orange-600 underline cursor-pointer"
-                     href={"/signup"}
+                     className="text-sm text-center mt-4 text-orange-600 underline cursor-pointer block "
+                     href={
+                        redirectParam
+                           ? `/signup?redirect=${encodeURIComponent(
+                                redirectParam
+                             )}`
+                           : "/signup"
+                     }
                   >
                      Don&apos;t have an account? Sign up
                   </Link>

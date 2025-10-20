@@ -3,20 +3,30 @@ import { toast } from "sonner";
 import { PAYMENT_METHODS } from "@/lib/services/kpay";
 
 export interface PaymentInitiationRequest {
-   orderId: string;
+   // orderId is optional now; callers can initiate a payment session by providing a cart snapshot instead
+   orderId?: string;
    amount: number;
    customerName: string;
    customerEmail: string;
    customerPhone: string;
    paymentMethod: keyof typeof PAYMENT_METHODS;
    redirectUrl: string;
+   // Optional cart snapshot for session-based payments
+   cart?: any;
 }
 
 export interface PaymentInitiationResponse {
    success: boolean;
-   paymentId: string;
-   transactionId: string;
-   reference: string;
+   // paymentId will be present when a payments row was created (order-based flow)
+   paymentId?: string;
+   // transaction id from KPay
+   transactionId?: string;
+   // reference generated for the payment/session
+   reference?: string;
+   // payment session returned by server when initiating without an order
+   session?: any;
+   // sessionId is returned by server for session-based initiations
+   sessionId?: string;
    checkoutUrl?: string;
    status: string;
    message: string;
@@ -103,7 +113,27 @@ export function useKPayPayment() {
                toast.error(data.error || "Payment initiation failed");
             }
 
-            return data;
+            // Normalize response: ensure checkoutUrl and reference are top-level for client convenience
+            const rawCheckout =
+               data.checkoutUrl ||
+               data?.kpayResponse?.url ||
+               data?.kpayResponse?.redirecturl ||
+               data?.kpayResponse?.redirectUrl ||
+               null;
+            const checkoutUrl =
+               typeof rawCheckout === "string" && rawCheckout.trim().length > 0
+                  ? rawCheckout.trim()
+                  : null;
+
+            const normalized = {
+               ...data,
+               checkoutUrl,
+               reference: data.reference || data?.kpayResponse?.refid || null,
+               // prefer explicit sessionId if server provides it
+               sessionId: data.sessionId || data?.session?.id || null,
+            } as any;
+
+            return normalized;
          } catch (error) {
             const errorMessage =
                error instanceof Error
@@ -134,19 +164,16 @@ export function useKPayPayment() {
          transactionId?: string;
          reference?: string;
       }): Promise<PaymentStatusResponse> => {
+         // If a check is already running, wait for it to finish (serialize)
          if (checkingRef.current) {
-            return {
-               success: false,
-               paymentId: params.paymentId || "",
-               status: "unknown",
-               amount: 0,
-               currency: "RWF",
-               reference: params.reference || "",
-               transactionId: params.transactionId,
-               message: "Status check already in progress",
-               needsUpdate: false,
-               error: "Status check already in progress",
-            };
+            // wait up to 5s for the existing check to finish
+            const start = Date.now();
+            while (checkingRef.current && Date.now() - start < 5000) {
+               // small sleep
+               // eslint-disable-next-line no-await-in-loop
+               await new Promise((r) => setTimeout(r, 150));
+            }
+            // If still running after wait, proceed but allow new check to start
          }
 
          checkingRef.current = true;
@@ -231,8 +258,11 @@ export function useKPayPayment() {
       (request: PaymentInitiationRequest): string[] => {
          const errors: string[] = [];
 
-         if (!request.orderId) {
-            errors.push("Order ID is required");
+         // Either an orderId (order-based payment) or a cart snapshot (session-based payment)
+         if (!request.orderId && !request.cart) {
+            errors.push(
+               "Either Order ID or cart snapshot is required to initiate a payment"
+            );
          }
 
          if (!request.amount || request.amount <= 0) {

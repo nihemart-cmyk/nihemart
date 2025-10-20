@@ -1,5 +1,11 @@
 "use client";
-import React, { createContext, useContext, useEffect, useState, useRef } from "react";
+import React, {
+   createContext,
+   useContext,
+   useEffect,
+   useState,
+   useRef,
+} from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { fetchRiderByUserId } from "@/integrations/supabase/riders";
@@ -39,8 +45,6 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
    const { user, hasRole } = useAuth();
    const [notifications, setNotifications] = useState<Notification[]>([]);
    const [riderId, setRiderId] = useState<string | null>(null);
-   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-   const lastFetchTime = useRef<number>(Date.now());
 
    useEffect(() => {
       if (!user) return;
@@ -208,97 +212,118 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
          }
       };
 
-      // Polling fallback for better reliability
-      const startPolling = () => {
-         // Clear existing interval
-         if (pollingIntervalRef.current) {
-            clearInterval(pollingIntervalRef.current);
-         }
-
-         // Poll every 10 seconds for new notifications for better real-time experience
-         pollingIntervalRef.current = setInterval(async () => {
-            try {
-               const currentTime = Date.now();
-               const since = new Date(lastFetchTime.current).toISOString();
-               
-               // Fetch only recent notifications since last fetch
-               const response = await fetch(
-                  `/api/notifications?userId=${encodeURIComponent(user.id)}&limit=20&since=${since}`
-               );
-               
-               if (response.ok) {
-                  const data = await response.json();
-                  const newNotifications = data.notifications || [];
-                  
-                  if (newNotifications.length > 0) {
-                     setNotifications((prev) => {
-                        const existingIds = new Set(prev.map(n => n.id));
-                        const reallyNew = newNotifications.filter((n: Notification) => !existingIds.has(n.id));
-                        
-                        if (reallyNew.length > 0) {
-                        // Show toast for new notifications
-                           reallyNew.forEach((n: Notification) => {
-                              if (n.type === "assignment_accepted") {
-                                 toast.success(n.title || "Rider assigned to your order", {
-                                    duration: 5000,
-                                 });
-                              } else if (n.type === "order_delivered") {
-                                 toast.success(n.title || "Order Delivered Successfully", {
-                                    duration: 5000,
-                                 });
-                              } else if (n.type === "order_status_update") {
-                                 toast.info(n.title || "Order Status Updated", {
-                                    duration: 4000,
-                                 });
-                              }
-                           });
-                           
-                           return [reallyNew, ...prev].slice(0, 200);
-                        }
-                        
-                        return prev;
-                     });
-                  }
-                  
-                  lastFetchTime.current = currentTime;
-               }
-            } catch (error) {
-               console.error("Polling error:", error);
-            }
-         }, 10000); // Poll every 10 seconds for better real-time experience
-      };
-
-      const stopPolling = () => {
-         if (pollingIntervalRef.current) {
-            clearInterval(pollingIntervalRef.current);
-            pollingIntervalRef.current = null;
-         }
-      };
+      // NOTE: We avoid aggressive client-side polling. Instead we rely on
+      // Supabase realtime subscriptions targeted by recipient filters.
+      // Keep a minimal, manual polling fallback if desired later.
 
       const setupRealtime = () => {
-         // subscribe to notifications INSERT and UPDATE events and filter client-side
-         notificationsChannel = supabase
-            .channel(`public:notifications:user:${user.id}`)
-            .on(
+         // Create a channel scoped to this user for easier cleanup
+         // Remove any existing channel before creating a fresh one
+         try {
+            if (notificationsChannel) {
+               try {
+                  supabase.removeChannel(notificationsChannel);
+               } catch (e) {
+                  notificationsChannel.unsubscribe?.();
+               }
+            }
+         } catch {}
+
+         notificationsChannel = supabase.channel(
+            `public:notifications:user:${user.id}`
+         );
+
+         // Subscribe to INSERT/UPDATE events where recipient_user_id equals this user
+         notificationsChannel.on(
+            "postgres_changes",
+            {
+               event: "INSERT",
+               schema: "public",
+               table: "notifications",
+               filter: `recipient_user_id=eq.${user.id}`,
+            },
+            (payload: any) => handleRealtimeRow(payload.new)
+         );
+
+         notificationsChannel.on(
+            "postgres_changes",
+            {
+               event: "UPDATE",
+               schema: "public",
+               table: "notifications",
+               filter: `recipient_user_id=eq.${user.id}`,
+            },
+            (payload: any) => handleRealtimeRow(payload.new)
+         );
+
+         // If the user is an admin, subscribe to role=admin notifications only
+         if (hasRole && hasRole("admin")) {
+            notificationsChannel.on(
                "postgres_changes",
                {
                   event: "INSERT",
                   schema: "public",
                   table: "notifications",
+                  filter: `recipient_role=eq.admin`,
                },
-               (payload) => handleRealtimeRow(payload.new)
-            )
-            .on(
+               (payload: any) => handleRealtimeRow(payload.new)
+            );
+
+            notificationsChannel.on(
                "postgres_changes",
                {
                   event: "UPDATE",
                   schema: "public",
                   table: "notifications",
+                  filter: `recipient_role=eq.admin`,
                },
-               (payload) => handleRealtimeRow(payload.new)
-            )
-            .subscribe();
+               (payload: any) => handleRealtimeRow(payload.new)
+            );
+         }
+
+         // For riders: only subscribe if we have riderId to avoid receiving all rider notifications
+         if (riderId) {
+            notificationsChannel.on(
+               "postgres_changes",
+               {
+                  event: "INSERT",
+                  schema: "public",
+                  table: "notifications",
+                  filter: `recipient_role=eq.rider`,
+               },
+               (payload: any) => handleRealtimeRow(payload.new)
+            );
+
+            notificationsChannel.on(
+               "postgres_changes",
+               {
+                  event: "UPDATE",
+                  schema: "public",
+                  table: "notifications",
+                  filter: `recipient_role=eq.rider`,
+               },
+               (payload: any) => handleRealtimeRow(payload.new)
+            );
+         }
+
+         // Finalize subscription
+         notificationsChannel.subscribe();
       };
+
+      // Reconnect/resubscribe handling: re-setup realtime when browser comes back online
+      const handleOnline = () => {
+         try {
+            setupRealtime();
+         } catch (e) {
+            console.error(
+               "Failed to re-subscribe to notifications channel on online:",
+               e
+            );
+         }
+      };
+
+      window.addEventListener("online", handleOnline);
+      // optional: cleanup on offline can be added if needed
 
       const handleRealtimeRow = (row: any) => {
          const recipientUser = row.recipient_user_id;
@@ -392,23 +417,28 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
          }
       };
 
+      // Initial load + realtime subscriptions. We avoid kicking off aggressive polling.
       fetchPersisted();
       setupRealtime();
-      startPolling();
-
-      // Update last fetch time
-      lastFetchTime.current = Date.now();
 
       return () => {
-         stopPolling();
          try {
-            if (notificationsChannel)
-               supabase.removeChannel(notificationsChannel);
+            if (notificationsChannel) {
+               // removeChannel is newer; fallback to unsubscribe if unavailable
+               try {
+                  supabase.removeChannel(notificationsChannel);
+               } catch (e) {
+                  notificationsChannel.unsubscribe?.();
+               }
+            }
          } catch (err) {
             try {
                notificationsChannel?.unsubscribe?.();
             } catch {}
          }
+         try {
+            window.removeEventListener("online", handleOnline);
+         } catch {}
       };
    }, [user?.id, hasRole, riderId]);
 

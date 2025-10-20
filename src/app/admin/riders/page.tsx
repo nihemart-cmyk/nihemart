@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
-// Using native scroll container instead of Radix ScrollArea to avoid clipping horizontal scrollbars
 import useRiders, {
    useAssignOrder,
    useRiderAssignments,
