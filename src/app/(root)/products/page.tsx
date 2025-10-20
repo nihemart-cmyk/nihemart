@@ -42,6 +42,7 @@ import type {
   StoreSubcategory,
 } from "@/integrations/supabase/store";
 import { useDebounce } from "@/hooks/use-debounce";
+import { useMediaQuery } from "@/hooks/user-media-query";
 import Image from "next/image";
 import { useCart } from "@/contexts/CartContext";
 import { WishlistButton } from "@/components/ui/wishlist-button";
@@ -51,6 +52,7 @@ const PAGE_LIMIT = 32;
 function ProductListingComponent() {
   const router = useRouter();
   const { addItem } = useCart();
+  const isMobile = useMediaQuery("(max-width: 1023px)");
 
   const [products, setProducts] = useState<StoreProduct[]>([]);
   const [categories, setCategories] = useState<StoreCategory[]>([]);
@@ -73,6 +75,12 @@ function ProductListingComponent() {
   });
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+
+  // Get selected category subcategories for mobile display
+  const selectedCategoryIds = filters.categories;
+  const selectedCategorySubcategories = selectedCategoryIds.length > 0
+    ? subcategories.filter(sc => selectedCategoryIds.includes(sc.category_id))
+    : [];
 
   const fetchProducts = useCallback(async () => {
     setLoading(true);
@@ -293,6 +301,34 @@ function ProductListingComponent() {
           </div>
 
           <div className="flex-1 min-w-0 space-y-6">
+            {/* Mobile Subcategories Filter */}
+            {isMobile && selectedCategorySubcategories.length > 0 && (
+              <div className="bg-white rounded-xl p-4 shadow-sm border border-slate-200">
+                <h3 className="text-sm font-medium text-gray-700 mb-3">Filter by Subcategories</h3>
+                <div className="flex flex-wrap gap-2">
+                  {selectedCategorySubcategories.map((subcategory) => (
+                    <Button
+                      key={subcategory.id}
+                      variant={filters.subcategories.includes(subcategory.id) ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => {
+                        const isSelected = filters.subcategories.includes(subcategory.id);
+                        handleSubcategoryToggle(subcategory.id, !isSelected);
+                      }}
+                      className={cn(
+                        "text-xs",
+                        filters.subcategories.includes(subcategory.id)
+                          ? "bg-orange-500 hover:bg-orange-600 text-white"
+                          : "hover:bg-orange-50"
+                      )}
+                    >
+                      {subcategory.name}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white rounded-xl p-6 shadow-sm border border-slate-200">
               <div className="flex items-center gap-4 flex-1">
                 <div className="relative w-full max-w-xs">
