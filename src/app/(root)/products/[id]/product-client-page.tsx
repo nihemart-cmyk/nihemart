@@ -324,7 +324,7 @@ export default function ProductClientPage({
           <div className="space-y-6">
             <div className="flex items-start justify-between">
               <div className="flex-1">
-                <h1 className="text-3xl font-bold text-gray-900">
+                <h1 className="text-xl md:text-2xl lg:text-3xl font-bold text-gray-900">
                   {product.name}
                 </h1>
                 <p

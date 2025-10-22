@@ -72,8 +72,8 @@ const MoreToLove: FC<MoreToLoveProps> = ({}) => {
   const [loadingMore, setLoadingMore] = useState(false);
   const [offset, setOffset] = useState(0);
 
-  const initialLimit = 12;
-  const loadMoreLimit = 8;
+  const initialLimit = 15;
+  const loadMoreLimit = 10;
 
   // Load initial products
   useEffect(() => {
@@ -120,7 +120,7 @@ const MoreToLove: FC<MoreToLoveProps> = ({}) => {
         </h3>
 
         {loading ? (
-          <ProductGridSkeleton count={8} />
+          <ProductGridSkeleton count={15} />
         ) : (
           <>
             {/* ✅ Compact grid layout for better mobile fit */}
