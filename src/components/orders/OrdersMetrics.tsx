@@ -1,6 +1,7 @@
 "use client";
 import React from "react";
 import { Button } from "@/components/ui/button";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
    DropdownMenu,
@@ -152,6 +153,15 @@ export default function OrdersMetrics() {
    // Orders enabled toggle
    const [ordersEnabled, setOrdersEnabled] = useState<boolean | null>(null);
    const [toggling, setToggling] = useState(false);
+   const [ordersDisabledMessage, setOrdersDisabledMessage] = useState<
+      string | null
+   >(null);
+   const [ordersScheduleDisabled, setOrdersScheduleDisabled] = useState<
+      boolean | null
+   >(null);
+   const { t } = useLanguage();
+   // Admin-only fallback message (English)
+   const ADMIN_FALLBACK_MSG = "Ordering is currently disabled (admin).";
 
    const fetchOrdersEnabled = async () => {
       try {
@@ -159,6 +169,18 @@ export default function OrdersMetrics() {
          if (!res.ok) throw new Error("Failed to fetch setting");
          const json = await res.json();
          setOrdersEnabled(Boolean(json.enabled));
+         // If server returned nextToggleAt, schedule a refetch at that time so UI updates automatically
+         if (json.nextToggleAt) {
+            try {
+               const next = new Date(json.nextToggleAt).getTime();
+               const now = Date.now();
+               const delay = Math.max(0, next - now + 500); // small buffer
+               setTimeout(
+                  () => fetchOrdersEnabled(),
+                  Math.min(delay, 24 * 60 * 60 * 1000)
+               );
+            } catch (e) {}
+         }
       } catch (err) {
          console.warn("Failed to load orders_enabled setting", err);
          setOrdersEnabled(true);
@@ -167,6 +189,7 @@ export default function OrdersMetrics() {
 
    useEffect(() => {
       fetchOrdersEnabled();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
    }, []);
 
    const toggleOrders = async (next: boolean) => {
@@ -180,6 +203,12 @@ export default function OrdersMetrics() {
          if (!res.ok) throw new Error("Failed to update setting");
          const json = await res.json();
          setOrdersEnabled(Boolean(json.enabled));
+         setOrdersDisabledMessage(json.message || null);
+         setOrdersScheduleDisabled(
+            typeof json.scheduleDisabled !== "undefined"
+               ? Boolean(json.scheduleDisabled)
+               : null
+         );
       } catch (err) {
          console.error("Failed to toggle orders setting", err);
       } finally {
@@ -230,6 +259,15 @@ export default function OrdersMetrics() {
 
    return (
       <div className="space-y-6">
+         {/* Show banner when orders are disabled */}
+         {ordersEnabled === false && (
+            <div className="p-3 rounded bg-yellow-50 border border-yellow-200 text-yellow-800">
+               {ordersDisabledMessage
+                  ? ordersDisabledMessage
+                  : // prefer schedule-specific localized msg for customers, but admin UI should show single English message
+                    ADMIN_FALLBACK_MSG}
+            </div>
+         )}
          {/* Header */}
          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-7 sm:gap-2">
             <div className="flex flex-col">

@@ -17,7 +17,6 @@ export const rw: Record<string, string> = {
    "nav.returns": "Gusubiza ibicuruzwa",
    "nav.rider": "Umumotari",
 
-
    // RETURNS & REFUNDS
    returnTitle: "Uburyo bwo kugarura ibicuruzwa no gusubizwa amafaranga",
    returnHero:
@@ -125,6 +124,9 @@ export const rw: Record<string, string> = {
    "checkout.cashOnDelivery": "Amafaranga kugeze aho (Cash on Delivery)",
    "checkout.ordersDisabledMessage":
       "Kwishyura ubu byahagaritswe. Nyamuneka gerageza nyuma.",
+   // Schedule-specific message (night hours)
+   "checkout.ordersDisabledSchedule":
+      "Aka kanya ntago turi kwakira komande, Mwongere mugerageze 9:00",
    "checkout.ordersDisabledBanner": "Kwishyura ubu byahagaritswe n'umuyobozi.",
    "checkout.processing": "Birimo gutunganya komande...",
    "checkout.orderViaWhatsApp": "Tumiza ukoresheje WhatsApp",
@@ -235,25 +237,29 @@ export const rw: Record<string, string> = {
    "footer.rights": "© 2025 NiheMart. Uburenganzira bwose burakurikizwa.",
 
    // Hero Carousel
-  "hero.slide1.title": "Ibicuruzwa bidasanzwe",
-  "hero.slide1.subtitle": "Ibicuruzwa utabona ahandi mu Rwanda ubu byakugeraho mu minota 40.",
-  "hero.slide1.button": "Tangira kugura ubu!",
+   "hero.slide1.title": "Ibicuruzwa bidasanzwe",
+   "hero.slide1.subtitle":
+      "Ibicuruzwa utabona ahandi mu Rwanda ubu byakugeraho mu minota 40.",
+   "hero.slide1.button": "Tangira kugura ubu!",
 
-  "hero.slide2.title": "Kugezwa aho uri byoroshye",
-  "hero.slide2.subtitle": "N'iyo uri mu ntara, ntugire impungenge — buri wese agomba kubona ibicuruzwa byacu bidasanzwe.",
-  "hero.slide2.button": "Tanga komande yawe ubu!",
+   "hero.slide2.title": "Kugezwa aho uri byoroshye",
+   "hero.slide2.subtitle":
+      "N'iyo uri mu ntara, ntugire impungenge — buri wese agomba kubona ibicuruzwa byacu bidasanzwe.",
+   "hero.slide2.button": "Tanga komande yawe ubu!",
 
-  "hero.slide3.title": "Tangira kugura, wishyure nyuma",
-  "hero.slide3.subtitle": "Urabikunda, turabizana, wishyure nyuma.",
-  "hero.slide3.button": "Gura ubu",
+   "hero.slide3.title": "Tangira kugura, wishyure nyuma",
+   "hero.slide3.subtitle": "Urabikunda, turabizana, wishyure nyuma.",
+   "hero.slide3.button": "Gura ubu",
 
-  "hero.slide4.title": "Impano n'ibindi byinshi",
-  "hero.slide4.subtitle": "Gura impano, ibikoresho byo mu rugo, ibikoresho by’abana, amasaha, n'ibindi byinshi.",
-  "hero.slide4.button": "Reba impano",
+   "hero.slide4.title": "Impano n'ibindi byinshi",
+   "hero.slide4.subtitle":
+      "Gura impano, ibikoresho byo mu rugo, ibikoresho by’abana, amasaha, n'ibindi byinshi.",
+   "hero.slide4.button": "Reba impano",
 
-  "hero.slide5.title": "Ibiciro biri hasi cyane",
-  "hero.slide5.subtitle": "Nibyo, turabizi neza — ibiciro byacu biri hasi cyane.",
-  "hero.slide5.button": "Sura ibicuruzwa",
+   "hero.slide5.title": "Ibiciro biri hasi cyane",
+   "hero.slide5.subtitle":
+      "Nibyo, turabizi neza — ibiciro byacu biri hasi cyane.",
+   "hero.slide5.button": "Sura ibicuruzwa",
 
    // Features
    "features.secure.title": "Guhaha Neza",
@@ -293,8 +299,7 @@ export const rw: Record<string, string> = {
    "contact.email": "Imeyili",
    "contact.emailContent": "nihemart@gmail.com",
    "contact.hours": "Amasaha y'akazi",
-   "contact.hoursContent":
-      "Kuwa mbere - ku cyumweru: 9:00 AM - 9:00 PM",
+   "contact.hoursContent": "Kuwa mbere - ku cyumweru: 9:00 AM - 9:00 PM",
    "contact.faqTitle": "Ibibazo Bikunze Kubazwa",
    "contact.faqDesc": "Ibisubizo byihuse ku bibazo bikunze kubazwa",
    "contact.faq1.q": "Ni ryari mugemura ibicuruzwa?",
@@ -357,14 +362,14 @@ export const rw: Record<string, string> = {
    "about.hero":
       "Duteza imbere ubucuruzi bwo kuri murandasi mu Rwanda dukoresheje ikoranabuhanga rigezweho n'ubwitange bwo gushimisha abakiriya.",
    "about.storyTitle": "Inkuru Yacu",
-   "about.story1": 
-  "Yashinzwe mu mwaka wa 2023, Nihemart ni urubuga rw’ubucuruzi bwo kuri interineti rwo mu Rwanda rugamije kugeza ibicuruzwa bifite ireme ku biciro byiza kuri buri wese mu gihugu hose.",
+   "about.story1":
+      "Yashinzwe mu mwaka wa 2023, Nihemart ni urubuga rw’ubucuruzi bwo kuri interineti rwo mu Rwanda rugamije kugeza ibicuruzwa bifite ireme ku biciro byiza kuri buri wese mu gihugu hose.",
 
-"about.story2": 
-  "Twashinzwe dufite intego igaragara — gufasha Abanyarwanda kubona no kugura ibicuruzwa bidakunze kuboneka mu masoko asanzwe, kandi ku giciro kiboneye.",
+   "about.story2":
+      "Twashinzwe dufite intego igaragara — gufasha Abanyarwanda kubona no kugura ibicuruzwa bidakunze kuboneka mu masoko asanzwe, kandi ku giciro kiboneye.",
 
-"about.story3": 
-  "Dukora uko dushoboye kugira ngo tuguhuze n’ibicuruzwa bifite ireme n’imitangire y’amasoko yizewe, tukaguha uburambe bwiza mu kugura kuri interineti. Uri i Kigali cyangwa mu ntara, turakurikirana kugeza tumenye ko ibyo watumije byakugeraho neza kandi vuba.",
+   "about.story3":
+      "Dukora uko dushoboye kugira ngo tuguhuze n’ibicuruzwa bifite ireme n’imitangire y’amasoko yizewe, tukaguha uburambe bwiza mu kugura kuri interineti. Uri i Kigali cyangwa mu ntara, turakurikirana kugeza tumenye ko ibyo watumije byakugeraho neza kandi vuba.",
    "about.teamworkImgAlt": "Ubufatanye bw'itsinda",
    "about.valuesTitle": "Indangagaciro Zacu",
    "about.valuesDesc": "Ibyo twemera kandi bidufasha gukora akazi kacu",

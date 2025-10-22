@@ -247,6 +247,9 @@ const CheckoutPage = ({
 
    // Orders enabled flag (null = loading)
    const [ordersEnabled, setOrdersEnabled] = useState<boolean | null>(null);
+   const [ordersDisabledMessage, setOrdersDisabledMessage] = useState<
+      string | null
+   >(null);
 
    // Retry mode state (now passed as props). We also fall back to URL search params
 
@@ -862,7 +865,39 @@ const CheckoutPage = ({
                if (mounted) setOrdersEnabled(true);
             } else {
                const j = await res.json();
-               if (mounted) setOrdersEnabled(Boolean(j.enabled));
+               if (mounted) {
+                  setOrdersEnabled(Boolean(j.enabled));
+                  // show message if provided
+                  if (typeof j.message === "string") {
+                     setOrdersDisabledMessage(j.message || null);
+                  }
+                  // schedule a refresh at nextToggleAt if provided
+                  if (j.nextToggleAt) {
+                     try {
+                        const next = new Date(j.nextToggleAt).getTime();
+                        const now = Date.now();
+                        const delay = Math.max(0, next - now + 500);
+                        setTimeout(() => {
+                           if (mounted)
+                              (async () => {
+                                 try {
+                                    const r2 = await fetch(
+                                       "/api/admin/settings/orders-enabled"
+                                    );
+                                    if (r2.ok) {
+                                       const j2 = await r2.json();
+                                       setOrdersEnabled(Boolean(j2.enabled));
+                                       if (typeof j2.message === "string")
+                                          setOrdersDisabledMessage(
+                                             j2.message || null
+                                          );
+                                    }
+                                 } catch (e) {}
+                              })();
+                        }, Math.min(delay, 24 * 60 * 60 * 1000));
+                     } catch (e) {}
+                  }
+               }
             }
          } catch (err) {
             console.warn("Failed to fetch orders_enabled flag:", err);
@@ -1264,10 +1299,25 @@ const CheckoutPage = ({
 
       // Block creation early if orders are disabled
       if (ordersEnabled === false) {
-         toast.error(
-            t("checkout.ordersDisabledMessage") ||
-               "Ordering is currently disabled. Please try later."
-         );
+         // Prefer server-supplied message when available
+         const serverMsg = ordersDisabledMessage;
+
+         // If scheduleDisabled was returned by the server (night hours) prefer schedule translation
+         // The API returns scheduleDisabled only on GET; we only have server-supplied message here.
+         // Use server message first; otherwise use localized schedule key if appropriate.
+         const scheduleMsg = t("checkout.ordersDisabledSchedule");
+         const defaultMsg = t("checkout.ordersDisabledMessage");
+
+         // If the server message exists, show it. If not, if server told us scheduleDisabled via message text
+         // or we don't have server info, prefer schedule message when it's appropriate (we try to detect it by
+         // checking the server-supplied message containing 'not working' or if localized schedule exists).
+         const chosen =
+            serverMsg ||
+            scheduleMsg ||
+            defaultMsg ||
+            "Ordering is currently disabled";
+
+         toast.error(chosen);
          setIsSubmitting(false);
          return;
       }

@@ -240,6 +240,14 @@ const AdminSettings: FC = () => {
                const json = await res.json();
                const ordersEnabled = Boolean(json.enabled);
                orderSettingsForm.setValue("ordersEnabled", ordersEnabled);
+               // Optionally notify admin when schedule is currently disabling orders
+               if (json.scheduleDisabled && ordersEnabled === false) {
+                  // show a subtle toast so admin knows schedule is in effect
+                  // use sonner toast if available
+                  try {
+                     toast("Orders currently disabled by schedule until 9am");
+                  } catch (e) {}
+               }
             }
          } catch (error) {
             console.error("Error loading order settings:", error);
@@ -265,7 +273,9 @@ const AdminSettings: FC = () => {
                try {
                   const next = payload?.new?.value;
                   const enabled =
-                     next === true || String(next) === "true" || (next && next === "true");
+                     next === true ||
+                     String(next) === "true" ||
+                     (next && next === "true");
                   orderSettingsForm.setValue("ordersEnabled", Boolean(enabled));
                } catch (e) {}
             }

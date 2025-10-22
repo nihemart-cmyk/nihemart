@@ -156,6 +156,12 @@ const OrdersTable: FC<OrdersTableProps> = () => {
 
    // Fetch orders_enabled to show banner in admin list
    const [ordersEnabled, setOrdersEnabled] = useState<boolean | null>(null);
+   const [ordersDisabledMessage, setOrdersDisabledMessage] = useState<
+      string | null
+   >(null);
+   const [ordersScheduleDisabled, setOrdersScheduleDisabled] = useState<
+      boolean | null
+   >(null);
    useEffect(() => {
       let mounted = true;
       (async () => {
@@ -165,6 +171,35 @@ const OrdersTable: FC<OrdersTableProps> = () => {
             const j = await res.json();
             if (!mounted) return;
             setOrdersEnabled(Boolean(j.enabled));
+            setOrdersDisabledMessage(j.message || null);
+            setOrdersScheduleDisabled(Boolean(j.scheduleDisabled));
+            if (j.nextToggleAt) {
+               try {
+                  const next = new Date(j.nextToggleAt).getTime();
+                  const now = Date.now();
+                  const delay = Math.max(0, next - now + 500);
+                  setTimeout(() => {
+                     if (mounted) {
+                        // re-run fetch to pick up schedule changes
+                        (async () => {
+                           try {
+                              const r2 = await fetch(
+                                 "/api/admin/settings/orders-enabled"
+                              );
+                              if (r2.ok) {
+                                 const j2 = await r2.json();
+                                 setOrdersEnabled(Boolean(j2.enabled));
+                                 setOrdersDisabledMessage(j2.message || null);
+                                 setOrdersScheduleDisabled(
+                                    Boolean(j2.scheduleDisabled)
+                                 );
+                              }
+                           } catch (e) {}
+                        })();
+                     }
+                  }, Math.min(delay, 24 * 60 * 60 * 1000));
+               } catch (e) {}
+            }
          } catch (err) {
             console.warn("Failed to load orders_enabled setting", err);
             if (mounted) setOrdersEnabled(true);

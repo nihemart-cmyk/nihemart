@@ -17,7 +17,6 @@ export const en: Record<string, string> = {
    "nav.returns": "Return & Refund Policy",
    "nav.rider": "Rider",
 
-
    // Return and Refund Policy
    returnTitle: "Return and Refund Policy",
    returnHero:
@@ -155,6 +154,9 @@ export const en: Record<string, string> = {
    "checkout.cashOnDelivery": "Cash on Delivery",
    "checkout.ordersDisabledMessage":
       "Ordering is currently disabled. Please try again later.",
+   // Schedule-specific message (night hours)
+   "checkout.ordersDisabledSchedule":
+      "We are currently not working, please order again at 9:00",
    "checkout.ordersDisabledBanner":
       "Ordering is currently disabled by the admin.",
    "checkout.processing": "Processing Order...",
@@ -259,26 +261,28 @@ export const en: Record<string, string> = {
    "footer.rights": "© 2025 NiheMart. All rights reserved.",
 
    // Hero Carousel
-  "hero.slide1.title": "Rare Products",
-  "hero.slide1.subtitle": "Products you can't find in Rwanda now delivered to you in 40 minutes.",
-  "hero.slide1.button": "Start Shopping now!",
+   "hero.slide1.title": "Rare Products",
+   "hero.slide1.subtitle":
+      "Products you can't find in Rwanda now delivered to you in 40 minutes.",
+   "hero.slide1.button": "Start Shopping now!",
 
-  "hero.slide2.title": "Easy Delivery",
-  "hero.slide2.subtitle": "If you are in province don't worry — everyone deserves access to our rare products.",
-  "hero.slide2.button": "Place your order now!",
+   "hero.slide2.title": "Easy Delivery",
+   "hero.slide2.subtitle":
+      "If you are in province don't worry — everyone deserves access to our rare products.",
+   "hero.slide2.button": "Place your order now!",
 
-  "hero.slide3.title": "Buy Now, Pay Later",
-  "hero.slide3.subtitle": "You like it, we bring it, you pay later.",
-  "hero.slide3.button": "Shop now",
+   "hero.slide3.title": "Buy Now, Pay Later",
+   "hero.slide3.subtitle": "You like it, we bring it, you pay later.",
+   "hero.slide3.button": "Shop now",
 
-  "hero.slide4.title": "Gifts & More",
-  "hero.slide4.subtitle": "Buy gifts, home appliances, kids products, watches, necklaces, and more.",
-  "hero.slide4.button": "Explore gifts",
+   "hero.slide4.title": "Gifts & More",
+   "hero.slide4.subtitle":
+      "Buy gifts, home appliances, kids products, watches, necklaces, and more.",
+   "hero.slide4.button": "Explore gifts",
 
-  "hero.slide5.title": "Low Prices",
-  "hero.slide5.subtitle": "Yes, we know — our prices are low.",
-  "hero.slide5.button": "Browse products",
-
+   "hero.slide5.title": "Low Prices",
+   "hero.slide5.subtitle": "Yes, we know — our prices are low.",
+   "hero.slide5.button": "Browse products",
 
    // Features
    "features.secure.title": "Secure Shopping",
@@ -317,8 +321,7 @@ export const en: Record<string, string> = {
    "contact.email": "Email",
    "contact.emailContent": "nihemart@gmail.com",
    "contact.hours": "Business Hours",
-   "contact.hoursContent":
-      "Mon - Sun: 9:00 AM - 9:00 PM",
+   "contact.hoursContent": "Mon - Sun: 9:00 AM - 9:00 PM",
    "contact.faqTitle": "Frequently Asked Questions",
    "contact.faqDesc": "Quick answers to common questions",
    "contact.faq1.q": "What are your delivery times?",

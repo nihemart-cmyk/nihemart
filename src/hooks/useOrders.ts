@@ -144,9 +144,10 @@ export function useCreateOrder() {
                   const enabled = Boolean(j.enabled);
                   // If orders are disabled and this is not an external order, block
                   if (!enabled && !orderData.order.is_external) {
-                     const e: any = new Error(
-                        "Ordering is currently disabled by the admin. Please try again later."
-                     );
+                     const msg =
+                        j.message ||
+                        "Ordering is currently disabled by the admin. Please try again later.";
+                     const e: any = new Error(msg);
                      e.code = "ORDERS_DISABLED";
                      throw e;
                   }
