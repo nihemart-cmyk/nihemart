@@ -326,6 +326,17 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
       // optional: cleanup on offline can be added if needed
 
       const handleRealtimeRow = (row: any) => {
+         try {
+            // Helpful debug during development: log realtime rows for troubleshooting
+            // eslint-disable-next-line no-console
+            console.debug(
+               "notifications realtime row:",
+               row?.id,
+               row?.recipient_user_id,
+               row?.recipient_role,
+               row?.type
+            );
+         } catch (e) {}
          const recipientUser = row.recipient_user_id;
          const recipientRole = row.recipient_role;
 

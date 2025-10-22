@@ -1108,6 +1108,30 @@ export async function createOrder({
          items: Array.isArray(itemsData) ? itemsData : [],
       } as Order;
 
+      // Notify admins that a new order has been placed (best-effort, non-blocking)
+      (async () => {
+         try {
+            await sb.rpc("insert_notification", {
+               p_recipient_user_id: null,
+               p_recipient_role: "admin",
+               p_type: "order_created",
+               p_title: null,
+               p_body: null,
+               p_meta: JSON.stringify({
+                  order: quickOrder,
+                  order_id: quickOrder.id,
+                  order_number: quickOrder.order_number,
+                  items: quickOrder.items || [],
+               }),
+            });
+         } catch (e) {
+            console.warn(
+               "Failed to create admin notification for new order:",
+               e
+            );
+         }
+      })().catch((e) => console.warn("Background admin notify failed:", e));
+
       // NOTE: stock updates are intentionally deferred until delivery confirmation
       // to avoid reducing stock for orders that may be cancelled before fulfillment.
       // Stock will be adjusted when the order moves to `delivered` status.

@@ -89,10 +89,12 @@ export async function assignOrderToRider(
       // Get full order details for notifications
       const { data: order, error: orderErr } = await sb
          .from("orders")
-         .select(`
+         .select(
+            `
             *,
             items:order_items(*)
-         `)
+         `
+         )
          .eq("id", orderId)
          .maybeSingle();
       if (orderErr) throw orderErr;
@@ -138,68 +140,58 @@ export async function assignOrderToRider(
 
       // Update order status to 'assigned'
       await sb.from("orders").update({ status: "assigned" }).eq("id", orderId);
-      
-      // Create notification for the rider about the new assignment
+
+      // Create notification for the rider about the new assignment using server-side RPC
       try {
-         const notificationResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/notifications/create`, {
-            method: "POST",
-            headers: {
-               "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-               recipient_role: "rider",
-               type: "assignment_created",
-               meta: {
+         await sb.rpc("insert_notification", {
+            p_recipient_user_id: null,
+            p_recipient_role: "rider",
+            p_type: "assignment_created",
+            p_title: null,
+            p_body: null,
+            p_meta: JSON.stringify({
+               order,
+               items: order.items || [],
+               rider_id: riderId,
+               delivery_address: order.delivery_address,
+               order_id: order.id,
+               order_number: order.order_number,
+               assignment_id: data.id,
+               notes: notes || null,
+            }),
+         });
+      } catch (err) {
+         console.error("Error creating assignment notification (rpc):", err);
+      }
+
+      // Create notification for the customer about the assignment using server-side RPC
+      if (order?.user_id) {
+         try {
+            await sb.rpc("insert_notification", {
+               p_recipient_user_id: order.user_id,
+               p_recipient_role: null,
+               p_type: "order_assigned",
+               p_title: null,
+               p_body: null,
+               p_meta: JSON.stringify({
                   order,
                   items: order.items || [],
-                  rider_id: riderId,
+                  rider_name:
+                     riderRow.full_name || riderRow.name || "Delivery Rider",
                   delivery_address: order.delivery_address,
                   order_id: order.id,
                   order_number: order.order_number,
                   assignment_id: data.id,
-                  notes: notes || null
-               },
-            }),
-         });
-         
-         if (!notificationResponse.ok) {
-            console.error('Failed to create assignment notification:', await notificationResponse.text());
-         }
-      } catch (err) {
-         console.error('Error creating assignment notification:', err);
-      }
-      
-      // Create notification for the customer about the assignment
-      if (order?.user_id) {
-         try {
-            const notificationResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/notifications/create`, {
-               method: "POST",
-               headers: {
-                  "Content-Type": "application/json",
-               },
-               body: JSON.stringify({
-                  recipient_user_id: order.user_id,
-                  type: "order_assigned",
-                  meta: {
-                     order,
-                     items: order.items || [],
-                     rider_name: riderRow.full_name || riderRow.name || "Delivery Rider",
-                     delivery_address: order.delivery_address,
-                     order_id: order.id,
-                     order_number: order.order_number,
-                     assignment_id: data.id
-                  },
                }),
             });
-            
-            if (!notificationResponse.ok) {
-               console.error('Failed to create customer assignment notification:', await notificationResponse.text());
-            }
          } catch (err) {
-            console.error('Error creating customer assignment notification:', err);
+            console.error(
+               "Error creating customer assignment notification (rpc):",
+               err
+            );
          }
       }
-      
+
       return data as any;
    } catch (err) {
       // rethrow for caller to handle
@@ -227,21 +219,23 @@ export async function respondToAssignment(
       status,
       responded_at: respondedAt || new Date().toISOString(),
    };
-   
+
    // First, get the assignment with order and rider details for notification
    const { data: assignmentWithDetails, error: assignmentError } = await sb
       .from("order_assignments")
-      .select(`
+      .select(
+         `
          *,
          orders:orders(
             *,
             items:order_items(*)
          ),
          riders:riders(*)
-      `)
+      `
+      )
       .eq("id", assignmentId)
       .single();
-      
+
    if (assignmentError) throw assignmentError;
    if (!assignmentWithDetails) {
       const err: any = new Error("Assignment not found");
@@ -283,35 +277,31 @@ export async function respondToAssignment(
       // Create customer notification with rich content
       if (order?.user_id && rider) {
          try {
-            const notificationResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/notifications/create`, {
-               method: "POST",
-               headers: {
-                  "Content-Type": "application/json",
-               },
-               body: JSON.stringify({
-                  recipient_user_id: order.user_id,
-                  type: "assignment_accepted",
-                  meta: {
-                     order,
-                     items: order.items || [],
-                     rider_name: rider.full_name || rider.name || "Delivery Rider",
-                     rider_phone: rider.phone,
-                     delivery_address: order.delivery_address,
-                     order_id: order.id,
-                     order_number: order.order_number
-                  },
+            await sb.rpc("insert_notification", {
+               p_recipient_user_id: order.user_id,
+               p_recipient_role: null,
+               p_type: "assignment_accepted",
+               p_title: null,
+               p_body: null,
+               p_meta: JSON.stringify({
+                  order,
+                  items: order.items || [],
+                  rider_name: rider.full_name || rider.name || "Delivery Rider",
+                  rider_phone: rider.phone,
+                  delivery_address: order.delivery_address,
+                  order_id: order.id,
+                  order_number: order.order_number,
                }),
             });
-            
-            if (!notificationResponse.ok) {
-               console.error('Failed to create assignment accepted notification:', await notificationResponse.text());
-            }
          } catch (err) {
-            console.error('Error creating assignment accepted notification:', err);
+            console.error(
+               "Error creating assignment accepted notification (rpc):",
+               err
+            );
          }
       }
    }
-   
+
    if (status === "completed") {
       await sb
          .from("orders")
@@ -321,29 +311,25 @@ export async function respondToAssignment(
       // Create order delivered notification
       if (order?.user_id) {
          try {
-            const notificationResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/notifications/create`, {
-               method: "POST",
-               headers: {
-                  "Content-Type": "application/json",
-               },
-               body: JSON.stringify({
-                  recipient_user_id: order.user_id,
-                  type: "order_delivered",
-                  meta: {
-                     order,
-                     items: order.items || [],
-                     delivery_address: order.delivery_address,
-                     order_id: order.id,
-                     order_number: order.order_number
-                  },
+            await sb.rpc("insert_notification", {
+               p_recipient_user_id: order.user_id,
+               p_recipient_role: null,
+               p_type: "order_delivered",
+               p_title: null,
+               p_body: null,
+               p_meta: JSON.stringify({
+                  order,
+                  items: order.items || [],
+                  delivery_address: order.delivery_address,
+                  order_id: order.id,
+                  order_number: order.order_number,
                }),
             });
-            
-            if (!notificationResponse.ok) {
-               console.error('Failed to create order delivered notification:', await notificationResponse.text());
-            }
          } catch (err) {
-            console.error('Error creating order delivered notification:', err);
+            console.error(
+               "Error creating order delivered notification (rpc):",
+               err
+            );
          }
       }
    }
@@ -357,28 +343,24 @@ export async function respondToAssignment(
 
       // Create rejection notification for admin (optional)
       try {
-         const notificationResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/notifications/create`, {
-            method: "POST",
-            headers: {
-               "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-               recipient_role: "admin",
-               type: "assignment_rejected",
-               meta: {
-                  order,
-                  rider_name: rider?.full_name || rider?.name || "Rider",
-                  order_id: order?.id,
-                  order_number: order?.order_number
-               },
+         await sb.rpc("insert_notification", {
+            p_recipient_user_id: null,
+            p_recipient_role: "admin",
+            p_type: "assignment_rejected",
+            p_title: null,
+            p_body: null,
+            p_meta: JSON.stringify({
+               order,
+               rider_name: rider?.full_name || rider?.name || "Rider",
+               order_id: order?.id,
+               order_number: order?.order_number,
             }),
          });
-         
-         if (!notificationResponse.ok) {
-            console.error('Failed to create assignment rejected notification:', await notificationResponse.text());
-         }
       } catch (err) {
-         console.error('Error creating assignment rejected notification:', err);
+         console.error(
+            "Error creating assignment rejected notification (rpc):",
+            err
+         );
       }
    }
 
