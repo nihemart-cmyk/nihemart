@@ -12,6 +12,8 @@ import {
    SelectContent,
    SelectItem,
 } from "@/components/ui/select";
+import { useUpdateRider } from "@/hooks/useRiders";
+import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
@@ -34,8 +36,7 @@ function LanguageSelector() {
    return (
       <Select
          value={language}
-         onValueChange={() => {}}
-         disabled
+         onValueChange={(v) => setLanguage(v as any)}
       >
          <SelectTrigger className="w-full h-11">
             <SelectValue />
@@ -78,6 +79,8 @@ export default function RiderSettingsPage() {
       // note: fullName/phone/vehicle are pulled directly from rider when rendering
       setActive(!!rider?.active);
    }, [rider]);
+
+   const updateRider = useUpdateRider();
 
    if (!user) {
       return (
@@ -324,10 +327,32 @@ export default function RiderSettingsPage() {
                                  </div>
                               </div>
                               <div className="flex-shrink-0">
-                                 {/* Availability toggle disabled for riders */}
+                                 {/* Availability toggle: rider may change their availability */}
                                  <Switch
                                     checked={!!rider?.active}
-                                    disabled
+                                    onCheckedChange={async (v) => {
+                                       if (!rider) return;
+                                       try {
+                                          setSaving(true);
+                                          await updateRider.mutateAsync({
+                                             riderId: rider.id,
+                                             updates: { active: !!v },
+                                          });
+                                          toast.success(
+                                             v
+                                                ? "You are now available"
+                                                : "You are now unavailable"
+                                          );
+                                       } catch (err: any) {
+                                          console.error(err);
+                                          toast.error(
+                                             err?.message ||
+                                                "Failed to update availability"
+                                          );
+                                       } finally {
+                                          setSaving(false);
+                                       }
+                                    }}
                                  />
                               </div>
                            </div>

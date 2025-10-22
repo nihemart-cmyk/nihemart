@@ -417,7 +417,8 @@ const Dashboard = () => {
       return {
          id: order?.id || a.order_id,
          name: order?.customer_name || order?.name || "Customer",
-         location: order?.delivery_address || a.location || "-",
+         location:
+            order?.delivery_address || a.location || rider?.location || "-",
          amount: order?.tax || a.delivery_fee || a.fee || "-", // Show delivery fee instead of total
          time: timeStr,
          status: a.status || order?.status || "-",
@@ -551,7 +552,7 @@ const Dashboard = () => {
                      <ActiveRiderCard
                         id={rider?.id || "-"}
                         name={rider?.full_name || user?.email || "Rider"}
-                        location={rider?.city || "-"}
+                        location={rider?.location || rider?.city || "-"}
                         imageUrl={rider?.image_url || rider?.avatar || ""}
                         deliveries={`${totalDeliveries}`}
                         rating={"4.8"}
