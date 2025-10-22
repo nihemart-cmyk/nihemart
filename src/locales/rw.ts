@@ -115,7 +115,7 @@ export const rw: Record<string, string> = {
    "checkout.district": "Akarere",
    "checkout.sector": "Umurenge",
    "checkout.cell": "Akagali",
-   "checkout.deliveryFee": "Amafaranga yo kohereza",
+   "checkout.deliveryFee": "Amafaranga y'urugendo",
    "checkout.deliveryInstructions": "Amabwiriza yo kohereza",
    "checkout.writeDeliveryInstructions": "Andika amabwiriza yo kohereza",
    "checkout.deliveryInstructionsHelper":
@@ -457,7 +457,7 @@ export const rw: Record<string, string> = {
    // Rider orders
    "rider.orders.order": "Komande",
    "rider.orders.deliveryLocation": "Aho bazigeza",
-   "rider.orders.deliveryFee": "Amafaranga yo gutanga",
+   "rider.orders.deliveryFee": "Amafaranga y'urugendo",
    "rider.orders.actions": "Ibikorwa",
    "rider.orders.accept": "Emera",
    "rider.orders.reject": "Hakana",

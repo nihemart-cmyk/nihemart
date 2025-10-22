@@ -599,6 +599,16 @@ const Page = () => {
                </Card>
             </div>
          </ScrollArea>
+         {/* Order details dialog — opens when viewOrder is set */}
+         {viewOrder && (
+            <OrderDetailsDialog
+               open={!!viewOrder}
+               onOpenChange={(open: boolean) => {
+                  if (!open) setViewOrder(null);
+               }}
+               order={viewOrder}
+            />
+         )}
       </div>
    );
 };
