@@ -421,7 +421,7 @@ export const fetchProductsUnder15k = cache(async (
     .in("status", ["active", "out_of_stock"])
     .lte("price", 15000)
     .order("created_at", { ascending: false })
-    .limit(12);
+    .limit(15);
   if (categoryId && categoryId !== "all") {
     query = query.eq("category_id", categoryId);
   }

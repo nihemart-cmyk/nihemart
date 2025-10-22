@@ -114,8 +114,8 @@ const MoreProducts: FC<MoreProductsProps> = ({}) => {
       setLoading(true);
       try {
         const [featured, latest] = await Promise.all([
-          fetchLandingPageProducts({ featured: true, limit: 12 }),
-          fetchLandingPageProducts({ featured: false, limit: 8 }),
+          fetchLandingPageProducts({ featured: true, limit: 15 }),
+          fetchLandingPageProducts({ featured: false, limit: 15 }),
         ]);
         setAllFeatured(featured);
         setLatestProducts(latest);
