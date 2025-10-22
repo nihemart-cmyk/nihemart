@@ -56,7 +56,11 @@ interface OrderClientPageProps {
    isAdmin: boolean;
 }
 
-const OrderClientPage = ({ initialData, user, isAdmin }: OrderClientPageProps) => {
+const OrderClientPage = ({
+   initialData,
+   user,
+   isAdmin,
+}: OrderClientPageProps) => {
    const { t } = useLanguage();
    const {
       updateOrderStatus,
@@ -70,7 +74,7 @@ const OrderClientPage = ({ initialData, user, isAdmin }: OrderClientPageProps) =
 
    // Use optimistic updates for better UX
    const [optimisticOrder, setOptimisticOrder] = useOptimistic(initialData);
-   
+
    const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
    const [showCancelConfirm, setShowCancelConfirm] = useState(false);
    const [redirectAfterCancel, setRedirectAfterCancel] = useState(true);
@@ -81,11 +85,13 @@ const OrderClientPage = ({ initialData, user, isAdmin }: OrderClientPageProps) =
    const [fullRefundDialogOpen, setFullRefundDialogOpen] = useState(false);
    const [fullRefundReason, setFullRefundReason] = useState("");
    const [isRequestingFullRefund, setIsRequestingFullRefund] = useState(false);
-   
+
    const requestRefund = useRequestRefundItem();
    const cancelRefund = useCancelRefundRequestItem();
    const respondRefund = useRespondRefundRequest();
-   const [unrejectingItemId, setUnrejectingItemId] = useState<string | null>(null);
+   const [unrejectingItemId, setUnrejectingItemId] = useState<string | null>(
+      null
+   );
 
    const order = optimisticOrder;
    const isOwner = user?.id === order?.user_id;
@@ -252,23 +258,23 @@ const OrderClientPage = ({ initialData, user, isAdmin }: OrderClientPageProps) =
       if (isUpdatingStatus) return;
 
       setIsUpdatingStatus(true);
-      
+
       // Optimistically update the UI
       setOptimisticOrder({ ...order, status: newStatus as any });
-      
+
       try {
          await updateOrderStatus.mutateAsync({
             id: order.id,
             status: newStatus as any,
          });
          toast.success(`Order status updated to ${newStatus}`);
-         
+
          // Refresh the page to get updated data
          router.refresh();
       } catch (error) {
          console.error("Failed to update order status:", error);
          toast.error("Failed to update order status");
-         
+
          // Revert optimistic update on error
          setOptimisticOrder(order);
       } finally {
@@ -399,11 +405,10 @@ const OrderClientPage = ({ initialData, user, isAdmin }: OrderClientPageProps) =
                                     </p>
 
                                     <div className="flex flex-wrap items-center gap-2">
-                                       {/* Hide all actions if order or item is rejected, refunded, cancelled, or delivered */}
+                                       {/* Hide all actions if order or item is refunded, cancelled, or rejected (allow delivered to show item-level actions within window) */}
                                        {[
                                           "refunded",
                                           "cancelled",
-                                          "delivered",
                                           "rejected",
                                        ].includes(orderStateForActions) ||
                                        item.refund_status === "rejected" ? (
@@ -506,6 +511,36 @@ const OrderClientPage = ({ initialData, user, isAdmin }: OrderClientPageProps) =
                                                             await cancelRefund.mutateAsync(
                                                                item.id
                                                             );
+                                                            // update optimistic state: clear refund_status for item
+                                                            setOptimisticOrder(
+                                                               (prev: any) => {
+                                                                  try {
+                                                                     return {
+                                                                        ...prev,
+                                                                        items: (
+                                                                           prev.items ||
+                                                                           []
+                                                                        ).map(
+                                                                           (
+                                                                              it: any
+                                                                           ) =>
+                                                                              it.id ===
+                                                                              item.id
+                                                                                 ? {
+                                                                                      ...it,
+                                                                                      refund_status:
+                                                                                         null,
+                                                                                      refund_reason:
+                                                                                         null,
+                                                                                   }
+                                                                                 : it
+                                                                        ),
+                                                                     };
+                                                                  } catch (e) {
+                                                                     return prev;
+                                                                  }
+                                                               }
+                                                            );
                                                          } catch (e) {
                                                             // handled by mutation
                                                          } finally {
@@ -533,16 +568,21 @@ const OrderClientPage = ({ initialData, user, isAdmin }: OrderClientPageProps) =
                                              /* Only show Request Refund button if:
                                                 1. No existing refund status OR
                                                 2. Previous refund was cancelled and we're within refund window */
-                                             (!item.refund_status || item.refund_status === "cancelled") && (
+                                             (!item.refund_status ||
+                                                item.refund_status ===
+                                                   "cancelled") && (
                                                 <Button
                                                    size="sm"
                                                    variant="outline"
                                                    onClick={() => {
-                                                      setRejectingItemId(item.id);
+                                                      setRejectingItemId(
+                                                         item.id
+                                                      );
                                                       setRejectDialogOpen(true);
                                                    }}
                                                    className={`text-xs h-7 ${
-                                                      order.status === "delivered"
+                                                      order.status ===
+                                                      "delivered"
                                                          ? "border-green-300 text-green-600 hover:bg-green-50"
                                                          : "border-red-300 text-red-600 hover:bg-red-50"
                                                    }`}
@@ -717,7 +757,8 @@ const OrderClientPage = ({ initialData, user, isAdmin }: OrderClientPageProps) =
                <PaymentInfoCard orderId={order.id} />
 
                {/* Refund Status Section - Show only if there are refund activities */}
-               {(order.refund_status || order.items?.some(item => item.refund_status)) && (
+               {(order.refund_status ||
+                  order.items?.some((item) => item.refund_status)) && (
                   <Card className="border-orange-200">
                      <CardHeader className="bg-gradient-to-r from-orange-50 to-orange-25 py-4 sm:py-5">
                         <CardTitle className="text-orange-800 text-lg sm:text-xl">
@@ -730,12 +771,15 @@ const OrderClientPage = ({ initialData, user, isAdmin }: OrderClientPageProps) =
                            <div className="border rounded-lg p-4 bg-gradient-to-r from-blue-50 to-blue-25">
                               <div className="flex items-center space-x-3 mb-2">
                                  <div className="h-2 w-2 bg-blue-500 rounded-full"></div>
-                                 <h4 className="font-semibold text-blue-800">Full Order Refund</h4>
+                                 <h4 className="font-semibold text-blue-800">
+                                    Full Order Refund
+                                 </h4>
                               </div>
                               {order.refund_status === "requested" && (
                                  <div className="space-y-2">
                                     <p className="text-sm text-blue-700">
-                                       Your refund request is being reviewed by our team.
+                                       Your refund request is being reviewed by
+                                       our team.
                                     </p>
                                     <p className="text-xs text-blue-600">
                                        We typically respond within 24 hours.
@@ -751,14 +795,17 @@ const OrderClientPage = ({ initialData, user, isAdmin }: OrderClientPageProps) =
                                        </p>
                                     </div>
                                     <p className="text-sm text-green-600">
-                                       Your refund has been approved and is being processed.
+                                       Your refund has been approved and is
+                                       being processed.
                                     </p>
                                     <div className="bg-green-100 border border-green-200 rounded p-3 mt-3">
                                        <p className="text-sm text-green-800 font-medium">
-                                          💰 You will receive your money back within 24 hours
+                                          💰 You will receive your money back
+                                          within 24 hours
                                        </p>
                                        <p className="text-xs text-green-700 mt-1">
-                                          The refund will be processed to your original payment method.
+                                          The refund will be processed to your
+                                          original payment method.
                                        </p>
                                     </div>
                                  </div>
@@ -772,17 +819,20 @@ const OrderClientPage = ({ initialData, user, isAdmin }: OrderClientPageProps) =
                                        </p>
                                     </div>
                                     <p className="text-sm text-red-600">
-                                       Your refund request could not be approved at this time.
+                                       Your refund request could not be approved
+                                       at this time.
                                     </p>
                                     <p className="text-xs text-red-500 mt-1">
-                                       If you have questions, please contact our support team.
+                                       If you have questions, please contact our
+                                       support team.
                                     </p>
                                  </div>
                               )}
                               {order.refund_reason && (
                                  <div className="mt-3 pt-3 border-t border-blue-200">
                                     <p className="text-xs text-blue-600">
-                                       <strong>Reason:</strong> {order.refund_reason}
+                                       <strong>Reason:</strong>{" "}
+                                       {order.refund_reason}
                                     </p>
                                  </div>
                               )}
@@ -790,15 +840,22 @@ const OrderClientPage = ({ initialData, user, isAdmin }: OrderClientPageProps) =
                         )}
 
                         {/* Individual Item Refund Statuses */}
-                        {order.items?.some(item => item.refund_status) && (
+                        {order.items?.some((item) => item.refund_status) && (
                            <div className="space-y-3">
-                              <h4 className="font-semibold text-gray-800">Item Refund Status</h4>
+                              <h4 className="font-semibold text-gray-800">
+                                 Item Refund Status
+                              </h4>
                               {order.items
-                                 .filter(item => item.refund_status)
+                                 .filter((item) => item.refund_status)
                                  .map((item) => (
-                                    <div key={item.id} className="border rounded-lg p-3 bg-gray-50">
+                                    <div
+                                       key={item.id}
+                                       className="border rounded-lg p-3 bg-gray-50"
+                                    >
                                        <div className="flex justify-between items-start mb-2">
-                                          <h5 className="font-medium text-sm">{item.product_name}</h5>
+                                          <h5 className="font-medium text-sm">
+                                             {item.product_name}
+                                          </h5>
                                           <Badge
                                              variant={(() => {
                                                 switch (item.refund_status) {
@@ -815,36 +872,45 @@ const OrderClientPage = ({ initialData, user, isAdmin }: OrderClientPageProps) =
                                              })()}
                                              className="text-xs"
                                           >
-                                             {item.refund_status === "approved" ? "Refund Approved" :
-                                              typeof item.refund_status === "string" ?
-                                                 item.refund_status.charAt(0).toUpperCase() + item.refund_status.slice(1) :
-                                                 "Unknown"}
+                                             {item.refund_status === "approved"
+                                                ? "Refund Approved"
+                                                : typeof item.refund_status ===
+                                                  "string"
+                                                ? item.refund_status
+                                                     .charAt(0)
+                                                     .toUpperCase() +
+                                                  item.refund_status.slice(1)
+                                                : "Unknown"}
                                           </Badge>
                                        </div>
-                                       
+
                                        {item.refund_status === "approved" && (
                                           <div className="bg-green-100 border border-green-200 rounded p-2 mt-2">
                                              <p className="text-xs text-green-800">
-                                                💰 Refund for this item will be processed within 24 hours
+                                                💰 Refund for this item will be
+                                                processed within 24 hours
                                              </p>
                                           </div>
                                        )}
-                                       
+
                                        {item.refund_status === "requested" && (
                                           <p className="text-xs text-blue-600 mt-1">
-                                             Your refund request is being reviewed.
+                                             Your refund request is being
+                                             reviewed.
                                           </p>
                                        )}
-                                       
+
                                        {item.refund_status === "rejected" && (
                                           <p className="text-xs text-red-600 mt-1">
-                                             This refund request was not approved.
+                                             This refund request was not
+                                             approved.
                                           </p>
                                        )}
-                                       
+
                                        {item.refund_reason && (
                                           <p className="text-xs text-gray-600 mt-2">
-                                             <strong>Reason:</strong> {item.refund_reason}
+                                             <strong>Reason:</strong>{" "}
+                                             {item.refund_reason}
                                           </p>
                                        )}
                                     </div>
@@ -1017,12 +1083,14 @@ const OrderClientPage = ({ initialData, user, isAdmin }: OrderClientPageProps) =
                                  const now = Date.now();
                                  const within24h =
                                     now - deliveredAt <= 24 * 60 * 60 * 1000;
-                                 
+
                                  // Only allow refund requests if:
                                  // 1. Within 24h window AND
                                  // 2. No refund status OR refund was cancelled
-                                 const canRequestRefund = within24h && 
-                                    (!order.refund_status || order.refund_status === "cancelled");
+                                 const canRequestRefund =
+                                    within24h &&
+                                    (!order.refund_status ||
+                                       order.refund_status === "cancelled");
 
                                  if (canRequestRefund) {
                                     return (
@@ -1078,7 +1146,10 @@ const OrderClientPage = ({ initialData, user, isAdmin }: OrderClientPageProps) =
                                  }
 
                                  // Show cancel button only if refund is currently requested
-                                 if (order.refund_status === "requested" && isOwner) {
+                                 if (
+                                    order.refund_status === "requested" &&
+                                    isOwner
+                                 ) {
                                     return (
                                        <div className="pt-2 border-t">
                                           <Button
@@ -1155,6 +1226,12 @@ const OrderClientPage = ({ initialData, user, isAdmin }: OrderClientPageProps) =
                            if (!fullRefundReason.trim()) return;
                            setIsRequestingFullRefund(true);
                            try {
+                              // Optimistic update: mark order refund requested immediately
+                              setOptimisticOrder((prev: any) => ({
+                                 ...prev,
+                                 refund_status: "requested",
+                                 refund_reason: fullRefundReason,
+                              }));
                               await requestOrderRefund.mutateAsync({
                                  orderId: order.id,
                                  reason: fullRefundReason,
@@ -1163,6 +1240,8 @@ const OrderClientPage = ({ initialData, user, isAdmin }: OrderClientPageProps) =
                               setFullRefundDialogOpen(false);
                               setFullRefundReason("");
                            } catch (err) {
+                              // revert optimistic update on error
+                              setOptimisticOrder((prev: any) => prev);
                               // mutation handles toast on error
                            } finally {
                               setIsRequestingFullRefund(false);
@@ -1194,12 +1273,12 @@ const OrderClientPage = ({ initialData, user, isAdmin }: OrderClientPageProps) =
                   <DialogTitle>
                      {order?.status === "delivered"
                         ? "Request Refund"
-                        : "Request Reject"}
+                        : "Reject Item"}
                   </DialogTitle>
                   <DialogDescription>
                      {order?.status === "delivered"
                         ? "Provide a reason for requesting a refund for this item. The admin will review your request."
-                        : "Provide a reason for rejecting this item. The admin will review your request."}
+                        : "You are about to reject this item. This action is final and will immediately mark the item as rejected."}
                   </DialogDescription>
                </DialogHeader>
 
@@ -1235,19 +1314,48 @@ const OrderClientPage = ({ initialData, user, isAdmin }: OrderClientPageProps) =
                            if (!rejectingItemId) return;
                            setIsRejecting(true);
                            try {
-                              await requestRefund.mutateAsync({
+                              // Optimistic update: mark item as requested/rejected immediately
+                              setOptimisticOrder((prev: any) => {
+                                 try {
+                                    return {
+                                       ...prev,
+                                       items: (prev.items || []).map(
+                                          (it: any) =>
+                                             it.id === rejectingItemId
+                                                ? {
+                                                     ...it,
+                                                     refund_status:
+                                                        order?.status ===
+                                                        "delivered"
+                                                           ? "requested"
+                                                           : "rejected",
+                                                     refund_reason:
+                                                        rejectReason,
+                                                  }
+                                                : it
+                                       ),
+                                    };
+                                 } catch (e) {
+                                    return prev;
+                                 }
+                              });
+
+                              const res = await requestRefund.mutateAsync({
                                  orderItemId: rejectingItemId,
                                  reason: rejectReason,
                               });
-                              toast.success(
-                                 order?.status === "delivered"
-                                    ? "Refund requested"
-                                    : "Reject requested"
-                              );
+                              if (order?.status === "delivered") {
+                                 toast.success("Refund requested");
+                              } else {
+                                 // For rejects, integration marks item as rejected immediately
+                                 toast.success("Item rejected");
+                              }
                               setRejectDialogOpen(false);
                               setRejectReason("");
                               setRejectingItemId(null);
                            } catch (e) {
+                              // revert optimistic update on error
+                              setOptimisticOrder((prev: any) => prev);
                               // mutation handles toast on error
                            } finally {
                               setIsRejecting(false);
@@ -1260,12 +1368,10 @@ const OrderClientPage = ({ initialData, user, isAdmin }: OrderClientPageProps) =
                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
                         ) : null}
                         {isRejecting
-                           ? order?.status === "delivered"
-                              ? "Requesting..."
-                              : "Requesting..."
+                           ? "Requesting..."
                            : order?.status === "delivered"
                            ? "Request Refund"
-                           : "Request Reject"}
+                           : "Reject Item"}
                      </Button>
                   </div>
                </DialogFooter>

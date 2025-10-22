@@ -40,15 +40,27 @@ export async function requestRefundForItem(itemId: string, reason: string) {
       // ignore other errors fetching order
    }
 
+   // If parent order was not delivered -> this is a client-side reject and should be final
+   const isReject = !parentOrder?.delivered_at;
+
+   const updatePayload: any = isReject
+      ? {
+           refund_requested: false,
+           refund_reason: reason,
+           refund_status: "rejected",
+           refund_requested_at: now,
+        }
+      : {
+           refund_requested: true,
+           refund_reason: reason,
+           refund_status: "requested",
+           refund_requested_at: now,
+           refund_expires_at: expiresAt,
+        };
+
    const { data, error } = await sb
       .from("order_items")
-      .update({
-         refund_requested: true,
-         refund_reason: reason,
-         refund_status: "requested",
-         refund_requested_at: now,
-         refund_expires_at: expiresAt,
-      })
+      .update(updatePayload)
       .eq("id", itemId)
       .select()
       .maybeSingle();
@@ -61,32 +73,34 @@ export async function requestRefundForItem(itemId: string, reason: string) {
       ? "refund"
       : "reject";
 
-   // Notify admins that a user has requested a refund/reject, include customer name, city and reason
+   // Notify admins only for refund requests (delivered -> refund). For client-side
+   // rejects (not delivered) the action is final and we don't create an admin review notification.
    try {
-      const customerName =
-         `${parentOrder?.customer_first_name || ""} ${
-            parentOrder?.customer_last_name || ""
-         }`.trim() || "Customer";
-      const city = parentOrder?.delivery_city || "";
-      const title = mode === "refund" ? "Refund requested" : "Reject requested";
-      const p_type =
-         mode === "refund" ? "refund_requested" : "reject_requested";
-      const body = `${customerName}${city ? ` from ${city}` : ""} requested ${
-         mode === "refund" ? "a refund" : "a reject"
-      } for ${existing.product_name}. Reason: ${reason}`;
-      await sb.rpc("insert_notification", {
-         p_recipient_user_id: null,
-         p_recipient_role: "admin",
-         p_type,
-         p_title: title,
-         p_body: body,
-         p_meta: JSON.stringify({
-            order_id: existing.order_id,
-            item_id: existing.id,
-            reason,
-            mode,
-         }),
-      });
+      if (!isReject) {
+         const customerName =
+            `${parentOrder?.customer_first_name || ""} ${
+               parentOrder?.customer_last_name || ""
+            }`.trim() || "Customer";
+         const city = parentOrder?.delivery_city || "";
+         const title = "Refund requested";
+         const p_type = "refund_requested";
+         const body = `${customerName}${
+            city ? ` from ${city}` : ""
+         } requested a refund for ${existing.product_name}. Reason: ${reason}`;
+         await sb.rpc("insert_notification", {
+            p_recipient_user_id: null,
+            p_recipient_role: "admin",
+            p_type,
+            p_title: title,
+            p_body: body,
+            p_meta: JSON.stringify({
+               order_id: existing.order_id,
+               item_id: existing.id,
+               reason,
+               mode: "refund",
+            }),
+         });
+      }
    } catch (err) {
       console.warn(
          "Failed to insert admin notification for refund request:",
@@ -129,15 +143,26 @@ export async function requestRefundForOrder(orderId: string, reason: string) {
       }
    }
 
+   // If order was not delivered, treat this as a client-side reject and mark final
+   const isRejectOrder = !existing?.delivered_at;
+   const updatePayloadOrder: any = isRejectOrder
+      ? {
+           refund_requested: false,
+           refund_reason: reason,
+           refund_status: "rejected",
+           refund_requested_at: now,
+        }
+      : {
+           refund_requested: true,
+           refund_reason: reason,
+           refund_status: "requested",
+           refund_requested_at: now,
+           refund_expires_at: expiresAt,
+        };
+
    const { data, error } = await sb
       .from("orders")
-      .update({
-         refund_requested: true,
-         refund_reason: reason,
-         refund_status: "requested",
-         refund_requested_at: now,
-         refund_expires_at: expiresAt,
-      })
+      .update(updatePayloadOrder)
       .eq("id", orderId)
       .select()
       .maybeSingle();
@@ -150,30 +175,37 @@ export async function requestRefundForOrder(orderId: string, reason: string) {
       ? "refund"
       : "reject";
 
-   // Notify admins
+   const isReject = mode === "reject";
+
+   // Notify admins only for refunds. If this is a client-side reject (not delivered)
+   // treat the action as final and do not create an admin review notification.
    try {
-      const customerName =
-         `${existing?.customer_first_name || ""} ${
-            existing?.customer_last_name || ""
-         }`.trim() || "Customer";
-      const city = existing?.delivery_city || "";
-      const title =
-         mode === "refund"
-            ? "Full order refund requested"
-            : "Full order reject requested";
-      const p_type =
-         mode === "refund" ? "refund_requested" : "reject_requested";
-      const body = `${customerName}${city ? ` from ${city}` : ""} requested ${
-         mode === "refund" ? "a refund" : "a reject"
-      } for order ${existing.order_number || existing.id}. Reason: ${reason}`;
-      await sb.rpc("insert_notification", {
-         p_recipient_user_id: null,
-         p_recipient_role: "admin",
-         p_type,
-         p_title: title,
-         p_body: body,
-         p_meta: JSON.stringify({ order_id: existing.id, reason, mode }),
-      });
+      if (!isReject) {
+         const customerName =
+            `${existing?.customer_first_name || ""} ${
+               existing?.customer_last_name || ""
+            }`.trim() || "Customer";
+         const city = existing?.delivery_city || "";
+         const title = "Full order refund requested";
+         const p_type = "refund_requested";
+         const body = `${customerName}${
+            city ? ` from ${city}` : ""
+         } requested a refund for order ${
+            existing.order_number || existing.id
+         }. Reason: ${reason}`;
+         await sb.rpc("insert_notification", {
+            p_recipient_user_id: null,
+            p_recipient_role: "admin",
+            p_type,
+            p_title: title,
+            p_body: body,
+            p_meta: JSON.stringify({
+               order_id: existing.id,
+               reason,
+               mode: "refund",
+            }),
+         });
+      }
    } catch (err) {
       console.warn(
          "Failed to insert admin notification for full-order refund request:",
@@ -425,14 +457,10 @@ export async function respondToRefundRequest(
                .eq("id", existing.order_id)
                .maybeSingle();
             const recipientUserId = orderData?.user_id || null;
-            const p_type =
-               mode === "refund" ? "refund_approved" : "reject_approved";
-            const p_title =
-               mode === "refund" ? "Refund approved" : "Reject approved";
-            const p_body =
-               mode === "refund"
-                  ? `Your refund request for item ${existing.product_name} has been approved.`
-                  : `Your reject request for item ${existing.product_name} has been approved.`;
+            // Use unified refund notification types (reject flows are client-final)
+            const p_type = "refund_approved";
+            const p_title = "Refund approved";
+            const p_body = `Your refund request for item ${existing.product_name} has been approved.`;
             await sb.rpc("insert_notification", {
                p_recipient_user_id: recipientUserId,
                p_recipient_role: null,
@@ -461,16 +489,10 @@ export async function respondToRefundRequest(
             .eq("id", existing.order_id)
             .maybeSingle();
          const recipientUserId = orderData?.user_id || null;
-         const p_type =
-            mode === "refund" ? "refund_rejected" : "reject_rejected";
-         const p_title =
-            mode === "refund"
-               ? "Refund request rejected"
-               : "Reject request rejected";
-         const p_body =
-            mode === "refund"
-               ? `Your refund request for item ${existing.product_name} has been rejected by admin.`
-               : `Your reject request for item ${existing.product_name} has been rejected by admin.`;
+         // Use unified refund rejected notification type
+         const p_type = "refund_rejected";
+         const p_title = "Refund request rejected";
+         const p_body = `Your refund request for item ${existing.product_name} has been rejected by admin.`;
          await sb.rpc("insert_notification", {
             p_recipient_user_id: recipientUserId,
             p_recipient_role: null,
@@ -940,71 +962,129 @@ export async function fetchRefundedItems({
 // Fetch aggregated refund metrics for admin dashboard (totals and recent monthly series)
 export async function fetchRefundedDataForDashboard() {
    try {
-      // Totals by status from order_items
-      const { data: totalsRows, error: totalsErr } = await sb
-         .from("order_items")
-         .select("refund_status, count:id", { count: "exact" })
-         .neq("refund_status", null);
+      // We'll compute totals from order_items and orders (for full-order refunds)
+      const totals: any = {
+         requested: 0,
+         approved: 0,
+         rejected: 0,
+         cancelled: 0,
+         refunded: 0,
+      };
 
-      // If the above doesn't return buckets, fall back to simple counts
-      const totals = { requested: 0, approved: 0, rejected: 0 } as any;
-      if (!totalsErr && Array.isArray(totalsRows)) {
-         // PostgREST won't bucket by default here; perform a simple scan
-         const { data: rows, error: rowsErr } = await sb
+      // Count per status from order_items
+      try {
+         const { data: itemRows, error: itemErr } = await sb
+            .from("order_items")
+            .select("refund_status", { count: "exact" })
+            .neq("refund_status", null);
+         // If select(count) didn't produce buckets, do a simple scan
+         const { data: items, error: itemsErr } = await sb
             .from("order_items")
             .select("refund_status")
             .neq("refund_status", null);
-         if (!rowsErr && Array.isArray(rows)) {
-            rows.forEach((r: any) => {
+         if (!itemsErr && Array.isArray(items)) {
+            items.forEach((r: any) => {
                const s = r.refund_status || "requested";
-               if (s in totals) totals[s] = (totals[s] || 0) + 1;
-               else totals[s] = (totals[s] || 0) + 1;
+               totals[s] = (totals[s] || 0) + 1;
             });
          }
-      } else {
-         // Conservative default
+      } catch (e) {
+         // ignore and continue
       }
 
-      // Build a simple monthly series for the last 6 months
-      const months: string[] = [];
-      const series: any[] = [];
+      // Also include order-level refund_status for full-order refunds
+      try {
+         const { data: orderRows, error: orderErr } = await sb
+            .from("orders")
+            .select("refund_status")
+            .neq("refund_status", null);
+         if (!orderErr && Array.isArray(orderRows)) {
+            orderRows.forEach((r: any) => {
+               const s = r.refund_status || "requested";
+               totals[s] = (totals[s] || 0) + 1;
+            });
+         }
+      } catch (e) {}
+
+      // Build monthly series for last 6 months (requested events)
       const now = new Date();
+      const series: any[] = [];
       for (let i = 5; i >= 0; i--) {
          const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
          const label = d.toLocaleString("default", { month: "short" });
-         months.push(label);
-         series.push({ month: label, requested: 0, approved: 0, rejected: 0 });
+         series.push({
+            month: label,
+            requested: 0,
+            approved: 0,
+            rejected: 0,
+            cancelled: 0,
+            refunded: 0,
+         });
       }
 
-      // Fetch recent refund events (last 6 months)
       const since = new Date(
          now.getFullYear(),
          now.getMonth() - 5,
          1
       ).toISOString();
-      const { data: recentRows, error: recentErr } = await sb
-         .from("order_items")
-         .select("refund_status, refund_requested_at")
-         .gte("refund_requested_at", since)
-         .neq("refund_status", null);
 
-      if (!recentErr && Array.isArray(recentRows)) {
-         recentRows.forEach((r: any) => {
-            const dt = r.refund_requested_at
-               ? new Date(r.refund_requested_at)
-               : null;
-            if (!dt) return;
-            const label = dt.toLocaleString("default", { month: "short" });
-            const idx = series.findIndex((s) => s.month === label);
-            const status = r.refund_status || "requested";
-            if (idx >= 0) series[idx][status] = (series[idx][status] || 0) + 1;
-         });
-      }
+      // Collect recent item-level events
+      try {
+         const { data: recentItems, error: recentItemsErr } = await sb
+            .from("order_items")
+            .select("refund_status, refund_requested_at")
+            .gte("refund_requested_at", since)
+            .neq("refund_status", null);
+         if (!recentItemsErr && Array.isArray(recentItems)) {
+            recentItems.forEach((r: any) => {
+               const dt = r.refund_requested_at
+                  ? new Date(r.refund_requested_at)
+                  : null;
+               if (!dt) return;
+               const label = dt.toLocaleString("default", { month: "short" });
+               const idx = series.findIndex((s) => s.month === label);
+               const status = r.refund_status || "requested";
+               if (idx >= 0)
+                  series[idx][status] = (series[idx][status] || 0) + 1;
+            });
+         }
+      } catch (e) {}
+
+      // Collect recent order-level events (full-order refunds)
+      try {
+         const { data: recentOrders, error: recentOrdersErr } = await sb
+            .from("orders")
+            .select("refund_status, refund_requested_at")
+            .gte("refund_requested_at", since)
+            .neq("refund_status", null);
+         if (!recentOrdersErr && Array.isArray(recentOrders)) {
+            recentOrders.forEach((r: any) => {
+               const dt = r.refund_requested_at
+                  ? new Date(r.refund_requested_at)
+                  : null;
+               if (!dt) return;
+               const label = dt.toLocaleString("default", { month: "short" });
+               const idx = series.findIndex((s) => s.month === label);
+               const status = r.refund_status || "requested";
+               if (idx >= 0)
+                  series[idx][status] = (series[idx][status] || 0) + 1;
+            });
+         }
+      } catch (e) {}
 
       return { totals, series };
    } catch (err) {
       console.error("fetchRefundedDataForDashboard error", err);
-      return { totals: { requested: 0, approved: 0, rejected: 0 }, series: [] };
+      return {
+         totals: {
+            requested: 0,
+            approved: 0,
+            rejected: 0,
+            cancelled: 0,
+            refunded: 0,
+         },
+         series: [],
+      };
    }
 }
 

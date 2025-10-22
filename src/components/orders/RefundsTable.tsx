@@ -170,10 +170,7 @@ export const RefundsTable: React.FC<RefundsTableProps> = () => {
                                  setDialogOpen(true);
                               }}
                            >
-                              {refundItem?._mode === "reject" ||
-                              (r.order && r.order._mode === "reject")
-                                 ? "Manage reject"
-                                 : "Manage refund"}
+                              Manage refund
                            </DropdownMenuItem>
                         </DropdownMenuContent>
                      </DropdownMenu>

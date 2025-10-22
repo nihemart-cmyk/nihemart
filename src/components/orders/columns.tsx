@@ -284,12 +284,6 @@ export const columns: ColumnDef<Order>[] = [
          const [isCancelling, setIsCancelling] = useState(false);
          const refundItem =
             order.items?.find((it) => !!it.refund_status) || null;
-         // Determine the mode for the UI label: prefer item-level marker, then order-level,
-         // then fallback to delivered_at (delivered -> refund, otherwise reject)
-         const computedMode: "refund" | "reject" =
-            (refundItem && (refundItem as any)._mode) ||
-            (order as any)._mode ||
-            (order?.delivered_at ? "refund" : "reject");
 
          const handleCancelOrder = async () => {
             setIsCancelling(true);
@@ -345,9 +339,7 @@ export const columns: ColumnDef<Order>[] = [
                         <DropdownMenuItem
                            onClick={() => setShowManageRefund(true)}
                         >
-                           {computedMode === "reject"
-                              ? "Manage reject"
-                              : "Manage refund"}
+                           Manage refund
                         </DropdownMenuItem>
                      )}
                      {order.status === "pending" && (

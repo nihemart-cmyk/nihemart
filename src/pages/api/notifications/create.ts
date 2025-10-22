@@ -352,84 +352,15 @@ export default async function handler(
                }
 
                detailedBody += `We will process your refund within 3-5 business days. You'll receive a confirmation once it's completed.\n\nThank you for your patience.`;
+               detailedBody += `\n\nYou will receive your money after returning the products, but you will pay transport fee.`;
 
                finalBody = detailedBody;
             }
             break;
          }
-         case "reject_requested": {
-            // Treat similar to refund_requested but adjust titles
-            const orderNumber = getOrderNumber(metaTyped);
-            const total = getOrderTotal(metaTyped.order, metaTyped.items);
-            const items = metaTyped.items || metaTyped.order?.items || [];
-
-            if (isAdmin) {
-               finalTitle = `Reject Request - ${orderNumber}`;
-               finalBody = `Reject requested for ${orderNumber}${
-                  total > 0 ? ` (${formatCurrency(total)})` : ""
-               }`;
-            } else {
-               finalTitle = `Reject Request - ${orderNumber}`;
-               let detailedBody = `We have received your reject request!\n\n`;
-               detailedBody += `Order ${orderNumber}\n\n`;
-               if (items && items.length > 0) {
-                  detailedBody += `Items:\n`;
-                  items.forEach((item) => {
-                     const itemName = item.variation_name
-                        ? `${item.product_name} (${item.variation_name})`
-                        : item.product_name;
-                     const unitPrice = formatCurrency(item.price || 0);
-                     detailedBody += `${item.quantity}x ${itemName} ${unitPrice}\n`;
-                  });
-                  detailedBody += `\n`;
-               }
-               if (total > 0) {
-                  detailedBody += `Amount: ${formatCurrency(total)}\n\n`;
-               }
-               if (metaTyped?.details) {
-                  detailedBody += `Details: ${metaTyped.details}\n\n`;
-               }
-               detailedBody += `The admin will review your request and respond soon.`;
-               finalBody = detailedBody;
-            }
-            break;
-         }
-         case "reject_approved": {
-            const orderNumber = getOrderNumber(metaTyped);
-            const items = metaTyped.items || metaTyped.order?.items || [];
-            if (isAdmin) {
-               finalTitle = `Reject Approved - ${orderNumber}`;
-               finalBody = `Reject approved for ${orderNumber}`;
-            } else {
-               finalTitle = `Reject Approved - ${orderNumber}`;
-               let detailedBody = `Your reject request has been approved.\n\n`;
-               detailedBody += `Order ${orderNumber}\n\n`;
-               if (items && items.length > 0) {
-                  detailedBody += `Items:\n`;
-                  items.forEach((item) => {
-                     const itemName = item.variation_name
-                        ? `${item.product_name} (${item.variation_name})`
-                        : item.product_name;
-                     const unitPrice = formatCurrency(item.price || 0);
-                     detailedBody += `${item.quantity}x ${itemName} ${unitPrice}\n`;
-                  });
-                  detailedBody += `\n`;
-               }
-               finalBody = detailedBody;
-            }
-            break;
-         }
-         case "reject_rejected": {
-            const orderNumber = getOrderNumber(metaTyped);
-            if (isAdmin) {
-               finalTitle = `Reject Request Rejected - ${orderNumber}`;
-               finalBody = `Reject request rejected for ${orderNumber}`;
-            } else {
-               finalTitle = `Reject Request Rejected - ${orderNumber}`;
-               finalBody = `Your reject request for ${orderNumber} has been rejected by admin.`;
-            }
-            break;
-         }
+         // Note: reject_* notification types were intentionally removed as
+         // client-side rejects are final and don't require separate admin flows.
+         // If a reject_* type is still sent, fall through to default handling.
          case "refund_approved": {
             const orderNumber = getOrderNumber(metaTyped);
             const total = getOrderTotal(metaTyped.order, metaTyped.items);
@@ -470,6 +401,7 @@ export default async function handler(
                }
 
                detailedBody += `You should see the refund in your account within 3-5 business days.\n\nThank you for choosing Nihemart!`;
+               detailedBody += `\n\nYou will receive your money after returning the products, but you will pay transport fee.`;
 
                finalBody = detailedBody;
             }

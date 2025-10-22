@@ -2,10 +2,18 @@ import { redirect } from 'next/navigation';
 import { fetchOrderById } from '@/integrations/supabase/orders';
 import OrderClientPage from './order-client-page';
 import { createClient } from '@/utils/supabase/server';
+import { Metadata } from 'next';
 
 interface OrderPageProps {
   params: Promise<{ id: string }>;
 }
+
+export const metadata: Metadata = {
+   
+   title: "Komande",
+   description:
+      "Komande yawe watumije kuri Nihemart.",
+};
 
 export default async function OrderPage({ params }: OrderPageProps) {
   const { id } = await params;

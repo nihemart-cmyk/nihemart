@@ -32,6 +32,8 @@ const refundsChartConfig = {
    requested: { label: "Requested", color: "hsl(38, 92%, 50%)" },
    approved: { label: "Approved", color: "hsl(142, 76%, 36%)" },
    rejected: { label: "Rejected", color: "hsl(0, 84%, 60%)" },
+   cancelled: { label: "Cancelled", color: "hsl(220, 14%, 92%)" },
+   refunded: { label: "Refunded", color: "hsl(200, 70%, 40%)" },
 } satisfies ChartConfig;
 
 export default function RefundsOverview({
@@ -88,9 +90,10 @@ export default function RefundsOverview({
                </CardHeader>
                <CardContent>
                   <div className="text-2xl font-bold text-orange-600">
-                     {refunds.totals.requested +
-                        refunds.totals.approved +
-                        refunds.totals.rejected}
+                     {Object.values(refunds.totals || {}).reduce(
+                        (acc: number, v: any) => acc + Number(v || 0),
+                        0
+                     )}
                   </div>
                   <p className="text-xs text-gray-500 mt-1">
                      {refunds.totals.approved} approved

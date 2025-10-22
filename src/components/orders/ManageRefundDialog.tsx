@@ -28,14 +28,6 @@ export function ManageRefundDialog({ open, onOpenChange, order, item }: Props) {
    const [processing, setProcessing] = useState(false);
    const [note, setNote] = useState("");
 
-   const mode = item
-      ? order?.delivered_at
-         ? "refund"
-         : "reject"
-      : order?.delivered_at
-      ? "refund"
-      : "reject";
-
    const handleResponse = async (approve: boolean) => {
       if (processing) return;
       setProcessing(true);
@@ -50,15 +42,15 @@ export function ManageRefundDialog({ open, onOpenChange, order, item }: Props) {
                note,
             });
          }
-         // Show correct toast depending on mode
-         if (mode === "refund") {
-            toast.success(approve ? "Refund approved" : "Refund rejected");
+         // Only approval flow is available in the admin dialog
+         if (approve) {
+            toast.success("Refund approved");
          } else {
-            toast.success(approve ? "Reject approved" : "Reject rejected");
+            toast.success("Operation completed");
          }
          onOpenChange(false);
       } catch (err: any) {
-         toast.error(err?.message || `Failed to process ${mode}`);
+         toast.error(err?.message || `Failed to process refund`);
       } finally {
          setProcessing(false);
       }
@@ -71,9 +63,7 @@ export function ManageRefundDialog({ open, onOpenChange, order, item }: Props) {
       >
          <DialogContent className="max-w-lg">
             <DialogHeader>
-               <DialogTitle>
-                  {mode === "refund" ? "Manage Refund" : "Manage Reject"}
-               </DialogTitle>
+               <DialogTitle>Manage Refund</DialogTitle>
             </DialogHeader>
 
             <div className="space-y-4">
@@ -131,13 +121,6 @@ export function ManageRefundDialog({ open, onOpenChange, order, item }: Props) {
                      disabled={processing}
                   >
                      Cancel
-                  </Button>
-                  <Button
-                     variant="destructive"
-                     onClick={() => handleResponse(false)}
-                     disabled={processing}
-                  >
-                     Reject
                   </Button>
                   <Button
                      className="bg-green-600 hover:bg-green-700"
