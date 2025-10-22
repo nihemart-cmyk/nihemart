@@ -885,7 +885,9 @@ const CheckoutPage = ({
                try {
                   const next = payload?.new?.value;
                   const enabled =
-                     next === true || String(next) === "true" || (next && next === "true");
+                     next === true ||
+                     String(next) === "true" ||
+                     (next && next === "true");
                   setOrdersEnabled(Boolean(enabled));
                } catch (e) {}
             }
@@ -2962,6 +2964,15 @@ Total: ${total.toLocaleString()} RWF
                                     </Button>
                                  </div>
                               )
+                           ) : // If no delivery address exists/selected, show an inert "Order Now" button
+                           !hasAddress ? (
+                              <Button
+                                 variant="outline"
+                                 className="w-full border-orange-300 text-orange-600 hover:bg-orange-50 text-sm sm:text-base h-10 sm:h-12"
+                                 disabled={true}
+                              >
+                                 Order Now
+                              </Button>
                            ) : (
                               <Button
                                  variant="outline"
