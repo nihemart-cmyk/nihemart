@@ -754,15 +754,15 @@ const buildOrdersQuery = (options: OrderQueryOptions) => {
       query = query.eq("status", filters.status);
    }
 
-      // Support filtering by refund_status for admin refund queries
-      if ((filters as any).refund_status !== undefined) {
-         const rs = (filters as any).refund_status;
-         if (rs === null) {
-            // allow explicit null to mean no refund status
-         } else if (rs) {
-            query = query.eq("refund_status", rs);
-         }
+   // Support filtering by refund_status for admin refund queries
+   if ((filters as any).refund_status !== undefined) {
+      const rs = (filters as any).refund_status;
+      if (rs === null) {
+         // allow explicit null to mean no refund status
+      } else if (rs) {
+         query = query.eq("refund_status", rs);
       }
+   }
 
    if (filters.isExternal !== undefined) {
       query = query.eq("is_external", filters.isExternal);

@@ -50,10 +50,10 @@ export const RefundsTable: React.FC<RefundsTableProps> = () => {
       setLoading(true);
       try {
          // build query similar to history page and be tolerant to different response shapes
-            const q = new URLSearchParams();
-            q.set("page", String(page));
-            q.set("limit", String(limit));
-            if (statusFilter) q.set("refundStatus", statusFilter);
+         const q = new URLSearchParams();
+         q.set("page", String(page));
+         q.set("limit", String(limit));
+         if (statusFilter) q.set("refundStatus", statusFilter);
 
          const res = await fetch(`/api/admin/refunds?${q.toString()}`);
          if (!res.ok) throw new Error("Failed to load refunded items");

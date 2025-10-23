@@ -66,12 +66,21 @@ export default async function handler(
       if (type === "orders") {
          // Return order-level refunds - perform a direct supabase query here to
          // avoid any join/count edge-cases from fetchAllOrders
-         const sb = serviceSupabase || (SUPABASE_URL ? createClient(SUPABASE_URL, "") : null);
-         if (!sb) return res.status(500).json({ error: "Supabase client not available" });
+         const sb =
+            serviceSupabase ||
+            (SUPABASE_URL ? createClient(SUPABASE_URL, "") : null);
+         if (!sb)
+            return res
+               .status(500)
+               .json({ error: "Supabase client not available" });
 
          // Build count query
-         let countQuery: any = sb.from("orders").select("id", { head: true, count: "exact" });
-         let listQuery: any = sb.from("orders").select("*, items:order_items(*)");
+         let countQuery: any = sb
+            .from("orders")
+            .select("id", { head: true, count: "exact" });
+         let listQuery: any = sb
+            .from("orders")
+            .select("*, items:order_items(*)");
 
          if (typeof refundStatus === "string" && refundStatus) {
             countQuery = countQuery.eq("refund_status", refundStatus);
@@ -84,7 +93,9 @@ export default async function handler(
 
          // Apply sorting
          try {
-            listQuery = listQuery.order("refund_requested_at", { ascending: false });
+            listQuery = listQuery.order("refund_requested_at", {
+               ascending: false,
+            });
          } catch (e) {}
 
          // Pagination
@@ -94,14 +105,21 @@ export default async function handler(
 
          const { count, error: countError } = await countQuery;
          if (countError) {
-            console.error("Error fetching orders count (refunds API):", countError);
-            return res.status(500).json({ error: countError.message || String(countError) });
+            console.error(
+               "Error fetching orders count (refunds API):",
+               countError
+            );
+            return res
+               .status(500)
+               .json({ error: countError.message || String(countError) });
          }
 
          const { data, error } = await listQuery;
          if (error) {
             console.error("Error fetching orders (refunds API):", error);
-            return res.status(500).json({ error: error.message || String(error) });
+            return res
+               .status(500)
+               .json({ error: error.message || String(error) });
          }
 
          return res.status(200).json({ data: data || [], count: count || 0 });
