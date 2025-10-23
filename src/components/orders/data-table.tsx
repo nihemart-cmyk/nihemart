@@ -21,11 +21,13 @@ import { useState } from "react";
 interface DataTableProps<TData, TValue> {
    columns: ColumnDef<TData, TValue>[];
    data: TData[];
+   loading?: boolean;
 }
 
 export function DataTable<TData, TValue>({
    columns,
    data,
+   loading = false,
 }: DataTableProps<TData, TValue>) {
    const [rowSelection, setRowSelection] = useState({});
    const [sorting, setSorting] = useState<any[]>([]);
@@ -86,7 +88,7 @@ export function DataTable<TData, TValue>({
                ))}
             </TableHeader>
             <TableBody>
-               {table.getRowModel().rows?.length ? (
+               {!loading && table.getRowModel().rows?.length ? (
                   table.getRowModel().rows.map((row) => {
                      // highlight the entire row only if any order item has a refund_status === 'requested'
                      const hasRefund = (row.original as any)?.items?.some(
@@ -113,6 +115,15 @@ export function DataTable<TData, TValue>({
                         </TableRow>
                      );
                   })
+               ) : loading ? (
+                  <TableRow>
+                     <TableCell
+                        colSpan={columns.length}
+                        className="h-24 text-center text-sm text-muted-foreground"
+                     >
+                        Loading...
+                     </TableCell>
+                  </TableRow>
                ) : (
                   <TableRow>
                      <TableCell

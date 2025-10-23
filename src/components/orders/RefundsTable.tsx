@@ -49,18 +49,39 @@ export const RefundsTable: React.FC<RefundsTableProps> = () => {
    const fetchRefunded = async () => {
       setLoading(true);
       try {
-         // call the new integration directly via window fetch endpoint
-         const query = new URLSearchParams();
-         query.set("page", String(page));
-         query.set("limit", String(limit));
-         if (statusFilter) query.set("refundStatus", statusFilter);
+         // build query similar to history page and be tolerant to different response shapes
+            const q = new URLSearchParams();
+            q.set("page", String(page));
+            q.set("limit", String(limit));
+            if (statusFilter) q.set("refundStatus", statusFilter);
 
-         // There's no dedicated API route; call a server-side function via /api/admin/refunds? (we'll use client-side fetch to the integration wrapper if available)
-         const res = await fetch(`/api/admin/refunds?${query.toString()}`);
+         const res = await fetch(`/api/admin/refunds?${q.toString()}`);
          if (!res.ok) throw new Error("Failed to load refunded items");
          const json = await res.json();
-         setItems(json.data || []);
-         setCount(json.count || 0);
+         // support multiple possible payload shapes, including nested data objects
+         let payload: any = [];
+         let countVal: any = 0;
+
+         const top = json;
+         const d = top.data;
+
+         if (Array.isArray(d)) payload = d;
+         else if (d && typeof d === "object") {
+            payload = d.items ?? d.orders ?? d.rows ?? d.data ?? [];
+            countVal = d.count ?? d.total ?? d.total_count ?? countVal;
+         }
+
+         // fallback to top-level fields
+         payload = payload.length
+            ? payload
+            : top.data ?? top.items ?? top.orders ?? top.rows ?? [];
+         countVal =
+            countVal ||
+            (top.count ?? top.total ?? top.meta?.count ?? top.total_count ?? 0);
+
+         const rows = Array.isArray(payload) ? payload : [];
+         setItems(rows);
+         setCount(Number(countVal) || rows.length || 0);
       } catch (err: any) {
          console.error("Failed to fetch refunded items:", err);
          toast.error(err?.message || "Failed to load refunds");
@@ -204,6 +225,7 @@ export const RefundsTable: React.FC<RefundsTableProps> = () => {
          <DataTable
             columns={columns}
             data={items}
+            loading={loading}
          />
 
          <div className="flex items-center justify-between mt-4">

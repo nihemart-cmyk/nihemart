@@ -42,6 +42,7 @@ export default function OrderRefundsTable() {
    const fetchOrders = async () => {
       setLoading(true);
       try {
+         // Build query and include refundStatus only when a specific status is selected.
          const q = new URLSearchParams();
          q.set("page", String(page));
          q.set("limit", String(limit));
@@ -51,8 +52,28 @@ export default function OrderRefundsTable() {
          const res = await fetch(`/api/admin/refunds?${q.toString()}`);
          if (!res.ok) throw new Error("Failed to load order refunds");
          const json = await res.json();
-         setOrders(json.data || []);
-         setCount(json.count || 0);
+         let payload: any = [];
+         let countVal: any = 0;
+
+         const top = json;
+         const d = top.data;
+
+         if (Array.isArray(d)) payload = d;
+         else if (d && typeof d === "object") {
+            payload = d.orders ?? d.items ?? d.rows ?? d.data ?? [];
+            countVal = d.count ?? d.total ?? d.total_count ?? countVal;
+         }
+
+         payload = payload.length
+            ? payload
+            : top.data ?? top.orders ?? top.items ?? top.rows ?? [];
+         countVal =
+            countVal ||
+            (top.count ?? top.total ?? top.meta?.count ?? top.total_count ?? 0);
+
+         const rows = Array.isArray(payload) ? payload : [];
+         setOrders(rows);
+         setCount(Number(countVal) || rows.length || 0);
       } catch (err: any) {
          console.error("Failed to fetch order refunds:", err);
          toast.error(err?.message || "Failed to load order refunds");
@@ -202,6 +223,7 @@ export default function OrderRefundsTable() {
          <DataTable
             columns={columns as any}
             data={orders as any}
+            loading={loading}
          />
 
          <div className="flex items-center justify-between mt-4">

@@ -64,28 +64,47 @@ export default async function handler(
       const l = Math.max(1, Math.min(100, Number(limit || 20)));
 
       if (type === "orders") {
-         // Return order-level refunds
-         const options: any = {
-            filters: {},
-            pagination: { page: p, limit: l },
-            sort: { column: "refund_requested_at", direction: "desc" },
-         };
+         // Return order-level refunds - perform a direct supabase query here to
+         // avoid any join/count edge-cases from fetchAllOrders
+         const sb = serviceSupabase || (SUPABASE_URL ? createClient(SUPABASE_URL, "") : null);
+         if (!sb) return res.status(500).json({ error: "Supabase client not available" });
+
+         // Build count query
+         let countQuery: any = sb.from("orders").select("id", { head: true, count: "exact" });
+         let listQuery: any = sb.from("orders").select("*, items:order_items(*)");
+
          if (typeof refundStatus === "string" && refundStatus) {
-            options.filters.refund_status = refundStatus;
+            countQuery = countQuery.eq("refund_status", refundStatus);
+            listQuery = listQuery.eq("refund_status", refundStatus);
          } else {
-            options.filters.refund_status = undefined;
+            // When no status specified, show orders that have any refund status set
+            countQuery = countQuery.neq("refund_status", null);
+            listQuery = listQuery.neq("refund_status", null);
          }
 
-         const ordersResp = await fetchAllOrders(options);
-         let data = ordersResp.data || [];
-         if (!refundStatus) {
-            data = data.filter(
-               (o: any) =>
-                  o.refund_status !== null && o.refund_status !== undefined
-            );
+         // Apply sorting
+         try {
+            listQuery = listQuery.order("refund_requested_at", { ascending: false });
+         } catch (e) {}
+
+         // Pagination
+         const from = (p - 1) * l;
+         const to = from + l - 1;
+         listQuery = listQuery.range(from, to);
+
+         const { count, error: countError } = await countQuery;
+         if (countError) {
+            console.error("Error fetching orders count (refunds API):", countError);
+            return res.status(500).json({ error: countError.message || String(countError) });
          }
-         res.status(200).json({ data, count: ordersResp.count });
-         return;
+
+         const { data, error } = await listQuery;
+         if (error) {
+            console.error("Error fetching orders (refunds API):", error);
+            return res.status(500).json({ error: error.message || String(error) });
+         }
+
+         return res.status(200).json({ data: data || [], count: count || 0 });
       }
 
       const result = await fetchRefundedItems({

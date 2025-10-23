@@ -105,6 +105,7 @@ export default function RefundsHistoryPage() {
                   <DataTable
                      columns={itemColumns as any}
                      data={items as any}
+                     loading={loading}
                   />
                </div>
 
@@ -115,6 +116,7 @@ export default function RefundsHistoryPage() {
                   <DataTable
                      columns={orderColumns as any}
                      data={orders as any}
+                     loading={loading}
                   />
                </div>
             </div>
