@@ -132,6 +132,7 @@ export const rw: Record<string, string> = {
    "checkout.ordersDisabledBanner": "Kwishyura ubu byahagaritswe n'umuyobozi.",
    "checkout.processing": "Birimo gutunganya komande...",
    "checkout.orderViaWhatsApp": "Tumiza ukoresheje WhatsApp",
+   "checkout.orderNow": "Tumiza Nonaha",
    "checkout.contactPhoneLabel": "Telefoni y'itumanaho:",
    "checkout.paymentMethod": "Uburyo bwo kwishyura",
    // Provinces

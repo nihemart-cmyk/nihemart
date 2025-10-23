@@ -163,6 +163,7 @@ export const en: Record<string, string> = {
       "Ordering is currently disabled by the admin.",
    "checkout.processing": "Processing Order...",
    "checkout.orderViaWhatsApp": "Order via WhatsApp",
+   "checkout.orderNow": "Order Now",
    "checkout.contactPhoneLabel": "Contact Phone:",
    "checkout.cartEmptyTitle": "Your cart is empty",
    "checkout.cartEmptyInfo":
