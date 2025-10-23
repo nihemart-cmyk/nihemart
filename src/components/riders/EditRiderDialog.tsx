@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import PhoneField from "@/components/ui/PhoneField";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -128,9 +129,9 @@ export default function EditRiderDialog({
 
                <div>
                   <Label>Phone</Label>
-                  <Input
+                  <PhoneField
                      value={phone}
-                     onChange={(e) => setPhone(e.target.value)}
+                     onChange={(e: any) => setPhone(e.target.value)}
                   />
                </div>
 

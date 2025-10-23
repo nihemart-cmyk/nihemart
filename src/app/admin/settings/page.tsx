@@ -1,12 +1,14 @@
 "use client";
 
-import { FC, useState, useEffect } from "react";
+import React, { FC, useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
 
+import PhoneField from "@/components/ui/PhoneField";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
    Form,
    FormControl,
@@ -15,18 +17,9 @@ import {
    FormLabel,
    FormMessage,
 } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import {
-   Select,
-   SelectContent,
-   SelectItem,
-   SelectTrigger,
-   SelectValue,
-} from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
-import { Separator } from "@/components/ui/separator";
 import {
    User,
    Settings,
@@ -36,34 +29,14 @@ import {
    Package,
    ShoppingCart,
    BarChart3,
-   Bell,
-   Shield,
    Database,
-   Mail,
-   Phone,
-   MapPin,
-   Calendar,
-   Star,
-   TrendingUp,
-   Clock,
-   CheckCircle,
-   AlertCircle,
    ArrowRight,
-   Edit,
-   Save,
-   X,
-   Upload,
-   Link as LinkIcon,
    Zap,
-   Globe,
    CreditCard,
-   FileText,
-   Download,
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useRiders } from "@/hooks/useRiders";
 
 // Profile form schema
@@ -79,15 +52,9 @@ const ProfileSchema = z.object({
 
 type TProfileSchema = z.infer<typeof ProfileSchema>;
 
-// Order settings schema
+// Order settings schema (only implemented setting kept)
 const OrderSettingsSchema = z.object({
    ordersEnabled: z.boolean(),
-   autoConfirmOrders: z.boolean(),
-   requireApproval: z.boolean(),
-   defaultDeliveryTime: z.string(),
-   maxOrderValue: z.string(),
-   allowBackorders: z.boolean(),
-   notificationEmail: z.string().email("Invalid email"),
 });
 
 type TOrderSettingsSchema = z.infer<typeof OrderSettingsSchema>;
@@ -114,78 +81,85 @@ const AdminSettings: FC = () => {
       defaultValues: {
          firstName: "",
          lastName: "",
-         email: "",
+         email: user?.email || "",
          phoneNumber: "",
          address: "",
          town: "",
-         stateProvince: "",
+         stateProvince: "Kigali City",
       },
    });
 
    const orderSettingsForm = useForm<TOrderSettingsSchema>({
       resolver: zodResolver(OrderSettingsSchema),
-      defaultValues: {
-         ordersEnabled: true,
-         autoConfirmOrders: true,
-         requireApproval: false,
-         defaultDeliveryTime: "24",
-         maxOrderValue: "1000000",
-         allowBackorders: false,
-         notificationEmail: "",
-      },
+      defaultValues: { ordersEnabled: true },
    });
 
    useEffect(() => {
-      const loadProfile = async () => {
-         if (!user) return setProfileLoading(false);
-
-         const { data, error } = await supabase
-            .from("profiles")
-            .select("full_name, phone, address, city")
-            .eq("id", user.id)
-            .maybeSingle();
-
-         if (!error && data) {
-            const fullName = data.full_name || "";
-            const nameParts = fullName.split(" ");
-            profileForm.reset({
-               firstName: nameParts[0] || "",
-               lastName: nameParts.slice(1).join(" ") || "",
-               email: user.email || "",
-               phoneNumber: data.phone || "",
-               address: data.address || "",
-               town: data.city || "",
-               stateProvince: "Kigali City",
-            });
-         } else if (!error && !data) {
-            // Create profile if it doesn't exist
-            const { error: insertError } = await supabase
-               .from("profiles")
-               .insert({
-                  id: user.id,
-                  full_name: user.user_metadata?.full_name || user.email || "",
-                  phone: "",
-                  address: "",
-                  city: "",
-               });
-            if (insertError) {
-               toast.error("Failed to create profile: " + insertError.message);
-            }
-            const fullName = user.user_metadata?.full_name || user.email || "";
-            const nameParts = fullName.split(" ");
-            profileForm.reset({
-               firstName: nameParts[0] || "",
-               lastName: nameParts.slice(1).join(" ") || "",
-               email: user.email || "",
-               phoneNumber: "",
-               address: "",
-               town: "",
-               stateProvince: "Kigali City",
-            });
-         } else {
-            toast.error(error?.message || "Failed to load profile");
-         }
+      if (!user) {
          setProfileLoading(false);
+         return;
+      }
+
+      const loadProfile = async () => {
+         try {
+            const { data, error } = await supabase
+               .from("profiles")
+               .select("full_name, phone, address, city")
+               .eq("id", user.id)
+               .maybeSingle();
+
+            if (!error && data) {
+               const fullName =
+                  data.full_name ||
+                  user.user_metadata?.full_name ||
+                  user.email ||
+                  "";
+               const nameParts = fullName.split(" ");
+               profileForm.reset({
+                  firstName: nameParts[0] || "",
+                  lastName: nameParts.slice(1).join(" ") || "",
+                  email: user.email || "",
+                  phoneNumber: data.phone || "",
+                  address: data.address || "",
+                  town: data.city || "",
+                  stateProvince: "Kigali City",
+               });
+            } else if (!error && !data) {
+               const { error: insertError } = await supabase
+                  .from("profiles")
+                  .insert({
+                     id: user.id,
+                     full_name:
+                        user.user_metadata?.full_name || user.email || "",
+                     phone: "",
+                     address: "",
+                     city: "",
+                  });
+               if (insertError) {
+                  toast.error(
+                     "Failed to create profile: " + insertError.message
+                  );
+               }
+               const fullName =
+                  user.user_metadata?.full_name || user.email || "";
+               const nameParts = fullName.split(" ");
+               profileForm.reset({
+                  firstName: nameParts[0] || "",
+                  lastName: nameParts.slice(1).join(" ") || "",
+                  email: user.email || "",
+                  phoneNumber: "",
+                  address: "",
+                  town: "",
+                  stateProvince: "Kigali City",
+               });
+            } else {
+               toast.error((error as any)?.message || "Failed to load profile");
+            }
+            setProfileLoading(false);
+         } catch (err) {
+            console.error("Error loading profile:", err);
+            setProfileLoading(false);
+         }
       };
 
       const loadStats = async () => {
@@ -202,10 +176,13 @@ const AdminSettings: FC = () => {
             const totalUsers = usersResult.count || 0;
             const orders = ordersResult.data || [];
             const totalOrders = ordersResult.count || 0;
-            const totalRevenue = orders.reduce(
-               (sum: number, order: any) => sum + Number(order.total || 0),
-               0
-            );
+            // Revenue should reflect completed/delivered orders only (exclude cancelled/refunded)
+            const totalRevenue = orders
+               .filter((order: any) => order.status === "delivered")
+               .reduce(
+                  (sum: number, order: any) => sum + Number(order.total || 0),
+                  0
+               );
             const pendingOrders = orders.filter((order: any) =>
                ["pending", "processing"].includes(order.status || "")
             ).length;
@@ -242,8 +219,6 @@ const AdminSettings: FC = () => {
                orderSettingsForm.setValue("ordersEnabled", ordersEnabled);
                // Optionally notify admin when schedule is currently disabling orders
                if (json.scheduleDisabled && ordersEnabled === false) {
-                  // show a subtle toast so admin knows schedule is in effect
-                  // use sonner toast if available
                   try {
                      toast("Orders currently disabled by schedule until 9am");
                   } catch (e) {}
@@ -320,9 +295,6 @@ const AdminSettings: FC = () => {
             throw new Error("Failed to update orders enabled setting");
          }
 
-         // Simulate API call for other order settings
-         await new Promise((resolve) => setTimeout(resolve, 1000));
-         console.log("Order Settings Updated:", data);
          toast.success("Order settings updated successfully");
       } catch (error: any) {
          console.error("Error updating order settings:", error);
@@ -596,38 +568,19 @@ const AdminSettings: FC = () => {
                                                 Phone Number
                                              </FormLabel>
                                              <FormControl>
-                                                <div className="flex">
-                                                   <Select defaultValue="+250">
-                                                      <SelectTrigger className="w-20 h-12 rounded-l-xl border-r-0 border-gray-300">
-                                                         <SelectValue />
-                                                      </SelectTrigger>
-                                                      <SelectContent>
-                                                         <SelectItem value="+250">
-                                                            🇷🇼
-                                                         </SelectItem>
-                                                         <SelectItem value="+1">
-                                                            🇺🇸
-                                                         </SelectItem>
-                                                         <SelectItem value="+44">
-                                                            🇬🇧
-                                                         </SelectItem>
-                                                      </SelectContent>
-                                                   </Select>
-                                                   <Input
-                                                      {...field}
-                                                      value={field.value.replace(
-                                                         "+250",
-                                                         ""
-                                                      )}
-                                                      onChange={(e) =>
-                                                         field.onChange(
-                                                            "+250" +
-                                                               e.target.value
-                                                         )
-                                                      }
-                                                      className="h-12 rounded-r-xl rounded-l-none border-l-0 border-gray-300 focus:border-orange-400 focus:ring-orange-400"
-                                                   />
-                                                </div>
+                                                <Input
+                                                   {...field}
+                                                   value={field.value.replace(
+                                                      "+250",
+                                                      ""
+                                                   )}
+                                                   onChange={(e) =>
+                                                      field.onChange(
+                                                         "+250" + e.target.value
+                                                      )
+                                                   }
+                                                   className="h-12 rounded-xl  border-gray-300 focus:border-orange-400 focus:ring-orange-400"
+                                                />
                                              </FormControl>
                                              <FormMessage />
                                           </FormItem>
@@ -723,8 +676,7 @@ const AdminSettings: FC = () => {
                                     Order Settings
                                  </CardTitle>
                                  <p className="text-orange-600 mt-1">
-                                    Configure order processing and delivery
-                                    preferences
+                                    Toggle order acceptance on the storefront
                                  </p>
                               </div>
                            </div>
@@ -737,7 +689,7 @@ const AdminSettings: FC = () => {
                                  )}
                                  className="space-y-6"
                               >
-                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                 <div className="grid grid-cols-1 gap-6">
                                     <FormField
                                        control={orderSettingsForm.control}
                                        name="ordersEnabled"
@@ -760,163 +712,6 @@ const AdminSettings: FC = () => {
                                                    }
                                                 />
                                              </FormControl>
-                                          </FormItem>
-                                       )}
-                                    />
-
-                                    <FormField
-                                       control={orderSettingsForm.control}
-                                       name="autoConfirmOrders"
-                                       render={({ field }) => (
-                                          <FormItem className="flex items-center justify-between p-4 border rounded-lg">
-                                             <div>
-                                                <FormLabel className="text-gray-700 font-medium">
-                                                   Auto-confirm Orders
-                                                </FormLabel>
-                                                <p className="text-sm text-gray-500">
-                                                   Automatically confirm new
-                                                   orders
-                                                </p>
-                                             </div>
-                                             <FormControl>
-                                                <Switch
-                                                   checked={field.value}
-                                                   onCheckedChange={
-                                                      field.onChange
-                                                   }
-                                                />
-                                             </FormControl>
-                                          </FormItem>
-                                       )}
-                                    />
-
-                                    <FormField
-                                       control={orderSettingsForm.control}
-                                       name="requireApproval"
-                                       render={({ field }) => (
-                                          <FormItem className="flex items-center justify-between p-4 border rounded-lg">
-                                             <div>
-                                                <FormLabel className="text-gray-700 font-medium">
-                                                   Require Approval
-                                                </FormLabel>
-                                                <p className="text-sm text-gray-500">
-                                                   Require manual approval for
-                                                   orders
-                                                </p>
-                                             </div>
-                                             <FormControl>
-                                                <Switch
-                                                   checked={field.value}
-                                                   onCheckedChange={
-                                                      field.onChange
-                                                   }
-                                                />
-                                             </FormControl>
-                                          </FormItem>
-                                       )}
-                                    />
-
-                                    <FormField
-                                       control={orderSettingsForm.control}
-                                       name="defaultDeliveryTime"
-                                       render={({ field }) => (
-                                          <FormItem>
-                                             <FormLabel className="text-gray-600 font-medium">
-                                                Default Delivery Time (hours)
-                                             </FormLabel>
-                                             <FormControl>
-                                                <Select
-                                                   value={field.value}
-                                                   onValueChange={
-                                                      field.onChange
-                                                   }
-                                                >
-                                                   <SelectTrigger className="h-12 rounded-xl border-gray-300 focus:border-orange-400 focus:ring-orange-400">
-                                                      <SelectValue />
-                                                   </SelectTrigger>
-                                                   <SelectContent>
-                                                      <SelectItem value="12">
-                                                         12 hours
-                                                      </SelectItem>
-                                                      <SelectItem value="24">
-                                                         24 hours
-                                                      </SelectItem>
-                                                      <SelectItem value="48">
-                                                         48 hours
-                                                      </SelectItem>
-                                                      <SelectItem value="72">
-                                                         72 hours
-                                                      </SelectItem>
-                                                   </SelectContent>
-                                                </Select>
-                                             </FormControl>
-                                             <FormMessage />
-                                          </FormItem>
-                                       )}
-                                    />
-
-                                    <FormField
-                                       control={orderSettingsForm.control}
-                                       name="maxOrderValue"
-                                       render={({ field }) => (
-                                          <FormItem>
-                                             <FormLabel className="text-gray-600 font-medium">
-                                                Max Order Value (RWF)
-                                             </FormLabel>
-                                             <FormControl>
-                                                <Input
-                                                   {...field}
-                                                   type="number"
-                                                   className="h-12 rounded-xl border-gray-300 focus:border-orange-400 focus:ring-orange-400"
-                                                />
-                                             </FormControl>
-                                             <FormMessage />
-                                          </FormItem>
-                                       )}
-                                    />
-
-                                    <FormField
-                                       control={orderSettingsForm.control}
-                                       name="allowBackorders"
-                                       render={({ field }) => (
-                                          <FormItem className="flex items-center justify-between p-4 border rounded-lg">
-                                             <div>
-                                                <FormLabel className="text-gray-700 font-medium">
-                                                   Allow Backorders
-                                                </FormLabel>
-                                                <p className="text-sm text-gray-500">
-                                                   Allow orders for out-of-stock
-                                                   items
-                                                </p>
-                                             </div>
-                                             <FormControl>
-                                                <Switch
-                                                   checked={field.value}
-                                                   onCheckedChange={
-                                                      field.onChange
-                                                   }
-                                                />
-                                             </FormControl>
-                                          </FormItem>
-                                       )}
-                                    />
-
-                                    <FormField
-                                       control={orderSettingsForm.control}
-                                       name="notificationEmail"
-                                       render={({ field }) => (
-                                          <FormItem>
-                                             <FormLabel className="text-gray-600 font-medium">
-                                                Notification Email
-                                             </FormLabel>
-                                             <FormControl>
-                                                <Input
-                                                   {...field}
-                                                   type="email"
-                                                   className="h-12 rounded-xl border-gray-300 focus:border-orange-400 focus:ring-orange-400"
-                                                />
-                                             </FormControl>
-                                             <FormMessage />
                                           </FormItem>
                                        )}
                                     />
@@ -990,185 +785,7 @@ const AdminSettings: FC = () => {
                            </CardContent>
                         </Card>
 
-                        {/* System Status */}
-                        <Card className="border-orange-200">
-                           <CardHeader className="bg-gradient-to-r from-orange-50 to-orange-25 py-6">
-                              <div className="flex items-center gap-4">
-                                 <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center">
-                                    <Shield className="h-8 w-8 text-orange-600" />
-                                 </div>
-                                 <div>
-                                    <CardTitle className="text-orange-800 text-xl">
-                                       System Status
-                                    </CardTitle>
-                                    <p className="text-orange-600 mt-1">
-                                       Monitor system health and performance
-                                    </p>
-                                 </div>
-                              </div>
-                           </CardHeader>
-                           <CardContent className="p-6">
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                 <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg border border-green-200">
-                                    <div className="flex items-center gap-3">
-                                       <CheckCircle className="h-5 w-5 text-green-600" />
-                                       <div>
-                                          <div className="font-medium text-green-800">
-                                             Database
-                                          </div>
-                                          <div className="text-sm text-green-600">
-                                             All systems operational
-                                          </div>
-                                       </div>
-                                    </div>
-                                    <Badge className="bg-green-100 text-green-800">
-                                       Online
-                                    </Badge>
-                                 </div>
-
-                                 <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg border border-green-200">
-                                    <div className="flex items-center gap-3">
-                                       <CheckCircle className="h-5 w-5 text-green-600" />
-                                       <div>
-                                          <div className="font-medium text-green-800">
-                                             Payment Gateway
-                                          </div>
-                                          <div className="text-sm text-green-600">
-                                             Processing normally
-                                          </div>
-                                       </div>
-                                    </div>
-                                    <Badge className="bg-green-100 text-green-800">
-                                       Online
-                                    </Badge>
-                                 </div>
-
-                                 <div className="flex items-center justify-between p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-                                    <div className="flex items-center gap-3">
-                                       <AlertCircle className="h-5 w-5 text-yellow-600" />
-                                       <div>
-                                          <div className="font-medium text-yellow-800">
-                                             Email Service
-                                          </div>
-                                          <div className="text-sm text-yellow-600">
-                                             Minor delays detected
-                                          </div>
-                                       </div>
-                                    </div>
-                                    <Badge className="bg-yellow-100 text-yellow-800">
-                                       Warning
-                                    </Badge>
-                                 </div>
-
-                                 <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg border border-green-200">
-                                    <div className="flex items-center gap-3">
-                                       <CheckCircle className="h-5 w-5 text-green-600" />
-                                       <div>
-                                          <div className="font-medium text-green-800">
-                                             Storage
-                                          </div>
-                                          <div className="text-sm text-green-600">
-                                             85% capacity used
-                                          </div>
-                                       </div>
-                                    </div>
-                                    <Badge className="bg-green-100 text-green-800">
-                                       Good
-                                    </Badge>
-                                 </div>
-                              </div>
-                           </CardContent>
-                        </Card>
-
-                        {/* Important Links */}
-                        <Card className="border-orange-200">
-                           <CardHeader className="bg-gradient-to-r from-orange-50 to-orange-25 py-6">
-                              <div className="flex items-center gap-4">
-                                 <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center">
-                                    <LinkIcon className="h-8 w-8 text-orange-600" />
-                                 </div>
-                                 <div>
-                                    <CardTitle className="text-orange-800 text-xl">
-                                       Important Links
-                                    </CardTitle>
-                                    <p className="text-orange-600 mt-1">
-                                       Quick access to essential admin resources
-                                    </p>
-                                 </div>
-                              </div>
-                           </CardHeader>
-                           <CardContent className="p-6">
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                 <Button
-                                    variant="outline"
-                                    className="h-auto p-4 flex items-center gap-3 justify-start hover:bg-gray-50"
-                                    onClick={() => router.push("/admin/users")}
-                                 >
-                                    <Users className="h-5 w-5 text-blue-600" />
-                                    <div className="text-left">
-                                       <div className="font-medium">
-                                          User Management
-                                       </div>
-                                       <div className="text-sm text-gray-500">
-                                          Manage user accounts and permissions
-                                       </div>
-                                    </div>
-                                 </Button>
-
-                                 <Button
-                                    variant="outline"
-                                    className="h-auto p-4 flex items-center gap-3 justify-start hover:bg-gray-50"
-                                    onClick={() => router.push("/admin/riders")}
-                                 >
-                                    <Truck className="h-5 w-5 text-green-600" />
-                                    <div className="text-left">
-                                       <div className="font-medium">
-                                          Rider Management
-                                       </div>
-                                       <div className="text-sm text-gray-500">
-                                          Manage delivery riders and assignments
-                                       </div>
-                                    </div>
-                                 </Button>
-
-                                 <Button
-                                    variant="outline"
-                                    className="h-auto p-4 flex items-center gap-3 justify-start hover:bg-gray-50"
-                                    onClick={() =>
-                                       router.push("/admin/products")
-                                    }
-                                 >
-                                    <Package className="h-5 w-5 text-purple-600" />
-                                    <div className="text-left">
-                                       <div className="font-medium">
-                                          Product Catalog
-                                       </div>
-                                       <div className="text-sm text-gray-500">
-                                          Manage products and inventory
-                                       </div>
-                                    </div>
-                                 </Button>
-
-                                 <Button
-                                    variant="outline"
-                                    className="h-auto p-4 flex items-center gap-3 justify-start hover:bg-gray-50"
-                                    onClick={() =>
-                                       router.push("/admin/sales/reports")
-                                    }
-                                 >
-                                    <BarChart3 className="h-5 w-5 text-indigo-600" />
-                                    <div className="text-left">
-                                       <div className="font-medium">
-                                          Sales Reports
-                                       </div>
-                                       <div className="text-sm text-gray-500">
-                                          View detailed sales analytics
-                                       </div>
-                                    </div>
-                                 </Button>
-                              </div>
-                           </CardContent>
-                        </Card>
+                        {/* end General tab content */}
                      </div>
                   )}
                </div>

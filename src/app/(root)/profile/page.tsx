@@ -26,6 +26,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import PhoneField from "@/components/ui/PhoneField";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -173,31 +174,53 @@ const Profile = () => {
          return {
             totalOrders: 0,
             totalSpent: 0,
-            pendingOrders: 0,
+            activeOrders: 0,
             completedOrders: 0,
             averageOrder: 0,
             recentOrders: [],
          };
 
-      const orders = ordersData.data;
+      const orders = Array.isArray(ordersData.data) ? ordersData.data : [];
+
+      // total orders is simply number of orders returned by the query
       const totalOrders = orders.length;
-      const totalSpent = orders.reduce(
-         (sum, order) => sum + Number(order.total || 0),
-         0
-      );
-      const pendingOrders = orders.filter((order) =>
-         ["pending", "processing", "shipped"].includes(order.status || "")
-      ).length;
+
+      // Define which statuses count as active
+      const activeStatuses = ["pending", "processing", "shipped"];
+
+      // completed orders are those delivered
       const completedOrders = orders.filter(
          (order) => order.status === "delivered"
       ).length;
-      const averageOrder = totalOrders > 0 ? totalSpent / totalOrders : 0;
-      const recentOrders = orders.slice(0, 3);
+
+      // active orders count
+      const activeOrders = orders.filter((order) =>
+         activeStatuses.includes(order.status || "")
+      ).length;
+
+      // totalSpent: sum totals for completed orders only (exclude cancelled/refunded/unsettled)
+      const totalSpent = orders
+         .filter((order) => order.status === "delivered")
+         .reduce((sum, order) => sum + Number(order.total || 0), 0);
+
+      // averageOrder: average of completed orders (fallback to 0)
+      const averageOrder =
+         completedOrders > 0 ? totalSpent / completedOrders : 0;
+
+      // recentOrders: sort by created_at desc then take first 3 (guard for missing created_at)
+      const recentOrders = orders
+         .slice()
+         .sort((a, b) => {
+            const ta = new Date(a.created_at || 0).getTime();
+            const tb = new Date(b.created_at || 0).getTime();
+            return tb - ta;
+         })
+         .slice(0, 3);
 
       return {
          totalOrders,
          totalSpent,
-         pendingOrders,
+         activeOrders,
          completedOrders,
          averageOrder,
          recentOrders,
@@ -279,7 +302,7 @@ const Profile = () => {
                      {t("nav.profile")}
                   </h1>
                   <p className="text-gray-600 mt-1 text-sm sm:text-base">
-                     Manage your account and view your activity
+                     Manage your account
                   </p>
                </div>
             </div>
@@ -387,30 +410,23 @@ const Profile = () => {
                         </div>
 
                         <div>
-                           <Label
-                              htmlFor="phone"
-                              className="text-sm font-medium text-gray-700"
-                           >
-                              Phone
-                           </Label>
-                           <div className="relative mt-1">
-                              <Input
-                                 id="phone"
-                                 value={formData.phone}
-                                 onChange={(e) =>
-                                    setFormData({
-                                       ...formData,
-                                       phone: e.target.value,
-                                    })
-                                 }
-                                 disabled={
-                                    !isEditing || (hasRole && hasRole("rider"))
-                                 }
-                                 className="border-gray-300 focus:border-orange-500 focus:ring-orange-500 text-sm h-10"
-                                 placeholder="Your phone number"
-                              />
-                              <Phone className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                           </div>
+                           {/* Use shared PhoneField for consistent styling */}
+                           <PhoneField
+                              id="phone"
+                              label={"Phone"}
+                              value={formData.phone}
+                              onChange={(e: any) =>
+                                 setFormData({
+                                    ...formData,
+                                    phone: e.target.value,
+                                 })
+                              }
+                              disabled={
+                                 !isEditing || (hasRole && hasRole("rider"))
+                              }
+                              className="text-sm"
+                              placeholder="Your phone number"
+                           />
                         </div>
 
                         <div>
@@ -620,7 +636,7 @@ const Profile = () => {
                         <div className="text-center p-3 bg-yellow-50 rounded-lg">
                            <Clock className="h-6 w-6 text-yellow-600 mx-auto mb-2" />
                            <div className="text-lg sm:text-xl font-bold text-yellow-900">
-                              {stats.pendingOrders}
+                              {stats.activeOrders}
                            </div>
                            <div className="text-xs text-yellow-600">
                               Active Orders

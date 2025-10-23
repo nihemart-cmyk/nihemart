@@ -14,6 +14,7 @@ import { useAddresses } from "@/hooks/useAddresses";
 import { Label } from "@/components/ui/label";
 import { useDebounce } from "@/hooks/use-debounce";
 import { Input } from "./input";
+import PhoneField from "@/components/ui/PhoneField";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -144,7 +145,6 @@ export function AddressDialog({
          // Close dialog
          onOpenChange?.(false);
       } catch (err: any) {
-         
          setError(err.message || "Failed to save address. Please try again.");
       } finally {
          setIsSaving(false);
@@ -255,7 +255,7 @@ export function AddressDialog({
                                  <FormItem>
                                     <FormLabel>Contact phone</FormLabel>
                                     <FormControl>
-                                       <Input
+                                       <PhoneField
                                           {...field}
                                           placeholder="+250... or 07..."
                                           className="mt-1.5"
