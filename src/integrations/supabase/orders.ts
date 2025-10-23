@@ -744,10 +744,15 @@ export type {
    CreateOrderRequest,
 } from "@/types/orders";
 
-const buildOrdersQuery = (options: OrderQueryOptions) => {
+const buildOrdersQuery = (
+   options: OrderQueryOptions,
+   includeItems: boolean = true
+) => {
    const { filters = {}, pagination, sort } = options;
-   // Ensure we select related order_items for both single and list queries
-   let query = sb.from("orders").select("*, items:order_items(*)");
+   // Select base columns; include items relation only when requested to avoid
+   // inflating counts during HEAD/count queries.
+   const selectExpr = includeItems ? "*, items:order_items(*)" : "*";
+   let query = sb.from("orders").select(selectExpr);
 
    // Apply filters
    if (filters.status) {
@@ -819,7 +824,10 @@ export async function fetchAllOrders(options: OrderQueryOptions = {}) {
    // To avoid inflated counts caused by joins (orders with multiple items),
    // fetch the exact count separately using a HEAD request (no joined relations),
    // then fetch the paginated data with the items relation included.
-   const countQuery = buildOrdersQuery({ ...options, pagination: undefined });
+   const countQuery = buildOrdersQuery(
+      { ...options, pagination: undefined },
+      false
+   );
    const { count, error: countError } = await countQuery.select("id", {
       head: true,
       count: "exact",
@@ -830,7 +838,7 @@ export async function fetchAllOrders(options: OrderQueryOptions = {}) {
       throw countError;
    }
 
-   const dataQuery = buildOrdersQuery(options);
+   const dataQuery = buildOrdersQuery(options, true);
    const { data, error } = await dataQuery.select("*, items:order_items(*)");
 
    if (error) {
@@ -851,10 +859,13 @@ export async function fetchUserOrders(
 ) {
    const baseOptions = { ...options };
    // Build an unpaginated count query to get an exact unique orders count
-   const countQuery = buildOrdersQuery({
-      ...baseOptions,
-      pagination: undefined,
-   });
+   const countQuery = buildOrdersQuery(
+      {
+         ...baseOptions,
+         pagination: undefined,
+      },
+      false
+   );
    if (userId) countQuery.eq("user_id", userId);
    const { count, error: countError } = await countQuery.select("id", {
       head: true,

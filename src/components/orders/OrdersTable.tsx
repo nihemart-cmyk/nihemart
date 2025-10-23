@@ -73,7 +73,7 @@ const OrdersTable: FC<OrdersTableProps> = () => {
    const [search, setSearch] = useState("");
    const [statusFilter, setStatusFilter] = useState("All");
    const [page, setPage] = useState(1);
-   const [limit, setLimit] = useState(10);
+   const [limit, setLimit] = useState(50);
    const [sort, setSort] = useState({
       column: "created_at",
       direction: "desc" as "asc" | "desc",
@@ -140,10 +140,26 @@ const OrdersTable: FC<OrdersTableProps> = () => {
    });
 
    const orders = ordersData?.data || [];
-   const totalCount = ordersData?.count || 0;
+   // Prefer the unpaginated authoritative count when available; fall back to
+   // the paginated response's count, then the loaded array length.
+   const authoritativeCount =
+      allOrdersUnpaginated?.count ?? ordersData?.count ?? orders.length ?? 0;
+   const totalCount = Number(authoritativeCount || 0);
    const totalPages = Math.max(1, Math.ceil(totalCount / limit));
-   const rangeStart = totalCount === 0 ? 0 : (page - 1) * limit + 1;
-   const rangeEnd = Math.min(totalCount, page * limit);
+      // Fallback: if authoritative counts are missing or 0 but current page is
+      // full (orders.length === limit), assume there may be more pages. This
+      // avoids disabling Next when the DB count isn't available or accurate.
+      const hasMore =
+         (totalCount > page * limit) || // authoritative says more
+         (orders.length === limit && (allOrdersUnpaginated?.count ?? ordersData?.count ?? 0) === 0);
+
+      // If authoritative count is missing (0) but we detect that current page
+      // is full (hasMore), expose an extra page so users can navigate forward.
+      const effectiveTotalPages =
+         totalCount > 0 ? totalPages : hasMore ? Math.max(1, page + 1) : 1;
+
+      const rangeStart = totalCount === 0 ? 0 : (page - 1) * limit + 1;
+      const rangeEnd = Math.min(totalCount, page * limit);
 
    // Debug: log authoritative and fallback counts to diagnose mismatches
    console.log("OrdersTable counts:", {
@@ -239,19 +255,17 @@ const OrdersTable: FC<OrdersTableProps> = () => {
    };
 
    const handlePageChange = (newPage: number) => {
-      if (newPage >= 1 && newPage <= totalPages) {
-         setPage(newPage);
-      }
+      const clamped = Math.max(1, Math.min(newPage, effectiveTotalPages));
+      setPage(clamped);
    };
 
    // Simple page range calculation for pagination
    const getPageNumbers = () => {
-      const pages = [];
-      const start = Math.max(1, page - 2);
-      const end = Math.min(totalPages, page + 2);
-      for (let i = start; i <= end; i++) {
-         pages.push(i);
-      }
+      const pages: number[] = [];
+      // Show all pages by default per request, but cap to avoid rendering thousands.
+      const cap = 200; // safety cap
+      const last = Math.min(effectiveTotalPages, cap);
+      for (let i = 1; i <= last; i++) pages.push(i);
       return pages;
    };
 
@@ -267,12 +281,7 @@ const OrdersTable: FC<OrdersTableProps> = () => {
 
    return (
       <div className="p-5 rounded-2xl bg-white mt-10">
-         {ordersEnabled === false && (
-            <div className="mb-4 p-3 rounded-md bg-yellow-50 border border-yellow-200 text-yellow-800">
-               Ordering is currently disabled. Customers will not be able to
-               place orders.
-            </div>
-         )}
+        
          <div className="flex gap-5 justify-between flex-col 2xl:flex-row pb-8">
             <div className="hidden md:block rounded-[8px] h-fit py-2 px-3 bg-[#E8F6FB] p-[2px] relative">
                <AnimatedBackground
@@ -763,12 +772,10 @@ const OrdersTable: FC<OrdersTableProps> = () => {
                <span className="ml-2">Loading orders...</span>
             </div>
          ) : (
-            <DataTable
-               columns={columns}
-               data={orders}
-            />
-         )}
-         <Pagination>
+            <div className="space-y-4">
+               <DataTable columns={columns} data={orders} />
+
+               <Pagination>
             <PaginationContent>
                <PaginationItem>
                   <PaginationPrevious
@@ -796,29 +803,26 @@ const OrdersTable: FC<OrdersTableProps> = () => {
                      </PaginationLink>
                   </PaginationItem>
                ))}
-               {page + 2 < totalPages && (
+               {page + 2 < effectiveTotalPages && (
                   <PaginationItem>
                      <PaginationEllipsis />
                   </PaginationItem>
                )}
                <PaginationItem>
-                  <PaginationNext
+                     <PaginationNext
                      href="#"
                      onClick={(e) => {
                         e.preventDefault();
-                        handlePageChange(page + 1);
+                        if (hasMore) handlePageChange(page + 1);
                      }}
-                     className={
-                        page === totalPages
-                           ? "pointer-events-none opacity-50"
-                           : ""
-                     }
+                     className={hasMore ? "" : "pointer-events-none opacity-50"}
                   />
                </PaginationItem>
             </PaginationContent>
-         </Pagination>
-      </div>
-   );
+               </Pagination>
+            </div>)}
+         </div>
+      );
 };
 
 export default OrdersTable;
