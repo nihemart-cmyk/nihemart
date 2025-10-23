@@ -45,11 +45,13 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
    const { user, hasRole } = useAuth();
    const [notifications, setNotifications] = useState<Notification[]>([]);
    const [riderId, setRiderId] = useState<string | null>(null);
+   const channelRef = useRef<any | null>(null);
+   // compute boolean admin status so the effect can depend on it and re-run
+   const isAdmin = Boolean(hasRole && hasRole("admin"));
 
    useEffect(() => {
       if (!user) return;
 
-      let notificationsChannel: any = null;
       const addNotificationLocal = (n: Notification) => {
          setNotifications((prev) => [n, ...prev]);
          // Show concise toasts only for important customer-facing events.
@@ -217,97 +219,73 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
       // Keep a minimal, manual polling fallback if desired later.
 
       const setupRealtime = () => {
-         // Create a channel scoped to this user for easier cleanup
-         // Remove any existing channel before creating a fresh one
+         // Create a channel scoped to this user for easier cleanup.
+         // Remove any existing channel before creating a fresh one.
          try {
-            if (notificationsChannel) {
+            if (channelRef.current) {
                try {
-                  supabase.removeChannel(notificationsChannel);
+                  supabase.removeChannel(channelRef.current);
                } catch (e) {
-                  notificationsChannel.unsubscribe?.();
+                  channelRef.current.unsubscribe?.();
                }
+               channelRef.current = null;
             }
          } catch {}
 
-         notificationsChannel = supabase.channel(
-            `public:notifications:user:${user.id}`
-         );
+         const ch = supabase.channel(`public:notifications:user:${user.id}`);
 
-         // Subscribe to INSERT/UPDATE events where recipient_user_id equals this user
-         notificationsChannel.on(
+         // Subscribe to all INSERT/UPDATE events on notifications table (no server-side filter)
+         // Client-side filtering in handleRealtimeRow ensures only relevant notifications are processed.
+         ch.on(
             "postgres_changes",
             {
                event: "INSERT",
                schema: "public",
                table: "notifications",
-               filter: `recipient_user_id=eq.${user.id}`,
             },
-            (payload: any) => handleRealtimeRow(payload.new)
+            (payload: any) => {
+               try {
+                  // eslint-disable-next-line no-console
+                  console.debug(
+                     "notifications channel received INSERT",
+                     payload?.new?.id
+                  );
+               } catch (e) {}
+               handleRealtimeRow(payload.new);
+            }
          );
 
-         notificationsChannel.on(
+         ch.on(
             "postgres_changes",
             {
                event: "UPDATE",
                schema: "public",
                table: "notifications",
-               filter: `recipient_user_id=eq.${user.id}`,
             },
-            (payload: any) => handleRealtimeRow(payload.new)
+            (payload: any) => {
+               try {
+                  // eslint-disable-next-line no-console
+                  console.debug(
+                     "notifications channel received UPDATE",
+                     payload?.new?.id
+                  );
+               } catch (e) {}
+               handleRealtimeRow(payload.new);
+            }
          );
 
-         // If the user is an admin, subscribe to role=admin notifications only
-         if (hasRole && hasRole("admin")) {
-            notificationsChannel.on(
-               "postgres_changes",
-               {
-                  event: "INSERT",
-                  schema: "public",
-                  table: "notifications",
-                  filter: `recipient_role=eq.admin`,
-               },
-               (payload: any) => handleRealtimeRow(payload.new)
-            );
-
-            notificationsChannel.on(
-               "postgres_changes",
-               {
-                  event: "UPDATE",
-                  schema: "public",
-                  table: "notifications",
-                  filter: `recipient_role=eq.admin`,
-               },
-               (payload: any) => handleRealtimeRow(payload.new)
-            );
-         }
-
-         // For riders: only subscribe if we have riderId to avoid receiving all rider notifications
-         if (riderId) {
-            notificationsChannel.on(
-               "postgres_changes",
-               {
-                  event: "INSERT",
-                  schema: "public",
-                  table: "notifications",
-                  filter: `recipient_role=eq.rider`,
-               },
-               (payload: any) => handleRealtimeRow(payload.new)
-            );
-
-            notificationsChannel.on(
-               "postgres_changes",
-               {
-                  event: "UPDATE",
-                  schema: "public",
-                  table: "notifications",
-                  filter: `recipient_role=eq.rider`,
-               },
-               (payload: any) => handleRealtimeRow(payload.new)
-            );
-         }
-
-         // Finalize subscription
-         notificationsChannel.subscribe();
+         // Finalize subscription and keep a reference for cleanup
+         ch.subscribe();
+         channelRef.current = ch;
+         // debug
+         try {
+            // eslint-disable-next-line no-console
+            console.debug("Subscribed to notifications channel:", {
+               channel: `public:notifications:user:${user.id}`,
+               isAdmin,
+               riderId,
+            });
+         } catch (e) {}
       };
 
       // Reconnect/resubscribe handling: re-setup realtime when browser comes back online
@@ -342,8 +320,31 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
 
          const isForUser =
             recipientUser && String(recipientUser) === String(user.id);
-         const isForAdmin =
-            recipientRole === "admin" && hasRole && hasRole("admin");
+         const isForAdmin = recipientRole === "admin" && isAdmin;
+
+         // If recipient_user_id is null but the meta contains this user id (legacy flows), treat as intended for this user
+         let metaUserMatch = false;
+         try {
+            const meta =
+               typeof row.meta === "string"
+                  ? JSON.parse(row.meta)
+                  : row.meta || {};
+            const possibleIds = [
+               meta.user_id,
+               meta.recipient_user_id,
+               meta.order?.user_id,
+               meta.order_id,
+            ];
+            for (const idCandidate of possibleIds) {
+               if (!idCandidate) continue;
+               if (String(idCandidate) === String(user.id)) {
+                  metaUserMatch = true;
+                  break;
+               }
+            }
+         } catch (e) {
+            // ignore parse error
+         }
 
          let isForRiderFallback = false;
          if (recipientRole === "rider") {
@@ -364,7 +365,8 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
             }
          }
 
-         if (!(isForUser || isForAdmin || isForRiderFallback)) return;
+         if (!(isForUser || isForAdmin || isForRiderFallback || metaUserMatch))
+            return;
 
          const normalized: Notification = {
             id: row.id,
@@ -434,24 +436,36 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
 
       return () => {
          try {
-            if (notificationsChannel) {
-               // removeChannel is newer; fallback to unsubscribe if unavailable
+            if (channelRef.current) {
                try {
-                  supabase.removeChannel(notificationsChannel);
+                  // eslint-disable-next-line no-console
+                  console.debug(
+                     "Removing notifications channel",
+                     channelRef.current
+                  );
+                  supabase.removeChannel(channelRef.current);
                } catch (e) {
-                  notificationsChannel.unsubscribe?.();
+                  try {
+                     // eslint-disable-next-line no-console
+                     console.debug(
+                        "Unsubscribing notifications channel",
+                        channelRef.current
+                     );
+                     channelRef.current.unsubscribe?.();
+                  } catch (e) {}
                }
+               channelRef.current = null;
             }
          } catch (err) {
             try {
-               notificationsChannel?.unsubscribe?.();
+               channelRef.current?.unsubscribe?.();
             } catch {}
          }
          try {
             window.removeEventListener("online", handleOnline);
          } catch {}
       };
-   }, [user?.id, hasRole, riderId]);
+   }, [user?.id, isAdmin, riderId]);
 
    const addNotification = (n: Notification) =>
       setNotifications((prev) => [n, ...prev].slice(0, 100));

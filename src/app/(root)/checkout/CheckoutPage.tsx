@@ -226,6 +226,13 @@ const CheckoutPage = ({
       string | null
    >(null);
    const [paymentVerified, setPaymentVerified] = useState<boolean>(false);
+   // Track payment failures/timeouts so we can offer retry/alternate method UX
+   const [paymentFailure, setPaymentFailure] = useState<{
+      kind: "timedout" | "failed" | "not_found";
+      message?: string;
+      reference?: string;
+   } | null>(null);
+   const [isFinalizing, setIsFinalizing] = useState(false);
    // Track when a payment flow is actively being initiated to avoid
    // the empty-cart redirect racing the redirect to external gateway
    const [paymentInProgress, setPaymentInProgress] = useState(false);
@@ -476,14 +483,277 @@ const CheckoutPage = ({
                      toast.success(
                         "Payment completed successfully. You can now finalize your order."
                      );
+                     setPaymentFailure(null);
+                     // Cleanup any stored payment/session data now that the order is verified
+                     try {
+                        if (typeof window !== "undefined") {
+                           sessionStorage.removeItem("kpay_reference");
+                           clearCheckoutStorage();
+                        }
+                     } catch (e) {}
                   } else {
-                     toast.error(
-                        "Payment returned but no successful payment was found. Please check your order or try another method."
-                     );
+                     const msg =
+                        "Payment returned but no successful payment was found. You can retry or choose another payment method.";
+                     toast.error(msg);
+                     setPaymentFailure({
+                        kind: "not_found",
+                        message: msg,
+                        reference: undefined,
+                     });
                   }
                } catch (e) {
                   console.error("Failed to verify returned payment:", e);
-                  setPaymentVerified(false);
+                  setPaymentOpen(true);
+                  setPaymentFailure(null);
+               }
+            })();
+         }
+
+         // If payment succeeded but no orderId (session-based), attempt finalize immediately
+         if (p === "success" && !oid) {
+            (async () => {
+               try {
+                  const ref =
+                     typeof window !== "undefined"
+                        ? sessionStorage.getItem("kpay_reference")
+                        : null;
+                  if (ref) {
+                     setIsFinalizing(true);
+                     const finResp = await fetch(
+                        `/api/payments/kpay/finalize`,
+                        {
+                           method: "POST",
+                           headers: { "Content-Type": "application/json" },
+                           body: JSON.stringify({ reference: ref }),
+                        }
+                     );
+                     if (finResp.ok) {
+                        const finData = await finResp.json();
+
+                        // If the finalize endpoint returned an orderId, go to it
+                        if (finData?.success && finData.orderId) {
+                           setIsFinalizing(false);
+                           try {
+                              sessionStorage.removeItem("kpay_reference");
+                           } catch (e) {}
+                           try {
+                              clearCheckoutStorage();
+                           } catch (e) {}
+                           toast.success(
+                              "Payment verified and order created. Redirecting..."
+                           );
+                           router.push(`/orders/${finData.orderId}`);
+                           return;
+                        }
+
+                        // If the payment is completed but webhook didn't create an order,
+                        // the finalize endpoint will report canCreateOrder: true.
+                        // In that case, create the order now on behalf of the user using
+                        // the persisted checkout snapshot (or in-memory state as a fallback),
+                        // then attempt to link the completed payment to the newly created order.
+                        if (finData?.success && finData.canCreateOrder) {
+                           try {
+                              // Prevent the empty-cart redirect while creating the order
+                              setSuppressEmptyCartRedirect(true);
+                              // Build order payload from persisted snapshot or current state
+                              const persisted =
+                                 typeof window !== "undefined"
+                                    ? loadCheckoutFromStorage()
+                                    : null;
+
+                              const snapshot = persisted || {
+                                 formData,
+                                 paymentMethod,
+                                 mobileMoneyPhones,
+                                 cart: orderItems,
+                              };
+
+                              const derivedCityNow = deriveCity();
+                              const derivedFullNameNow =
+                                 user?.user_metadata?.full_name?.trim() ||
+                                 `${
+                                    (snapshot.formData?.firstName as string) ||
+                                    formData.firstName ||
+                                    ""
+                                 } ${
+                                    (snapshot.formData?.lastName as string) ||
+                                    formData.lastName ||
+                                    ""
+                                 }`.trim();
+
+                              const [fNameNow, ...lPartsNow] = (
+                                 derivedFullNameNow || ""
+                              ).split(" ");
+                              const lNameNow = lPartsNow.join(" ");
+
+                              const itemsForOrder = (
+                                 snapshot.cart && Array.isArray(snapshot.cart)
+                                    ? snapshot.cart
+                                    : orderItems
+                              ).map((it: any) => ({
+                                 product_id: it.product_id || it.id,
+                                 product_variation_id:
+                                    it.variation_id || undefined,
+                                 product_name: it.name,
+                                 product_sku: it.sku || undefined,
+                                 variation_name: it.variation_name || undefined,
+                                 price: it.price,
+                                 quantity: it.quantity,
+                                 total: it.price * it.quantity,
+                              }));
+
+                              const orderPayload: CreateOrderRequest = {
+                                 order: {
+                                    user_id: user!.id,
+                                    subtotal: subtotal,
+                                    tax: transport,
+                                    total: total,
+                                    customer_email:
+                                       (snapshot.formData?.email as string) ||
+                                       formData.email ||
+                                       "",
+                                    customer_first_name: (
+                                       fNameNow || ""
+                                    ).trim(),
+                                    customer_last_name: (lNameNow || "").trim(),
+                                    customer_phone:
+                                       (
+                                          selectedAddress?.phone ||
+                                          (snapshot.formData
+                                             ?.phone as string) ||
+                                          formData.phone ||
+                                          ""
+                                       ).trim() || undefined,
+                                    delivery_address: (
+                                       (selectedAddress?.street ??
+                                          selectedAddress?.display_name ??
+                                          (snapshot.formData
+                                             ?.address as string)) ||
+                                       formData.address ||
+                                       ""
+                                    ).trim(),
+                                    delivery_city: (
+                                       derivedCityNow ||
+                                       selectedAddress?.city ||
+                                       (snapshot.formData?.city as string) ||
+                                       formData.city ||
+                                       ""
+                                    ).trim(),
+                                    status: "pending",
+                                    payment_method:
+                                       (snapshot.paymentMethod as any) ||
+                                       paymentMethod ||
+                                       "cash_on_delivery",
+                                    delivery_notes:
+                                       (snapshot.formData
+                                          ?.delivery_notes as string) ||
+                                       formData.delivery_notes ||
+                                       "" ||
+                                       undefined,
+                                 },
+                                 items: itemsForOrder,
+                              } as CreateOrderRequest;
+
+                              // Create the order now
+                              createOrder.mutate(
+                                 orderPayload as CreateOrderRequest,
+                                 {
+                                    onSuccess: async (createdOrder: any) => {
+                                       try {
+                                          // Attempt to link payment to order
+                                          const ref =
+                                             typeof window !== "undefined"
+                                                ? sessionStorage.getItem(
+                                                     "kpay_reference"
+                                                  )
+                                                : null;
+
+                                          let linkSucceeded = false;
+                                          if (!ref) {
+                                             linkSucceeded = true;
+                                          } else {
+                                             try {
+                                                const linkResp = await fetch(
+                                                   "/api/payments/link",
+                                                   {
+                                                      method: "POST",
+                                                      headers: {
+                                                         "Content-Type":
+                                                            "application/json",
+                                                      },
+                                                      body: JSON.stringify({
+                                                         orderId:
+                                                            createdOrder.id,
+                                                         reference: ref,
+                                                      }),
+                                                   }
+                                                );
+                                                if (linkResp.ok) {
+                                                   linkSucceeded = true;
+                                                }
+                                             } catch (linkErr) {
+                                                console.error(
+                                                   "Linking payment failed during finalize auto-create:",
+                                                   linkErr
+                                                );
+                                             }
+                                          }
+
+                                          if (linkSucceeded) {
+                                             try {
+                                                clearAllCheckoutClientState();
+                                             } catch (e) {}
+                                          } else {
+                                             toast(
+                                                "Order created but payment linking did not complete. Your checkout data has been preserved — please check your orders page or retry linking from the payment page."
+                                             );
+                                          }
+
+                                          toast.success(
+                                             `Order #${createdOrder.order_number} has been created successfully!`
+                                          );
+                                          router.push(
+                                             `/orders/${createdOrder.id}`
+                                          );
+                                       } catch (outerErr) {
+                                          console.error(
+                                             "Error after auto-create order:",
+                                             outerErr
+                                          );
+                                          router.push(
+                                             `/orders/${createdOrder.id}`
+                                          );
+                                       }
+                                    },
+                                    onError: (err: any) => {
+                                       console.error(
+                                          "Auto-create order failed:",
+                                          err
+                                       );
+                                       setSuppressEmptyCartRedirect(false);
+                                       setIsFinalizing(false);
+                                       toast.error(
+                                          "Failed to create order automatically. Please return to checkout to retry."
+                                       );
+                                    },
+                                    onSettled: () => {
+                                       setIsFinalizing(false);
+                                       setSuppressEmptyCartRedirect(false);
+                                    },
+                                 }
+                              );
+
+                              return;
+                           } catch (e) {
+                              console.error("Auto-finalize/create failed:", e);
+                           }
+                        }
+                     }
+                     setIsFinalizing(false);
+                  }
+               } catch (e) {
+                  console.error("Finalize attempt failed on return:", e);
+                  setIsFinalizing(false);
                }
             })();
          }
@@ -544,9 +814,14 @@ const CheckoutPage = ({
                               "Payment completed successfully. You can now finalize your order."
                            );
                         } else {
-                           toast.error(
-                              "Payment returned but no successful payment was found. Please check your order or contact support."
-                           );
+                           const msg =
+                              "Payment returned but no successful payment was found. You can retry or choose another payment method.";
+                           toast.error(msg);
+                           setPaymentFailure({
+                              kind: "not_found",
+                              message: msg,
+                              reference,
+                           });
                         }
                         try {
                            sessionStorage.removeItem("kpay_reference");
@@ -638,11 +913,13 @@ const CheckoutPage = ({
             // instructions or other form data). The checkout storage will be
             // cleared only after an actual order creation.
             if (mounted) {
-               toast.error(
-                  "Payment returned but verification timed out. Please check your orders page later."
-               );
+               const msg =
+                  "Payment verification timed out. You can retry or choose another payment method.";
+               toast.error(msg);
+               setPaymentFailure({ kind: "timedout", message: msg, reference });
                try {
-                  sessionStorage.removeItem("kpay_reference");
+                  // keep the reference in storage so finalize can still pick it up if webhook runs later
+                  // sessionStorage.removeItem("kpay_reference");
                } catch (e) {}
                // NOTE: do NOT clear nihemart_checkout_v1 here — preserve checkout state
             }
@@ -1231,6 +1508,10 @@ const CheckoutPage = ({
    // Handle order creation or retry payment
    const handleCreateOrder = async () => {
       if (isSubmitting) return;
+      // Clear any previous payment failure when initiating a new attempt
+      try {
+         setPaymentFailure(null);
+      } catch (e) {}
 
       const formErrors = validateForm();
       if (Object.keys(formErrors).length > 0) {
@@ -1597,65 +1878,53 @@ const CheckoutPage = ({
                if (paymentResult.success) {
                   toast.success("Redirecting to payment gateway...");
 
-                  if (paymentResult.reference) {
+                  const ref =
+                     paymentResult.reference ||
+                     paymentResult.session?.reference ||
+                     null;
+
+                  // persist reference for other flows/effects
+                  if (ref) {
                      try {
-                        sessionStorage.setItem(
-                           "kpay_reference",
-                           String(paymentResult.reference)
-                        );
-                     } catch (e) {
-                        /* ignore */
-                     }
+                        sessionStorage.setItem("kpay_reference", String(ref));
+                     } catch (e) {}
                   }
 
+                  // Redirect current window to the external checkout URL so the user
+                  // completes the payment in the same tab. The gateway will redirect
+                  // back to the checkout page (or the configured returl) when done,
+                  // at which point the existing session-based return logic will
+                  // finalize/create the order automatically.
                   if (paymentResult.checkoutUrl) {
-                     setTimeout(
-                        () =>
-                           (window.location.href =
-                              paymentResult.checkoutUrl as string),
-                        150
-                     );
+                     // Use same-window navigation for better UX
+                     window.location.href = String(paymentResult.checkoutUrl);
                      return;
                   }
-                  // For mobile-money flows (no external redirect) we should
-                  // redirect the user to the local payment page which shows
-                  // instructions and polls for status: /payment/[paymentId]
-                  // server returns session info at `paymentResult.session` or paymentId in `paymentResult.paymentId`
+
+                  // For internal/mobile-money session flows, navigate the current
+                  // page to our internal payment status route which shows instructions
+                  // and polls server-side. This keeps the UX one-way: user completes
+                  // payment and the webhook/return flow creates the order.
                   const sessionId =
                      paymentResult.sessionId ||
                      paymentResult.paymentId ||
                      paymentResult.session?.id;
-
                   if (sessionId) {
                      try {
-                        sessionStorage.setItem(
-                           "kpay_reference",
-                           String(paymentResult.reference)
-                        );
-                     } catch (e) {}
-
-                     // Redirect to our internal payment status page which provides helpful instructions
-                     setTimeout(
-                        () => router.push(`/payment/${sessionId}`),
-                        150
-                     );
-                     return;
+                        router.push(`/payment/${sessionId}`);
+                        return;
+                     } catch (e) {
+                        // fallback to setting location
+                        window.location.href = `${window.location.origin}/payment/${sessionId}`;
+                        return;
+                     }
                   }
 
-                  // If there's no session id (unexpected), fallback to keeping cart and polling by reference
-                  if (paymentResult.reference) {
-                     try {
-                        sessionStorage.setItem(
-                           "kpay_reference",
-                           String(paymentResult.reference)
-                        );
-                     } catch (e) {}
-                  }
-
-                  toast.success(
-                     "Payment started. Awaiting confirmation — please complete the payment on your phone."
+                  // If no redirect URL or session id provided, inform the user and preserve checkout
+                  toast.error(
+                     "Payment started but no redirect information was provided. Please check your payments page or contact support."
                   );
-                  // Start polling immediately using the existing effect which reads sessionStorage
+                  setPaymentInProgress(false);
                   return;
                } else {
                   setPaymentInProgress(false);
@@ -1875,6 +2144,90 @@ Total: ${total.toLocaleString()} RWF
                            >
                               Take me there
                            </Button>
+                        </div>
+                     </div>
+                  </div>
+               </div>
+            </div>
+         )}
+
+         {/* Payment failure / timeout banner offering retry or alternate methods */}
+         {paymentFailure && (
+            <div className="sticky top-16 z-40 mb-4">
+               <div className="mx-auto max-w-[90vw] sm:max-w-7xl px-2 sm:px-0">
+                  <div className="p-3 rounded-lg bg-yellow-50 border border-yellow-100 text-yellow-900 shadow-sm">
+                     <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                           <div className="font-semibold text-sm">
+                              Payment issue
+                           </div>
+                           <div className="text-sm mt-1">
+                              {paymentFailure.message ||
+                                 "There was a problem verifying your payment."}
+                           </div>
+                           <div className="mt-2 flex flex-wrap gap-2">
+                              <button
+                                 className="px-3 py-1 text-sm bg-orange-500 text-white rounded"
+                                 onClick={() => {
+                                    // Retry using existing method: re-run handleCreateOrder
+                                    setPaymentFailure(null);
+                                    try {
+                                       handleCreateOrder();
+                                    } catch (e) {
+                                       console.error(
+                                          "Retry payment failed:",
+                                          e
+                                       );
+                                    }
+                                 }}
+                              >
+                                 Retry payment
+                              </button>
+                              <button
+                                 className="px-3 py-1 text-sm bg-white border border-gray-300 rounded"
+                                 onClick={() => {
+                                    // Expand payment selection UI so user can pick another method
+                                    setPaymentFailure(null);
+                                    setPaymentOpen(true);
+                                 }}
+                              >
+                                 Choose another method
+                              </button>
+                              <button
+                                 className="px-3 py-1 text-sm bg-white border border-gray-300 rounded"
+                                 onClick={() => {
+                                    // Allow user to place order with cash on delivery as fallback
+                                    setPaymentFailure(null);
+                                    setPaymentMethod("cash_on_delivery");
+                                 }}
+                              >
+                                 Pay with Cash on Delivery
+                              </button>
+                           </div>
+                        </div>
+                        <div className="flex-shrink-0">
+                           <button
+                              className="text-sm text-yellow-800 underline"
+                              onClick={() => setPaymentFailure(null)}
+                           >
+                              Dismiss
+                           </button>
+                        </div>
+                     </div>
+                  </div>
+               </div>
+            </div>
+         )}
+
+         {/* Finalizing banner shown while attempting to finalize a returned session */}
+         {isFinalizing && (
+            <div className="sticky top-16 z-40 mb-4">
+               <div className="mx-auto max-w-[90vw] sm:max-w-7xl px-2 sm:px-0">
+                  <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 shadow-sm">
+                     <div className="flex items-center gap-3">
+                        <Loader2 className="animate-spin h-4 w-4" />
+                        <div className="text-sm">
+                           Finalizing payment, please wait...
                         </div>
                      </div>
                   </div>
@@ -2734,7 +3087,12 @@ Total: ${total.toLocaleString()} RWF
                                     {paymentMethod &&
                                     paymentMethod !== "cash_on_delivery" ? (
                                        <>
-                                          {!sessionPaymentSuccess && (
+                                          {/* Single primary action: Place Order
+                                             - For pre-pay methods this will initiate payment and redirect
+                                               the user to the gateway (handled in handleCreateOrder)
+                                             - For COD this will create the order immediately
+                                          */}
+                                          <div className="mt-2">
                                              <Button
                                                 className="w-full bg-orange-500 hover:bg-orange-600 text-white text-sm sm:text-base h-10 sm:h-12"
                                                 onClick={() => {
@@ -2757,7 +3115,7 @@ Total: ${total.toLocaleString()} RWF
                                                          );
                                                       } else {
                                                          toast.error(
-                                                            "Please complete all required steps before proceeding to payment."
+                                                            "Please complete all required steps before placing your order."
                                                          );
                                                       }
                                                       return;
@@ -2788,119 +3146,10 @@ Total: ${total.toLocaleString()} RWF
                                                 ) : (
                                                    <>
                                                       <CheckCircle2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                                                      {isRetryMode
-                                                         ? "Pay with Different Method"
-                                                         : "Proceed to payment"}
+                                                      {"Place Order"}
                                                    </>
                                                 )}
                                              </Button>
-                                          )}
-
-                                          {/* Finalize button: disabled until paymentVerified */}
-                                          {/* Finalize button: disabled until paymentVerified (for pre-pay) or until allStepsCompleted for COD */}
-                                          <div className="mt-2">
-                                             <button
-                                                className={`w-full mt-2 h-10 sm:h-12 text-sm sm:text-base font-medium rounded-md border px-3 py-2 transition-colors ${
-                                                   paymentRequiresVerification
-                                                      ? paymentVerified
-                                                         ? "bg-orange-500 text-white hover:bg-orange-600 border-transparent"
-                                                         : "bg-gray-100 text-gray-500 border-gray-200 cursor-not-allowed"
-                                                      : allStepsCompleted
-                                                      ? "bg-orange-500 text-white hover:bg-orange-600 border-transparent"
-                                                      : "bg-gray-100 text-gray-500 border-gray-200 cursor-not-allowed"
-                                                }`}
-                                                onClick={() => {
-                                                   // If disabled, surface a helpful message
-                                                   const disabled =
-                                                      paymentRequiresVerification
-                                                         ? !paymentVerified
-                                                         : !allStepsCompleted;
-                                                   if (disabled) {
-                                                      if (
-                                                         missingSteps.length > 0
-                                                      ) {
-                                                         toast.error(
-                                                            `Please complete: ${missingSteps.join(
-                                                               ", "
-                                                            )}`
-                                                         );
-                                                      } else if (
-                                                         paymentRequiresVerification &&
-                                                         !paymentVerified
-                                                      ) {
-                                                         toast.error(
-                                                            "Please complete the payment before placing the order."
-                                                         );
-                                                      } else {
-                                                         toast.error(
-                                                            "Please complete all required steps before placing your order."
-                                                         );
-                                                      }
-                                                      return;
-                                                   }
-
-                                                   const oid =
-                                                      paymentReturnedOrderId ||
-                                                      effectiveRetryOrderId;
-                                                   if (oid) {
-                                                      router.push(
-                                                         `/orders/${oid}`
-                                                      );
-                                                      return;
-                                                   }
-
-                                                   // If payment was already verified (session-based) but
-                                                   // no order exists yet, create the order now.
-                                                   if (
-                                                      paymentRequiresVerification &&
-                                                      paymentVerified &&
-                                                      !oid
-                                                   ) {
-                                                      try {
-                                                         handleCreateOrder();
-                                                      } catch (e) {
-                                                         console.error(
-                                                            "Place Order (create) failed:",
-                                                            e
-                                                         );
-                                                         toast.error(
-                                                            "Failed to place order. Please try again."
-                                                         );
-                                                      }
-                                                   }
-                                                }}
-                                                // Make the button truly disabled for assistive tech and interaction
-                                                disabled={
-                                                   paymentRequiresVerification
-                                                      ? !paymentVerified
-                                                      : !allStepsCompleted
-                                                }
-                                                aria-disabled={
-                                                   paymentRequiresVerification
-                                                      ? !paymentVerified
-                                                      : !allStepsCompleted
-                                                }
-                                                title={
-                                                   missingSteps.length > 0
-                                                      ? `Please complete: ${missingSteps.join(
-                                                           ", "
-                                                        )}`
-                                                      : undefined
-                                                }
-                                                aria-describedby={
-                                                   missingSteps.length > 0
-                                                      ? "checkout-missing-steps"
-                                                      : undefined
-                                                }
-                                             >
-                                                {paymentRequiresVerification
-                                                   ? paymentVerified
-                                                      ? "Place Order"
-                                                      : "Place Order (complete payment first)"
-                                                   : allStepsCompleted
-                                                   ? "Place Order"
-                                                   : "Place Order (complete all steps)"}
-                                             </button>
 
                                              {/* Hidden accessible region describing missing steps */}
                                              {missingSteps.length > 0 && (
@@ -2966,7 +3215,16 @@ Total: ${total.toLocaleString()} RWF
                               )
                            ) : (
                               <>
-                                 {selectedAddress ? (
+                                 {addNewOpen ? (
+                                    // While creating a new address, keep the default disabled Order Now button
+                                    <Button
+                                       variant="outline"
+                                       className="w-full border-gray-300 text-gray-700 bg-white text-sm sm:text-base h-10 sm:h-12"
+                                       disabled={true}
+                                    >
+                                       {t("checkout.orderNow") || "Order Now"}
+                                    </Button>
+                                 ) : selectedAddress ? (
                                     <Button
                                        variant="outline"
                                        className="w-full border-orange-300 text-orange-600 hover:bg-orange-50 text-sm sm:text-base h-10 sm:h-12"

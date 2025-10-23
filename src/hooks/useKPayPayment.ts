@@ -81,12 +81,25 @@ export function useKPayPayment() {
          setIsInitiating(true);
 
          try {
+            // If a previous reference exists in sessionStorage, include it so server can reuse/update existing row
+            const bodyPayload: any = { ...request };
+            try {
+               if (typeof window !== "undefined") {
+                  const existingRef = sessionStorage.getItem("kpay_reference");
+                  if (existingRef) {
+                     bodyPayload.clientReference = existingRef;
+                  }
+               }
+            } catch (e) {
+               // ignore
+            }
+
             const response = await fetch("/api/payments/kpay/initiate", {
                method: "POST",
                headers: {
                   "Content-Type": "application/json",
                },
-               body: JSON.stringify(request),
+               body: JSON.stringify(bodyPayload),
             });
 
             // Try to parse JSON body, but fall back to raw text for diagnostics

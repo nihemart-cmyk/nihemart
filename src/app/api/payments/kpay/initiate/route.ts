@@ -160,8 +160,9 @@ export async function POST(request: NextRequest) {
          );
       }
 
-      // Generate unique reference in the format NIHEMART_{timestamp}_{6-digit}
-      let orderReference: string;
+      // Allow client to provide an existing reference/paymentId to reuse on retry
+      const clientReference = (body as any).clientReference || null;
+      const clientPaymentId = (body as any).clientPaymentId || null;
 
       // For session-based (no orderId) attempts we keep a deterministic-ish
       // component to avoid duplicates within the same minute, but still
@@ -171,7 +172,8 @@ export async function POST(request: NextRequest) {
       const random = Math.floor(Math.random() * 1000000);
       const padded = String(random).padStart(6, "0");
 
-      orderReference = `NIHEMART_${timestamp}_${padded}`;
+      // Generate unique reference in the format NIHEMART_{timestamp}_{6-digit}
+      const orderReference = `NIHEMART_${timestamp}_${padded}`;
 
       // Format phone number
       const formattedPhone = KPayService.formatPhoneNumber(body.customerPhone);
@@ -181,34 +183,146 @@ export async function POST(request: NextRequest) {
          formatted: formattedPhone,
       });
 
-      // Check for existing payment with same reference (deduplication)
-      const { data: existingPayment } = await supabase
-         .from("payments")
-         .select("*")
-         .eq("reference", orderReference)
-         .maybeSingle();
+      // If client provided an existing reference or payment id, try to lookup and reuse that payment record
+      let existingPayment: any = null;
+      if (clientPaymentId) {
+         const { data: found } = await supabase
+            .from("payments")
+            .select("*")
+            .eq("id", clientPaymentId)
+            .maybeSingle();
+         if (found) existingPayment = found;
+      }
+
+      if (!existingPayment && clientReference) {
+         const { data: foundByRef } = await supabase
+            .from("payments")
+            .select("*")
+            .eq("reference", clientReference)
+            .maybeSingle();
+         if (foundByRef) existingPayment = foundByRef;
+      }
+
+      if (!existingPayment) {
+         // Check for existing payment with generated reference (deduplication)
+         const { data: foundByGeneratedRef } = await supabase
+            .from("payments")
+            .select("*")
+            .eq("reference", orderReference)
+            .maybeSingle();
+         if (foundByGeneratedRef) existingPayment = foundByGeneratedRef;
+      }
 
       if (existingPayment) {
-         logger.info("api", "Reusing existing payment session", {
+         logger.info("api", "Found existing payment session", {
             paymentId: existingPayment.id,
-            reference: orderReference,
-         });
-
-         // Return existing payment details
-         const checkoutUrl =
-            existingPayment.kpay_response?.url ||
-            existingPayment.kpay_response?.redirecturl ||
-            null;
-
-         return NextResponse.json({
-            success: true,
-            paymentId: existingPayment.id,
-            transactionId: existingPayment.kpay_transaction_id,
             reference: existingPayment.reference,
-            checkoutUrl,
             status: existingPayment.status,
-            message: "Using existing payment session",
          });
+
+         // If payment already completed, return it (nothing to re-initiate)
+         if (
+            existingPayment.status === "completed" ||
+            existingPayment.status === "successful"
+         ) {
+            const checkoutUrl =
+               existingPayment.kpay_response?.url ||
+               existingPayment.kpay_response?.redirecturl ||
+               null;
+            return NextResponse.json({
+               success: true,
+               paymentId: existingPayment.id,
+               transactionId: existingPayment.kpay_transaction_id,
+               reference: existingPayment.reference,
+               checkoutUrl,
+               status: existingPayment.status,
+               message: "Using existing completed payment",
+            });
+         }
+
+         // Otherwise, attempt to re-initiate with the gateway and update the same payment row
+         try {
+            const useReference = existingPayment.reference || orderReference;
+
+            // Force the gateway redirect to our internal payment status page
+            const redirectTo = `${request.nextUrl.origin}/payment/${existingPayment.id}`;
+            const kpayResponse = await kpayService.initiatePayment({
+               amount: body.amount,
+               customerName: body.customerName,
+               customerEmail: body.customerEmail,
+               customerPhone: formattedPhone,
+               customerNumber: order?.customer_phone || formattedPhone,
+               paymentMethod: body.paymentMethod,
+               orderReference: useReference,
+               orderDetails: `Order from Nihemart - ${useReference}`,
+               redirectUrl: redirectTo,
+               logoUrl: `${request.nextUrl.origin}/logo.png`,
+            });
+
+            // Update the existing payment row with new kpay details and reset failure/status
+            const { error: updErr } = await supabase
+               .from("payments")
+               .update({
+                  kpay_transaction_id: kpayResponse.tid,
+                  kpay_auth_key: kpayResponse.authkey,
+                  kpay_return_code: kpayResponse.retcode,
+                  kpay_response: kpayResponse,
+                  status: "pending",
+                  failure_reason: null,
+                  updated_at: new Date().toISOString(),
+               })
+               .eq("id", existingPayment.id);
+
+            if (updErr) {
+               logger.warn(
+                  "api",
+                  "Failed to update existing payment with new KPay response",
+                  {
+                     paymentId: existingPayment.id,
+                     error: updErr.message,
+                  }
+               );
+            }
+
+            const anyResp: any = kpayResponse as any;
+            const checkoutUrl =
+               anyResp.url ||
+               anyResp.redirecturl ||
+               anyResp.redirectUrl ||
+               null;
+
+            return NextResponse.json({
+               success: true,
+               paymentId: existingPayment.id,
+               transactionId: kpayResponse.tid,
+               reference: useReference,
+               checkoutUrl,
+               kpayResponse,
+               status: "pending",
+               message:
+                  "Reused existing payment row and re-initiated gateway session",
+            });
+         } catch (reinitErr) {
+            logger.error(
+               "api",
+               "Failed to re-initiate KPay for existing payment",
+               {
+                  paymentId: existingPayment.id,
+                  error:
+                     reinitErr instanceof Error
+                        ? reinitErr.message
+                        : String(reinitErr),
+               }
+            );
+
+            return NextResponse.json(
+               {
+                  success: false,
+                  error: "Failed to re-initiate payment session",
+               },
+               { status: 500 }
+            );
+         }
       }
 
       // Create new payment record. Use reference deduplication to avoid
@@ -280,6 +394,9 @@ export async function POST(request: NextRequest) {
          // Initiate payment with KPay
          const customerNumber = order?.customer_phone || formattedPhone;
 
+         // Force redirect to our internal payment status page so the gateway
+         // returns the user to /payment/{paymentId} rather than /checkout.
+         const redirectTo = `${request.nextUrl.origin}/payment/${payment.id}`;
          const kpayResponse = await kpayService.initiatePayment({
             amount: body.amount,
             customerName: body.customerName,
@@ -289,7 +406,7 @@ export async function POST(request: NextRequest) {
             paymentMethod: body.paymentMethod,
             orderReference,
             orderDetails: `Order from Nihemart - ${orderReference}`,
-            redirectUrl: body.redirectUrl,
+            redirectUrl: redirectTo,
             logoUrl: `${request.nextUrl.origin}/logo.png`,
          });
 

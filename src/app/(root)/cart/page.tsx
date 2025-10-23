@@ -27,6 +27,12 @@ const Cart = () => {
    const [updatingItem, setUpdatingItem] = useState<string | null>(null);
    const [removingItem, setRemovingItem] = useState<string | null>(null);
 
+   // Orders feature flag from server: when false, customers cannot place orders
+   const [ordersEnabled, setOrdersEnabled] = useState<boolean | null>(null);
+   const [ordersDisabledMessage, setOrdersDisabledMessage] = useState<
+      string | null
+   >(null);
+
    // Simulate loading state to prevent flash of empty content
    useEffect(() => {
       const timer = setTimeout(() => {
@@ -34,6 +40,30 @@ const Cart = () => {
       }, 500); // Short delay to show loading state
 
       return () => clearTimeout(timer);
+   }, []);
+
+   // Fetch whether orders are enabled (admin-controlled). If the
+   // fetch fails we'll default to enabled so customers can checkout.
+   useEffect(() => {
+      let mounted = true;
+      const fetchOrdersEnabled = async () => {
+         try {
+            const res = await fetch("/api/admin/settings/orders-enabled");
+            if (!res.ok) throw new Error("Failed to fetch setting");
+            const json = await res.json();
+            if (!mounted) return;
+            setOrdersEnabled(Boolean(json.enabled));
+            setOrdersDisabledMessage(json.message || null);
+         } catch (err) {
+            console.warn("Failed to load orders_enabled setting", err);
+            if (!mounted) return;
+            setOrdersEnabled(true);
+         }
+      };
+      fetchOrdersEnabled();
+      return () => {
+         mounted = false;
+      };
    }, []);
 
    const handleUpdateQuantity = async (itemId: string, newQuantity: number) => {
@@ -282,13 +312,33 @@ const Cart = () => {
                      </div>
 
                      <div className="space-y-3">
-                        <Button
-                           className="w-full bg-orange-500 hover:bg-orange-600 text-white text-sm sm:text-base h-11 sm:h-12"
-                           size="lg"
-                           asChild
-                        >
-                           <Link href={"/checkout"}>{t("cart.order")}</Link>
-                        </Button>
+                        {/* Show banner if orders are disabled */}
+                        {ordersEnabled === false && (
+                           <div className="p-3 rounded bg-yellow-50 border border-yellow-200 text-yellow-800 text-sm">
+                              {ordersDisabledMessage ||
+                                 t("checkout.ordersDisabledBanner") ||
+                                 "Ordering is currently disabled. Please try again later."}
+                           </div>
+                        )}
+
+                        {/* Place Order button: disable when orders are disabled */}
+                        {ordersEnabled === false ? (
+                           <Button
+                              className="w-full bg-orange-300 text-white text-sm sm:text-base h-11 sm:h-12 cursor-not-allowed"
+                              size="lg"
+                              disabled
+                           >
+                              {t("cart.order")}
+                           </Button>
+                        ) : (
+                           <Button
+                              className="w-full bg-orange-500 hover:bg-orange-600 text-white text-sm sm:text-base h-11 sm:h-12"
+                              size="lg"
+                              asChild
+                           >
+                              <Link href={"/checkout"}>{t("cart.order")}</Link>
+                           </Button>
+                        )}
 
                         <Button
                            variant="outline"

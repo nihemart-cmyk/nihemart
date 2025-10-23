@@ -416,6 +416,14 @@ const Dashboard = () => {
 
       return {
          id: order?.id || a.order_id,
+         // prefer explicit order number/reference when available for better UX
+         number:
+            order?.order_number ||
+            order?.number ||
+            order?.reference ||
+            order?.id ||
+            a.order_number ||
+            a.order_id,
          name: order?.customer_name || order?.name || "Customer",
          location:
             order?.delivery_address || a.location || rider?.location || "-",
@@ -783,7 +791,7 @@ const Dashboard = () => {
                                     <RecentDelivery
                                        key={r.id}
                                        id={r.id}
-                                       number={r.order_number}
+                                       number={r.number}
                                        name={r.name}
                                        location={r.location}
                                        amount={`${r.amount}`}

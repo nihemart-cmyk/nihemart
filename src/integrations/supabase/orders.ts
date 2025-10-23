@@ -87,7 +87,7 @@ export async function requestRefundForItem(itemId: string, reason: string) {
          const body = `${customerName}${
             city ? ` from ${city}` : ""
          } requested a refund for ${existing.product_name}. Reason: ${reason}`;
-         await sb.rpc("insert_notification", {
+         await createNotification({
             p_recipient_user_id: null,
             p_recipient_role: "admin",
             p_type,
@@ -193,7 +193,7 @@ export async function requestRefundForOrder(orderId: string, reason: string) {
          } requested a refund for order ${
             existing.order_number || existing.id
          }. Reason: ${reason}`;
-         await sb.rpc("insert_notification", {
+         await createNotification({
             p_recipient_user_id: null,
             p_recipient_role: "admin",
             p_type,
@@ -461,7 +461,7 @@ export async function respondToRefundRequest(
             const p_type = "refund_approved";
             const p_title = "Refund approved";
             const p_body = `Your refund request for item ${existing.product_name} has been approved.`;
-            await sb.rpc("insert_notification", {
+            await createNotification({
                p_recipient_user_id: recipientUserId,
                p_recipient_role: null,
                p_type,
@@ -493,7 +493,7 @@ export async function respondToRefundRequest(
          const p_type = "refund_rejected";
          const p_title = "Refund request rejected";
          const p_body = `Your refund request for item ${existing.product_name} has been rejected by admin.`;
-         await sb.rpc("insert_notification", {
+         await createNotification({
             p_recipient_user_id: recipientUserId,
             p_recipient_role: null,
             p_type,
@@ -731,6 +731,71 @@ const sb = ((): any => {
    }
    return browserSupabase as any;
 })();
+
+// Helper: create notification using RPC when running on server, or POST to
+// server API when running in the browser (to ensure service-role insertion).
+async function createNotification(params: {
+   p_recipient_user_id: any;
+   p_recipient_role: any;
+   p_type: any;
+   p_title: any;
+   p_body: any;
+   p_meta: any;
+}) {
+   const {
+      p_recipient_user_id,
+      p_recipient_role,
+      p_type,
+      p_title,
+      p_body,
+      p_meta,
+   } = params;
+
+   if (typeof window === "undefined") {
+      // Server: use RPC (sb should be server client when running on server)
+      try {
+         return await sb.rpc("insert_notification", {
+            p_recipient_user_id: p_recipient_user_id || null,
+            p_recipient_role: p_recipient_role || null,
+            p_type,
+            p_title: p_title || null,
+            p_body: p_body || null,
+            p_meta:
+               typeof p_meta === "string"
+                  ? p_meta
+                  : JSON.stringify(p_meta || null),
+         });
+      } catch (e) {
+         console.warn("createNotification RPC failed:", e);
+      }
+   } else {
+      // Browser: POST to server API which uses service role key
+      try {
+         let metaObj = p_meta;
+         if (typeof p_meta === "string") {
+            try {
+               metaObj = JSON.parse(p_meta);
+            } catch (e) {
+               metaObj = p_meta;
+            }
+         }
+         await fetch("/api/notifications/create", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+               recipient_user_id: p_recipient_user_id || null,
+               recipient_role: p_recipient_role || null,
+               type: p_type,
+               title: p_title || null,
+               body: p_body || null,
+               meta: metaObj || null,
+            }),
+         });
+      } catch (e) {
+         console.warn("createNotification POST failed:", e);
+      }
+   }
+}
 
 // Re-export types from @/types/orders to maintain backward compatibility
 export type {
@@ -1209,22 +1274,51 @@ export async function createOrder({
          items: Array.isArray(itemsData) ? itemsData : [],
       } as Order;
 
-      // Notify admins that a new order has been placed (best-effort, non-blocking)
+      // Notify admins that a new order has been placed (best-effort, non-blocking).
+      // If running on the server (service role available), call the RPC directly.
+      // If running in the browser (anon key), POST to our server API which uses
+      // the service role key to create the notification (avoids permission issues).
       (async () => {
          try {
-            await sb.rpc("insert_notification", {
-               p_recipient_user_id: null,
-               p_recipient_role: "admin",
-               p_type: "order_created",
-               p_title: null,
-               p_body: null,
-               p_meta: JSON.stringify({
-                  order: quickOrder,
-                  order_id: quickOrder.id,
-                  order_number: quickOrder.order_number,
-                  items: quickOrder.items || [],
-               }),
-            });
+            const metaObj = {
+               order: quickOrder,
+               order_id: quickOrder.id,
+               order_number: quickOrder.order_number,
+               items: quickOrder.items || [],
+            };
+
+            if (typeof window === "undefined") {
+               // Server-side: use RPC with service role client (sb will be server client)
+               await sb.rpc("insert_notification", {
+                  p_recipient_user_id: null,
+                  p_recipient_role: "admin",
+                  p_type: "order_created",
+                  p_title: null,
+                  p_body: null,
+                  p_meta: JSON.stringify(metaObj),
+               });
+            } else {
+               // Browser: call our server-side API which inserts using the service role key
+               try {
+                  await fetch("/api/notifications/create", {
+                     method: "POST",
+                     headers: { "Content-Type": "application/json" },
+                     body: JSON.stringify({
+                        recipient_user_id: null,
+                        recipient_role: "admin",
+                        type: "order_created",
+                        title: null,
+                        body: null,
+                        meta: metaObj,
+                     }),
+                  });
+               } catch (fetchErr) {
+                  console.warn(
+                     "Failed to POST admin notification to /api/notifications/create:",
+                     fetchErr
+                  );
+               }
+            }
          } catch (e) {
             console.warn(
                "Failed to create admin notification for new order:",
