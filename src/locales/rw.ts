@@ -125,7 +125,7 @@ export const rw: Record<string, string> = {
    // Payment option labels
    "checkout.cashOnDelivery": "Amafaranga kugeze aho (Cash on Delivery)",
    "checkout.ordersDisabledMessage":
-      "Kwishyura ubu byahagaritswe. Nyamuneka gerageza nyuma.",
+      "Gutanga komande ubu byahagaritswe. Mwongere mugerageze mukanya.",
    // Schedule-specific message (night hours)
    "checkout.ordersDisabledSchedule":
       "Aka kanya ntago turi kwakira komande, Mwongere mugerageze 9:00",

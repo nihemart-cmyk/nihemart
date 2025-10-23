@@ -160,8 +160,11 @@ export default function OrdersMetrics() {
       boolean | null
    >(null);
    const { t } = useLanguage();
-   // Admin-only fallback message (English)
-   const ADMIN_FALLBACK_MSG = "Ordering is currently disabled (admin).";
+   // Customer-friendly localized fallback message. Prefer localized keys
+   const CUSTOMER_FALLBACK_MSG =
+      t("checkout.ordersDisabledBanner") ||
+      t("checkout.ordersDisabledMessage") ||
+      "Ordering is currently disabled. Please try again later.";
 
    const fetchOrdersEnabled = async () => {
       try {
@@ -264,8 +267,7 @@ export default function OrdersMetrics() {
             <div className="p-3 rounded bg-yellow-50 border border-yellow-200 text-yellow-800">
                {ordersDisabledMessage
                   ? ordersDisabledMessage
-                  : // prefer schedule-specific localized msg for customers, but admin UI should show single English message
-                    ADMIN_FALLBACK_MSG}
+                  : CUSTOMER_FALLBACK_MSG}
             </div>
          )}
          {/* Header */}

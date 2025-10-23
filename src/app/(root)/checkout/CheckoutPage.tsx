@@ -2720,7 +2720,7 @@ Total: ${total.toLocaleString()} RWF
                         <div className="pt-1">
                            {ordersEnabled === false && (
                               <div className="mb-3 p-3 rounded bg-yellow-50 border border-yellow-200 text-yellow-900 text-sm">
-                                 {t("checkout.ordersDisabledBanner") ||
+                                 {t("checkout.ordersDisabledMessage") ||
                                     "Ordering is currently disabled by the admin."}
                               </div>
                            )}

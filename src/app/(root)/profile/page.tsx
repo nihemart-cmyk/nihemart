@@ -38,6 +38,11 @@ const Profile = () => {
    const { t } = useLanguage();
    const { user, loading, hasRole } = useAuth();
    const router = useRouter();
+   // Orders enabled setting for showing customer-friendly notices
+   const [ordersEnabled, setOrdersEnabled] = useState<boolean | null>(null);
+   const [ordersDisabledMessage, setOrdersDisabledMessage] = useState<
+      string | null
+   >(null);
    const [isEditing, setIsEditing] = useState(false);
    const [formData, setFormData] = useState({
       fullName: "",
@@ -102,6 +107,34 @@ const Profile = () => {
          }
       };
       load();
+   }, [user]);
+
+   // Fetch orders_enabled flag to show customers a friendly banner when ordering is disabled
+   useEffect(() => {
+      let mounted = true;
+      (async () => {
+         try {
+            const res = await fetch("/api/admin/settings/orders-enabled");
+            if (!res.ok) {
+               if (mounted) setOrdersEnabled(true);
+            } else {
+               const j = await res.json();
+               if (!mounted) return;
+               setOrdersEnabled(Boolean(j.enabled));
+               setOrdersDisabledMessage(j.message || null);
+            }
+         } catch (err) {
+            console.warn(
+               "Failed to fetch orders_enabled for profile page:",
+               err
+            );
+            if (mounted) setOrdersEnabled(true);
+         }
+      })();
+
+      return () => {
+         mounted = false;
+      };
    }, [user]);
 
    const handleSave = async () => {
@@ -250,6 +283,15 @@ const Profile = () => {
                   </p>
                </div>
             </div>
+            {/* Show customer-facing orders-disabled banner when ordering is disabled */}
+            {ordersEnabled === false && (
+               <div className="w-full mt-3">
+                  <div className="p-3 rounded bg-yellow-50 border border-yellow-200 text-yellow-800">
+                     {ordersDisabledMessage &&
+                        t("checkout.ordersDisabledMessage")}
+                  </div>
+               </div>
+            )}
             {/* Riders are not allowed to edit their own profile; only admins or non-rider users may edit */}
             {!isEditing && !(hasRole && hasRole("rider")) && (
                <Button
@@ -529,7 +571,9 @@ const Profile = () => {
                                     <div className="mt-3 pt-3 border-t">
                                        <p className="text-xs sm:text-sm text-gray-600">
                                           {order.items.length} item
-                                          {order.items.length !== 1 ? "s" : ""}{" "}
+                                          {order.items.length !== 1
+                                             ? "s"
+                                             : ""}{" "}
                                           •{order.items[0]?.product_name}
                                           {order.items.length > 1 &&
                                              ` +${order.items.length - 1} more`}
