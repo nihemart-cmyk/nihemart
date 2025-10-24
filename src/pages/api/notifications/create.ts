@@ -177,6 +177,62 @@ export default async function handler(
             }
             break;
          }
+         case "order_created": {
+            const orderNumber = getOrderNumber(metaTyped);
+            const items = metaTyped.items || metaTyped.order?.items || [];
+            const total = getOrderTotal(metaTyped.order, items);
+            const customerName =
+               metaTyped.customer_name ||
+               `${metaTyped.order?.customer_first_name || ""} ${
+                  metaTyped.order?.customer_last_name || ""
+               }`.trim() ||
+               "Customer";
+
+            if (isAdmin) {
+               // Short but informative admin notification
+               finalTitle = `New Order - ${orderNumber}`;
+               finalBody = `${customerName} placed an order (${items
+                  .map((it: any) => it.product_name || it.name || "item")
+                  .slice(0, 5)
+                  .join(", ")}${
+                  items.length > 5 ? ` and ${items.length - 5} more` : ""
+               })`;
+            } else {
+               // Detailed customer confirmation
+               finalTitle = `Order Confirmed - ${orderNumber}`;
+               let detailedBody = `Thank you ${customerName}! Your order has been placed successfully.\n\n`;
+               detailedBody += `Order ${orderNumber}\n\n`;
+
+               if (items && items.length > 0) {
+                  detailedBody += `Items:\n`;
+                  items.forEach((item: any, idx: number) => {
+                     const itemName = item.variation_name
+                        ? `${item.product_name} (${item.variation_name})`
+                        : item.product_name || item.name || `Item ${idx + 1}`;
+                     const unitPrice = formatCurrency(item.price || 0);
+                     detailedBody += `${
+                        item.quantity || 1
+                     }x ${itemName} ${unitPrice}`;
+                     if (idx < items.length - 1) detailedBody += `, `;
+                  });
+                  detailedBody += `\n\n`;
+               }
+
+               if (total > 0) {
+                  detailedBody += `Total: ${formatCurrency(total)}\n\n`;
+               }
+
+               const address = formatDeliveryAddress(metaTyped);
+               if (address) {
+                  detailedBody += `Delivery to: ${address}\n\n`;
+               }
+
+               detailedBody += `We'll let you know when a rider is assigned and when your order is out for delivery. Thank you for shopping with Nihemart!`;
+               finalBody = detailedBody;
+            }
+
+            break;
+         }
          case "assignment_accepted": {
             const orderNumber = getOrderNumber(metaTyped);
             const riderName =

@@ -49,6 +49,8 @@ export const en: Record<string, string> = {
       "Refunds will be made using your original payment method, unless otherwise agreed.",
    refundFinalNote:
       "You will receive your money after returning the products, but you will pay transport fee.",
+   refundApprovedMessage:
+      "You will receive your money after returning the products, but you will pay transport fee",
    contactTitle: "Contact Customer Support",
    contactDesc:
       "If you have any questions or need assistance with returns and refunds, feel free to contact our customer support team.",

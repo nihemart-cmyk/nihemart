@@ -22,6 +22,71 @@ const sb = ((): any => {
    return browserSupabase as any;
 })();
 
+// Helper: create notification using RPC when running on server, or POST to
+// server API when running in the browser (to ensure service-role insertion).
+async function createNotification(params: {
+   p_recipient_user_id: any;
+   p_recipient_role: any;
+   p_type: any;
+   p_title: any;
+   p_body: any;
+   p_meta: any;
+}) {
+   const {
+      p_recipient_user_id,
+      p_recipient_role,
+      p_type,
+      p_title,
+      p_body,
+      p_meta,
+   } = params;
+
+   if (typeof window === "undefined") {
+      // Server: use RPC (sb should be server client when running on server)
+      try {
+         return await sb.rpc("insert_notification", {
+            p_recipient_user_id: p_recipient_user_id || null,
+            p_recipient_role: p_recipient_role || null,
+            p_type,
+            p_title: p_title || null,
+            p_body: p_body || null,
+            p_meta:
+               typeof p_meta === "string"
+                  ? p_meta
+                  : JSON.stringify(p_meta || null),
+         });
+      } catch (e) {
+         console.warn("createNotification RPC failed:", e);
+      }
+   } else {
+      // Browser: POST to server API which uses service role key
+      try {
+         let metaObj = p_meta;
+         if (typeof p_meta === "string") {
+            try {
+               metaObj = JSON.parse(p_meta);
+            } catch (e) {
+               metaObj = p_meta;
+            }
+         }
+         await fetch("/api/notifications/create", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+               recipient_user_id: p_recipient_user_id || null,
+               recipient_role: p_recipient_role || null,
+               type: p_type,
+               title: p_title || null,
+               body: p_body || null,
+               meta: metaObj || null,
+            }),
+         });
+      } catch (e) {
+         console.warn("createNotification POST failed:", e);
+      }
+   }
+}
+
 export interface Rider {
    id: string;
    user_id?: string | null;
@@ -141,39 +206,21 @@ export async function assignOrderToRider(
       // Update order status to 'assigned'
       await sb.from("orders").update({ status: "assigned" }).eq("id", orderId);
 
-      // Create notification for the rider about the new assignment using server-side RPC
-      try {
-         await sb.rpc("insert_notification", {
-            p_recipient_user_id: null,
-            p_recipient_role: "rider",
-            p_type: "assignment_created",
-            p_title: null,
-            p_body: null,
-            p_meta: JSON.stringify({
-               order,
-               items: order.items || [],
-               rider_id: riderId,
-               delivery_address: order.delivery_address,
-               order_id: order.id,
-               order_number: order.order_number,
-               assignment_id: data.id,
-               notes: notes || null,
-            }),
-         });
-      } catch (err) {
-         console.error("Error creating assignment notification (rpc):", err);
-      }
+      // The DB trigger on `order_assignments` already creates notifications
+      // for the assigned rider and admins. We avoid duplicating the rider
+      // notification here and only create a customer-facing notification
+      // below (if the order has a user_id).
 
       // Create notification for the customer about the assignment using server-side RPC
       if (order?.user_id) {
          try {
-            await sb.rpc("insert_notification", {
+            await createNotification({
                p_recipient_user_id: order.user_id,
                p_recipient_role: null,
                p_type: "order_assigned",
                p_title: null,
                p_body: null,
-               p_meta: JSON.stringify({
+               p_meta: {
                   order,
                   items: order.items || [],
                   rider_name:
@@ -182,11 +229,11 @@ export async function assignOrderToRider(
                   order_id: order.id,
                   order_number: order.order_number,
                   assignment_id: data.id,
-               }),
+               },
             });
          } catch (err) {
             console.error(
-               "Error creating customer assignment notification (rpc):",
+               "Error creating customer assignment notification:",
                err
             );
          }
@@ -277,13 +324,13 @@ export async function respondToAssignment(
       // Create customer notification with rich content
       if (order?.user_id && rider) {
          try {
-            await sb.rpc("insert_notification", {
+            await createNotification({
                p_recipient_user_id: order.user_id,
                p_recipient_role: null,
                p_type: "assignment_accepted",
                p_title: null,
                p_body: null,
-               p_meta: JSON.stringify({
+               p_meta: {
                   order,
                   items: order.items || [],
                   rider_name: rider.full_name || rider.name || "Delivery Rider",
@@ -291,11 +338,11 @@ export async function respondToAssignment(
                   delivery_address: order.delivery_address,
                   order_id: order.id,
                   order_number: order.order_number,
-               }),
+               },
             });
          } catch (err) {
             console.error(
-               "Error creating assignment accepted notification (rpc):",
+               "Error creating assignment accepted notification:",
                err
             );
          }
@@ -303,33 +350,42 @@ export async function respondToAssignment(
    }
 
    if (status === "completed") {
-      await sb
-         .from("orders")
-         .update({ status: "delivered" })
-         .eq("id", assignment.order_id);
+      // Use updateOrderStatus function to ensure COD payments are properly handled
+      // This will update the order status to "delivered" AND handle COD payment completion
+      try {
+         const { updateOrderStatus } = await import("./orders");
+         await updateOrderStatus(assignment.order_id, "delivered");
+      } catch (err) {
+         console.error(
+            "Failed to update order status via updateOrderStatus:",
+            err
+         );
+         // Fallback to direct update if updateOrderStatus fails
+         await sb
+            .from("orders")
+            .update({ status: "delivered" })
+            .eq("id", assignment.order_id);
+      }
 
       // Create order delivered notification
       if (order?.user_id) {
          try {
-            await sb.rpc("insert_notification", {
+            await createNotification({
                p_recipient_user_id: order.user_id,
                p_recipient_role: null,
                p_type: "order_delivered",
                p_title: null,
                p_body: null,
-               p_meta: JSON.stringify({
+               p_meta: {
                   order,
                   items: order.items || [],
                   delivery_address: order.delivery_address,
                   order_id: order.id,
                   order_number: order.order_number,
-               }),
+               },
             });
          } catch (err) {
-            console.error(
-               "Error creating order delivered notification (rpc):",
-               err
-            );
+            console.error("Error creating order delivered notification:", err);
          }
       }
    }
@@ -343,24 +399,21 @@ export async function respondToAssignment(
 
       // Create rejection notification for admin (optional)
       try {
-         await sb.rpc("insert_notification", {
+         await createNotification({
             p_recipient_user_id: null,
             p_recipient_role: "admin",
             p_type: "assignment_rejected",
             p_title: null,
             p_body: null,
-            p_meta: JSON.stringify({
+            p_meta: {
                order,
                rider_name: rider?.full_name || rider?.name || "Rider",
                order_id: order?.id,
                order_number: order?.order_number,
-            }),
+            },
          });
       } catch (err) {
-         console.error(
-            "Error creating assignment rejected notification (rpc):",
-            err
-         );
+         console.error("Error creating assignment rejected notification:", err);
       }
    }
 

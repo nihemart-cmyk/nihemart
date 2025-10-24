@@ -49,6 +49,8 @@ export const rw: Record<string, string> = {
       "Usubizwa amafaranga mu buryo wari wakoresheje wishyura, keretse hemeranyijwe ibitandukanye.",
    refundFinalNote:
       "Muraza gusubizwa amafaranga yanyu nyuma yo kugarura ibicuruzwa, ariko murishyura amafaranga y'urugendo",
+   refundApprovedMessage:
+      "Muraza gusubizwa amafaranga yanyu nyuma yo kugarura ibicuruzwa, ariko murishyura amafaranga y'urugendo",
    contactTitle: "Twandikire Itsinda ry'ubufasha",
    contactDesc:
       "Niba ufite ikibazo cyangwa ukaba ukeneye ubufasha ku birebana n'ukugarura no gusubiza amafaranga, turagutumiye ko wahamagara itsinda ryacu ry'ubufasha.",

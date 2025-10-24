@@ -20,7 +20,6 @@ import {
    AlertCircle,
    ArrowLeft,
    RefreshCw,
-   ExternalLink,
 } from "lucide-react";
 import { useKPayPayment } from "@/hooks/useKPayPayment";
 import { useAuth } from "@/hooks/useAuth";
@@ -879,9 +878,9 @@ export default function PaymentPage() {
                            </h1>
                            <p className="text-xs sm:text-sm opacity-80 max-w-md px-2">
                               {paymentCompleted
-                                 ? "Your payment has been processed successfully! You'll be redirected shortly."
+                                 ? "Your payment has been processed successfully! We're creating your order now."
                                  : payment.status === "pending"
-                                 ? "We're securely processing your payment. Please wait a moment..."
+                                 ? "Please wait patiently while we process your payment. Do not close this page."
                                  : payment.status === "failed"
                                  ? "We couldn't process your payment. Please try again or use a different method."
                                  : payment.status === "timeout"
@@ -1146,136 +1145,103 @@ export default function PaymentPage() {
                                           })()}
                                        </span>
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                       <Button
-                                          size="sm"
-                                          variant="ghost"
-                                          onClick={() => {
-                                             // Let user stop polling but remain on page
-                                             setStoppedPolling(true);
-                                             if (pollingIntervalRef.current) {
-                                                clearInterval(
-                                                   pollingIntervalRef.current as unknown as number
-                                                );
-                                                pollingIntervalRef.current =
-                                                   null;
-                                             }
-                                             toast.info(
-                                                "Stopped automatic checks. You can refresh to retry or return to checkout."
-                                             );
-                                          }}
-                                       >
-                                          Stop Checking
-                                       </Button>
-                                       <Button
-                                          size="sm"
-                                          variant="outline"
-                                          onClick={() =>
-                                             router.push(`/checkout`)
-                                          }
-                                       >
-                                          Return to Checkout
-                                       </Button>
-                                    </div>
                                  </div>
                               )}
                         </CardContent>
                      </Card>
                   )}
 
-                  {/* Action Buttons */}
-                  <Card className="border-0 shadow-lg">
-                     <CardContent className="p-4 sm:p-6">
-                        <div className="space-y-3">
-                           <Button
-                              variant="outline"
-                              onClick={() =>
-                                 // Return to checkout because order may not exist yet
-                                 router.push(
-                                    `/checkout${
-                                       paymentCompleted
-                                          ? "?payment=success"
-                                          : ""
-                                    }`
-                                 )
-                              }
-                              className="w-full border-blue-300 text-blue-700 hover:bg-blue-50 text-xs sm:text-sm h-9 sm:h-11"
-                           >
-                              Back to Checkout
-                           </Button>
-
-                           {(payment.status === "failed" ||
-                              payment.status === "timeout") && (
-                              <>
-                                 <Button
-                                    onClick={() => {
-                                       // Build params safely to avoid adding orderId=null
-                                       const params = new URLSearchParams();
-                                       const oid =
-                                          safeOrderId || payment.order_id;
-                                       if (oid) params.set("orderId", oid);
-                                       params.set("retry", "true");
-                                       if (payment.status === "timeout")
-                                          params.set("timedout", "true");
-                                       const url = `/checkout?${params.toString()}`;
-                                       router.push(url);
-                                    }}
-                                    className="w-full bg-orange-500 hover:bg-orange-600 text-xs sm:text-sm h-9 sm:h-11"
-                                 >
-                                    Try Different Method
-                                 </Button>
-                                 <Button
-                                    variant="outline"
-                                    onClick={() => window.location.reload()}
-                                    className="w-full border-gray-300 text-xs sm:text-sm h-9 sm:h-11"
-                                 >
-                                    <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
-                                    {payment.status === "timeout"
-                                       ? "Try Again"
-                                       : "Retry Payment"}
-                                 </Button>
-                              </>
-                           )}
-
-                           {payment.status === "pending" &&
-                              payment.payment_method !== "mtn_momo" &&
-                              payment.payment_method !== "airtel_money" && (
-                                 <Button
-                                    onClick={() => {
-                                       if (payment.checkout_url) {
-                                          window.open(
-                                             payment.checkout_url,
-                                             "_blank",
-                                             "noopener,noreferrer"
-                                          );
-                                       } else {
-                                          window.location.reload();
-                                       }
-                                    }}
-                                    disabled={isCheckingStatus}
-                                    className="w-full bg-blue-500 hover:bg-blue-600 text-xs sm:text-sm h-9 sm:h-11"
-                                 >
-                                    <ExternalLink className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
-                                    Open Payment Gateway
-                                 </Button>
-                              )}
-
-                           {paymentCompleted && (
+                  {/* Action Buttons - Only show for failed/timeout cases */}
+                  {(payment.status === "failed" ||
+                     payment.status === "timeout") && (
+                     <Card className="border-0 shadow-lg">
+                        <CardContent className="p-4 sm:p-6">
+                           <div className="space-y-3">
                               <Button
-                                 onClick={() =>
-                                    // While order finalization/creation may be occurring,
-                                    // keep the user on this page; clicking can still fallback to checkout
-                                    router.push(`/checkout?payment=success`)
-                                 }
-                                 className="w-full bg-green-500 hover:bg-green-600 text-xs sm:text-sm h-9 sm:h-11"
+                                 onClick={() => {
+                                    // Build params safely to avoid adding orderId=null
+                                    const params = new URLSearchParams();
+                                    const oid = safeOrderId || payment.order_id;
+                                    if (oid) params.set("orderId", oid);
+                                    params.set("retry", "true");
+                                    if (payment.status === "timeout")
+                                       params.set("timedout", "true");
+                                    const url = `/checkout?${params.toString()}`;
+                                    router.push(url);
+                                 }}
+                                 className="w-full bg-orange-500 hover:bg-orange-600 text-xs sm:text-sm h-9 sm:h-11"
                               >
-                                 <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
-                                 Creating Order
+                                 Try Different Method
                               </Button>
-                           )}
-                        </div>
-                     </CardContent>
-                  </Card>
+                              <Button
+                                 variant="outline"
+                                 onClick={() => window.location.reload()}
+                                 className="w-full border-gray-300 text-xs sm:text-sm h-9 sm:h-11"
+                              >
+                                 <RefreshCw className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
+                                 {payment.status === "timeout"
+                                    ? "Try Again"
+                                    : "Retry Payment"}
+                              </Button>
+                           </div>
+                        </CardContent>
+                     </Card>
+                  )}
+
+                  {/* Wait Message for Pending Payments */}
+                  {payment.status === "pending" && !paymentCompleted && (
+                     <Card className="border-0 shadow-lg bg-gradient-to-r from-blue-50 to-orange-50">
+                        <CardContent className="p-4 sm:p-6">
+                           <div className="text-center space-y-3">
+                              <div className="flex justify-center">
+                                 <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
+                                    <Clock className="h-8 w-8 text-blue-600 animate-pulse" />
+                                 </div>
+                              </div>
+                              <h3 className="text-lg font-semibold text-blue-800">
+                                 Please Wait Patiently
+                              </h3>
+                              <p className="text-sm text-blue-700">
+                                 Your payment is being processed securely. This
+                                 page will automatically update when your
+                                 payment is confirmed.
+                              </p>
+                              <div className="bg-white rounded-lg p-3 border border-blue-200">
+                                 <p className="text-xs text-blue-600 font-medium">
+                                    ⏳ Do not close this page or navigate away
+                                 </p>
+                              </div>
+                           </div>
+                        </CardContent>
+                     </Card>
+                  )}
+
+                  {/* Success Message for Completed Payments */}
+                  {paymentCompleted && (
+                     <Card className="border-0 shadow-lg bg-gradient-to-r from-green-50 to-emerald-50">
+                        <CardContent className="p-4 sm:p-6">
+                           <div className="text-center space-y-3">
+                              <div className="flex justify-center">
+                                 <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
+                                    <CheckCircle className="h-8 w-8 text-green-600" />
+                                 </div>
+                              </div>
+                              <h3 className="text-lg font-semibold text-green-800">
+                                 Payment Successful!
+                              </h3>
+                              <p className="text-sm text-green-700">
+                                 Your order is being created. You'll be
+                                 redirected automatically in a moment.
+                              </p>
+                              <div className="bg-white rounded-lg p-3 border border-green-200">
+                                 <p className="text-xs text-green-600 font-medium">
+                                    ✅ Please wait while we finalize your order
+                                 </p>
+                              </div>
+                           </div>
+                        </CardContent>
+                     </Card>
+                  )}
                </div>
             </div>
          </div>

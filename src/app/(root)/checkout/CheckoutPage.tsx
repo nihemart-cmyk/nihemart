@@ -1198,15 +1198,15 @@ const CheckoutPage = ({
                   setFormData((prev) => ({ ...prev, ...persisted.formData }));
                }
 
-               if (persisted.paymentMethod) {
-                  setPaymentMethod(persisted.paymentMethod);
-               }
-               if (persisted.mobileMoneyPhones) {
-                  setMobileMoneyPhones(persisted.mobileMoneyPhones);
-               }
+               // In retry mode, do NOT restore payment method - force user to choose a new one
+               // This prevents using the same payment method that failed
+               setPaymentMethod(""); // Reset to empty so user must select new method
+
+               // Also reset mobile money phones in retry mode to avoid confusion
+               setMobileMoneyPhones({});
 
                console.debug(
-                  "CheckoutPage: Restored checkout snapshot from storage for retry mode"
+                  "CheckoutPage: Restored checkout snapshot from storage for retry mode (payment method reset to force new selection)"
                );
                return;
             }

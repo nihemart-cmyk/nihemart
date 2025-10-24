@@ -352,13 +352,24 @@ const Orders = () => {
                                           })()}
                                           className="text-xs"
                                        >
-                                          {order.refund_status === "approved" ? "Refund Approved" :
-                                           order.refund_status === "requested" ? "Refund Requested" :
-                                           order.refund_status === "rejected" ? "Refund Rejected" :
-                                           order.refund_status === "cancelled" ? "Refund Cancelled" :
-                                           typeof order.refund_status === "string" ?
-                                              order.refund_status.charAt(0).toUpperCase() + order.refund_status.slice(1) :
-                                              "Unknown"}
+                                          {order.refund_status === "approved"
+                                             ? "Refund Approved"
+                                             : order.refund_status ===
+                                               "requested"
+                                             ? "Refund Requested"
+                                             : order.refund_status ===
+                                               "rejected"
+                                             ? "Refund Rejected"
+                                             : order.refund_status ===
+                                               "cancelled"
+                                             ? "Refund Cancelled"
+                                             : typeof order.refund_status ===
+                                               "string"
+                                             ? order.refund_status
+                                                  .charAt(0)
+                                                  .toUpperCase() +
+                                               order.refund_status.slice(1)
+                                             : "Unknown"}
                                        </Badge>
                                     )}
                                  </div>
@@ -409,12 +420,14 @@ const Orders = () => {
 
                            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 sm:gap-4 mt-4 pt-4 border-t">
                               <div className="text-xs sm:text-sm text-muted-foreground">
-                                 <div>Customer: {order.customer_first_name}{" "}
-                                 {order.customer_last_name}</div>
+                                 <div>
+                                    Customer: {order.customer_first_name}{" "}
+                                    {order.customer_last_name}
+                                 </div>
                                  {/* Show refund information if available */}
                                  {order.refund_status === "approved" && (
                                     <div className="text-green-600 mt-1 text-xs">
-                                       💰 Refund approved - Money will be processed within 24 hours
+                                       💰 {t("refundApprovedMessage")}
                                     </div>
                                  )}
                                  {order.refund_status === "requested" && (
@@ -428,22 +441,31 @@ const Orders = () => {
                                     </div>
                                  )}
                                  {/* Show refund window status for delivered orders */}
-                                 {order.status === "delivered" && order.delivered_at && !order.refund_status && (() => {
-                                    const deliveredAt = new Date(order.delivered_at).getTime();
-                                    const within24h = Date.now() - deliveredAt <= 24 * 60 * 60 * 1000;
-                                    if (!within24h) {
+                                 {order.status === "delivered" &&
+                                    order.delivered_at &&
+                                    !order.refund_status &&
+                                    (() => {
+                                       const deliveredAt = new Date(
+                                          order.delivered_at
+                                       ).getTime();
+                                       const within24h =
+                                          Date.now() - deliveredAt <=
+                                          24 * 60 * 60 * 1000;
+                                       if (!within24h) {
+                                          return (
+                                             <div className="text-gray-500 mt-1 text-xs">
+                                                ⏰ Refund window expired (24
+                                                hours after delivery)
+                                             </div>
+                                          );
+                                       }
                                        return (
-                                          <div className="text-gray-500 mt-1 text-xs">
-                                             ⏰ Refund window expired (24 hours after delivery)
+                                          <div className="text-green-600 mt-1 text-xs">
+                                             ✅ Refund available (within 24
+                                             hours of delivery)
                                           </div>
                                        );
-                                    }
-                                    return (
-                                       <div className="text-green-600 mt-1 text-xs">
-                                          ✅ Refund available (within 24 hours of delivery)
-                                       </div>
-                                    );
-                                 })()}
+                                    })()}
                               </div>
                               <div className="flex flex-wrap items-center gap-2 justify-end">
                                  <Button
@@ -517,12 +539,14 @@ const Orders = () => {
                                        const within24h =
                                           Date.now() - deliveredAt <=
                                           24 * 60 * 60 * 1000;
-                                       
+
                                        // Don't show anything if refund window expired
                                        if (!within24h) return null;
-                                       
+
                                        // Show cancel refund button only when status is "requested"
-                                       if (order.refund_status === "requested") {
+                                       if (
+                                          order.refund_status === "requested"
+                                       ) {
                                           return (
                                              <Button
                                                 size="sm"
@@ -542,7 +566,7 @@ const Orders = () => {
                                              </Button>
                                           );
                                        }
-                                       
+
                                        // Show approved status badge
                                        if (order.refund_status === "approved") {
                                           return (
@@ -555,7 +579,7 @@ const Orders = () => {
                                              </Badge>
                                           );
                                        }
-                                       
+
                                        // Show refunded status badge
                                        if (order.refund_status === "refunded") {
                                           return (
@@ -568,7 +592,7 @@ const Orders = () => {
                                              </Badge>
                                           );
                                        }
-                                       
+
                                        // Show rejected status badge (no action available)
                                        if (order.refund_status === "rejected") {
                                           return (
@@ -580,19 +604,23 @@ const Orders = () => {
                                              </Badge>
                                           );
                                        }
-                                       
+
                                        // Only show Request Refund button if:
                                        // 1. No refund status OR refund was cancelled
                                        // 2. Within 24h window
-                                       const canRequestRefund = !order.refund_status || order.refund_status === "cancelled";
-                                       
+                                       const canRequestRefund =
+                                          !order.refund_status ||
+                                          order.refund_status === "cancelled";
+
                                        if (canRequestRefund) {
                                           return (
                                              <Button
                                                 size="sm"
                                                 variant="outline"
                                                 onClick={() => {
-                                                   setRefundTargetOrder(order.id);
+                                                   setRefundTargetOrder(
+                                                      order.id
+                                                   );
                                                    setRefundReasonInput("");
                                                    setRefundDialogOpen(true);
                                                 }}
@@ -602,7 +630,7 @@ const Orders = () => {
                                              </Button>
                                           );
                                        }
-                                       
+
                                        // Default: no action available
                                        return null;
                                     })()}

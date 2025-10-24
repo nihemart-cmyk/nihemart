@@ -23,37 +23,28 @@ export async function POST(req: NextRequest) {
       const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
       if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
-         const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-         const updates: any = {
-            status,
-            ...(additionalFields || {}),
-            ...(status === "shipped"
-               ? { shipped_at: new Date().toISOString() }
-               : {}),
-            ...(status === "delivered"
-               ? { delivered_at: new Date().toISOString() }
-               : {}),
-         };
-
-         const { data, error } = await sb
-            .from("orders")
-            .update(updates)
-            .eq("id", id)
-            .select()
-            .single();
-
-         if (error) {
+         // Use the updateOrderStatus function to ensure COD payments are properly handled
+         try {
+            const { updateOrderStatus } = await import(
+               "@/integrations/supabase/orders"
+            );
+            const data = await updateOrderStatus(id, status, additionalFields);
+            return NextResponse.json(data);
+         } catch (error) {
             console.error(
-               "Error updating order status with service key:",
+               "Error updating order status via updateOrderStatus:",
                error
             );
             return NextResponse.json(
-               { error: error.message || "Failed to update order status" },
+               {
+                  error:
+                     error instanceof Error
+                        ? error.message
+                        : "Failed to update order status",
+               },
                { status: 500 }
             );
          }
-
-         return NextResponse.json(data);
       }
 
       // Fallback to using the logged in user's session via auth helper

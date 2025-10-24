@@ -113,16 +113,11 @@ begin
     if (new.status is distinct from old.status) then
       -- Only notify the customer for meaningful final events like delivery.
       if (new.status = 'delivered') then
-        -- Notify the order owner (customer) that delivery succeeded with a clear message
-        perform public.insert_notification(
-          new.user_id,
-          null,
-          'order_delivered',
-          'Delivery Success',
-          'A rider marked your order as delivered successfully.',
-          jsonb_build_object('old_status', old.status, 'new_status', new.status, 'order_id', new.id)
-        );
-        -- Also notify admins about the delivered order
+        -- NOTE: The application now creates enriched customer-facing
+        -- 'order_delivered' notifications with detailed order & rider info.
+        -- To avoid sending a short duplicate notification to the customer
+        -- we only notify admins here. Customer notifications will be
+        -- created by the server-side application code (service role).
         perform public.insert_notification(
           null,
           'admin',

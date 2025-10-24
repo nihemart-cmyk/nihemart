@@ -654,7 +654,7 @@ export async function respondToOrderRefundRequest(
          }
 
          const recipientUserId = existing.user_id || null;
-         await sb.rpc("insert_notification", {
+         await createNotification({
             p_recipient_user_id: recipientUserId,
             p_recipient_role: null,
             p_type: "refund_approved",
@@ -662,7 +662,7 @@ export async function respondToOrderRefundRequest(
             p_body: `Your refund request for order ${
                existing.order_number || existing.id
             } has been approved. .`,
-            p_meta: JSON.stringify({ order_id: existing.id }),
+            p_meta: { order_id: existing.id },
          });
       } catch (err) {
          console.warn(
@@ -1443,6 +1443,13 @@ export async function updateOrderStatus(
                orderRow &&
                orderRow.payment_method === "cash_on_delivery"
             ) {
+               console.log(
+                  "COD order detected, updating payment status to completed:",
+                  {
+                     orderId: id,
+                     paymentMethod: orderRow.payment_method,
+                  }
+               );
                try {
                   const { error: upErr } = await sb
                      .from("payments")
@@ -1452,17 +1459,31 @@ export async function updateOrderStatus(
                      })
                      .eq("order_id", id)
                      .eq("status", "pending");
-                  if (upErr)
+                  if (upErr) {
                      console.warn(
                         "Failed to update COD payment status to completed:",
                         upErr
                      );
+                  } else {
+                     console.log(
+                        "Successfully updated COD payment status to completed for order:",
+                        id
+                     );
+                  }
                } catch (uCatch) {
                   console.warn(
                      "Error updating COD payments on delivery:",
                      uCatch
                   );
                }
+            } else {
+               console.log(
+                  "Order is not COD, skipping payment status update:",
+                  {
+                     orderId: id,
+                     paymentMethod: orderRow?.payment_method,
+                  }
+               );
             }
          } catch (e) {
             console.warn(

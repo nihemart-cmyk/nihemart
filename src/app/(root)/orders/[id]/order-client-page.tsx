@@ -800,12 +800,7 @@ const OrderClientPage = ({
                                     </p>
                                     <div className="bg-green-100 border border-green-200 rounded p-3 mt-3">
                                        <p className="text-sm text-green-800 font-medium">
-                                          💰 You will receive your money back
-                                          within 24 hours
-                                       </p>
-                                       <p className="text-xs text-green-700 mt-1">
-                                          The refund will be processed to your
-                                          original payment method.
+                                          💰 {t("refundApprovedMessage")}
                                        </p>
                                     </div>
                                  </div>
@@ -1120,8 +1115,8 @@ const OrderClientPage = ({
                                           <div className="flex items-center justify-center p-3 bg-green-50 border border-green-200 rounded-lg">
                                              <CheckCircle className="h-4 w-4 text-green-600 mr-2" />
                                              <span className="text-green-700 font-medium text-sm">
-                                                Refund Approved - Processing
-                                                within 24 hours
+                                                Refund Approved -{" "}
+                                                {t("refundApprovedMessage")}
                                              </span>
                                           </div>
                                        </div>
