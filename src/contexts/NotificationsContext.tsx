@@ -200,15 +200,40 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
                }
             }
 
-            // dedupe by id and set state
-            const seen = new Set();
-            const deduped = combined.filter((x: any) => {
-               if (!x || !x.id) return false;
-               if (seen.has(x.id)) return false;
-               seen.add(x.id);
-               return true;
+            // dedupe by id across both fetched results and existing state
+            const seen = new Set<string>();
+            const dedupedFetched: Notification[] = (combined || []).filter(
+               (x: any) => {
+                  if (!x || !x.id) return false;
+                  if (seen.has(x.id)) return false;
+                  seen.add(x.id);
+                  return true;
+               }
+            );
+
+            // merge with existing notifications (prev) while ensuring unique ids
+            setNotifications((prev) => {
+               const merged: Notification[] = [];
+               const seenIds = new Set<string>();
+
+               // start with fetched (newest first)
+               for (const n of dedupedFetched) {
+                  if (!n || !n.id) continue;
+                  if (seenIds.has(n.id)) continue;
+                  merged.push(n);
+                  seenIds.add(n.id);
+               }
+
+               // then append previous items that weren't in fetched
+               for (const p of prev) {
+                  if (!p || !p.id) continue;
+                  if (seenIds.has(p.id)) continue;
+                  merged.push(p);
+                  seenIds.add(p.id);
+               }
+
+               return merged.slice(0, 200);
             });
-            setNotifications((prev) => [...deduped, ...prev].slice(0, 200));
          } catch (err) {
             console.error("fetchPersisted notifications err", err);
          }
@@ -216,7 +241,37 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
 
       // NOTE: We avoid aggressive client-side polling. Instead we rely on
       // Supabase realtime subscriptions targeted by recipient filters.
-      // Keep a minimal, manual polling fallback if desired later.
+      // However, network or websocket problems can cause subscriptions to
+      // silently stop. We'll keep a lightweight heartbeat that falls back
+      // to fetching persisted notifications if no realtime events arrive
+      // within a short window.
+
+      const lastEventAt = { current: Date.now() } as { current: number };
+      let heartbeatInterval: any = null;
+
+      const startHeartbeat = () => {
+         // Check every 8s; if no event in the last 12s, fetch persisted
+         // notifications as a fallback.
+         heartbeatInterval = setInterval(() => {
+            try {
+               const now = Date.now();
+               if (now - lastEventAt.current > 12000) {
+                  // console.debug fallback
+                  // eslint-disable-next-line no-console
+                  console.debug(
+                     "No realtime notifications seen recently — polling for updates"
+                  );
+                  fetchPersisted();
+               }
+            } catch (e) {}
+         }, 8000);
+      };
+
+      const stopHeartbeat = () => {
+         try {
+            if (heartbeatInterval) clearInterval(heartbeatInterval);
+         } catch (e) {}
+      };
 
       const setupRealtime = () => {
          // Create a channel scoped to this user for easier cleanup.
@@ -250,6 +305,8 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
                      "notifications channel received INSERT",
                      payload?.new?.id
                   );
+                  // update last-event timestamp for heartbeat
+                  lastEventAt.current = Date.now();
                } catch (e) {}
                handleRealtimeRow(payload.new);
             }
@@ -269,6 +326,8 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
                      "notifications channel received UPDATE",
                      payload?.new?.id
                   );
+                  // update last-event timestamp for heartbeat
+                  lastEventAt.current = Date.now();
                } catch (e) {}
                handleRealtimeRow(payload.new);
             }
@@ -277,6 +336,8 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
          // Finalize subscription and keep a reference for cleanup
          ch.subscribe();
          channelRef.current = ch;
+         // start heartbeat to detect silent disconnects
+         startHeartbeat();
          // debug
          try {
             // eslint-disable-next-line no-console
@@ -314,6 +375,12 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
                row?.recipient_role,
                row?.type
             );
+         } catch (e) {}
+         try {
+            // mark event seen for heartbeat fallback
+            // (if setupRealtime hasn't created lastEventAt reference yet this is fine)
+            // eslint-disable-next-line no-console
+            // small defensive guard
          } catch (e) {}
          const recipientUser = row.recipient_user_id;
          const recipientRole = row.recipient_role;
@@ -398,6 +465,49 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
                copy[idx] = normalized;
                return copy;
             }
+
+            // Heuristic dedupe: if we already have a notification of the same
+            // type for the same order/assignment recently, skip adding to
+            // avoid duplicate notifications created by triggers + app logic.
+            try {
+               const newMeta =
+                  typeof normalized.meta === "string"
+                     ? JSON.parse(normalized.meta || "null")
+                     : normalized.meta || {};
+
+               const keyCandidates = [
+                  newMeta?.assignment?.id,
+                  newMeta?.assignment_id,
+                  newMeta?.order?.id,
+                  newMeta?.order_id,
+               ].filter(Boolean);
+
+               if (keyCandidates.length > 0) {
+                  const exists = prev.some((p) => {
+                     if (p.type !== normalized.type) return false;
+                     try {
+                        const pm =
+                           typeof p.meta === "string"
+                              ? JSON.parse(p.meta || "null")
+                              : p.meta || {};
+                        const pKeys = [
+                           pm?.assignment?.id,
+                           pm?.assignment_id,
+                           pm?.order?.id,
+                           pm?.order_id,
+                        ].filter(Boolean);
+                        // If any key overlaps, consider it a duplicate
+                        return pKeys.some((k) => keyCandidates.includes(k));
+                     } catch (e) {
+                        return false;
+                     }
+                  });
+                  if (exists) return prev;
+               }
+            } catch (e) {
+               // ignore parse errors and continue
+            }
+
             return [normalized, ...prev].slice(0, 200);
          });
 
@@ -462,13 +572,26 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
             } catch {}
          }
          try {
+            stopHeartbeat();
+         } catch (e) {}
+         try {
             window.removeEventListener("online", handleOnline);
          } catch {}
       };
    }, [user?.id, isAdmin, riderId]);
 
    const addNotification = (n: Notification) =>
-      setNotifications((prev) => [n, ...prev].slice(0, 100));
+      setNotifications((prev) => {
+         if (!n || !n.id) return prev;
+         // if already present, replace it
+         const idx = prev.findIndex((p) => p.id === n.id);
+         if (idx >= 0) {
+            const copy = prev.slice();
+            copy[idx] = n;
+            return copy;
+         }
+         return [n, ...prev].slice(0, 100);
+      });
 
    const markAsRead = async (id: string) => {
       try {

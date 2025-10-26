@@ -22,6 +22,11 @@ const sb = ((): any => {
    return browserSupabase as any;
 })();
 
+// Client-side guard: prevent rapid repeated POSTs for the same target+order+type
+// This reduces request storms from UI interactions (per-page in-memory throttle).
+const _recentNotificationSends: Map<string, number> = new Map();
+const _NOTIF_THROTTLE_MS = 10_000; // 10s
+
 // Helper: create notification using RPC when running on server, or POST to
 // server API when running in the browser (to ensure service-role insertion).
 async function createNotification(params: {
@@ -69,6 +74,28 @@ async function createNotification(params: {
                metaObj = p_meta;
             }
          }
+         try {
+            const orderId = metaObj?.order_id || metaObj?.order?.id || null;
+            const key = `${p_recipient_user_id || ""}|${
+               p_recipient_role || ""
+            }|${p_type || ""}|${orderId || ""}`;
+            const last = _recentNotificationSends.get(key) || 0;
+            const now = Date.now();
+            if (now - last < _NOTIF_THROTTLE_MS) {
+               // Skip creating duplicate notification too frequently
+               // eslint-disable-next-line no-console
+               console.debug(
+                  "Throttling duplicate notification POST for key:",
+                  key
+               );
+               return;
+            }
+            _recentNotificationSends.set(key, now);
+            setTimeout(
+               () => _recentNotificationSends.delete(key),
+               _NOTIF_THROTTLE_MS + 1000
+            );
+         } catch (e) {}
          await fetch("/api/notifications/create", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -206,17 +233,15 @@ export async function assignOrderToRider(
       // Update order status to 'assigned'
       await sb.from("orders").update({ status: "assigned" }).eq("id", orderId);
 
-      // The DB trigger on `order_assignments` already creates notifications
-      // for the assigned rider and admins. We avoid duplicating the rider
-      // notification here and only create a customer-facing notification
-      // below (if the order has a user_id).
+      // The DB trigger on `order_assignments` creates notifications for the assigned rider.
+      // We create admin and customer notifications here with richer content.
 
-      // Create notification for the customer about the assignment using server-side RPC
+      // Create notification for the customer about the assignment
       if (order?.user_id) {
          try {
             await createNotification({
                p_recipient_user_id: order.user_id,
-               p_recipient_role: null,
+               p_recipient_role: "user",
                p_type: "order_assigned",
                p_title: null,
                p_body: null,
@@ -237,6 +262,30 @@ export async function assignOrderToRider(
                err
             );
          }
+      }
+
+      // Create admin notification for assignment
+      try {
+         await createNotification({
+            p_recipient_user_id: null,
+            p_recipient_role: "admin",
+            p_type: "assignment_created",
+            p_title: null,
+            p_body: null,
+            p_meta: {
+               order,
+               items: order.items || [],
+               rider_name:
+                  riderRow.full_name || riderRow.name || "Delivery Rider",
+               rider_id: riderId,
+               delivery_address: order.delivery_address,
+               order_id: order.id,
+               order_number: order.order_number,
+               assignment_id: data.id,
+            },
+         });
+      } catch (err) {
+         console.error("Error creating admin assignment notification:", err);
       }
 
       return data as any;
@@ -297,11 +346,8 @@ export async function respondToAssignment(
       .select()
       .maybeSingle();
 
-   // Handle database-level errors
    if (error) throw error;
 
-   // If no row was updated, return a clearer error instead of the PostgREST
-   // 'Cannot coerce the result to a single JSON object' message.
    if (!data) {
       const err: any = new Error("Assignment not found or already updated");
       err.code = "ASSIGNMENT_NOT_FOUND";
@@ -312,108 +358,152 @@ export async function respondToAssignment(
    const order = assignmentWithDetails.orders as any;
    const rider = assignmentWithDetails.riders as any;
 
-   // If accepted/ completed update orders table status accordingly
+   // ACCEPTED: Update order to processing and notify customer + admin
    if (status === "accepted") {
-      // When a rider accepts an assignment the order should move to "processing"
-      // (previously it was left as "assigned").
       await sb
          .from("orders")
          .update({ status: "processing" })
          .eq("id", assignment.order_id);
 
-      // Create customer notification with rich content
+      // CRITICAL: Customer notification with proper title and body
       if (order?.user_id && rider) {
+         const riderName = rider.full_name || rider.name || "Delivery Rider";
+         const orderNumber = order.order_number || `#${order.id.substring(0, 8)}`;
+         
          try {
             await createNotification({
                p_recipient_user_id: order.user_id,
-               p_recipient_role: null,
+               p_recipient_role: "user", // Explicit role for customer
                p_type: "assignment_accepted",
-               p_title: null,
-               p_body: null,
+               p_title: `${riderName} is delivering your order`,
+               p_body: `${riderName} has accepted delivery of order ${orderNumber}${rider.phone ? `. Contact: ${rider.phone}` : ''}`,
                p_meta: {
-                  order,
-                  items: order.items || [],
-                  rider_name: rider.full_name || rider.name || "Delivery Rider",
-                  rider_phone: rider.phone,
-                  delivery_address: order.delivery_address,
                   order_id: order.id,
                   order_number: order.order_number,
+                  assignment_id: assignment.id,
+                  rider_id: rider.id,
+                  rider_name: riderName,
+                  rider_phone: rider.phone,
+                  delivery_address: order.delivery_address,
+                  order,
+                  items: order.items || [],
                },
             });
+            console.log('✓ Customer notification created for assignment acceptance:', {
+               userId: order.user_id,
+               orderId: order.id,
+               riderName
+            });
          } catch (err) {
-            console.error(
-               "Error creating assignment accepted notification:",
-               err
-            );
+            console.error("❌ Failed to create customer notification for assignment acceptance:", err);
          }
+      } else {
+         console.warn("⚠️ Cannot create customer notification - missing user_id or rider:", {
+            hasUserId: !!order?.user_id,
+            hasRider: !!rider
+         });
+      }
+
+      // Admin notification
+      try {
+         const riderName = rider.full_name || rider.name || "Delivery Rider";
+         const orderNumber = order.order_number || `#${order.id.substring(0, 8)}`;
+         
+         await createNotification({
+            p_recipient_user_id: null,
+            p_recipient_role: "admin",
+            p_type: "assignment_accepted",
+            p_title: `${riderName} accepted order ${orderNumber}`,
+            p_body: `Delivery to ${order.delivery_city || 'customer'} - ${order.delivery_address || 'address pending'}`,
+            p_meta: {
+               order_id: order.id,
+               order_number: order.order_number,
+               assignment_id: assignment.id,
+               rider_id: rider.id,
+               rider_name: riderName,
+               delivery_address: order.delivery_address,
+               order,
+               items: order.items || [],
+            },
+         });
+         console.log('✓ Admin notification created for assignment acceptance');
+      } catch (err) {
+         console.error("❌ Failed to create admin notification for assignment acceptance:", err);
       }
    }
 
+   // COMPLETED: Mark order as delivered and notify customer
    if (status === "completed") {
-      // Use updateOrderStatus function to ensure COD payments are properly handled
-      // This will update the order status to "delivered" AND handle COD payment completion
       try {
          const { updateOrderStatus } = await import("./orders");
          await updateOrderStatus(assignment.order_id, "delivered");
       } catch (err) {
-         console.error(
-            "Failed to update order status via updateOrderStatus:",
-            err
-         );
-         // Fallback to direct update if updateOrderStatus fails
+         console.error("Failed to update order status via updateOrderStatus:", err);
          await sb
             .from("orders")
             .update({ status: "delivered" })
             .eq("id", assignment.order_id);
       }
 
-      // Create order delivered notification
+      // Customer notification for delivery
       if (order?.user_id) {
+         const orderNumber = order.order_number || `#${order.id.substring(0, 8)}`;
+         
          try {
             await createNotification({
                p_recipient_user_id: order.user_id,
-               p_recipient_role: null,
+               p_recipient_role: "user",
                p_type: "order_delivered",
-               p_title: null,
-               p_body: null,
+               p_title: `Order ${orderNumber} delivered successfully`,
+               p_body: `Your order has been delivered to ${order.delivery_address || 'your address'}. Thank you for your order!`,
                p_meta: {
-                  order,
-                  items: order.items || [],
-                  delivery_address: order.delivery_address,
                   order_id: order.id,
                   order_number: order.order_number,
+                  delivery_address: order.delivery_address,
+                  order,
+                  items: order.items || [],
                },
             });
+            console.log('✓ Customer notification created for order delivery');
          } catch (err) {
-            console.error("Error creating order delivered notification:", err);
+            console.error("❌ Failed to create customer delivery notification:", err);
          }
       }
    }
 
+   // REJECTED: Revert order to pending and notify admin
    if (status === "rejected") {
-      // When rider rejects, revert order to pending (or unassigned) so admin can reassign
       await sb
          .from("orders")
          .update({ status: "pending" })
          .eq("id", assignment.order_id);
 
-      // Create rejection notification for admin (optional)
-      try {
-         await createNotification({
-            p_recipient_user_id: null,
-            p_recipient_role: "admin",
-            p_type: "assignment_rejected",
-            p_title: null,
-            p_body: null,
-            p_meta: {
-               order,
-               rider_name: rider?.full_name || rider?.name || "Rider",
-               order_id: order?.id,
-               order_number: order?.order_number,
-            },
-         });
-      } catch (err) {
-         console.error("Error creating assignment rejected notification:", err);
+      if (rider) {
+         const riderName = rider.full_name || rider.name || "Delivery Rider";
+         const orderNumber = order.order_number || `#${order.id.substring(0, 8)}`;
+         
+         try {
+            await createNotification({
+               p_recipient_user_id: null,
+               p_recipient_role: "admin",
+               p_type: "assignment_rejected",
+               p_title: `${riderName} rejected order ${orderNumber}`,
+               p_body: `Order needs reassignment - ${order.delivery_city || 'delivery location'}`,
+               p_meta: {
+                  order_id: order.id,
+                  order_number: order.order_number,
+                  assignment_id: assignment.id,
+                  rider_id: rider.id,
+                  rider_name: riderName,
+                  delivery_address: order.delivery_address,
+                  order,
+                  items: order.items || [],
+               },
+            });
+         
+         } catch (err) {
+            console.error("❌ Failed to create admin rejection notification:", err);
+         }
       }
    }
 

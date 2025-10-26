@@ -33,8 +33,12 @@ export default async function handler(
    if (req.method !== "POST")
       return res.status(405).json({ error: "Method not allowed" });
 
-   const { recipient_user_id, recipient_role, type, title, body, meta } =
+   let { recipient_user_id, recipient_role, type, title, body, meta } =
       req.body;
+   // If a recipient_user_id is provided but no explicit role, treat as a customer/user
+   if (recipient_user_id && !recipient_role) {
+      recipient_role = "user";
+   }
    if (!type) return res.status(400).json({ error: "type required" });
 
    // Generate meaningful title and body if not provided
@@ -581,6 +585,36 @@ export default async function handler(
                }
             }
          }
+      }
+
+      // Avoid inserting near-duplicate notifications for the same target+order+type
+      // (protects against triggers + app-level inserts creating duplicates).
+      try {
+         const metaObj =
+            (typeof meta === "string" ? JSON.parse(meta) : meta) || {};
+         const orderId = metaObj.order_id || metaObj.order?.id || null;
+         if (orderId) {
+            const thirtySecondsAgo = new Date(
+               Date.now() - 30 * 1000
+            ).toISOString();
+            const { data: dupCheck, error: dupErr } = await supabase
+               .from("notifications")
+               .select("id")
+               .eq("type", type)
+               .eq("recipient_role", recipient_role || null)
+               .eq("recipient_user_id", recipient_user_id || null)
+               .gt("created_at", thirtySecondsAgo)
+               .limit(1);
+            if (!dupErr && Array.isArray(dupCheck) && dupCheck.length > 0) {
+               // Duplicate found recently — return existing to caller (no-op)
+               return res
+                  .status(200)
+                  .json({ notification: dupCheck[0], skippedDuplicate: true });
+            }
+         }
+      } catch (e) {
+         // If dup-check fails, continue to insert as a best-effort
+         console.warn("notifications dup-check failed:", e);
       }
 
       const { data, error } = await supabase

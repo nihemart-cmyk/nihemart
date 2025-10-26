@@ -732,6 +732,12 @@ const sb = ((): any => {
    return browserSupabase as any;
 })();
 
+// Client-side guard: prevent rapid repeated POSTs for the same target+order+type
+// This is an in-memory throttle (per-page). It reduces request storms from UI
+// interactions like double-clicks or overlapping producers.
+const _recentNotificationSends: Map<string, number> = new Map();
+const _NOTIF_THROTTLE_MS = 10_000; // 10s
+
 // Helper: create notification using RPC when running on server, or POST to
 // server API when running in the browser (to ensure service-role insertion).
 async function createNotification(params: {
@@ -750,13 +756,17 @@ async function createNotification(params: {
       p_body,
       p_meta,
    } = params;
+   // Default recipient role: if a recipient_user_id is supplied but no explicit
+   // recipient_role was passed, assume this is a customer/user notification.
+   const final_recipient_role =
+      p_recipient_role || (p_recipient_user_id ? "user" : null);
 
    if (typeof window === "undefined") {
       // Server: use RPC (sb should be server client when running on server)
       try {
          return await sb.rpc("insert_notification", {
             p_recipient_user_id: p_recipient_user_id || null,
-            p_recipient_role: p_recipient_role || null,
+            p_recipient_role: final_recipient_role || null,
             p_type,
             p_title: p_title || null,
             p_body: p_body || null,
@@ -779,12 +789,38 @@ async function createNotification(params: {
                metaObj = p_meta;
             }
          }
+         // Build a lightweight dedupe key: recipient|role|type|orderId
+         try {
+            const orderId = metaObj?.order_id || metaObj?.order?.id || null;
+            const key = `${p_recipient_user_id || ""}|${
+               final_recipient_role || ""
+            }|${p_type || ""}|${orderId || ""}`;
+            const last = _recentNotificationSends.get(key) || 0;
+            const now = Date.now();
+            if (now - last < _NOTIF_THROTTLE_MS) {
+               // Skip sending duplicate notification too frequently
+               // eslint-disable-next-line no-console
+               console.debug(
+                  "Throttling duplicate notification POST for key:",
+                  key
+               );
+               return;
+            }
+            _recentNotificationSends.set(key, now);
+            // cleanup after window
+            setTimeout(
+               () => _recentNotificationSends.delete(key),
+               _NOTIF_THROTTLE_MS + 1000
+            );
+         } catch (e) {
+            // ignore any errors constructing key
+         }
          await fetch("/api/notifications/create", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                recipient_user_id: p_recipient_user_id || null,
-               recipient_role: p_recipient_role || null,
+               recipient_role: final_recipient_role || null,
                type: p_type,
                title: p_title || null,
                body: p_body || null,
@@ -1275,6 +1311,7 @@ export async function createOrder({
       } as Order;
 
       // Notify admins that a new order has been placed (best-effort, non-blocking).
+      // Also notify the customer about their order.
       // If running on the server (service role available), call the RPC directly.
       // If running in the browser (anon key), POST to our server API which uses
       // the service role key to create the notification (avoids permission issues).
@@ -1287,6 +1324,7 @@ export async function createOrder({
                items: quickOrder.items || [],
             };
 
+            // Notify admin
             if (typeof window === "undefined") {
                // Server-side: use RPC with service role client (sb will be server client)
                await sb.rpc("insert_notification", {
@@ -1319,13 +1357,44 @@ export async function createOrder({
                   );
                }
             }
+
+            // Notify customer if user_id exists
+            if (order.user_id) {
+               if (typeof window === "undefined") {
+                  await sb.rpc("insert_notification", {
+                     p_recipient_user_id: order.user_id,
+                     p_recipient_role: "user",
+                     p_type: "order_created",
+                     p_title: null,
+                     p_body: null,
+                     p_meta: JSON.stringify(metaObj),
+                  });
+               } else {
+                  try {
+                     await fetch("/api/notifications/create", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                           recipient_user_id: order.user_id,
+                           recipient_role: "user",
+                           type: "order_created",
+                           title: null,
+                           body: null,
+                           meta: metaObj,
+                        }),
+                     });
+                  } catch (fetchErr) {
+                     console.warn(
+                        "Failed to POST customer notification to /api/notifications/create:",
+                        fetchErr
+                     );
+                  }
+               }
+            }
          } catch (e) {
-            console.warn(
-               "Failed to create admin notification for new order:",
-               e
-            );
+            console.warn("Failed to create notifications for new order:", e);
          }
-      })().catch((e) => console.warn("Background admin notify failed:", e));
+      })().catch((e) => console.warn("Background notify failed:", e));
 
       // NOTE: stock updates are intentionally deferred until delivery confirmation
       // to avoid reducing stock for orders that may be cancelled before fulfillment.
@@ -1422,6 +1491,96 @@ export async function updateOrderStatus(
 
    if (error) throw error;
    const updatedOrder = data as Order;
+
+   // Create notifications for status changes (best-effort, non-blocking)
+   if (status !== existingOrder.status) {
+      (async () => {
+         try {
+            // Fetch order with items for notification
+            const { data: orderWithItems } = await sb
+               .from("orders")
+               .select("*, items:order_items(*)")
+               .eq("id", id)
+               .maybeSingle();
+
+            const metaObj = {
+               order: orderWithItems,
+               order_id: id,
+               order_number: orderWithItems?.order_number,
+               status: status,
+               items: orderWithItems?.items || [],
+            };
+
+            // Notify customer if user_id exists
+            if (orderWithItems?.user_id) {
+               if (typeof window === "undefined") {
+                  await sb.rpc("insert_notification", {
+                     p_recipient_user_id: orderWithItems.user_id,
+                     p_recipient_role: "user",
+                     p_type: "order_status_update",
+                     p_title: null,
+                     p_body: null,
+                     p_meta: JSON.stringify(metaObj),
+                  });
+               } else {
+                  try {
+                     await fetch("/api/notifications/create", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                           recipient_user_id: orderWithItems.user_id,
+                           recipient_role: "user",
+                           type: "order_status_update",
+                           title: null,
+                           body: null,
+                           meta: metaObj,
+                        }),
+                     });
+                  } catch (fetchErr) {
+                     console.warn(
+                        "Failed to POST customer status notification:",
+                        fetchErr
+                     );
+                  }
+               }
+            }
+
+            // Notify admin about status change
+            if (typeof window === "undefined") {
+               await sb.rpc("insert_notification", {
+                  p_recipient_user_id: null,
+                  p_recipient_role: "admin",
+                  p_type: "order_status_update",
+                  p_title: null,
+                  p_body: null,
+                  p_meta: JSON.stringify(metaObj),
+               });
+            } else {
+               try {
+                  await fetch("/api/notifications/create", {
+                     method: "POST",
+                     headers: { "Content-Type": "application/json" },
+                     body: JSON.stringify({
+                        recipient_user_id: null,
+                        recipient_role: "admin",
+                        type: "order_status_update",
+                        title: null,
+                        body: null,
+                        meta: metaObj,
+                     }),
+                  });
+               } catch (fetchErr) {
+                  console.warn(
+                     "Failed to POST admin status notification:",
+                     fetchErr
+                  );
+               }
+            }
+         } catch (e) {
+            console.warn("Failed to create status update notifications:", e);
+         }
+      })().catch((e) => console.warn("Background status notify failed:", e));
+   }
 
    // If the order was marked delivered, decrement stock for items that are
    // not already refunded/approved. This runs on the server (service role).
