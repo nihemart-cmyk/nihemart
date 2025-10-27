@@ -118,30 +118,49 @@ const CheckoutPage = ({
    // Clear all client-side checkout state after successful order creation
    const clearAllCheckoutClientState = () => {
       try {
+         console.log("Clearing all checkout client state...");
          // primary checkout storage key
          clearCheckoutStorage();
-      } catch (e) {}
+         console.log("✓ Checkout storage cleared");
+      } catch (e) {
+         console.error("Failed to clear checkout storage:", e);
+      }
       try {
          // Make double-sure to remove the key if different casing or older keys exist
          if (typeof window !== "undefined") {
             try {
                localStorage.removeItem("nihemart_checkout_v1");
-            } catch (e) {}
+               console.log("✓ nihemart_checkout_v1 cleared");
+            } catch (e) {
+               console.error("Failed to clear nihemart_checkout_v1:", e);
+            }
             try {
                localStorage.removeItem("checkout");
-            } catch (e) {}
+               console.log("✓ checkout key cleared");
+            } catch (e) {
+               console.error("Failed to clear checkout key:", e);
+            }
          }
-      } catch (e) {}
+      } catch (e) {
+         console.error("Failed to clear primary storage keys:", e);
+      }
       try {
          if (typeof window !== "undefined") {
             sessionStorage.removeItem("kpay_reference");
+            console.log("✓ kpay_reference cleared from sessionStorage");
          }
-      } catch (e) {}
+      } catch (e) {
+         console.error("Failed to clear kpay_reference:", e);
+      }
       try {
          if (typeof window !== "undefined") {
             localStorage.removeItem("cart");
+            console.log("✓ cart cleared from localStorage");
          }
-      } catch (e) {}
+      } catch (e) {
+         console.error("Failed to clear cart:", e);
+      }
+      console.log("✓ All checkout client state cleared successfully");
    };
    const [orderItems, setOrderItems] = useState<CartItem[]>([]);
    const [errors, setErrors] = useState<any>({});
@@ -1076,8 +1095,11 @@ const CheckoutPage = ({
    // Priority: already-selected (do nothing) -> saved default (is_default) -> single address -> first address
    useEffect(() => {
       try {
-         if (!Array.isArray(savedAddresses) || savedAddresses.length === 0)
+         // If there are no saved addresses, do nothing - let the user click the button
+         // This prevents the form from auto-opening and re-opening after cancel
+         if (!Array.isArray(savedAddresses) || savedAddresses.length === 0) {
             return;
+         }
 
          // If there is already a selected address, do not override it
          if (selectedAddress) return;
@@ -1392,12 +1414,7 @@ const CheckoutPage = ({
    }
 
    // Determine if the selected location is Kigali
-   const selectedProvinceObj = provinces.find(
-      (p) => String(p.prv_id) === String(selectedProvince)
-   );
-   const isKigaliByProvince = Boolean(
-      selectedProvinceObj?.prv_name?.toLowerCase().includes("kigali")
-   );
+   // Only consider it Kigali if there's a saved address, not just province selection
    const isKigaliBySavedAddress = Boolean(
       selectedAddress &&
          [
@@ -1410,7 +1427,7 @@ const CheckoutPage = ({
             .toLowerCase()
             .includes("kigali")
    );
-   const isKigali = isKigaliByProvince || isKigaliBySavedAddress;
+   const isKigali = isKigaliBySavedAddress;
 
    const getProvinceLabel = (p: any) => {
       const raw = String(p?.prv_name || "").toLowerCase();
@@ -1655,10 +1672,11 @@ const CheckoutPage = ({
                setSuppressEmptyCartRedirect(true);
                createOrder.mutate(orderData as CreateOrderRequest, {
                   onSuccess: async (createdOrder: any) => {
+                     // Clear cart and order items state first
                      try {
                         clearCart();
                      } catch (e) {
-                        /* ignore */
+                        console.error("Failed to clear cart:", e);
                      }
                      setOrderItems([]);
 
@@ -1762,14 +1780,18 @@ const CheckoutPage = ({
                               );
                            }
                         }
-                        if (linkSucceeded) {
-                           try {
-                              clearAllCheckoutClientState();
-                           } catch (e) {}
-                        } else {
-                           // Do not clear checkout snapshot — preserve user's data so they can retry
+                        // Always clear checkout state after order creation, regardless of linking status
+                        // The order has been created successfully
+                        try {
+                           clearAllCheckoutClientState();
+                        } catch (e) {
+                           console.error("Failed to clear checkout state:", e);
+                        }
+
+                        if (!linkSucceeded) {
+                           // Notify user if linking failed but don't block success
                            toast(
-                              "Order created but payment linking did not complete. Your checkout data has been preserved — please check your orders page or retry linking from the payment page."
+                              "Order created but payment linking did not complete. Please check your orders page."
                            );
                         }
 
@@ -1948,16 +1970,23 @@ const CheckoutPage = ({
          setSuppressEmptyCartRedirect(true);
          createOrder.mutate(orderData as CreateOrderRequest, {
             onSuccess: async (createdOrder: any) => {
+               // Clear persisted checkout and session state FIRST
+               try {
+                  clearAllCheckoutClientState();
+               } catch (e) {
+                  console.error("Failed to clear checkout state:", e);
+               }
+
+               // Then clear cart state and localStorage
                try {
                   clearCart();
                } catch (e) {
-                  /* ignore */
+                  console.error("Failed to clear cart:", e);
                }
+
+               // Clear local order items
                setOrderItems([]);
-               // Clear persisted checkout and session state now that order is created
-               try {
-                  clearAllCheckoutClientState();
-               } catch (e) {}
+
                toast.success(
                   `Order #${createdOrder.order_number} has been created successfully!`
                );
@@ -2837,8 +2866,20 @@ Total: ${total.toLocaleString()} RWF
                                  </div>
                               </div>
                            ) : (
-                              <div className="text-xs sm:text-sm text-gray-500 text-center py-3 sm:py-4">
-                                 {t("checkout.noSavedAddresses")}
+                              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 space-y-3">
+                                 <div className="flex items-start gap-2">
+                                    <AlertCircle className="h-4 w-4 sm:h-5 sm:w-5 text-orange-600 flex-shrink-0 mt-0.5" />
+                                    <div>
+                                       <p className="text-xs sm:text-sm font-semibold text-orange-900">
+                                          {t("checkout.noSavedAddresses") ||
+                                             "No saved addresses"}
+                                       </p>
+                                       <p className="text-xs text-orange-700 mt-1">
+                                          Please add a delivery address above to
+                                          continue with your order.
+                                       </p>
+                                    </div>
+                                 </div>
                               </div>
                            )}
                         </div>

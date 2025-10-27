@@ -160,6 +160,14 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({
 
    const clearCart = () => {
       setItems([]);
+      // Immediately clear localStorage to avoid race conditions
+      try {
+         if (typeof window !== "undefined") {
+            localStorage.removeItem("cart");
+         }
+      } catch (e) {
+         console.error("Failed to clear cart from localStorage", e);
+      }
       toast.info("Cart Cleared", {
          description: "All items have been removed from your cart.",
       });
