@@ -317,7 +317,7 @@ const Cart = () => {
                            <div className="p-3 rounded bg-yellow-50 border border-yellow-200 text-yellow-800 text-sm">
                               {ordersDisabledMessage ||
                                  t("checkout.ordersDisabledBanner") ||
-                                 "Ordering is currently disabled. Please try again later."}
+                                 "We are currently not allowing orders, please try again later"}
                            </div>
                         )}
 

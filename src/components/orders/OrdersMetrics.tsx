@@ -164,7 +164,7 @@ export default function OrdersMetrics() {
    const CUSTOMER_FALLBACK_MSG =
       t("checkout.ordersDisabledBanner") ||
       t("checkout.ordersDisabledMessage") ||
-      "Ordering is currently disabled. Please try again later.";
+      "We are currently not allowing orders, please try again later";
 
    const fetchOrdersEnabled = async () => {
       try {

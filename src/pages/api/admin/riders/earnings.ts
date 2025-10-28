@@ -26,12 +26,10 @@ export default async function handler(
       return res.status(500).json({ error: "Supabase not configured" });
 
    try {
-      // Aggregate rider earnings from orders.tax for completed (delivered) orders
-      // joined via order_assignments. Return a map of riderId -> earnings number.
+      // Use the same logic as RiderDetailsDialog for calculating earnings
       const { data, error } = await supabase
          .from("order_assignments")
-         .select("rider_id, status, orders:orders(id, status, tax)")
-         .eq("status", "completed");
+         .select("rider_id, status, orders:orders(id, status, tax)");
 
       if (error) return res.status(500).json({ error: error.message || error });
 
@@ -39,14 +37,17 @@ export default async function handler(
       (data || []).forEach((row: any) => {
          const rid = row.rider_id;
          const order = row.orders;
-         if (!rid || !order) return;
+         if (!rid) return;
 
-         // Only count earnings for completed assignments with delivered orders
-         const isDelivered = order.status === "delivered";
-         const fee = Number(order.tax) || 0;
-
-         if (isDelivered && fee > 0) {
-            earnings[rid] = (earnings[rid] || 0) + fee;
+         const s = (row.status || "").toString().toLowerCase();
+         if (s === "accepted" || s === "completed" || s === "delivered") {
+            // Calculate earnings for completed deliveries (same logic as dialog)
+            const o = order || null;
+            const fee = o?.tax ?? 0;
+            const feeNum = Number(fee || 0);
+            if (!isNaN(feeNum) && feeNum > 0) {
+               earnings[rid] = (earnings[rid] || 0) + feeNum;
+            }
          }
       });
 

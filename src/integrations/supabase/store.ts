@@ -467,11 +467,11 @@ export const fetchLandingPageProducts = cache(async ({
 
   // Apply ordering and pagination
   if (sortBy) {
-    // Custom sorting by specified column
-    query = query.order(sortBy, { ascending: true }).range(offset, offset + limit - 1);
+    // Custom sorting by specified column, with secondary sort by id for stability
+    query = query.order(sortBy, { ascending: true }).order("id", { ascending: true }).range(offset, offset + limit - 1);
   } else {
     // Default to latest ordering
-    query = query.order("created_at", { ascending: false }).range(offset, offset + limit - 1);
+    query = query.order("created_at", { ascending: false }).order("id", { ascending: true }).range(offset, offset + limit - 1);
   }
 
   const { data, error } = await query;

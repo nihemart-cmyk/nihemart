@@ -157,7 +157,7 @@ export const en: Record<string, string> = {
    // Payment option labels
    "checkout.cashOnDelivery": "Cash on Delivery",
    "checkout.ordersDisabledMessage":
-      "Ordering is currently disabled. Please try again later.",
+      "We are currently not allowing orders, please try again later",
    // Schedule-specific message (night hours)
    "checkout.ordersDisabledSchedule":
       "We are currently not working, please order again at 9:00",

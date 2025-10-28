@@ -363,9 +363,9 @@ function ProductListingComponent() {
                 </Sheet>
               </div>
               <div className="flex items-center gap-4">
-                <p className="text-sm text-gray-600 hidden md:block">
+                {/* <p className="text-sm text-gray-600 hidden md:block">
                   <span className="font-medium">{totalCount}</span> Products
-                </p>
+                </p> */}
                 <Select
                   value={filters.sort}
                   onValueChange={(value) => setFilters({ sort: value })}
