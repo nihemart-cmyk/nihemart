@@ -26,10 +26,15 @@ export default async function handler(
       return res.status(500).json({ error: "Supabase not configured" });
 
    try {
+      // Calculate cutoff for last 7 days to match RiderDetailsDialog default
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - 7);
+
       // Use the same logic as RiderDetailsDialog for calculating earnings
       const { data, error } = await supabase
          .from("order_assignments")
-         .select("rider_id, status, orders:orders(id, status, tax)");
+         .select("rider_id, status, orders:orders(id, status, tax)")
+         .gte("assigned_at", cutoff.toISOString());
 
       if (error) return res.status(500).json({ error: error.message || error });
 

@@ -37,7 +37,7 @@ export default function RiderDetailsDialog({
    const [error, setError] = React.useState<string | null>(null);
    const [rider, setRider] = React.useState<any>(null);
    const [assignments, setAssignments] = React.useState<any[]>([]);
-   const [timeframe, setTimeframe] = React.useState<string>("7");
+   const [timeframe, setTimeframe] = React.useState<string>("all");
    const [dateRange, setDateRange] = React.useState<{
       from?: string;
       to?: string;
