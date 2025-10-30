@@ -32,23 +32,22 @@ const ForgotPasswordForm: FC = () => {
 
    const onSubmit = async (data: TForgot) => {
       try {
-         const redirectTo =
-            typeof window !== "undefined"
-               ? `${window.location.origin}/reset-password`
-               : "/reset-password";
+         // Use server API to create a Supabase action link and send email via SMTP
+         const res = await fetch("/api/email/send", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: data.email, type: "recovery" }),
+         });
 
-         const { error } = await supabase.auth.resetPasswordForEmail(
-            data.email,
-            {
-               redirectTo,
-            }
-         );
-
-         if (error) {
-            toast.error(error.message || "Failed to send reset email");
+         const json = await res.json().catch(() => null);
+         if (!res.ok) {
+            console.error("email send error", json);
+            toast.error((json && json.error) || "Failed to send reset email");
             return;
          }
 
+         // If SMTP isn't configured server-side we still consider the action link
+         // created successful — the API will return a warning in that case.
          toast.success("Password reset email sent. Check your inbox.");
          form.reset();
       } catch (err) {

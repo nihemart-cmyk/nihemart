@@ -2,7 +2,13 @@ import { create } from "zustand";
 import type { User, Session } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
-export type AppRole = "admin" | "user" | "rider" | "manager" | "staff" | "stock_manager";
+export type AppRole =
+   | "admin"
+   | "user"
+   | "rider"
+   | "manager"
+   | "staff"
+   | "stock_manager";
 
 type AuthState = {
    user: User | null;
@@ -166,6 +172,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                   console.warn("upsert-profile request failed:", e)
                );
             }
+         } catch (e) {
+            // ignore
+         }
+
+         // Send our custom signup/confirmation email via server API. This is
+         // best-effort — if SMTP isn't configured the server will return a
+         // warning but the account will still be created by Supabase.
+         try {
+            fetch("/api/email/send", {
+               method: "POST",
+               headers: { "Content-Type": "application/json" },
+               body: JSON.stringify({ email, type: "signup" }),
+            }).catch(() => null);
          } catch (e) {
             // ignore
          }

@@ -117,50 +117,141 @@ const CheckoutPage = ({
 
    // Clear all client-side checkout state after successful order creation
    const clearAllCheckoutClientState = () => {
+      console.log("[clearAllCheckoutClientState] Starting cleanup...");
+      setPreventPersistence(true);
+      console.log("[clearAllCheckoutClientState] ✓ Persistence prevented");
       try {
-         console.log("Clearing all checkout client state...");
+         console.log(
+            "[clearAllCheckoutClientState] Clearing primary checkout storage..."
+         );
          // primary checkout storage key
          clearCheckoutStorage();
-         console.log("✓ Checkout storage cleared");
+         console.log(
+            "[clearAllCheckoutClientState] ✓ Primary checkout storage cleared"
+         );
       } catch (e) {
-         console.error("Failed to clear checkout storage:", e);
+         console.error(
+            "[clearAllCheckoutClientState] Failed to clear checkout storage:",
+            e
+         );
       }
+
       try {
+         console.log(
+            "[clearAllCheckoutClientState] Clearing all localStorage checkout keys..."
+         );
          // Make double-sure to remove the key if different casing or older keys exist
          if (typeof window !== "undefined") {
             try {
                localStorage.removeItem("nihemart_checkout_v1");
-               console.log("✓ nihemart_checkout_v1 cleared");
+               console.log(
+                  "[clearAllCheckoutClientState] ✓ nihemart_checkout_v1 cleared"
+               );
             } catch (e) {
-               console.error("Failed to clear nihemart_checkout_v1:", e);
+               console.error(
+                  "[clearAllCheckoutClientState] Failed to clear nihemart_checkout_v1:",
+                  e
+               );
             }
             try {
                localStorage.removeItem("checkout");
-               console.log("✓ checkout key cleared");
+               console.log(
+                  "[clearAllCheckoutClientState] ✓ checkout key cleared"
+               );
             } catch (e) {
-               console.error("Failed to clear checkout key:", e);
+               console.error(
+                  "[clearAllCheckoutClientState] Failed to clear checkout key:",
+                  e
+               );
             }
+            // Add any other potential checkout-related keys
+            const allKeys = Object.keys(localStorage);
+            const checkoutKeys = allKeys.filter(
+               (key) =>
+                  key.toLowerCase().includes("checkout") ||
+                  key.toLowerCase().includes("cart") ||
+                  key.toLowerCase().includes("nihemart")
+            );
+            checkoutKeys.forEach((key) => {
+               try {
+                  localStorage.removeItem(key);
+                  console.log(
+                     `[clearAllCheckoutClientState] ✓ Additional key cleared: ${key}`
+                  );
+               } catch (e) {
+                  console.error(
+                     `[clearAllCheckoutClientState] Failed to clear ${key}:`,
+                     e
+                  );
+               }
+            });
          }
       } catch (e) {
-         console.error("Failed to clear primary storage keys:", e);
+         console.error(
+            "[clearAllCheckoutClientState] Failed to clear primary storage keys:",
+            e
+         );
       }
+
       try {
+         console.log(
+            "[clearAllCheckoutClientState] Clearing sessionStorage..."
+         );
          if (typeof window !== "undefined") {
             sessionStorage.removeItem("kpay_reference");
-            console.log("✓ kpay_reference cleared from sessionStorage");
+            console.log(
+               "[clearAllCheckoutClientState] ✓ kpay_reference cleared from sessionStorage"
+            );
+
+            // Clear any other sessionStorage checkout items
+            const sessionKeys = Object.keys(sessionStorage);
+            const checkoutSessionKeys = sessionKeys.filter(
+               (key) =>
+                  key.toLowerCase().includes("checkout") ||
+                  key.toLowerCase().includes("payment") ||
+                  key.toLowerCase().includes("kpay")
+            );
+            checkoutSessionKeys.forEach((key) => {
+               try {
+                  sessionStorage.removeItem(key);
+                  console.log(
+                     `[clearAllCheckoutClientState] ✓ Session key cleared: ${key}`
+                  );
+               } catch (e) {
+                  console.error(
+                     `[clearAllCheckoutClientState] Failed to clear session key ${key}:`,
+                     e
+                  );
+               }
+            });
          }
       } catch (e) {
-         console.error("Failed to clear kpay_reference:", e);
+         console.error(
+            "[clearAllCheckoutClientState] Failed to clear sessionStorage:",
+            e
+         );
       }
+
       try {
+         console.log(
+            "[clearAllCheckoutClientState] Clearing cart from localStorage..."
+         );
          if (typeof window !== "undefined") {
             localStorage.removeItem("cart");
-            console.log("✓ cart cleared from localStorage");
+            console.log(
+               "[clearAllCheckoutClientState] ✓ cart cleared from localStorage"
+            );
          }
       } catch (e) {
-         console.error("Failed to clear cart:", e);
+         console.error(
+            "[clearAllCheckoutClientState] Failed to clear cart:",
+            e
+         );
       }
-      console.log("✓ All checkout client state cleared successfully");
+
+      console.log(
+         "[clearAllCheckoutClientState] ✓ All checkout client state cleared successfully"
+      );
    };
    const [orderItems, setOrderItems] = useState<CartItem[]>([]);
    const [errors, setErrors] = useState<any>({});
@@ -252,31 +343,18 @@ const CheckoutPage = ({
       reference?: string;
    } | null>(null);
    const [isFinalizing, setIsFinalizing] = useState(false);
-   // Track when a payment flow is actively being initiated to avoid
-   // the empty-cart redirect racing the redirect to external gateway
    const [paymentInProgress, setPaymentInProgress] = useState(false);
-   // When true, suppress automatic redirect to landing even if cart becomes empty.
-   // This prevents the UX where clearing the cart during order creation briefly
-   // navigates the user to the homepage before we navigate to the order page.
    const [suppressEmptyCartRedirect, setSuppressEmptyCartRedirect] =
       useState(false);
-   // Payment method state (start empty so user must explicitly choose)
    const [paymentMethod, setPaymentMethod] = useState<
       keyof typeof PAYMENT_METHODS | "cash_on_delivery" | ""
    >("");
-
-   // Mobile money phone numbers state
    const [mobileMoneyPhones, setMobileMoneyPhones] = useState<{
       mtn_momo?: string;
       airtel_money?: string;
    }>({});
-
-   // Orders enabled flag (null = loading)
    const [ordersEnabled, setOrdersEnabled] = useState<boolean | null>(null);
-
-   // Retry mode state (now passed as props). We also fall back to URL search params
-
-   // Enhanced phone formatting function
+   const [preventPersistence, setPreventPersistence] = useState(false);
    const formatPhoneInput = (input: string) => {
       // Remove all non-digit characters except +
       const cleaned = input.replace(/[^\d+]/g, "");
@@ -455,6 +533,9 @@ const CheckoutPage = ({
 
    // Persist checkout state when relevant parts change (debounced)
    useEffect(() => {
+      // Don't persist if we're preventing it (after successful order creation)
+      if (preventPersistence) return;
+
       const toSave = {
          formData,
          paymentMethod,
@@ -464,7 +545,13 @@ const CheckoutPage = ({
 
       const id = setTimeout(() => saveCheckoutToStorage(toSave), 250);
       return () => clearTimeout(id);
-   }, [formData, paymentMethod, mobileMoneyPhones, orderItems]);
+   }, [
+      formData,
+      paymentMethod,
+      mobileMoneyPhones,
+      orderItems,
+      preventPersistence,
+   ]);
 
    // Detect return from payment flow (e.g. ?payment=success&orderId=...)
    useEffect(() => {
@@ -1351,11 +1438,45 @@ const CheckoutPage = ({
 
    // Pre-pay gating: compute required completion flags
    const hasItems = orderItems.length > 0;
-   const hasAddress = Boolean(
-      (selectedAddress &&
-         (selectedAddress.display_name || selectedAddress.city)) ||
-         (formData.address && formData.address.trim())
+
+   // Determine if the selected location is Kigali
+   // Check both the saved address and the province selection state
+   const selectedProvinceObj = selectedProvince
+      ? provinces.find(
+           (p: any) => String(p.prv_id) === String(selectedProvince)
+        )
+      : null;
+   const provinceIsKigali = Boolean(
+      selectedProvinceObj?.prv_name?.toLowerCase().includes("kigali")
    );
+
+   const isKigaliBySavedAddress = Boolean(
+      selectedAddress &&
+         [
+            selectedAddress.city,
+            selectedAddress.street,
+            selectedAddress.display_name,
+         ]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase()
+            .includes("kigali")
+   );
+   const isKigali = isKigaliBySavedAddress || provinceIsKigali;
+
+   // For Kigali addresses, require a saved selectedAddress
+   // For non-Kigali, allow either selectedAddress or formData.address
+   const hasAddress = isKigali
+      ? Boolean(
+           selectedAddress &&
+              (selectedAddress.display_name || selectedAddress.city)
+        )
+      : Boolean(
+           (selectedAddress &&
+              (selectedAddress.display_name || selectedAddress.city)) ||
+              (formData.address && formData.address.trim())
+        );
+
    const hasEmail = Boolean(formData.email && formData.email.trim());
    const phoneForCheck = (
       selectedAddress?.phone ||
@@ -1412,22 +1533,6 @@ const CheckoutPage = ({
       if (!paymentMethod) retryOnly.push("Select another payment method");
       missingSteps = retryOnly;
    }
-
-   // Determine if the selected location is Kigali
-   // Only consider it Kigali if there's a saved address, not just province selection
-   const isKigaliBySavedAddress = Boolean(
-      selectedAddress &&
-         [
-            selectedAddress.city,
-            selectedAddress.street,
-            selectedAddress.display_name,
-         ]
-            .filter(Boolean)
-            .join(" ")
-            .toLowerCase()
-            .includes("kigali")
-   );
-   const isKigali = isKigaliBySavedAddress;
 
    const getProvinceLabel = (p: any) => {
       const raw = String(p?.prv_name || "").toLowerCase();
@@ -1657,19 +1762,17 @@ const CheckoutPage = ({
             return;
          }
 
-         // Pre-pay flow: do NOT create an order yet. Create a server-side payment
-         // session containing the cart snapshot and customer details, redirect
-         // to KPay, and rely on the webhook to create the order after payment.
-         // If payment was already verified in a session-based flow, create the order now
          if (
             paymentMethod &&
             paymentMethod !== "cash_on_delivery" &&
             paymentVerified
          ) {
+          
             // Create the order now (payment already completed)
             try {
                // Prevent the empty-cart redirect while we create the order and navigate
                setSuppressEmptyCartRedirect(true);
+               setPreventPersistence(true);
                createOrder.mutate(orderData as CreateOrderRequest, {
                   onSuccess: async (createdOrder: any) => {
                      // Clear cart and order items state first
@@ -1818,6 +1921,7 @@ const CheckoutPage = ({
                      } catch (e) {
                         /* ignore */
                      }
+                     setPreventPersistence(false);
                      toast.error(
                         `Failed to create order: ${
                            error?.message || "Unknown error"
@@ -1970,21 +2074,25 @@ const CheckoutPage = ({
          setSuppressEmptyCartRedirect(true);
          createOrder.mutate(orderData as CreateOrderRequest, {
             onSuccess: async (createdOrder: any) => {
-               // Clear persisted checkout and session state FIRST
+               // Clear ALL checkout state FIRST (localStorage + sessionStorage)
+               setPreventPersistence(true);
                try {
                   clearAllCheckoutClientState();
+                  console.log(
+                     "✓ Checkout state cleared after COD order success"
+                  );
                } catch (e) {
                   console.error("Failed to clear checkout state:", e);
                }
 
-               // Then clear cart state and localStorage
+               // Then clear cart context
                try {
                   clearCart();
                } catch (e) {
                   console.error("Failed to clear cart:", e);
                }
 
-               // Clear local order items
+               // Clear local order items state
                setOrderItems([]);
 
                toast.success(
@@ -3123,116 +3231,69 @@ Total: ${total.toLocaleString()} RWF
                                  <div className="space-y-2">
                                     {/* Missing steps are shown in the persistent top banner */}
 
-                                    {/* For non-COD methods: allow proceeding to payment (creates order + initiates payment)
-                                        but only enable if basic fields are present (not requiring paymentVerified). */}
-                                    {paymentMethod &&
-                                    paymentMethod !== "cash_on_delivery" ? (
-                                       <>
-                                          {/* Single primary action: Place Order
-                                             - For pre-pay methods this will initiate payment and redirect
-                                               the user to the gateway (handled in handleCreateOrder)
-                                             - For COD this will create the order immediately
-                                          */}
-                                          <div className="mt-2">
-                                             <Button
-                                                className="w-full bg-orange-500 hover:bg-orange-600 text-white text-sm sm:text-base h-10 sm:h-12"
-                                                onClick={() => {
-                                                   const disabled =
-                                                      isSubmitting ||
-                                                      isInitiating ||
-                                                      !hasItems ||
-                                                      !hasAddress ||
-                                                      !hasEmail ||
-                                                      !hasValidPhone ||
-                                                      !paymentMethod;
-                                                   if (disabled) {
-                                                      if (
-                                                         missingSteps.length > 0
-                                                      ) {
-                                                         toast.error(
-                                                            `Please complete: ${missingSteps.join(
-                                                               ", "
-                                                            )}`
-                                                         );
-                                                      } else {
-                                                         toast.error(
-                                                            "Please complete all required steps before placing your order."
-                                                         );
-                                                      }
-                                                      return;
-                                                   }
-
-                                                   handleCreateOrder();
-                                                }}
-                                                disabled={
-                                                   isSubmitting ||
-                                                   isInitiating ||
-                                                   !hasItems ||
-                                                   !hasAddress ||
-                                                   !hasEmail ||
-                                                   !hasValidPhone ||
-                                                   !paymentMethod
-                                                }
-                                             >
-                                                {isSubmitting ||
-                                                isInitiating ? (
-                                                   <>
-                                                      <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 animate-spin" />
-                                                      {isInitiating
-                                                         ? "Initiating Payment..."
-                                                         : t(
-                                                              "checkout.processing"
-                                                           )}
-                                                   </>
-                                                ) : (
-                                                   <>
-                                                      <CheckCircle2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                                                      {"Place Order"}
-                                                   </>
-                                                )}
-                                             </Button>
-
-                                             {/* Hidden accessible region describing missing steps */}
-                                             {missingSteps.length > 0 && (
-                                                <div
-                                                   id="checkout-missing-steps"
-                                                   className="sr-only"
-                                                >
-                                                   {missingSteps.join(". ")}
-                                                </div>
-                                             )}
-                                          </div>
-                                       </>
-                                    ) : (
-                                       // Cash on delivery: single action creates the order immediately
-                                       <>
-                                          <Button
-                                             className="w-full bg-orange-500 hover:bg-orange-600 text-white text-sm sm:text-base h-10 sm:h-12"
-                                             onClick={handleCreateOrder}
-                                             disabled={
-                                                isSubmitting ||
-                                                isInitiating ||
-                                                !allStepsCompleted
+                                    {/* Single "Order Now" button for all cases (COD and non-COD) */}
+                                    <Button
+                                       className="w-full bg-orange-500 hover:bg-orange-600 text-white text-sm sm:text-base h-10 sm:h-12"
+                                       onClick={() => {
+                                          const disabled =
+                                             isSubmitting ||
+                                             isInitiating ||
+                                             !hasItems ||
+                                             !hasAddress ||
+                                             !hasEmail ||
+                                             !hasValidPhone ||
+                                             !paymentMethod;
+                                          if (disabled) {
+                                             if (missingSteps.length > 0) {
+                                                toast.error(
+                                                   `Please complete: ${missingSteps.join(
+                                                      ", "
+                                                   )}`
+                                                );
+                                             } else {
+                                                toast.error(
+                                                   "Please complete all required steps before placing your order."
+                                                );
                                              }
-                                          >
-                                             {isSubmitting || isInitiating ? (
-                                                <>
-                                                   <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 animate-spin" />
-                                                   {isInitiating
-                                                      ? "Processing..."
-                                                      : t(
-                                                           "checkout.processing"
-                                                        )}
-                                                </>
-                                             ) : (
-                                                <>
-                                                   <CheckCircle2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                                                   {t("checkout.placeOrder") ||
-                                                      "Place Order"}
-                                                </>
-                                             )}
-                                          </Button>
-                                       </>
+                                             return;
+                                          }
+
+                                          handleCreateOrder();
+                                       }}
+                                       disabled={
+                                          isSubmitting ||
+                                          isInitiating ||
+                                          !hasItems ||
+                                          !hasAddress ||
+                                          !hasEmail ||
+                                          !hasValidPhone ||
+                                          !paymentMethod
+                                       }
+                                    >
+                                       {isSubmitting || isInitiating ? (
+                                          <>
+                                             <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 animate-spin" />
+                                             {isInitiating
+                                                ? "Initiating Payment..."
+                                                : t("checkout.processing")}
+                                          </>
+                                       ) : (
+                                          <>
+                                             <CheckCircle2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                                             {t("checkout.orderNow") ||
+                                                "Order Now"}
+                                          </>
+                                       )}
+                                    </Button>
+
+                                    {/* Hidden accessible region describing missing steps */}
+                                    {missingSteps.length > 0 && (
+                                       <div
+                                          id="checkout-missing-steps"
+                                          className="sr-only"
+                                       >
+                                          {missingSteps.join(". ")}
+                                       </div>
                                     )}
                                  </div>
                               ) : (
@@ -3259,29 +3320,27 @@ Total: ${total.toLocaleString()} RWF
                                  {addNewOpen ? (
                                     // While creating a new address, keep the default disabled Order Now button
                                     <Button
-                                       variant="outline"
-                                       className="w-full border-gray-300 text-gray-700 bg-white text-sm sm:text-base h-10 sm:h-12"
+                                       className="w-full bg-orange-500 hover:bg-orange-600 text-white text-sm sm:text-base h-10 sm:h-12"
                                        disabled={true}
                                     >
                                        {t("checkout.orderNow") || "Order Now"}
                                     </Button>
                                  ) : selectedAddress ? (
                                     <Button
-                                       variant="outline"
-                                       className="w-full border-orange-300 text-orange-600 hover:bg-orange-50 text-sm sm:text-base h-10 sm:h-12"
+                                       className="w-full bg-orange-500 hover:bg-orange-600 text-white text-sm sm:text-base h-10 sm:h-12"
                                        onClick={handleWhatsAppCheckout}
                                        disabled={
                                           isSubmitting ||
                                           orderItems.length === 0
                                        }
                                     >
-                                       {t("checkout.orderViaWhatsApp")}
+                                       {t("checkout.orderViaWhatsApp") ||
+                                          "Order via WhatsApp"}
                                     </Button>
                                  ) : (
-                                    // Default neutral button when no saved address is selected.
+                                    // Default disabled button when no saved address is selected.
                                     <Button
-                                       variant="outline"
-                                       className="w-full border-gray-300 text-gray-700 bg-white text-sm sm:text-base h-10 sm:h-12"
+                                       className="w-full bg-orange-500 hover:bg-orange-600 text-white text-sm sm:text-base h-10 sm:h-12"
                                        disabled={true}
                                     >
                                        {t("checkout.orderNow") || "Order Now"}

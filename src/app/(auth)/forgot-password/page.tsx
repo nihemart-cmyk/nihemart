@@ -25,7 +25,7 @@ const page: FC = ({}) => {
                   />
                   <Image
                      src={logo}
-                     alt="ilead logo"
+                     alt="nihemart logo"
                      priority
                      height={50}
                      width={200}

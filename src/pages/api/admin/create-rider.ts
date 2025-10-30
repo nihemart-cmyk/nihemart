@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createClient } from "@supabase/supabase-js";
 import { createRider } from "@/integrations/supabase/riders";
+import { sendAuthEmail } from "@/lib/email/send";
 
 if (
    !process.env.NEXT_PUBLIC_SUPABASE_URL ||
@@ -122,6 +123,56 @@ export default async function handler(
          image_url: image_url || null,
          location: location || null,
       });
+
+      // Send welcome/confirmation email via SMTP if possible. Generate a
+      // Supabase auth action link (signup) then send using our helper.
+      try {
+         const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+         const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+         if (SUPABASE_URL && SERVICE_KEY && email) {
+            const origin =
+               process.env.NEXT_PUBLIC_APP_URL ||
+               process.env.NEXTAUTH_URL ||
+               "";
+            const redirectTo = `${origin || ""}/signin`;
+            const genRes = await fetch(
+               `${SUPABASE_URL}/auth/v1/admin/generate_link`,
+               {
+                  method: "POST",
+                  headers: {
+                     "Content-Type": "application/json",
+                     Authorization: `Bearer ${SERVICE_KEY}`,
+                  },
+                  body: JSON.stringify({
+                     type: "signup",
+                     email,
+                     redirect_to: redirectTo,
+                  }),
+               }
+            );
+            if (genRes.ok) {
+               const genJson = await genRes.json().catch(() => ({} as any));
+               const actionLink =
+                  genJson?.action_link ||
+                  genJson?.link ||
+                  genJson?.url ||
+                  genJson?.data?.action_link;
+               try {
+                  await sendAuthEmail(
+                     email,
+                     "signup",
+                     actionLink || redirectTo
+                  );
+               } catch (e) {
+                  console.warn("Failed to send signup email for rider:", e);
+               }
+            } else {
+               console.warn("Failed to generate signup link for rider");
+            }
+         }
+      } catch (e) {
+         console.warn("Error sending signup email for rider:", e);
+      }
 
       // For debugging: return any user_roles rows for the createdUserId so callers
       // can see whether the upsert actually created the mapping.
