@@ -4,7 +4,6 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import Link from "next/link";
 import { ScrollArea } from "@/components/ui/scroll-area";
-// Tabs removed: show Orders only
 import { Input } from "@/components/ui/input";
 import { DataTable } from "@/components/data-table/data-table";
 import {
@@ -587,13 +586,211 @@ const Page = () => {
                            </p>
                         </div>
                      ) : (
-                        <div className="space-y-4">
-                           <div className="overflow-x-auto">
-                              <div className="min-w-[800px]">
-                                 <DataTable table={table as any} />
+                        <>
+                           {/* Mobile Card View - hidden on md and up */}
+                           <div className="md:hidden space-y-3">
+                              {filteredData.map((row: any, idx: number) => {
+                                 const a = row.assignment;
+                                 const order = row.order;
+
+                                 return (
+                                    <Card
+                                       key={idx}
+                                       className="border border-gray-200 shadow-sm hover:shadow-md transition-shadow"
+                                    >
+                                       <CardContent className="p-4 space-y-3">
+                                          {/* Order Number & Status */}
+                                          <div className="flex items-center justify-between">
+                                             <div className="flex items-center gap-2">
+                                                <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
+                                                   <Package className="w-4 h-4 text-orange-600" />
+                                                </div>
+                                                <span className="font-bold text-gray-900">
+                                                   {row.orderNumber}
+                                                </span>
+                                             </div>
+                                             <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                   <Button
+                                                      variant="ghost"
+                                                      size="sm"
+                                                      className="h-8 w-8 p-0"
+                                                   >
+                                                      <MoreHorizontal className="h-4 w-4" />
+                                                   </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end">
+                                                   <DropdownMenuItem
+                                                      onClick={async () => {
+                                                         let o =
+                                                            order ||
+                                                            orderMap[
+                                                               a.order_id
+                                                            ];
+                                                         if (!o) {
+                                                            try {
+                                                               o =
+                                                                  await fetchOrderById(
+                                                                     a.order_id
+                                                                  );
+                                                               if (o)
+                                                                  setOrderMap(
+                                                                     (p) => ({
+                                                                        ...p,
+                                                                        [a.order_id]:
+                                                                           o,
+                                                                     })
+                                                                  );
+                                                            } catch (e) {}
+                                                         }
+                                                         if (o) setViewOrder(o);
+                                                      }}
+                                                   >
+                                                      {t(
+                                                         "rider.orders.viewDetails"
+                                                      )}
+                                                   </DropdownMenuItem>
+                                                   <DropdownMenuItem
+                                                      onClick={() => {
+                                                         if (
+                                                            typeof navigator !==
+                                                               "undefined" &&
+                                                            navigator.clipboard
+                                                         )
+                                                            navigator.clipboard.writeText(
+                                                               a.order_id || ""
+                                                            );
+                                                         toast.success(
+                                                            "Order ID copied to clipboard"
+                                                         );
+                                                      }}
+                                                   >
+                                                      {t(
+                                                         "rider.orders.copyOrderId"
+                                                      )}
+                                                   </DropdownMenuItem>
+                                                </DropdownMenuContent>
+                                             </DropdownMenu>
+                                          </div>
+
+                                          {/* Location */}
+                                          <div className="flex items-start gap-2">
+                                             <MapPin className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                                             <span className="text-sm text-gray-600 line-clamp-2">
+                                                {row.location}
+                                             </span>
+                                          </div>
+
+                                          {/* Delivery Fee */}
+                                          <div className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-lg">
+                                             <span className="text-sm text-gray-600">
+                                                {t("rider.orders.deliveryFee")}
+                                             </span>
+                                             <span className="font-bold text-gray-900">
+                                                {row.deliveryFee != null
+                                                   ? `RWF ${Number(
+                                                        row.deliveryFee
+                                                     ).toLocaleString()}`
+                                                   : "-"}
+                                             </span>
+                                          </div>
+
+                                          {/* Action Buttons or Status Badge */}
+                                          <div className="pt-2">
+                                             {a.status === "assigned" ? (
+                                                <div className="flex gap-2">
+                                                   <Button
+                                                      onClick={() =>
+                                                         handleRespond(
+                                                            a.id,
+                                                            "accepted"
+                                                         )
+                                                      }
+                                                      size="sm"
+                                                      className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                                                      disabled={
+                                                         respond.isPending
+                                                      }
+                                                   >
+                                                      <CheckCircle className="w-4 h-4 mr-1" />
+                                                      {t("rider.orders.accept")}
+                                                   </Button>
+                                                   <Button
+                                                      onClick={() =>
+                                                         handleRespond(
+                                                            a.id,
+                                                            "rejected"
+                                                         )
+                                                      }
+                                                      size="sm"
+                                                      variant="destructive"
+                                                      className="flex-1"
+                                                      disabled={
+                                                         respond.isPending
+                                                      }
+                                                   >
+                                                      <XCircle className="w-4 h-4 mr-1" />
+                                                      {t("rider.orders.reject")}
+                                                   </Button>
+                                                </div>
+                                             ) : a.status === "accepted" ? (
+                                                <Button
+                                                   onClick={() =>
+                                                      handleRespond(
+                                                         a.id,
+                                                         "completed"
+                                                      )
+                                                   }
+                                                   size="sm"
+                                                   className="w-full bg-orange-600 hover:bg-orange-700 text-white"
+                                                   disabled={respond.isPending}
+                                                >
+                                                   <CheckCircle className="w-4 h-4 mr-1" />
+                                                   {t(
+                                                      "rider.orders.markDelivered"
+                                                   )}
+                                                </Button>
+                                             ) : (
+                                                <div className="flex justify-center">
+                                                   {a.status === "rejected" ? (
+                                                      <Badge className="bg-red-100 text-red-700 hover:bg-red-100">
+                                                         {t(
+                                                            "rider.orders.rejected"
+                                                         )}
+                                                      </Badge>
+                                                   ) : a.status ===
+                                                     "completed" ? (
+                                                      <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
+                                                         {t(
+                                                            "rider.orders.delivered"
+                                                         )}
+                                                      </Badge>
+                                                   ) : (
+                                                      <Badge
+                                                         variant="outline"
+                                                         className="text-gray-600"
+                                                      >
+                                                         {a.status}
+                                                      </Badge>
+                                                   )}
+                                                </div>
+                                             )}
+                                          </div>
+                                       </CardContent>
+                                    </Card>
+                                 );
+                              })}
+                           </div>
+
+                           {/* Desktop Table View - hidden on mobile */}
+                           <div className="hidden md:block space-y-4">
+                              <div className="overflow-x-auto">
+                                 <div className="min-w-[800px]">
+                                    <DataTable table={table as any} />
+                                 </div>
                               </div>
                            </div>
-                        </div>
+                        </>
                      )}
                   </CardContent>
                </Card>

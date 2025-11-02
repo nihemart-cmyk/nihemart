@@ -61,7 +61,11 @@ const navItems: NavItem[] = [
    },
 ];
 
-const RiderSidebar: FC = () => {
+interface RiderSidebarProps {
+   onLinkClick?: () => void; // Callback to close sidebar on mobile
+}
+
+const RiderSidebar: FC<RiderSidebarProps> = ({ onLinkClick }) => {
    const router = useRouter();
    const pathname = usePathname();
    const { signOut } = useAuth();
@@ -70,6 +74,7 @@ const RiderSidebar: FC = () => {
    const handleLogout = async () => {
       await signOut();
       toast.success("Logged out successfully");
+      onLinkClick?.(); // Close sidebar after logout
    };
 
    const [primaryActiveId, setPrimaryActiveId] = useState<string | null>(null);
@@ -109,7 +114,7 @@ const RiderSidebar: FC = () => {
             setSecondaryActiveId(null);
             setOpenMenu(null);
          }
-      } else if (pathname === "/admin") {
+      } else if (pathname === "/rider") {
          setPrimaryActiveId("1");
          setSecondaryActiveId(null);
          setOpenMenu(null);
@@ -122,19 +127,24 @@ const RiderSidebar: FC = () => {
 
       if (isOpening && item.subLinks && item.subLinks[0]?.href) {
          router.push(item.subLinks[0].href);
+         onLinkClick?.(); // Close sidebar when navigating
       }
+   };
+
+   const handleLinkClick = () => {
+      onLinkClick?.(); // Close sidebar when any link is clicked
    };
 
    return (
       <div className="w-full h-full flex flex-col py-10 px-1 lg:px-5">
-           <div className="w-full ml-2 mb-8 flex-shrink-0 flex flex-col items-start gap-2">
-                     <Image
-                        src={logo}
-                        alt="logo"
-                        priority
-                        className="md:mx-5 mx-auto w-16 h-20"
-                     />
-                  </div>
+         <div className="w-full ml-2 mb-8 flex-shrink-0 flex flex-col items-start gap-2">
+            <Image
+               src={logo}
+               alt="logo"
+               priority
+               className="md:mx-5 mx-auto w-16 h-20"
+            />
+         </div>
 
          <div className="flex-1 overflow-y-auto">
             <div className="flex flex-col gap-1">
@@ -187,6 +197,7 @@ const RiderSidebar: FC = () => {
                                              <Link
                                                 key={subLink.id}
                                                 href={subLink.href!}
+                                                onClick={handleLinkClick}
                                                 className={cn(
                                                    "px-4 py-1 flex items-center gap-3 w-full justify-start text-neutral-600",
                                                    isSubLinkActive
@@ -215,6 +226,7 @@ const RiderSidebar: FC = () => {
                            key={item.id}
                            href={item.href!}
                            data-id={item.id}
+                           onClick={handleLinkClick}
                            className={cn("w-full")}
                         >
                            <p className="px-6 py-2 !flex items-center gap-3 w-full justify-start font-medium">

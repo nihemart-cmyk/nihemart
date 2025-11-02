@@ -46,6 +46,7 @@ const RiderTopBar: FC<TopBarProps> = (props) => {
    const { className, variant } = props;
    const { signOut, user } = useAuth();
    const { t, language, setLanguage } = useLanguage();
+   const [sheetOpen, setSheetOpen] = useState(false); // Add state for Sheet
 
    const handleLogout = async () => {
       await signOut();
@@ -82,7 +83,7 @@ const RiderTopBar: FC<TopBarProps> = (props) => {
             className
          )}
       >
-         <Sheet>
+         <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
             <SheetTrigger asChild>
                <Button
                   variant={"ghost"}
@@ -96,7 +97,7 @@ const RiderTopBar: FC<TopBarProps> = (props) => {
                className="lg:hidden pt-3 pb-6 pr-6 pl-0"
             >
                <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
-               <RiderSidebar />
+               <RiderSidebar onLinkClick={() => setSheetOpen(false)} />
             </SheetContent>
          </Sheet>
 
