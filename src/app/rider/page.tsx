@@ -576,7 +576,7 @@ const Dashboard = () => {
                   <div className="lg:col-span-2 space-y-6 sm:space-y-8">
                      <Card className="border-0 shadow-lg">
                         <CardHeader className="pb-4">
-                           <div className="flex flex-col gap-6 sm:items-center sm:justify-between">
+                           <div className="flex flex-col gap-6 w-full sm:flex-row sm:items-center sm:justify-between">
                               <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
                                  <Navigation className="w-4 h-4 sm:w-5 sm:h-5 text-orange-500" />
                                  {t("rider.deliveryAnalytics")}

@@ -122,10 +122,10 @@ export default function PaymentMethodSelector({
   
 
   const paymentOptions: (keyof typeof PAYMENT_METHODS | 'cash_on_delivery')[] = [
-    'mtn_momo',
-    'airtel_money',
-    'visa_card',
-    'mastercard',
+    // 'mtn_momo',
+    // 'airtel_money',
+    // 'visa_card',
+    // 'mastercard',
     // 'spenn', // Temporarily disabled - not supported by KPay (error 609)
     'cash_on_delivery',
   ];
