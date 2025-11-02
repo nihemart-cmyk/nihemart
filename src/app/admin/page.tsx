@@ -43,6 +43,7 @@ import {
    Bar,
    BarChart,
    CartesianGrid,
+   Cell,
    XAxis,
    YAxis,
    ResponsiveContainer,
@@ -500,9 +501,21 @@ const Dashboard: React.FC = () => {
                            </h3>
                            <ChartContainer
                               config={{
-                                 count: {
-                                    label: "Orders",
+                                 pending: {
+                                    label: "Pending",
                                     color: "hsl(var(--chart-1))",
+                                 },
+                                 processing: {
+                                    label: "Processing",
+                                    color: "hsl(var(--chart-2))",
+                                 },
+                                 delivered: {
+                                    label: "Delivered",
+                                    color: "hsl(var(--chart-3))",
+                                 },
+                                 refunded: {
+                                    label: "Refunded",
+                                    color: "hsl(var(--chart-4))",
                                  },
                               }}
                               className="h-[250px] w-full"
@@ -511,6 +524,11 @@ const Dashboard: React.FC = () => {
                                  data={orderStatusData.map((item) => ({
                                     status: item.label,
                                     count: parseInt(item.value),
+                                    color: item.label.toLowerCase() === 'pending' ? "hsl(var(--chart-1))" :
+                                           item.label.toLowerCase() === 'processing' ? "hsl(var(--chart-2))" :
+                                           item.label.toLowerCase() === 'delivered' ? "hsl(var(--chart-3))" :
+                                           item.label.toLowerCase() === 'refunded' ? "hsl(var(--chart-4))" :
+                                           "hsl(var(--chart-1))",
                                  }))}
                               >
                                  <CartesianGrid strokeDasharray="3 3" />
@@ -521,9 +539,19 @@ const Dashboard: React.FC = () => {
                                  />
                                  <Bar
                                     dataKey="count"
-                                    fill="hsl(var(--chart-1))"
                                     radius={[4, 4, 0, 0]}
-                                 />
+                                 >
+                                    {orderStatusData.map((item, index) => (
+                                       <Cell
+                                          key={`cell-${index}`}
+                                          fill={item.label.toLowerCase() === 'pending' ? "hsl(var(--chart-1))" :
+                                                item.label.toLowerCase() === 'processing' ? "hsl(var(--chart-2))" :
+                                                item.label.toLowerCase() === 'delivered' ? "hsl(var(--chart-3))" :
+                                                item.label.toLowerCase() === 'refunded' ? "hsl(var(--chart-4))" :
+                                                "hsl(var(--chart-1))"}
+                                       />
+                                    ))}
+                                 </Bar>
                               </BarChart>
                            </ChartContainer>
                         </div>

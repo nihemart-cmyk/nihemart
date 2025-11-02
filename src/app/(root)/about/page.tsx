@@ -89,7 +89,7 @@ const About = () => {
                 src="/about.jpg"
                 width={500}
                 height={500}
-                alt={t("about.teamworkImgAlt")}
+                alt={"about image"}
                 className="rounded-lg shadow-lg w-full"
               />
             </div>
