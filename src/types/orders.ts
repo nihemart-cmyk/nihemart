@@ -1,3 +1,11 @@
+// Rider info for order assignment/delivery
+export interface Rider {
+   id: string;
+   full_name: string;
+   email?: string;
+   phone?: string;
+   imageUrl?: string;
+}
 export type OrderStatus =
    | "pending"
    | "processing"
@@ -44,6 +52,8 @@ export interface Order extends OrderBase {
    refund_requested_at?: string | null;
    // Runtime marker added by server to indicate whether this was a refund or reject flow
    _mode?: "refund" | "reject";
+   // Rider assigned or delivered this order
+   rider?: Rider | null;
 }
 
 export interface OrderItem {

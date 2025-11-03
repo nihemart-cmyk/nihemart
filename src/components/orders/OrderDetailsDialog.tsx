@@ -2,15 +2,25 @@
 
 import { format } from "date-fns";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
-import { Order, OrderItem } from "@/types/orders";
+import { Order, OrderItem, Rider } from "@/types/orders";
 import { Button } from "@/components/ui/button";
-import { Loader2, Copy, Check } from "lucide-react";
+import {
+   Loader2,
+   Copy,
+   Check,
+   Package,
+   User,
+   BadgeCheck,
+   ShoppingCart,
+   ReceiptText,
+} from "lucide-react";
 import { useState } from "react";
 import { useOrders } from "@/hooks/useOrders";
 import { useAuth } from "@/hooks/useAuth";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "../ui/scroll-area";
 import { UserAvatarProfile } from "../user-avatar-profile";
+// import { useEffect, useMemo } from "react";
 import { Card } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { cn } from "@/lib/utils";
@@ -72,54 +82,97 @@ export function OrderDetailsDialog({
    const [showOrderRefundDialog, setShowOrderRefundDialog] = useState(false);
    const [orderRefundReason, setOrderRefundReason] = useState("");
    const [orderLoading, setOrderLoading] = useState(false);
+   // Rider info from order (now typed)
+   const rider: Rider | null | undefined = order.rider;
 
    return (
       <Dialog
          open={open}
          onOpenChange={onOpenChange}
       >
-         <DialogContent className="max-w-3xl">
+         <DialogContent className="max-w-3xl px-1 sm:px-4">
             <DialogHeader>
                <DialogTitle>Order Details</DialogTitle>
             </DialogHeader>
-            <ScrollArea className="max-h-[80vh]">
-               <div className="space-y-6 p-2">
+            <ScrollArea className="max-h-[80vh] bg-gray-50 rounded-lg px-1 sm:px-0">
+               <div className="space-y-6 p-2 sm:p-4">
                   {/* Order Header */}
-                  <div className="flex justify-between items-start">
-                     <div>
-                        <div className="flex items-center gap-2">
-                           <h3 className="text-lg font-semibold">
-                              Order #{order.order_number}
-                           </h3>
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                           {format(
-                              new Date(order.created_at),
-                              "MMMM d, yyyy 'at' HH:mm"
+                  <Card className="p-4 mb-2 border-0 bg-gradient-to-br from-white to-gray-50 shadow-none">
+                     <div className="flex justify-between items-start gap-4">
+                        <div>
+                           <div className="flex items-center gap-2 mb-1">
+                              <ReceiptText className="h-5 w-5 text-blue-500" />
+                              <h3 className="text-lg font-semibold">
+                                 Order #{order.order_number}
+                              </h3>
+                           </div>
+                           <p className="text-sm text-muted-foreground mb-1">
+                              {format(
+                                 new Date(order.created_at),
+                                 "MMMM d, yyyy 'at' HH:mm"
+                              )}
+                           </p>
+                           {/* Rider Info (Admin only) */}
+                           {isAdmin && rider && (
+                              <div className="mt-2 flex items-center gap-2 bg-blue-50 rounded px-2 py-1">
+                                 <BadgeCheck className="h-4 w-4 text-blue-400" />
+                                 <span className="text-xs text-muted-foreground">
+                                    Rider:
+                                 </span>
+                                 <UserAvatarProfile
+                                    user={{
+                                       fullName:
+                                          rider.full_name ||
+                                          rider.email ||
+                                          "Unknown Rider",
+                                       subTitle:
+                                          rider.phone || rider.email || "",
+                                       imageUrl: rider.imageUrl || undefined,
+                                    }}
+                                    showInfo={false}
+                                 />
+                                 <span className="text-xs font-medium">
+                                    {rider.full_name ||
+                                       rider.email ||
+                                       "Unknown Rider"}
+                                 </span>
+                                 {rider.phone && (
+                                    <span className="text-xs text-muted-foreground ml-2">
+                                       {rider.phone}
+                                    </span>
+                                 )}
+                              </div>
                            )}
-                        </p>
+                        </div>
+                        <Badge
+                           className={cn(
+                              "capitalize font-semibold text-base px-3 py-1 rounded-lg",
+                              {
+                                 "bg-green-500/10 text-green-500":
+                                    order.status === "delivered",
+                                 "bg-yellow-500/10 text-yellow-500": [
+                                    "pending",
+                                    "processing",
+                                    "shipped",
+                                 ].includes(order.status),
+                                 "bg-red-500/10 text-red-500":
+                                    order.status === "cancelled",
+                              }
+                           )}
+                        >
+                           {order.status}
+                        </Badge>
                      </div>
-                     <Badge
-                        className={cn("capitalize font-semibold", {
-                           "bg-green-500/10 text-green-500":
-                              order.status === "delivered",
-                           "bg-yellow-500/10 text-yellow-500":
-                              order.status === "pending" ||
-                              order.status === "processing" ||
-                              order.status === "shipped",
-                           "bg-red-500/10 text-red-500":
-                              order.status === "cancelled",
-                        })}
-                     >
-                        {order.status}
-                     </Badge>
-                  </div>
+                  </Card>
 
                   {/* Customer Information */}
                   <Card className="p-4">
-                     <h4 className="font-semibold mb-4">
-                        Customer Information
-                     </h4>
+                     <div className="flex items-center gap-2 mb-2">
+                        <User className="h-5 w-5 text-blue-500" />
+                        <h4 className="font-semibold text-base">
+                           Customer Information
+                        </h4>
+                     </div>
                      <div className="flex items-center space-x-4 mb-4">
                         <UserAvatarProfile
                            user={{
@@ -134,8 +187,8 @@ export function OrderDetailsDialog({
                               <p className="text-sm text-muted-foreground">
                                  {order.customer_email}
                               </p>
-                              <CopyButton 
-                                 text={order.customer_email} 
+                              <CopyButton
+                                 text={order.customer_email}
                                  label="Copy email"
                               />
                            </div>
@@ -144,15 +197,15 @@ export function OrderDetailsDialog({
                                  <p className="text-sm text-muted-foreground">
                                     {order.customer_phone}
                                  </p>
-                                 <CopyButton 
-                                    text={order.customer_phone} 
+                                 <CopyButton
+                                    text={order.customer_phone}
                                     label="Copy phone number"
                                  />
                               </div>
                            )}
                         </div>
                      </div>
-                     <div className="space-y-2">
+                     <div className="space-y-2 border-t pt-2">
                         <h4 className="font-medium">Delivery Address</h4>
                         <p className="text-sm text-muted-foreground">
                            {order.delivery_address}
@@ -170,13 +223,16 @@ export function OrderDetailsDialog({
 
                   {/* Order Items */}
                   <Card className="p-4">
-                     <h4 className="font-semibold mb-4">Order Items</h4>
+                     <div className="flex items-center gap-2 mb-2">
+                        <ShoppingCart className="h-5 w-5 text-orange-500" />
+                        <h4 className="font-semibold text-base">Order Items</h4>
+                     </div>
                      <div className="space-y-4">
                         {order.items?.map((item, index) => (
                            <div
                               key={item.id}
                               className={cn(
-                                 "flex gap-4",
+                                 "flex gap-4 rounded-lg hover:bg-gray-100 transition-colors p-2",
                                  index !== 0 && "border-t pt-4"
                               )}
                            >
@@ -190,7 +246,8 @@ export function OrderDetailsDialog({
                                        className="object-cover"
                                        sizes="64px"
                                        onError={(e) => {
-                                          e.currentTarget.style.display = "none";
+                                          e.currentTarget.style.display =
+                                             "none";
                                        }}
                                     />
                                  </div>
@@ -256,10 +313,17 @@ export function OrderDetailsDialog({
                                  )}
                                  <div className="flex justify-between items-center mt-2">
                                     <p className="text-sm text-muted-foreground">
-                                       Quantity: {item.quantity} × {Number(item.price || 0).toLocaleString()} RWF
+                                       Quantity: {item.quantity} ×{" "}
+                                       {Number(
+                                          item.price || 0
+                                       ).toLocaleString()}{" "}
+                                       RWF
                                     </p>
                                     <p className="font-medium">
-                                       {Number(item.total || 0).toLocaleString()} RWF
+                                       {Number(
+                                          item.total || 0
+                                       ).toLocaleString()}{" "}
+                                       RWF
                                     </p>
                                  </div>
                                  {item.refund_reason && (
@@ -275,7 +339,12 @@ export function OrderDetailsDialog({
 
                   {/* Order Summary */}
                   <Card className="p-4">
-                     <h4 className="font-semibold mb-4">Order Summary</h4>
+                     <div className="flex items-center gap-2 mb-2">
+                        <Package className="h-5 w-5 text-green-500" />
+                        <h4 className="font-semibold text-base">
+                           Order Summary
+                        </h4>
+                     </div>
                      <div className="space-y-2">
                         <div className="flex justify-between">
                            <p className="text-muted-foreground">Subtotal</p>
