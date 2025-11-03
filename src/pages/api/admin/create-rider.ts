@@ -161,7 +161,8 @@ export default async function handler(
                   await sendAuthEmail(
                      email,
                      "signup",
-                     actionLink || redirectTo
+                     actionLink || redirectTo,
+                     createdUserId || undefined
                   );
                } catch (e) {
                   console.warn("Failed to send signup email for rider:", e);

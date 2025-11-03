@@ -9,7 +9,11 @@ import { sendAuthEmail } from "@/lib/email/send";
 export async function POST(req: NextRequest) {
    try {
       const body = await req.json();
-      const { email, type } = body as { email?: string; type?: string };
+      const { email, type, userId } = body as {
+         email?: string;
+         type?: string;
+         userId?: string | undefined;
+      };
 
       if (!email || !type) {
          return new Response(
@@ -139,10 +143,16 @@ export async function POST(req: NextRequest) {
 
       // Build email and send using shared helper
       try {
+         // Pass userId through to the helper so the signup template can
+         // build a site-specific confirmation link (instead of relying
+         // on the Supabase action link). This prevents accidentally
+         // sending a recovery/reset copy when we intended a signup
+         // confirmation email.
          const sent = await sendAuthEmail(
             email,
             effectiveType,
-            actionLink || redirectTo
+            actionLink || redirectTo,
+            userId
          );
 
          if (!sent.ok) {
