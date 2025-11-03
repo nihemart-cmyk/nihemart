@@ -1,8 +1,11 @@
 import { supabase as browserSupabase } from "./client";
 import { createClient as createServerClient } from "@supabase/supabase-js";
 import { syncUserRole } from "@/utils/syncUserRole";
-import { sendEmail } from "@/lib/email/send";
-import { buildRiderAssignmentEmail } from "@/lib/email/notifications";
+// NOTE: We intentionally avoid importing server-only email helpers (nodemailer)
+// at module top-level because this file is also imported by client code
+// (for example `fetchRiderByUserId`). Importing server-only modules here
+// causes Next.js to try bundling `fs`/`crypto` and fail. We will dynamically
+// import email helpers only inside server-only branches below.
 
 // Use service role client on the server (API routes) so server-side operations
 // are performed with elevated privileges (avoids RLS preventing reads/writes).
@@ -312,6 +315,10 @@ export async function assignOrderToRider(
          }
 
          if (riderEmail) {
+            // Build email template dynamically to avoid bundling server-only code
+            const { buildRiderAssignmentEmail } = await import(
+               "@/lib/email/notifications"
+            );
             const { subject, html } = buildRiderAssignmentEmail({
                order_id: order.id,
                order_number: order.order_number,
@@ -330,8 +337,35 @@ export async function assignOrderToRider(
                delivery_address: order.delivery_address,
             });
             try {
-               await sendEmail(riderEmail, subject, html);
-               console.log("✓ Rider assignment email sent to:", riderEmail);
+               if (typeof window === "undefined") {
+                  // Server: import and call sendEmail directly (server-only)
+                  const { sendEmail } = await import("@/lib/email/send");
+                  await sendEmail(riderEmail, subject, html);
+                  console.log("✓ Rider assignment email sent to:", riderEmail);
+               } else {
+                  // Browser: proxy the send through a server API route so nodemailer
+                  // is never imported into client bundles.
+                  try {
+                     await fetch("/api/email/send-generic", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                           to: riderEmail,
+                           subject,
+                           html,
+                        }),
+                     });
+                     console.log(
+                        "✓ Requested server to send rider assignment email to:",
+                        riderEmail
+                     );
+                  } catch (e) {
+                     console.warn(
+                        "Failed to request server send for rider assignment email:",
+                        e
+                     );
+                  }
+               }
             } catch (e) {
                console.warn("Failed to send rider assignment email:", e);
             }
