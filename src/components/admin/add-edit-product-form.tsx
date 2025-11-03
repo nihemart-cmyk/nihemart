@@ -134,7 +134,8 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
                  categories: [],
                  subcategories: [],
                  tags: [],
-                 variations: [{ name: "Default", price: 0, stock: 0, attributes: [{ name: "Title", value: "Default" }], imageFiles: [] }],
+                 variations: [],
+                //  variations: [{ name: "Default", price: 0, stock: 0, attributes: [{ name: "Title", value: "Default" }], imageFiles: [] }],
              },
     });
     
