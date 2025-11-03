@@ -14,6 +14,7 @@ import { UserAvatarProfile } from "../user-avatar-profile";
 import { Card } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { cn } from "@/lib/utils";
+import Image from "next/image";
 
 interface OrderDetailsDialogProps {
    open: boolean;
@@ -175,11 +176,26 @@ export function OrderDetailsDialog({
                            <div
                               key={item.id}
                               className={cn(
-                                 "flex justify-between items-start",
+                                 "flex gap-4",
                                  index !== 0 && "border-t pt-4"
                               )}
                            >
-                              <div>
+                              {/* Product Image */}
+                              {item.product_image_url && (
+                                 <div className="relative w-16 h-16 flex-shrink-0 bg-gray-100 rounded-md overflow-hidden">
+                                    <Image
+                                       src={item.product_image_url}
+                                       alt={item.product_name}
+                                       fill
+                                       className="object-cover"
+                                       sizes="64px"
+                                       onError={(e) => {
+                                          e.currentTarget.style.display = "none";
+                                       }}
+                                    />
+                                 </div>
+                              )}
+                              <div className="flex-1">
                                  <div className="flex items-center gap-2">
                                     <p className="font-medium">
                                        {item.product_name}
@@ -238,18 +254,20 @@ export function OrderDetailsDialog({
                                        Variation: {item.variation_name}
                                     </p>
                                  )}
-                                 <p className="text-sm text-muted-foreground">
-                                    Quantity: {item.quantity}
-                                 </p>
+                                 <div className="flex justify-between items-center mt-2">
+                                    <p className="text-sm text-muted-foreground">
+                                       Quantity: {item.quantity} × {Number(item.price || 0).toLocaleString()} RWF
+                                    </p>
+                                    <p className="font-medium">
+                                       {Number(item.total || 0).toLocaleString()} RWF
+                                    </p>
+                                 </div>
                                  {item.refund_reason && (
                                     <p className="text-xs text-muted-foreground mt-1 italic">
                                        Reason: {item.refund_reason}
                                     </p>
                                  )}
                               </div>
-                              <p className="font-medium">
-                                 {Number(item.total || 0).toLocaleString()} RWF
-                              </p>
                            </div>
                         ))}
                      </div>
@@ -279,111 +297,8 @@ export function OrderDetailsDialog({
                               {Number(order.total || 0).toLocaleString()} RWF
                            </p>
                         </div>
-                        {/* Full order refund actions - only visible to the order owner and hidden for admins */}
-                        {isOwner && !isAdmin && (
-                           <div className="mt-4 space-x-2">
-                              {!order.refund_status && (
-                                 <Button
-                                    variant="outline"
-                                    onClick={() =>
-                                       setShowOrderRefundDialog(true)
-                                    }
-                                 >
-                                    {order.status === "delivered"
-                                       ? "Request full order refund"
-                                       : "Request full order reject"}
-                                 </Button>
-                              )}
-                              {order.refund_status === "requested" && (
-                                 <Button
-                                    variant="ghost"
-                                    onClick={async () => {
-                                       try {
-                                          setOrderLoading(true);
-                                          await cancelOrderRefund.mutateAsync(
-                                             order.id
-                                          );
-                                       } catch (e) {
-                                          // handled by mutation
-                                       } finally {
-                                          setOrderLoading(false);
-                                       }
-                                    }}
-                                 >
-                                    {orderLoading ? (
-                                       <Loader2 className="h-4 w-4 animate-spin" />
-                                    ) : (
-                                       "Cancel full refund request"
-                                    )}
-                                 </Button>
-                              )}
-                           </div>
-                        )}
                      </div>
                   </Card>
-                  {/* Request full refund dialog */}
-                  <Dialog
-                     open={showOrderRefundDialog}
-                     onOpenChange={setShowOrderRefundDialog}
-                  >
-                     <DialogContent className="max-w-md">
-                        <DialogHeader>
-                           <DialogTitle>
-                              {order.status === "delivered"
-                                 ? "Request full order refund"
-                                 : "Request full order reject"}
-                           </DialogTitle>
-                        </DialogHeader>
-                        <div className="p-4">
-                           <p className="text-sm text-muted-foreground mb-2">
-                              Please provide a reason for requesting a refund
-                              for the entire order.
-                           </p>
-                           <Input
-                              value={orderRefundReason}
-                              onChange={(e) =>
-                                 setOrderRefundReason(e.target.value)
-                              }
-                              placeholder="Reason"
-                           />
-                           <div className="mt-4 flex justify-end">
-                              <Button
-                                 variant="ghost"
-                                 onClick={() => setShowOrderRefundDialog(false)}
-                              >
-                                 Cancel
-                              </Button>
-                              <Button
-                                 className="ml-2"
-                                 onClick={async () => {
-                                    if (!orderRefundReason.trim()) return;
-                                    try {
-                                       setOrderLoading(true);
-                                       await requestOrderRefund.mutateAsync({
-                                          orderId: order.id,
-                                          reason: orderRefundReason,
-                                       });
-                                       setShowOrderRefundDialog(false);
-                                       setOrderRefundReason("");
-                                    } catch (e) {
-                                       // handled by mutation
-                                    } finally {
-                                       setOrderLoading(false);
-                                    }
-                                 }}
-                              >
-                                 {orderLoading ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                 ) : order.status === "delivered" ? (
-                                    "Request refund"
-                                 ) : (
-                                    "Request reject"
-                                 )}
-                              </Button>
-                           </div>
-                        </div>
-                     </DialogContent>
-                  </Dialog>
                </div>
             </ScrollArea>
          </DialogContent>

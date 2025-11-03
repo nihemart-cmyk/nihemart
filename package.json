@@ -78,6 +78,7 @@
     "@commitlint/config-conventional": "^19.8.1",
     "@eslint/eslintrc": "^3",
     "@types/node": "^20",
+    "@types/node-fetch": "^2.6.13",
     "@types/nodemailer": "^7.0.3",
     "@types/quill": "^2.0.14",
     "@types/react": "^19",

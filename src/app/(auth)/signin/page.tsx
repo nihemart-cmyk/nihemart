@@ -3,7 +3,6 @@
 import Image from "next/image";
 import { FC, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuthStore } from "@/store/auth.store";
 import logo from "@/assets/logo.png";
 import AdminSigninForm from "@/components/auth/admin/AdminSigninForm";
@@ -13,8 +12,9 @@ interface pageProps {}
 const Page: FC<pageProps> = ({}) => {
    const router = useRouter();
    const [redirect, setRedirect] = useState<string | null>(null);
+   const { user } = useAuthStore();
 
-   // read search params on client mount to avoid useSearchParams SSR bailouts
+   // Read redirect param on client mount
    useEffect(() => {
       try {
          const params = new URLSearchParams(window.location.search);
@@ -23,63 +23,17 @@ const Page: FC<pageProps> = ({}) => {
          setRedirect(null);
       }
    }, []);
-   const { setUser, setSession, fetchRoles, user } = useAuthStore();
 
+   // If already logged in, redirect immediately
    useEffect(() => {
-      const handleAuthRedirect = async () => {
-         try {
-            // If user is already logged in, redirect them
-            if (user) {
-               const safeRedirect =
-                  redirect && redirect.startsWith("/") ? redirect : "/";
-               router.push(safeRedirect);
-               return;
-            }
-
-            // Handle OAuth callback
-            const url = new URL(window.location.href);
-            const hasCode = url.searchParams.has("code");
-            const hasAccessToken =
-               url.hash && url.hash.includes("access_token=");
-
-            if (!hasCode && !hasAccessToken) return;
-
-            const result: any =
-               typeof (supabase.auth as any).getSessionFromUrl === "function"
-                  ? await (supabase.auth as any).getSessionFromUrl()
-                  : typeof (supabase.auth as any)._getSessionFromURL ===
-                    "function"
-                  ? await (supabase.auth as any)._getSessionFromURL(
-                       window.location.href
-                    )
-                  : null;
-
-            const { data, error } = result || {};
-            if (error) {
-               console.warn("signin page getSessionFromUrl error:", error);
-               return;
-            }
-
-            const session = data?.session ?? null;
-            const sessionUser = session?.user ?? null;
-            setSession(session);
-            setUser(sessionUser);
-
-            if (sessionUser) {
-               await fetchRoles(sessionUser.id);
-
-               // Redirect after successful OAuth signin
-               const safeRedirect =
-                  redirect && redirect.startsWith("/") ? redirect : "/";
-               router.push(safeRedirect);
-            }
-         } catch (err) {
-            console.warn("signin oauth handler failed:", err);
-         }
-      };
-
-      handleAuthRedirect();
-   }, [router, setSession, setUser, fetchRoles, user, redirect]);
+      if (user) {
+         const safeRedirect =
+            redirect && redirect.startsWith("/") && !redirect.includes("..")
+               ? redirect
+               : "/";
+         router.push(safeRedirect);
+      }
+   }, [user, redirect, router]);
 
    return (
       <div className="flex min-h-screen flex-col lg:flex-row">

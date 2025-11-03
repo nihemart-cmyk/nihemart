@@ -26,6 +26,15 @@ import {
    DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
+import {
+   AlertDialog,
+   AlertDialogContent,
+   AlertDialogHeader,
+   AlertDialogTitle,
+   AlertDialogDescription,
+   AlertDialogAction,
+   AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
 import { Separator } from "@/components/ui/separator";
 
 const NotificationsPage = () => {
@@ -34,6 +43,7 @@ const NotificationsPage = () => {
    const [localNotifications, setLocalNotifications] = useState<any[]>([]);
    const [isLoading, setIsLoading] = useState(false);
    const [filter, setFilter] = useState<"all" | "unread">("all");
+   const [showClearConfirm, setShowClearConfirm] = useState(false);
    const router = useRouter();
 
    useEffect(() => {
@@ -89,27 +99,8 @@ const NotificationsPage = () => {
    };
 
    const handleClearAll = async () => {
-      if (localNotifications.length === 0) return;
-
-      if (!confirm("Clear all notifications? This cannot be undone.")) return;
-
-      setIsLoading(true);
-      try {
-         if (clear) {
-            await clear();
-         } else {
-            await fetch(`/api/notifications/clear`, {
-               method: "POST",
-            });
-         }
-         setLocalNotifications([]);
-         toast.success("All notifications have been cleared.");
-      } catch (e) {
-         console.error(e);
-         toast.error("Failed to clear notifications");
-      } finally {
-         setIsLoading(false);
-      }
+      // delegate to the confirmation dialog trigger (handled in JSX)
+      setShowClearConfirm(true);
    };
 
    const handleMarkAsRead = async (notificationId: string) => {
@@ -277,6 +268,67 @@ const NotificationsPage = () => {
                         <Trash2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
                         Clear All
                      </Button>
+                     <AlertDialog
+                        open={showClearConfirm}
+                        onOpenChange={setShowClearConfirm}
+                     >
+                        <AlertDialogContent>
+                           <AlertDialogHeader>
+                              <AlertDialogTitle>
+                                 Clear all notifications?
+                              </AlertDialogTitle>
+                              <AlertDialogDescription>
+                                 This will permanently delete all notifications
+                                 and cannot be undone.
+                              </AlertDialogDescription>
+                           </AlertDialogHeader>
+                           <div className="flex gap-3 justify-end">
+                              <AlertDialogCancel
+                                 onClick={() => setShowClearConfirm(false)}
+                              >
+                                 Cancel
+                              </AlertDialogCancel>
+                              <AlertDialogAction
+                                 onClick={async () => {
+                                    setShowClearConfirm(false);
+                                    setIsLoading(true);
+                                    try {
+                                       if (clear) {
+                                          await clear();
+                                       } else {
+                                          await fetch(
+                                             `/api/notifications/clear`,
+                                             {
+                                                method: "POST",
+                                                headers: {
+                                                   "Content-Type":
+                                                      "application/json",
+                                                },
+                                                body: JSON.stringify({
+                                                   userId: user?.id,
+                                                }),
+                                             }
+                                          );
+                                       }
+                                       setLocalNotifications([]);
+                                       toast.success(
+                                          "All notifications have been cleared."
+                                       );
+                                    } catch (e) {
+                                       console.error(e);
+                                       toast.error(
+                                          "Failed to clear notifications"
+                                       );
+                                    } finally {
+                                       setIsLoading(false);
+                                    }
+                                 }}
+                              >
+                                 Clear All
+                              </AlertDialogAction>
+                           </div>
+                        </AlertDialogContent>
+                     </AlertDialog>
                   </div>
                </div>
             </CardHeader>
@@ -349,19 +401,33 @@ const NotificationsPage = () => {
                                        <div className="text-xs text-muted-foreground">
                                           {(() => {
                                              try {
-                                                if (!notification.created_at) return "Recently";
-                                                const date = new Date(notification.created_at);
-                                                if (isNaN(date.getTime())) return "Recently";
-                                                
-                                                return date.toLocaleString("en-US", {
-                                                   month: "short",
-                                                   day: "numeric",
-                                                   hour: "2-digit",
-                                                   minute: "2-digit",
-                                                   year: date.getFullYear() !== new Date().getFullYear() ? "numeric" : undefined,
-                                                });
+                                                if (!notification.created_at)
+                                                   return "Recently";
+                                                const date = new Date(
+                                                   notification.created_at
+                                                );
+                                                if (isNaN(date.getTime()))
+                                                   return "Recently";
+
+                                                return date.toLocaleString(
+                                                   "en-US",
+                                                   {
+                                                      month: "short",
+                                                      day: "numeric",
+                                                      hour: "2-digit",
+                                                      minute: "2-digit",
+                                                      year:
+                                                         date.getFullYear() !==
+                                                         new Date().getFullYear()
+                                                            ? "numeric"
+                                                            : undefined,
+                                                   }
+                                                );
                                              } catch (error) {
-                                                console.error("Error formatting notification date:", error);
+                                                console.error(
+                                                   "Error formatting notification date:",
+                                                   error
+                                                );
                                                 return "Recently";
                                              }
                                           })()}

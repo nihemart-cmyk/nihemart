@@ -15,6 +15,7 @@ export type OrderMeta = {
    total?: number;
    currency?: string;
    customer_name?: string;
+   customer_phone?: string;
    delivery_address?: string;
 };
 
@@ -115,5 +116,43 @@ export function buildOrderDeliveredEmail(
       }/orders\" style=\"background:#FF6B35;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;display:inline-block;font-weight:600\">Rate your experience</a></div>
    `;
    const subject = `Delivered — ${orderNo}`;
+   return { subject, html: wrapBranded(subject, body, brand) };
+}
+
+export function buildRiderAssignmentEmail(
+   meta: OrderMeta,
+   brand?: BrandEmailOptions
+) {
+   const orderNo = meta.order_number
+      ? `#${meta.order_number.replace(/^#/, "")}`
+      : meta.order_id || "an order";
+   const customer = meta.customer_name || "Customer";
+   const phone = meta.customer_phone || "";
+   const total = typeof meta.total === "number" ? meta.total : 0;
+   const currency = meta.currency || "RWF";
+
+   const body = `
+      <div style=\"font-size:18px;color:#1a1a1a;font-weight:600;\">New delivery assignment — ${orderNo}</div>
+      <div style=\"font-size:14px;color:#444;margin-top:6px\">You have been assigned a new delivery. Please see the details below and contact the customer if needed.</div>
+      <div style=\"margin-top:12px;font-size:14px;color:#333\"><strong>Order:</strong> ${orderNo}</div>
+      <div style=\"margin-top:6px;font-size:14px;color:#333\"><strong>Customer:</strong> ${customer}${
+      phone ? ` (${phone})` : ""
+   }</div>
+      ${orderItemsTable(meta.items)}
+      <div style=\"border-top:1px solid #eee;margin:12px 0\"></div>
+      <div style=\"display:flex;justify-content:space-between;font-size:14px;color:#1a1a1a;font-weight:600\">
+        <span>Total</span>
+        <span>${formatCurrency(total, currency)}</span>
+      </div>
+      ${
+         meta.delivery_address
+            ? `<div style=\\\"font-size:12px;color:#666;margin-top:6px\\\">Deliver to: ${meta.delivery_address}</div>`
+            : ""
+      }
+      <div style=\"text-align:center;margin-top:18px\"><a href=\"${
+         process.env.NEXT_PUBLIC_APP_URL || "#"
+      }/orders\" style=\"background:#FF6B35;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;display:inline-block;font-weight:600\">View order</a></div>
+   `;
+   const subject = `New delivery assignment — ${orderNo}`;
    return { subject, html: wrapBranded(subject, body, brand) };
 }

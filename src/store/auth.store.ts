@@ -180,10 +180,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
          // best-effort — if SMTP isn't configured the server will return a
          // warning but the account will still be created by Supabase.
          try {
+            const userId = (data as any)?.user?.id;
             fetch("/api/email/send", {
                method: "POST",
                headers: { "Content-Type": "application/json" },
-               body: JSON.stringify({ email, type: "signup" }),
+               body: JSON.stringify({ email, type: "signup", userId }),
             }).catch(() => null);
          } catch (e) {
             // ignore

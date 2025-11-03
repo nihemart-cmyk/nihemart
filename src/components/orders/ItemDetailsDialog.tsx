@@ -10,6 +10,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Package, User, DollarSign, ShoppingCart } from "lucide-react";
+import Image from "next/image";
 
 interface ItemDetailsDialogProps {
   open: boolean;

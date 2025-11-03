@@ -136,7 +136,7 @@ const AdminSignupForm: FC<AdminSignupFormProps> = ({}) => {
       const { error } = await signUp(
          formData.fullName,
          formData.email,
-         formData.password,
+         formData.password
          // formData.phoneNumber
       );
 

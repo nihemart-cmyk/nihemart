@@ -1,42 +1,25 @@
 import { useEffect } from "react";
 import { useAuthStore } from "@/store/auth.store";
 import { supabase } from "@/integrations/supabase/client";
-import { processOAuthRedirect } from "@/providers/processOAuthRedirect";
 
-// Exported helper to process an OAuth redirect and update client store.
-// Extracted for testability.
-
+// The AuthProvider now only handles initialization and state sync
+// OAuth callback handling is delegated to the dedicated callback page
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
    const { initialize, setUser, setSession, fetchRoles, setRoles } =
       useAuthStore();
 
    useEffect(() => {
-      // Process OAuth redirect first (if any). This ensures that when the
-      // page loads after a provider redirect we complete the session
-      // handshake immediately and avoid requiring users to click twice or
-      // reload.
-      const handleRedirectAndInit = async () => {
+      const handleInitialization = async () => {
          try {
-            await processOAuthRedirect(supabase, {
-               setSession,
-               setUser,
-               fetchRoles,
-               setRoles,
-            });
-         } catch (e) {
-            // ignore - processOAuthRedirect already logs
-         }
-
-         // Always initialize local auth state (this is idempotent).
-         try {
+            // Initialize auth state from persisted session
             await initialize();
          } catch (e) {
-            // initialize() handles its own errors already
+            console.warn("Auth initialization failed:", e);
          }
       };
 
-      // Kick off the combined flow but don't block the render.
-      void handleRedirectAndInit();
+      // Perform initialization
+      void handleInitialization();
 
       // Listen to auth state changes
       const {
@@ -48,8 +31,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
          // Only fetch roles when we have a user
          if (session?.user) {
-            // fetchRoles is guarded internally to dedupe concurrent calls
-            await fetchRoles(session.user.id);
+            try {
+               await fetchRoles(session.user.id);
+            } catch (e) {
+               console.warn("Role fetch failed:", e);
+            }
+
             // Ensure profile row is present via server API
             try {
                const um: any = session.user.user_metadata || {};
@@ -63,7 +50,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                   }),
                }).catch((e) => console.warn("upsert-profile failed:", e));
             } catch (e) {
-               // ignore
+               console.warn("Profile sync error:", e);
             }
          } else {
             setRoles(new Set());
@@ -74,7 +61,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
          try {
             subscription?.unsubscribe();
          } catch (e) {
-            // ignore unsubscribe errors
+            console.warn("Subscription cleanup error:", e);
          }
       };
    }, [initialize, setUser, setSession, fetchRoles, setRoles]);

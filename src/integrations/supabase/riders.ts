@@ -1,6 +1,8 @@
 import { supabase as browserSupabase } from "./client";
 import { createClient as createServerClient } from "@supabase/supabase-js";
 import { syncUserRole } from "@/utils/syncUserRole";
+import { sendEmail } from "@/lib/email/send";
+import { buildRiderAssignmentEmail } from "@/lib/email/notifications";
 
 // Use service role client on the server (API routes) so server-side operations
 // are performed with elevated privileges (avoids RLS preventing reads/writes).
@@ -288,6 +290,64 @@ export async function assignOrderToRider(
          console.error("Error creating admin assignment notification:", err);
       }
 
+      // Send an email to the rider (if we can determine an email)
+      try {
+         let riderEmail: string | null = null;
+         if (riderRow.email) riderEmail = riderRow.email;
+         // If rider is linked to an auth user, try to fetch their email via admin API
+         if (!riderEmail && riderRow.user_id) {
+            try {
+               // server client has auth.admin methods; be defensive about returned shape
+               const resp: any = await (sb.auth?.admin?.getUserById
+                  ? sb.auth.admin.getUserById(riderRow.user_id)
+                  : sb.auth?.admin?.getUser
+                  ? sb.auth.admin.getUser(riderRow.user_id)
+                  : null);
+               const user =
+                  resp?.data?.user || resp?.user || resp?.data || null;
+               if (user?.email) riderEmail = user.email;
+            } catch (e) {
+               // non-fatal
+            }
+         }
+
+         if (riderEmail) {
+            const { subject, html } = buildRiderAssignmentEmail({
+               order_id: order.id,
+               order_number: order.order_number,
+               items: order.items,
+               total: order.total,
+               currency: order.currency,
+               customer_name:
+                  `${order.customer_first_name || ""} ${
+                     order.customer_last_name || ""
+                  }`.trim() || order.customer_name,
+               customer_phone:
+                  order.customer_phone ||
+                  order.customer_mobile ||
+                  order.phone ||
+                  "",
+               delivery_address: order.delivery_address,
+            });
+            try {
+               await sendEmail(riderEmail, subject, html);
+               console.log("✓ Rider assignment email sent to:", riderEmail);
+            } catch (e) {
+               console.warn("Failed to send rider assignment email:", e);
+            }
+         } else {
+            console.debug(
+               "No rider email available for assignment; skipping email send",
+               {
+                  riderId,
+                  riderUserId: riderRow.user_id,
+               }
+            );
+         }
+      } catch (e) {
+         console.warn("Error in rider email sending flow:", e);
+      }
+
       return data as any;
    } catch (err) {
       // rethrow for caller to handle
@@ -368,15 +428,18 @@ export async function respondToAssignment(
       // CRITICAL: Customer notification with proper title and body
       if (order?.user_id && rider) {
          const riderName = rider.full_name || rider.name || "Delivery Rider";
-         const orderNumber = order.order_number || `#${order.id.substring(0, 8)}`;
-         
+         const orderNumber =
+            order.order_number || `#${order.id.substring(0, 8)}`;
+
          try {
             await createNotification({
                p_recipient_user_id: order.user_id,
                p_recipient_role: "user", // Explicit role for customer
                p_type: "assignment_accepted",
                p_title: `${riderName} is delivering your order`,
-               p_body: `${riderName} has accepted delivery of order ${orderNumber}${rider.phone ? `. Contact: ${rider.phone}` : ''}`,
+               p_body: `${riderName} has accepted delivery of order ${orderNumber}${
+                  rider.phone ? `. Contact: ${rider.phone}` : ""
+               }`,
                p_meta: {
                   order_id: order.id,
                   order_number: order.order_number,
@@ -389,32 +452,44 @@ export async function respondToAssignment(
                   items: order.items || [],
                },
             });
-            console.log('✓ Customer notification created for assignment acceptance:', {
-               userId: order.user_id,
-               orderId: order.id,
-               riderName
-            });
+            console.log(
+               "✓ Customer notification created for assignment acceptance:",
+               {
+                  userId: order.user_id,
+                  orderId: order.id,
+                  riderName,
+               }
+            );
          } catch (err) {
-            console.error("❌ Failed to create customer notification for assignment acceptance:", err);
+            console.error(
+               "❌ Failed to create customer notification for assignment acceptance:",
+               err
+            );
          }
       } else {
-         console.warn("⚠️ Cannot create customer notification - missing user_id or rider:", {
-            hasUserId: !!order?.user_id,
-            hasRider: !!rider
-         });
+         console.warn(
+            "⚠️ Cannot create customer notification - missing user_id or rider:",
+            {
+               hasUserId: !!order?.user_id,
+               hasRider: !!rider,
+            }
+         );
       }
 
       // Admin notification
       try {
          const riderName = rider.full_name || rider.name || "Delivery Rider";
-         const orderNumber = order.order_number || `#${order.id.substring(0, 8)}`;
-         
+         const orderNumber =
+            order.order_number || `#${order.id.substring(0, 8)}`;
+
          await createNotification({
             p_recipient_user_id: null,
             p_recipient_role: "admin",
             p_type: "assignment_accepted",
             p_title: `${riderName} accepted order ${orderNumber}`,
-            p_body: `Delivery to ${order.delivery_city || 'customer'} - ${order.delivery_address || 'address pending'}`,
+            p_body: `Delivery to ${order.delivery_city || "customer"} - ${
+               order.delivery_address || "address pending"
+            }`,
             p_meta: {
                order_id: order.id,
                order_number: order.order_number,
@@ -426,9 +501,12 @@ export async function respondToAssignment(
                items: order.items || [],
             },
          });
-         console.log('✓ Admin notification created for assignment acceptance');
+         console.log("✓ Admin notification created for assignment acceptance");
       } catch (err) {
-         console.error("❌ Failed to create admin notification for assignment acceptance:", err);
+         console.error(
+            "❌ Failed to create admin notification for assignment acceptance:",
+            err
+         );
       }
    }
 
@@ -438,7 +516,10 @@ export async function respondToAssignment(
          const { updateOrderStatus } = await import("./orders");
          await updateOrderStatus(assignment.order_id, "delivered");
       } catch (err) {
-         console.error("Failed to update order status via updateOrderStatus:", err);
+         console.error(
+            "Failed to update order status via updateOrderStatus:",
+            err
+         );
          await sb
             .from("orders")
             .update({ status: "delivered" })
@@ -447,15 +528,18 @@ export async function respondToAssignment(
 
       // Customer notification for delivery
       if (order?.user_id) {
-         const orderNumber = order.order_number || `#${order.id.substring(0, 8)}`;
-         
+         const orderNumber =
+            order.order_number || `#${order.id.substring(0, 8)}`;
+
          try {
             await createNotification({
                p_recipient_user_id: order.user_id,
                p_recipient_role: "user",
                p_type: "order_delivered",
                p_title: `Order ${orderNumber} delivered successfully`,
-               p_body: `Your order has been delivered to ${order.delivery_address || 'your address'}. Thank you for your order!`,
+               p_body: `Your order has been delivered to ${
+                  order.delivery_address || "your address"
+               }. Thank you for your order!`,
                p_meta: {
                   order_id: order.id,
                   order_number: order.order_number,
@@ -464,9 +548,12 @@ export async function respondToAssignment(
                   items: order.items || [],
                },
             });
-            console.log('✓ Customer notification created for order delivery');
+            console.log("✓ Customer notification created for order delivery");
          } catch (err) {
-            console.error("❌ Failed to create customer delivery notification:", err);
+            console.error(
+               "❌ Failed to create customer delivery notification:",
+               err
+            );
          }
       }
    }
@@ -480,15 +567,18 @@ export async function respondToAssignment(
 
       if (rider) {
          const riderName = rider.full_name || rider.name || "Delivery Rider";
-         const orderNumber = order.order_number || `#${order.id.substring(0, 8)}`;
-         
+         const orderNumber =
+            order.order_number || `#${order.id.substring(0, 8)}`;
+
          try {
             await createNotification({
                p_recipient_user_id: null,
                p_recipient_role: "admin",
                p_type: "assignment_rejected",
                p_title: `${riderName} rejected order ${orderNumber}`,
-               p_body: `Order needs reassignment - ${order.delivery_city || 'delivery location'}`,
+               p_body: `Order needs reassignment - ${
+                  order.delivery_city || "delivery location"
+               }`,
                p_meta: {
                   order_id: order.id,
                   order_number: order.order_number,
@@ -500,9 +590,11 @@ export async function respondToAssignment(
                   items: order.items || [],
                },
             });
-         
          } catch (err) {
-            console.error("❌ Failed to create admin rejection notification:", err);
+            console.error(
+               "❌ Failed to create admin rejection notification:",
+               err
+            );
          }
       }
    }

@@ -25,6 +25,15 @@ import {
    DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
+import {
+   AlertDialog,
+   AlertDialogContent,
+   AlertDialogHeader,
+   AlertDialogTitle,
+   AlertDialogDescription,
+   AlertDialogAction,
+   AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
 import { Separator } from "@/components/ui/separator";
 
 const RiderNotificationsPage = () => {
@@ -33,6 +42,7 @@ const RiderNotificationsPage = () => {
    const [localNotifications, setLocalNotifications] = useState<any[]>([]);
    const [isLoading, setIsLoading] = useState(false);
    const [filter, setFilter] = useState<"all" | "unread">("all");
+   const [showClearConfirm, setShowClearConfirm] = useState(false);
    const router = useRouter();
 
    useEffect(() => {
@@ -85,23 +95,7 @@ const RiderNotificationsPage = () => {
 
    const handleClearAll = async () => {
       if (localNotifications.length === 0) return;
-      if (!confirm("Clear all notifications? This cannot be undone.")) return;
-
-      setIsLoading(true);
-      try {
-         if (clear) {
-            await clear();
-         } else {
-            await fetch(`/api/notifications/clear`, { method: "POST" });
-         }
-         setLocalNotifications([]);
-         toast.success("All notifications have been cleared.");
-      } catch (e) {
-         console.error(e);
-         toast.error("Failed to clear notifications");
-      } finally {
-         setIsLoading(false);
-      }
+      setShowClearConfirm(true);
    };
 
    const handleMarkAsRead = async (notificationId: string) => {
@@ -264,6 +258,67 @@ const RiderNotificationsPage = () => {
                         <Trash2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
                         Clear All
                      </Button>
+                     <AlertDialog
+                        open={showClearConfirm}
+                        onOpenChange={setShowClearConfirm}
+                     >
+                        <AlertDialogContent>
+                           <AlertDialogHeader>
+                              <AlertDialogTitle>
+                                 Clear all notifications?
+                              </AlertDialogTitle>
+                              <AlertDialogDescription>
+                                 This will permanently delete all notifications
+                                 and cannot be undone.
+                              </AlertDialogDescription>
+                           </AlertDialogHeader>
+                           <div className="flex gap-3 justify-end">
+                              <AlertDialogCancel
+                                 onClick={() => setShowClearConfirm(false)}
+                              >
+                                 Cancel
+                              </AlertDialogCancel>
+                              <AlertDialogAction
+                                 onClick={async () => {
+                                    setShowClearConfirm(false);
+                                    setIsLoading(true);
+                                    try {
+                                       if (clear) {
+                                          await clear();
+                                       } else {
+                                          await fetch(
+                                             `/api/notifications/clear`,
+                                             {
+                                                method: "POST",
+                                                headers: {
+                                                   "Content-Type":
+                                                      "application/json",
+                                                },
+                                                body: JSON.stringify({
+                                                   userId: user?.id,
+                                                }),
+                                             }
+                                          );
+                                       }
+                                       setLocalNotifications([]);
+                                       toast.success(
+                                          "All notifications have been cleared."
+                                       );
+                                    } catch (e) {
+                                       console.error(e);
+                                       toast.error(
+                                          "Failed to clear notifications"
+                                       );
+                                    } finally {
+                                       setIsLoading(false);
+                                    }
+                                 }}
+                              >
+                                 Clear All
+                              </AlertDialogAction>
+                           </div>
+                        </AlertDialogContent>
+                     </AlertDialog>
                   </div>
                </div>
             </CardHeader>

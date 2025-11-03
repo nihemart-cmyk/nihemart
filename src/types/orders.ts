@@ -58,6 +58,8 @@ export interface OrderItem {
    quantity: number;
    total: number;
    created_at: string;
+   // Product image URL at time of order (for displaying in order history)
+   product_image_url?: string | null;
    // Refund-related fields
    refund_requested?: boolean;
    refund_reason?: string | null;
@@ -76,6 +78,7 @@ export interface OrderItemInput {
    variation_name?: string;
    product_sku?: string;
    product_variation_id?: string;
+   product_image_url?: string | null;
    total: number;
 }
 

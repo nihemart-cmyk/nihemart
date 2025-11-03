@@ -39,12 +39,8 @@ export function useUserOrders(options: OrderQueryOptions = {}) {
 
    console.log("useUserOrders hook:", { user, isLoggedIn, options });
 
-   // Include the options in the query key so changes to filters/pagination/sort
-   // cause React Query to refetch the user's orders. We keep the user id as
-   // the first part of the key to scope results to the logged-in user.
    const key = orderKeys.userOrders(user?.id || "");
-   // Append a stable, serializable representation of options so complex
-   // objects are part of the key and React Query can differentiate queries.
+
    const keyWithOptions = [...key, { ...(options || {}) }];
 
    return useQuery({
@@ -188,17 +184,12 @@ export function useCreateOrder() {
                queryKey: orderKeys.userOrders(user.id),
             });
          }
-         // Safety: if a KPay session reference is present in sessionStorage,
-         // attempt to link the payment to the newly created order. This makes
-         // the linking resilient if the checkout page failed to perform the
-         // linking step (race or client navigation issues).
+   
          try {
             if (typeof window !== "undefined") {
                const ref = sessionStorage.getItem("kpay_reference");
                if (ref && data?.id) {
-                  // Retry linking up to 3 times with exponential backoff. Only
-                  // clear the stored reference on success. This ensures the
-                  // checkout snapshot remains available until linking completes.
+             
                   (async () => {
                      const maxAttempts = 3;
                      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -291,23 +282,12 @@ export function useUpdateOrderStatus() {
          const updated = await res.json();
          return updated as Order;
       },
-      // Optimistic update: immediately reflect status change in any cached
-      // lists/details so the UI updates without a full reload.
-      onMutate: async ({ id, status, additionalFields }) => {
-         // Cancel any in-flight order queries under the orders namespace so we
-         // can perform an optimistic update safely across all list/detail caches.
+         onMutate: async ({ id, status, additionalFields }) => {
+   
          await queryClient.cancelQueries({ queryKey: orderKeys.all });
 
-         // Capture all queries so we can rollback if needed. We intentionally
-         // capture the full set under the QueryClient to find user-specific
-         // list caches (e.g. userOrders) as well as admin lists.
          const previousQueries = queryClient.getQueriesData({});
 
-         // Iterate over every cached query and update any entries that contain
-         // the target order either as a single order object or within a
-         // paginated `data` array. This is intentionally generic so it covers
-         // `orderKeys.userOrders(...)`, `orderKeys.list(options)` and other
-         // shapes the app may store.
          for (const [key, data] of previousQueries) {
             try {
                if (!data) continue;
@@ -363,7 +343,7 @@ export function useUpdateOrderStatus() {
          }
          console.error("Failed to update order status:", error);
       },
-      onSettled: (data, error, vars) => {
+      onSettled: (data) => {
          // Ensure lists and details are refreshed
          try {
             queryClient.invalidateQueries({ queryKey: orderKeys.lists() });
@@ -489,17 +469,6 @@ export function useRejectOrderItem() {
          }
       },
       onSuccess: () => {
-         // If server returned a _mode marker, use it to show correct message
-         // note: some callers may not include _mode; default to refund message
-         const showMode = (data: any) => {
-            try {
-               if (data && data._mode === "reject") return "Reject requested";
-            } catch (e) {}
-            return "Refund requested";
-         };
-         // attempt to get last mutation result from queryClient is not reliable here,
-         // just show the generic refund message — individual callers (components)
-         // will inspect returned data where available. Keep backward compatible.
          toast.success("Refund requested");
       },
    });
@@ -749,11 +718,6 @@ export function useOrders() {
 
                queryClient.invalidateQueries({ queryKey: orderKeys.stats() });
                try {
-                  const mode =
-                     (updatedItem as any)?._mode ||
-                     (updatedItem as any)?.refund_status
-                        ? "refund"
-                        : null;
                   if (
                      (updatedItem as any)?.refund_status === "rejected" &&
                      (updatedItem as any)?._mode === "reject"

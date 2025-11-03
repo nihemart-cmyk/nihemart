@@ -614,7 +614,28 @@ export const NotificationsProvider: React.FC<{ children: React.ReactNode }> = ({
       }
    };
 
-   const clear = () => setNotifications([]);
+   const clear = async () => {
+      try {
+         // Attempt to clear persisted notifications for this user via API
+         if (user && user.id) {
+            const res = await fetch(`/api/notifications/clear`, {
+               method: "POST",
+               headers: { "Content-Type": "application/json" },
+               body: JSON.stringify({ userId: user.id }),
+            });
+            if (!res.ok) {
+               console.warn(
+                  "Failed to clear notifications server-side",
+                  res.statusText
+               );
+            }
+         }
+      } catch (e) {
+         console.warn("notifications clear API call failed:", e);
+      }
+      // Always clear local state for immediate UX
+      setNotifications([]);
+   };
 
    return (
       <NotificationsContext.Provider

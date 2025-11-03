@@ -19,7 +19,8 @@ export type BrandEmailOptions = {
 export function buildBrandedAuthEmail(
    type: "recovery" | "signup",
    actionLink: string,
-   options: BrandEmailOptions = {}
+   options: BrandEmailOptions = {},
+   userId?: string
 ) {
    const appName = options.appName || "Nihemart";
    const subject =
@@ -45,6 +46,17 @@ export function buildBrandedAuthEmail(
    const companyTagline =
       options.companyTagline || "Ibicuruzwa bidasanzwe muri Rwanda";
    const companyAddress = options.companyAddress || "Kigali, Rwanda";
+
+   let confirmationLink = actionLink;
+   if (type === "signup" && userId) {
+      // Use our custom confirmation endpoint
+      const appUrl =
+         process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || "";
+      confirmationLink = `${appUrl.replace(
+         /\/$/,
+         ""
+      )}/api/auth/confirm-email?userId=${encodeURIComponent(userId)}`;
+   }
 
    const ctaText =
       type === "recovery" ? "Hindura ijambo ry'ibanga" : "Emeza imeyili";
@@ -83,10 +95,8 @@ export function buildBrandedAuthEmail(
   <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background:#f5f5f5">
     <tr>
       <td align="center" style="padding:40px 20px">
-        
         <!-- Main Container -->
         <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="max-width:560px;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.08)">
-          
           <!-- Header with Logo and Brand Colors -->
           <tr>
             <td style="padding:32px 32px 24px 32px;text-align:center;background:linear-gradient(135deg, ${primaryBlue} 0%, #1ac4f7 100%)">
@@ -101,50 +111,42 @@ export function buildBrandedAuthEmail(
               <div style="font-size:14px;color:rgba(255,255,255,0.95);margin-top:4px">${companyTagline}</div>
             </td>
           </tr>
-
           <!-- Main Content -->
           <tr>
             <td style="padding:40px 32px">
-              
               <!-- Kinyarwanda Section -->
               <div style="margin-bottom:32px">
                 <div style="font-size:11px;color:#999;letter-spacing:1px;text-transform:uppercase;margin-bottom:12px">🇷🇼 Kinyarwanda</div>
                 <div style="font-size:20px;color:#1a1a1a;font-weight:600;line-height:1.4;margin-bottom:12px">Muraho,</div>
                 <div style="font-size:15px;color:#4a4a4a;line-height:1.7;margin-bottom:8px">${rwIntro}</div>
                 <div style="font-size:14px;color:#666;line-height:1.6;margin-bottom:24px">${rwDescription}</div>
-                
                 <!-- CTA Button with Gradient -->
                 <div style="text-align:center;margin:24px 0">
-                  <a href="${actionLink}" style="background:linear-gradient(135deg, ${primaryBlue} 0%, ${accentOrange} 100%);color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:8px;display:inline-block;font-size:15px;font-weight:600;box-shadow:0 4px 12px rgba(29,180,231,0.3);transition:all 0.2s">${ctaText}</a>
+                  <a href="${confirmationLink}" style="background:linear-gradient(135deg, ${primaryBlue} 0%, ${accentOrange} 100%);color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:8px;display:inline-block;font-size:15px;font-weight:600;box-shadow:0 4px 12px rgba(29,180,231,0.3);transition:all 0.2s">${ctaText}</a>
                 </div>
               </div>
-
               <!-- Divider -->
               <div style="border-top:2px dashed #e5e5e5;margin:32px 0"></div>
-
               <!-- English Section -->
               <div style="margin-bottom:24px">
                 <div style="font-size:11px;color:#999;letter-spacing:1px;text-transform:uppercase;margin-bottom:12px">🇬🇧 English</div>
                 <div style="font-size:20px;color:#1a1a1a;font-weight:600;line-height:1.4;margin-bottom:12px">Hello,</div>
                 <div style="font-size:15px;color:#4a4a4a;line-height:1.7;margin-bottom:8px">${enIntro}</div>
                 <div style="font-size:14px;color:#666;line-height:1.6;margin-bottom:24px">${enDescription}</div>
-                
                 <!-- CTA Button with Gradient -->
                 <div style="text-align:center;margin:24px 0">
-                  <a href="${actionLink}" style="background:linear-gradient(135deg, ${primaryBlue} 0%, ${accentOrange} 100%);color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:8px;display:inline-block;font-size:15px;font-weight:600;box-shadow:0 4px 12px rgba(29,180,231,0.3)">${ctaTextEn}</a>
+                  <a href="${confirmationLink}" style="background:linear-gradient(135deg, ${primaryBlue} 0%, ${accentOrange} 100%);color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:8px;display:inline-block;font-size:15px;font-weight:600;box-shadow:0 4px 12px rgba(29,180,231,0.3)">${ctaTextEn}</a>
                 </div>
               </div>
-
               <!-- Link Fallback -->
               <div style="background:#f8f8f8;border-radius:8px;padding:16px;margin-top:24px">
                 <div style="font-size:12px;color:#666;line-height:1.6;margin-bottom:8px">
                   <strong>Niba buto itakora / If button doesn't work:</strong>
                 </div>
                 <div style="font-size:12px;color:${primaryBlue};word-break:break-all;line-height:1.6">
-                  <a href="${actionLink}" style="color:${primaryBlue};text-decoration:underline">${actionLink}</a>
+                  <a href="${confirmationLink}" style="color:${primaryBlue};text-decoration:underline">${confirmationLink}</a>
                 </div>
               </div>
-
               <!-- Security Notice with Brand Accent -->
               <div style="margin-top:24px;padding:12px;background:#fff8f0;border-left:3px solid ${accentOrange};border-radius:4px">
                 <div style="font-size:12px;color:#666;line-height:1.6">
@@ -154,7 +156,6 @@ export function buildBrandedAuthEmail(
               </div>
             </td>
           </tr>
-
           <!-- Footer with Brand Colors -->
           <tr>
             <td style="padding:24px 32px;background:#fafafa;border-top:1px solid #eee">
@@ -177,7 +178,6 @@ export function buildBrandedAuthEmail(
               </table>
             </td>
           </tr>
-
           <!-- Copyright with Brand Colors -->
           <tr>
             <td style="background:linear-gradient(90deg, ${primaryBlue} 0%, ${accentOrange} 100%);padding:16px 32px;text-align:center">
@@ -185,7 +185,6 @@ export function buildBrandedAuthEmail(
             </td>
           </tr>
         </table>
-
       </td>
     </tr>
   </table>
@@ -199,7 +198,8 @@ export function buildBrandedAuthEmail(
 export function buildAuthEmail(
    type: "recovery" | "signup",
    actionLink: string,
-   appName = "Nihemart"
+   appName = "Nihemart",
+   userId?: string
 ) {
-   return buildBrandedAuthEmail(type, actionLink, { appName });
+   return buildBrandedAuthEmail(type, actionLink, { appName }, userId);
 }

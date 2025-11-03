@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import PhoneField from "@/components/ui/PhoneField";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
 import {
    Select,
@@ -103,7 +104,7 @@ export default function EditRiderDialog({
          onClose();
       } catch (e: any) {
          console.error(e);
-         alert(e?.message || String(e));
+         toast.error(e?.message || String(e));
       } finally {
          setIsSaving(false);
       }

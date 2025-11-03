@@ -10,6 +10,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
 type Props = {
@@ -66,7 +67,7 @@ export default function EditRiderMediaDialog({
          onSaved();
       } catch (e: any) {
          console.error(e);
-         alert(e?.message || String(e));
+         toast.error(e?.message || String(e));
       } finally {
          setIsSaving(false);
       }

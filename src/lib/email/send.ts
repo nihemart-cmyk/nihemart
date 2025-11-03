@@ -4,10 +4,16 @@ import { buildAuthEmail } from "@/lib/email/templates";
 export async function sendAuthEmail(
    to: string,
    type: "recovery" | "signup",
-   actionLink: string
+   actionLink: string,
+   userId?: string
 ) {
    const fromEmail = process.env.EMAIL_FROM || "nihemart@gmail.com";
-   const { subject, html } = buildAuthEmail(type, actionLink, "Nihemart");
+   const { subject, html } = buildAuthEmail(
+      type,
+      actionLink,
+      "Nihemart",
+      userId
+   );
 
    const smtpHost = process.env.SMTP_HOST;
    const smtpPort = process.env.SMTP_PORT

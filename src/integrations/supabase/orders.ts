@@ -1310,11 +1310,7 @@ export async function createOrder({
          items: Array.isArray(itemsData) ? itemsData : [],
       } as Order;
 
-      // Notify admins that a new order has been placed (best-effort, non-blocking).
-      // Also notify the customer about their order.
-      // If running on the server (service role available), call the RPC directly.
-      // If running in the browser (anon key), POST to our server API which uses
-      // the service role key to create the notification (avoids permission issues).
+      // Notify admins and customer, and send order confirmation email (best-effort, non-blocking).
       (async () => {
          try {
             const metaObj = {
@@ -1391,8 +1387,46 @@ export async function createOrder({
                   }
                }
             }
+
+            // Send order confirmation email to customer (best-effort)
+            if (quickOrder.customer_email) {
+               try {
+                  if (typeof window === "undefined") {
+                     // Server: call API route directly (import node-fetch if needed)
+                     const fetch =
+                        global.fetch || (await import("node-fetch")).default;
+                     await fetch(
+                        `${
+                           process.env.NEXT_PUBLIC_APP_URL ||
+                           process.env.NEXTAUTH_URL ||
+                           ""
+                        }/api/orders/send-confirmation-email`,
+                        {
+                           method: "POST",
+                           headers: { "Content-Type": "application/json" },
+                           body: JSON.stringify({ order: quickOrder }),
+                        }
+                     );
+                  } else {
+                     // Browser: call API route
+                     await fetch("/api/orders/send-confirmation-email", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ order: quickOrder }),
+                     });
+                  }
+               } catch (emailErr) {
+                  console.warn(
+                     "Failed to send order confirmation email:",
+                     emailErr
+                  );
+               }
+            }
          } catch (e) {
-            console.warn("Failed to create notifications for new order:", e);
+            console.warn(
+               "Failed to create notifications or send email for new order:",
+               e
+            );
          }
       })().catch((e) => console.warn("Background notify failed:", e));
 
