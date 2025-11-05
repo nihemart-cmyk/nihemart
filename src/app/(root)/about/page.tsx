@@ -4,6 +4,7 @@ import { Users, Target, Award, Globe } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { useLanguage } from "@/contexts/LanguageContext";
 import Image from "next/image";
+import { aboutImg } from "@/assets";
 
 const About = () => {
   const { t } = useLanguage();
@@ -86,7 +87,7 @@ const About = () => {
             <div>
               <Image
                 priority
-                src="/about.jpg"
+                src={aboutImg}
                 width={500}
                 height={500}
                 alt={"about image"}

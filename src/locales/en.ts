@@ -34,9 +34,9 @@ export const en: Record<string, string> = {
    termsCondition4Title: "Return Process",
    termsCondition4Desc:
       "To initiate a return, please contact our customer support team with your order details.",
-   termsCondition5Title: "Return Shipping Costs",
+   termsCondition5Title: "Return Delivery Costs",
    termsCondition5Desc:
-      "The customer is responsible for paying return shipping costs, unless the product is defective or damaged.",
+      "The customer is responsible for paying return delivery costs, unless the product is defective or damaged.",
    refundTitle: "Refund Process",
    refundCondition1Title: "Refund Eligibility",
    refundCondition1Desc:
@@ -134,7 +134,7 @@ export const en: Record<string, string> = {
    "checkout.orderSummary": "Order Summary",
    "checkout.subtotal": "Subtotal",
    "checkout.tax": "Transport fee",
-   "checkout.shipping": "Shipping",
+   "checkout.shipping": "Delivery",
    "checkout.total": "Total",
    "checkout.placeOrder": "Place Order",
    "checkout.province": "Province",
@@ -261,7 +261,7 @@ export const en: Record<string, string> = {
    "footer.contactUs": "Contact Us",
    "footer.helpCenter": "Help Center",
    "footer.returns": "Returns & Exchanges",
-   "footer.shipping": "Shipping Info",
+   "footer.shipping": "Delivery Info",
    "footer.terms": "Terms of Service",
    "footer.rights": "© 2025 NiheMart. All rights reserved.",
 
@@ -295,7 +295,7 @@ export const en: Record<string, string> = {
       "Your data and payments are completely secure",
    "features.delivery.title": "Fast Delivery",
    "features.delivery.description":
-      "Free delivery within Kigali, nationwide shipping available",
+      "Free delivery within Kigali, nationwide delivery available",
    "features.support.title": "24/7 Support",
    "features.support.description":
       "Get help whenever you need it with our customer support",

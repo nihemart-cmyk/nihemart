@@ -72,10 +72,10 @@ const Footer: FC<FooterProps> = ({}) => {
           <div>
             <h5 className="text-2xl font-semibold mb-3">Customer care</h5>
             <p className="text-neutral-400 mb-4 max-w-md">
-              Need help? Our support team is available Mon–Fri, 9am–6pm (EST).
+              Need help? Our support team is available Mon–Sun, 9am–9pm.
             </p>
 
-            <div className="flex gap-3">
+            {/* <div className="flex gap-3">
               <a
                 href="https://apps.apple.com/us/app/nihemart/idXXXXXXXX"
                 target="_blank"
@@ -92,7 +92,7 @@ const Footer: FC<FooterProps> = ({}) => {
               >
                 Google Play
               </a>
-            </div>
+            </div> */}
           </div>
 
           <div className="flex flex-col items-start md:items-end gap-3">

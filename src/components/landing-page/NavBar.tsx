@@ -155,7 +155,7 @@ const NavBar: FC<NavBarProps> = ({}) => {
             </div>
 
             {/* Desktop Search */}
-            <div className="hidden md:block">
+            <div className="hidden md:block w-[25%]">
                <SearchPopover />
             </div>
 

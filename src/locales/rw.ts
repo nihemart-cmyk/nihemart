@@ -110,7 +110,7 @@ export const rw: Record<string, string> = {
    "checkout.orderSummary": "Ibyerekeye Komande",
    "checkout.subtotal": "Igiteranyo",
    "checkout.tax": "Ayo kubikugezaho",
-   "checkout.shipping": "Kohereza",
+   "checkout.shipping": "Kubikugezaho",
    "checkout.total": "Igiteranyo",
    "checkout.placeOrder": "Tumiza",
    "checkout.province": "Intara",
