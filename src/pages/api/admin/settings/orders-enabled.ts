@@ -1,19 +1,21 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createClient } from "@supabase/supabase-js";
 
+// Ensure we prefer a server-side SUPABASE_URL but fall back to NEXT_PUBLIC_SUPABASE_URL
+// so this API works in varied hosting environments (cPanel, etc.). Do not throw
+// during module init; the handler will return an error if credentials are missing.
 if (
-   !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+   !process.env.SUPABASE_SERVICE_ROLE_KEY &&
    !process.env.SUPABASE_SERVICE_ROLE_KEY
 ) {
-   // do not throw during module init; handler will check
+   // no-op; handler will validate
 }
 
+const _SUPABASE_URL =
+   process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabase =
-   process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY
-      ? createClient(
-           process.env.NEXT_PUBLIC_SUPABASE_URL,
-           process.env.SUPABASE_SERVICE_ROLE_KEY
-        )
+   _SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY
+      ? createClient(_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
       : (null as any);
 
 export default async function handler(
@@ -43,20 +45,20 @@ export default async function handler(
             ? val === true || String(val) === "true" || (val && val === "true")
             : null;
 
-         // Kigali timezone is UTC+2 (no DST). We'll compute local Kigali time
-         const now = new Date();
-         // get UTC time components and apply +2 hour offset
-         const utcYear = now.getUTCFullYear();
-         const utcMonth = now.getUTCMonth();
-         const utcDate = now.getUTCDate();
-         const utcHour = now.getUTCHours();
-         const utcMinute = now.getUTCMinutes();
-         // Kigali offset +2
-         const kigaliDate = new Date(
-            Date.UTC(utcYear, utcMonth, utcDate, utcHour + 2, utcMinute)
-         );
-         const kHour = kigaliDate.getHours();
-         const kMinute = kigaliDate.getMinutes();
+         // Compute Kigali local time robustly without relying on server local timezone
+         // (some hosts like cPanel may not use UTC). Kigali is UTC+2 year-round.
+         const KIGALI_OFFSET_HOURS = 2;
+         const OFFSET_MS = KIGALI_OFFSET_HOURS * 60 * 60 * 1000;
+
+         const nowMs = Date.now();
+         const kigaliMs = nowMs + OFFSET_MS; // instant adjusted to Kigali local wall-clock
+         const kigaliDate = new Date(kigaliMs);
+         // Use UTC getters on the adjusted instant so we get Kigali calendar fields
+         const kYear = kigaliDate.getUTCFullYear();
+         const kMonth = kigaliDate.getUTCMonth();
+         const kDate = kigaliDate.getUTCDate();
+         const kHour = kigaliDate.getUTCHours();
+         const kMinute = kigaliDate.getUTCMinutes();
 
          // Off-hours: 21:30 (21.5) to 09:00 (next day)
          const minuteOfDay = kHour * 60 + kMinute;
@@ -66,30 +68,39 @@ export default async function handler(
          const scheduleDisabled =
             minuteOfDay >= offStart || minuteOfDay < offEnd;
 
-         // Determine next toggle moment (in server time). Compute next local time when schedule flips.
-         let nextToggleLocal: Date;
+         // Compute the next toggle instant (in UTC) corresponding to the next local
+         // 09:00 or 21:30 in Kigali. We construct a UTC timestamp for the Kigali local
+         // clock and then subtract the offset to get the real UTC instant.
+         let nextToggleAt: Date | null = null;
          if (scheduleDisabled) {
-            // next toggle is at 09:00 local (next day if currently after midnight)
-            // construct local date for next 09:00
-            nextToggleLocal = new Date(kigaliDate);
-            // advance to 9:00 next day if past 9:00
-            nextToggleLocal.setDate(
-               nextToggleLocal.getDate() + (minuteOfDay < offEnd ? 0 : 1)
+            // next local 09:00 (same day if before 09:00 local, otherwise next day)
+            const addDays = minuteOfDay < offEnd ? 0 : 1;
+            const nextLocalUtcMs = Date.UTC(
+               kYear,
+               kMonth,
+               kDate + addDays,
+               9,
+               0,
+               0,
+               0
             );
-            nextToggleLocal.setHours(9, 0, 0, 0);
+            const nextToggleUtcMs = nextLocalUtcMs - OFFSET_MS; // convert local -> UTC instant
+            nextToggleAt = new Date(nextToggleUtcMs);
          } else {
-            // next toggle is today at 21:30 local
-            nextToggleLocal = new Date(kigaliDate);
-            nextToggleLocal.setHours(21, 30, 0, 0);
-            // if that's already passed (shouldn't be), move to next day
-            if (minuteOfDay >= offStart) {
-               nextToggleLocal.setDate(nextToggleLocal.getDate() + 1);
-            }
+            // next local 21:30 (today if still before 21:30, otherwise next day)
+            const addDays = minuteOfDay >= offStart ? 1 : 0;
+            const nextLocalUtcMs = Date.UTC(
+               kYear,
+               kMonth,
+               kDate + addDays,
+               21,
+               30,
+               0,
+               0
+            );
+            const nextToggleUtcMs = nextLocalUtcMs - OFFSET_MS;
+            nextToggleAt = new Date(nextToggleUtcMs);
          }
-
-         // Convert nextToggleLocal (which is Kigali local) back to UTC-based instant
-         // We built nextToggleLocal using kigaliDate as base (which is UTC-based Date representing local time),
-         // so nextToggleLocal currently represents the correct instant already.
 
          // Decide effective enabled flag: if admin explicitly set it, respect admin setting.
          // Otherwise use schedule default (disabled during off-hours).
@@ -115,7 +126,7 @@ export default async function handler(
             scheduleDisabled: Boolean(scheduleDisabled),
             message,
             source,
-            nextToggleAt: nextToggleLocal.toISOString(),
+            nextToggleAt: nextToggleAt ? nextToggleAt.toISOString() : null,
          });
       }
 
