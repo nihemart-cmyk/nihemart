@@ -77,6 +77,29 @@ export function useOrder(id: string) {
    });
 }
 
+// Hook to fetch and cache the latest rider assignment for an order
+export function useOrderAssignment(orderId?: string, enabled = true) {
+   const { user, isLoggedIn } = useAuth();
+
+   return useQuery({
+      queryKey: ["orders", "assignment", orderId],
+      queryFn: async () => {
+         if (!orderId) return null as any;
+         const res = await fetch(`/api/orders/${orderId}/assignment`);
+         if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            throw new Error(
+               body?.error || `Failed to fetch assignment for ${orderId}`
+            );
+         }
+         const json = await res.json();
+         return json?.rider || null;
+      },
+      enabled: Boolean(orderId) && enabled && isLoggedIn && !!user,
+      staleTime: 1000 * 60 * 5, // 5 minutes
+   });
+}
+
 // Hook for order statistics (admin only)
 export function useOrderStats() {
    const { user, hasRole } = useAuth();
@@ -184,12 +207,11 @@ export function useCreateOrder() {
                queryKey: orderKeys.userOrders(user.id),
             });
          }
-   
+
          try {
             if (typeof window !== "undefined") {
                const ref = sessionStorage.getItem("kpay_reference");
                if (ref && data?.id) {
-             
                   (async () => {
                      const maxAttempts = 3;
                      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -282,8 +304,7 @@ export function useUpdateOrderStatus() {
          const updated = await res.json();
          return updated as Order;
       },
-         onMutate: async ({ id, status, additionalFields }) => {
-   
+      onMutate: async ({ id, status, additionalFields }) => {
          await queryClient.cancelQueries({ queryKey: orderKeys.all });
 
          const previousQueries = queryClient.getQueriesData({});
@@ -1038,6 +1059,9 @@ export function useOrders() {
          limit?: number;
          refundStatus?: string;
       }) => useRefundedItems(opts || {}),
+      // Expose assignment hook so components can cache/reuse rider lookups
+      useOrderAssignment: (orderId?: string, enabled = true) =>
+         useOrderAssignment(orderId, enabled),
 
       prefetchOrder: (id: string) => {
          return queryClient.prefetchQuery({

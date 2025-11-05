@@ -84,16 +84,29 @@ export function OrderDetailsDialog({
    const [showOrderRefundDialog, setShowOrderRefundDialog] = useState(false);
    const [orderRefundReason, setOrderRefundReason] = useState("");
    const [orderLoading, setOrderLoading] = useState(false);
-   // Rider info from order (now typed)
-   const rider: Rider | null | undefined = order.rider;
-   // No order-level header image - per-item main images are shown below
-   // Map of product_id -> main_image_url fetched from store (if available)
+   // Rider info: prefer the rider attached to the order row, but fall back to
+   // querying the cached assignment hook when the order payload did not
+   // include `rider`.
+   const { useOrderAssignment } = useOrders();
+   const assignmentQuery = useOrderAssignment(
+      order?.id,
+      Boolean(open && !(order as any)?.rider)
+   );
+   const riderFromAssignment = assignmentQuery.data;
+   const riderLoading = assignmentQuery.isLoading;
+
+   const rider: Rider | null | undefined =
+      (order && (order as any).rider) ?? riderFromAssignment;
+
    const [productImages, setProductImages] = useState<
       Record<string, string | null>
    >({});
 
    useEffect(() => {
       let mounted = true;
+      // Fetch latest assignment's rider when the dialog opens and the order
+      // does not already include rider metadata.
+      // assignment is loaded via useOrderAssignment hook (react-query)
       const load = async () => {
          try {
             if (!order?.items || order.items.length === 0) return;
@@ -121,7 +134,11 @@ export function OrderDetailsDialog({
             // ignore
          }
       };
-      if (open) load();
+      if (open) {
+         load();
+         // fetch rider info if needed
+         // No need to fetch rider info, it's handled by the useOrderAssignment hook
+      }
       return () => {
          mounted = false;
       };
@@ -154,37 +171,7 @@ export function OrderDetailsDialog({
                                  "MMMM d, yyyy 'at' HH:mm"
                               )}
                            </p>
-                           {/* Rider Info (show if a rider was assigned to the order) */}
-                           {rider && (
-                              <div className="mt-2 flex items-center gap-2 bg-blue-50 rounded px-2 py-1">
-                                 <BadgeCheck className="h-4 w-4 text-blue-400" />
-                                 <span className="text-xs text-muted-foreground">
-                                    Rider:
-                                 </span>
-                                 <UserAvatarProfile
-                                    user={{
-                                       fullName:
-                                          rider.full_name ||
-                                          rider.email ||
-                                          "Unknown Rider",
-                                       subTitle:
-                                          rider.phone || rider.email || "",
-                                       imageUrl: rider.imageUrl || undefined,
-                                    }}
-                                    showInfo={false}
-                                 />
-                                 <span className="text-xs font-medium">
-                                    {rider.full_name ||
-                                       rider.email ||
-                                       "Unknown Rider"}
-                                 </span>
-                                 {rider.phone && (
-                                    <span className="text-xs text-muted-foreground ml-2">
-                                       {rider.phone}
-                                    </span>
-                                 )}
-                              </div>
-                           )}
+                           {/* Rider section moved below — kept header concise */}
                         </div>
                         <Badge
                            className={cn(
@@ -416,6 +403,76 @@ export function OrderDetailsDialog({
                               {Number(order.total || 0).toLocaleString()} RWF
                            </p>
                         </div>
+                     </div>
+                  </Card>
+
+                  {/* Rider Section (full-width, below other sections) */}
+                  <Card className="p-4">
+                     <div className="flex items-center gap-2 mb-2">
+                        <BadgeCheck className="h-5 w-5 text-blue-500" />
+                        <h4 className="font-semibold text-base">Rider</h4>
+                     </div>
+
+                     <div>
+                        {riderLoading ? (
+                           <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <span>Loading rider...</span>
+                           </div>
+                        ) : rider ? (
+                           <div className="flex items-start gap-4">
+                              <UserAvatarProfile
+                                 user={{
+                                    fullName:
+                                       rider.full_name ||
+                                       (rider as any).name ||
+                                       "Unknown Rider",
+                                    subTitle: rider.phone || rider.email || "",
+                                    imageUrl:
+                                       (rider as any).image_url ||
+                                       (rider as any).imageUrl ||
+                                       undefined,
+                                 }}
+                                 showInfo={false}
+                              />
+                              <div className="flex-1 min-w-0">
+                                 <p className="text-sm font-medium truncate">
+                                    {rider.full_name ||
+                                       (rider as any).name ||
+                                       rider.email ||
+                                       "Unknown Rider"}
+                                 </p>
+                                 <div className="flex flex-wrap items-center gap-3 mt-2">
+                                    {rider.email && (
+                                       <div className="flex items-center gap-2">
+                                          <p className="text-sm text-muted-foreground truncate">
+                                             {rider.email}
+                                          </p>
+                                          <CopyButton
+                                             text={rider.email}
+                                             label="Copy email"
+                                          />
+                                       </div>
+                                    )}
+                                    {rider.phone && (
+                                       <div className="flex items-center gap-2">
+                                          <p className="text-sm text-muted-foreground">
+                                             {rider.phone}
+                                          </p>
+                                          <CopyButton
+                                             text={rider.phone}
+                                             label="Copy phone"
+                                          />
+                                       </div>
+                                    )}
+                                 </div>
+                              </div>
+                           </div>
+                        ) : (
+                           <p className="text-sm text-muted-foreground">
+                              No rider assigned
+                           </p>
+                        )}
                      </div>
                   </Card>
                </div>

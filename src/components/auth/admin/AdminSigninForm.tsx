@@ -92,69 +92,9 @@ const AdminSigninForm: FC<AdminSigninFormProps> = ({ redirect }) => {
       }
    };
 
-   // SIMPLIFIED redirect logic - only handle OAuth callbacks here
-   useEffect(() => {
-      // Only handle OAuth redirect scenarios
-      const handleOAuthRedirect = async () => {
-         try {
-            const url = new URL(window.location.href);
-            const hasCode = url.searchParams.has("code");
-            const hasAccessToken =
-               url.hash && url.hash.includes("access_token=");
-
-            if (!hasCode && !hasAccessToken) return;
-
-            // Process OAuth callback
-            const result: any =
-               typeof (supabase.auth as any).getSessionFromUrl === "function"
-                  ? await (supabase.auth as any).getSessionFromUrl()
-                  : typeof (supabase.auth as any)._getSessionFromURL ===
-                    "function"
-                  ? await (supabase.auth as any)._getSessionFromURL(
-                       window.location.href
-                    )
-                  : null;
-
-            const { data, error } = result || {};
-            if (error) {
-               console.warn("OAuth callback error:", error);
-               toast.error("Authentication failed");
-               return;
-            }
-
-            if (data?.session) {
-               toast.success("Signed in successfully!");
-
-               // Get redirect parameter from URL (for OAuth flow)
-               const oauthRedirect = url.searchParams.get("redirect");
-               const safeRedirect =
-                  oauthRedirect && oauthRedirect.startsWith("/")
-                     ? oauthRedirect
-                     : redirectParam && redirectParam.startsWith("/")
-                     ? redirectParam
-                     : null;
-
-               if (safeRedirect) {
-                  router.push(safeRedirect);
-               } else {
-                  // Fallback to role-based routing
-                  if (hasRole("admin")) {
-                     router.push("/admin");
-                  } else if (hasRole("rider")) {
-                     router.push("/rider");
-                  } else {
-                     router.push("/");
-                  }
-               }
-            }
-         } catch (err) {
-            console.warn("OAuth handler failed:", err);
-            toast.error("Authentication failed");
-         }
-      };
-
-      handleOAuthRedirect();
-   }, [router, hasRole, redirectParam]);
+   // OAuth callback handling has been consolidated to the dedicated
+   // callback page at `/auth/callback`. Leaving this component free of
+   // session-from-URL parsing avoids races between multiple handlers.
 
    const form = useForm<TAdminSigninSchema>({
       resolver: zodResolver(AdminSigninSchema),

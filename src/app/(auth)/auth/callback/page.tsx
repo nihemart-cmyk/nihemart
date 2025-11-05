@@ -4,25 +4,71 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuthStore } from "@/store/auth.store";
+import { processOAuthRedirect } from "@/providers/processOAuthRedirect";
 import { Loader } from "lucide-react";
 
 export default function AuthCallback() {
    const router = useRouter();
-   const { setUser, setSession, fetchRoles } = useAuthStore();
+   const { setUser, setSession, fetchRoles, setRoles } = useAuthStore();
 
    useEffect(() => {
       const handleOAuthCallback = async () => {
          try {
-            // Step 1: Get session and update state atomically
-            const {
+            // Delegate parsing/processing of the OAuth redirect to the
+            // shared helper which will set session/user and fetch roles.
+            const result = await processOAuthRedirect(supabase, {
+               setSession,
+               setUser,
+               fetchRoles,
+               setRoles,
+            });
+
+            // If the helper handled the session, prefer its redirectParam.
+            // Otherwise we'll attempt to read the session ourselves.
+            let {
                data: { session },
-               error: sessionError,
             } = await supabase.auth.getSession();
 
-            if (sessionError) {
-               console.error("Session error:", sessionError);
-               router.replace("/signin?error=session_error");
-               return;
+            // If helper reported sessionHandled but session isn't visible yet,
+            // we still fall back to the short auth-state-change wait below.
+            const helperRedirect = result?.sessionHandled
+               ? result.redirectParam
+               : null;
+
+            // If still no session, wait briefly for auth state change (robustness)
+            if (!session?.user) {
+               try {
+                  const waitForSignIn = new Promise<void>((resolve) => {
+                     const { data } = supabase.auth.onAuthStateChange(
+                        (event, newSession) => {
+                           if (event === "SIGNED_IN" && newSession?.user) {
+                              try {
+                                 session = newSession as any;
+                              } catch (e) {
+                                 // ignore
+                              }
+                              resolve();
+                           }
+                        }
+                     );
+
+                     const to = setTimeout(() => resolve(), 3000);
+                     waitForSignIn.finally(() => {
+                        try {
+                           data.subscription?.unsubscribe();
+                        } catch (e) {
+                           // ignore
+                        }
+                        clearTimeout(to);
+                     });
+                  });
+
+                  await waitForSignIn;
+                  const got = await supabase.auth.getSession();
+                  session = got.data.session;
+               } catch (e) {
+                  console.warn("Auth state wait failed:", e);
+               }
             }
 
             if (!session?.user) {
@@ -30,20 +76,12 @@ export default function AuthCallback() {
                return;
             }
 
-            // Step 2: Update auth store and fetch roles in parallel
-            await Promise.all([
-               (async () => {
-                  setSession(session);
-                  setUser(session.user);
-               })(),
-               fetchRoles(session.user.id).catch((error) => {
-                  console.warn("Role fetch error:", error);
-               }),
-            ]);
-
-            // Step 3: Get and validate redirect URL
-            const urlParams = new URLSearchParams(window.location.search);
-            const redirectParam = urlParams.get("redirect");
+            // Step 3: Determine redirect target. Prefer the helper's value
+            // (it preserved/returned the redirect param), otherwise read
+            // current URL search params.
+            const redirectParam =
+               helperRedirect ??
+               new URLSearchParams(window.location.search).get("redirect");
 
             const safeRedirect =
                redirectParam &&

@@ -6,14 +6,14 @@ export async function processOAuthRedirect(
       fetchRoles: (id: string) => Promise<void>;
       setRoles: (r: Set<any>) => void;
    }
-) {
+): Promise<{ sessionHandled: boolean; redirectParam?: string | null }> {
    const { setSession, setUser, fetchRoles, setRoles } = opts;
    try {
-      if (typeof window === "undefined") return;
+      if (typeof window === "undefined") return { sessionHandled: false };
       const url = new URL(window.location.href);
       const hasCode = url.searchParams.has("code");
       const hasAccessToken = url.hash && url.hash.includes("access_token=");
-      if (!hasCode && !hasAccessToken) return;
+      if (!hasCode && !hasAccessToken) return { sessionHandled: false };
 
       // Try SDK helper first
       let session: any = null;
@@ -52,7 +52,7 @@ export async function processOAuthRedirect(
          }
       }
 
-      if (!session) return;
+      if (!session) return { sessionHandled: false };
 
       setSession(session);
       setUser(user);
@@ -75,17 +75,28 @@ export async function processOAuthRedirect(
       }
 
       try {
+         const redirectParam = url.searchParams.get("redirect");
+
          url.searchParams.delete("code");
          url.searchParams.delete("state");
+
+         // If a redirect param was provided, keep only that in the cleaned URL
+         const cleanedSearch = redirectParam
+            ? `?redirect=${encodeURIComponent(redirectParam)}`
+            : url.search;
+
          window.history.replaceState(
             {},
             document.title,
-            url.pathname + url.search
+            url.pathname + cleanedSearch
          );
+
+         return { sessionHandled: true, redirectParam: redirectParam };
       } catch (e) {
          // ignore
       }
    } catch (err) {
       console.error("OAuth redirect handling failed:", err);
    }
+   return { sessionHandled: false };
 }
