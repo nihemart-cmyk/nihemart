@@ -25,6 +25,8 @@ import { Card } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { cn } from "@/lib/utils";
 import Image from "next/image";
+import { fetchStoreProductById } from "@/integrations/supabase/store";
+import { useEffect } from "react";
 
 interface OrderDetailsDialogProps {
    open: boolean;
@@ -84,6 +86,46 @@ export function OrderDetailsDialog({
    const [orderLoading, setOrderLoading] = useState(false);
    // Rider info from order (now typed)
    const rider: Rider | null | undefined = order.rider;
+   // No order-level header image - per-item main images are shown below
+   // Map of product_id -> main_image_url fetched from store (if available)
+   const [productImages, setProductImages] = useState<
+      Record<string, string | null>
+   >({});
+
+   useEffect(() => {
+      let mounted = true;
+      const load = async () => {
+         try {
+            if (!order?.items || order.items.length === 0) return;
+            const ids = Array.from(
+               new Set(
+                  order.items
+                     .map((it) => it.product_id)
+                     .filter(Boolean) as string[]
+               )
+            );
+            if (ids.length === 0) return;
+            const map: Record<string, string | null> = {};
+            await Promise.all(
+               ids.map(async (id) => {
+                  try {
+                     const data = await fetchStoreProductById(id);
+                     map[id] = data?.product?.main_image_url || null;
+                  } catch (e) {
+                     map[id] = null;
+                  }
+               })
+            );
+            if (mounted) setProductImages(map);
+         } catch (e) {
+            // ignore
+         }
+      };
+      if (open) load();
+      return () => {
+         mounted = false;
+      };
+   }, [order?.items, open]);
 
    return (
       <Dialog
@@ -112,8 +154,8 @@ export function OrderDetailsDialog({
                                  "MMMM d, yyyy 'at' HH:mm"
                               )}
                            </p>
-                           {/* Rider Info (Admin only) */}
-                           {isAdmin && rider && (
+                           {/* Rider Info (show if a rider was assigned to the order) */}
+                           {rider && (
                               <div className="mt-2 flex items-center gap-2 bg-blue-50 rounded px-2 py-1">
                                  <BadgeCheck className="h-4 w-4 text-blue-400" />
                                  <span className="text-xs text-muted-foreground">
@@ -237,10 +279,18 @@ export function OrderDetailsDialog({
                               )}
                            >
                               {/* Product Image */}
-                              {item.product_image_url && (
+                              {/* Prefer product's canonical main image when available, else fall back to the image recorded on the order item */}
+                              {(productImages[item.product_id || ""] ||
+                                 item.product_image_url) && (
                                  <div className="relative w-16 h-16 flex-shrink-0 bg-gray-100 rounded-md overflow-hidden">
                                     <Image
-                                       src={item.product_image_url}
+                                       src={
+                                          productImages[
+                                             item.product_id || ""
+                                          ] ||
+                                          item.product_image_url ||
+                                          ""
+                                       }
                                        alt={item.product_name}
                                        fill
                                        className="object-cover"

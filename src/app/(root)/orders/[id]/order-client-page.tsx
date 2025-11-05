@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useOptimistic } from "react";
+import { useState, useOptimistic, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -49,6 +49,8 @@ import { toast } from "sonner";
 import { type Order } from "@/integrations/supabase/orders";
 import { type User } from "@supabase/supabase-js";
 import PaymentInfoCard from "@/components/payments/PaymentInfoCard";
+import Image from "next/image";
+import { fetchStoreProductById } from "@/integrations/supabase/store";
 
 interface OrderClientPageProps {
    initialData: Order;
@@ -95,6 +97,45 @@ const OrderClientPage = ({
 
    const order = optimisticOrder;
    const isOwner = user?.id === order?.user_id;
+
+   // Load canonical product images for items (prefer main_image_url)
+   const [productImages, setProductImages] = useState<
+      Record<string, string | null>
+   >({});
+   useEffect(() => {
+      let mounted = true;
+      const load = async () => {
+         try {
+            if (!order?.items || order.items.length === 0) return;
+            const ids = Array.from(
+               new Set(
+                  order.items
+                     .map((it) => it.product_id)
+                     .filter(Boolean) as string[]
+               )
+            );
+            if (ids.length === 0) return;
+            const map: Record<string, string | null> = {};
+            await Promise.all(
+               ids.map(async (id) => {
+                  try {
+                     const data = await fetchStoreProductById(id);
+                     map[id] = data?.product?.main_image_url || null;
+                  } catch (e) {
+                     map[id] = null;
+                  }
+               })
+            );
+            if (mounted) setProductImages(map);
+         } catch (e) {
+            // ignore
+         }
+      };
+      load();
+      return () => {
+         mounted = false;
+      };
+   }, [order?.items]);
 
    // Derive a normalized order state used for action visibility
    const orderStateForActions =
