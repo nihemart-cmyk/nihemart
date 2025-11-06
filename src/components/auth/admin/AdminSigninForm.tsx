@@ -58,48 +58,74 @@ const AdminSigninForm: FC<AdminSigninFormProps> = ({ redirect }) => {
    const handleGoogleSignIn = async () => {
       setGoogleLoading(true);
       try {
-         // Build redirect URL that preserves the redirect parameter
          const origin =
             typeof window !== "undefined" ? window.location.origin : "";
-         let redirectTo = `${origin}/auth/callback`;
 
-         // Add redirect parameter if it exists
+         // CRITICAL: Store redirect in localStorage before OAuth redirect
+         // because Supabase OAuth doesn't reliably preserve query parameters
          if (redirectParam) {
-            redirectTo += `?redirect=${encodeURIComponent(redirectParam)}`;
+            try {
+               localStorage.setItem("oauth_redirect", redirectParam);
+               console.log("Stored redirect in localStorage:", redirectParam);
+            } catch (e) {
+               console.warn("Could not store redirect in localStorage:", e);
+            }
+         } else {
+            // Clear any stale redirect
+            try {
+               localStorage.removeItem("oauth_redirect");
+            } catch (e) {
+               // ignore
+            }
          }
+
+         // Build callback URL - don't add redirect as query param
+         // because it will likely be stripped by OAuth flow
+         const redirectTo = `${origin}/auth/callback`;
+
+         console.log("Starting Google OAuth...");
+         console.log("- Origin redirect param:", redirectParam);
+         console.log("- Callback URL:", redirectTo);
 
          const { error } = await supabase.auth.signInWithOAuth({
             provider: "google",
             options: {
                redirectTo,
                queryParams: {
-                  // This ensures the redirect parameter is passed through the OAuth flow
                   access_type: "offline",
                   prompt: "consent",
                },
             },
          });
 
-         // Do not show an immediate toast for OAuth redirect starts; in many
-         // environments the SDK will return an error object even though a
-         // redirect is about to happen. Log instead and let the callback
-         // page handle final UX and errors.
+         // Note: Most OAuth flows will redirect before we reach here
+         // Only handle errors that prevent the redirect
          if (error) {
-            console.warn("Google OAuth initiation error:", error);
+            console.error("Google OAuth initiation error:", error);
+            toast.error("Failed to start Google sign-in");
+
+            // Clear stored redirect on error
+            try {
+               localStorage.removeItem("oauth_redirect");
+            } catch (e) {
+               // ignore
+            }
          }
       } catch (err: any) {
          console.error("Google sign-in failed:", err);
          toast.error(err?.message || "Google sign-in failed");
+
+         // Clear stored redirect on error
+         try {
+            localStorage.removeItem("oauth_redirect");
+         } catch (e) {
+            // ignore
+         }
       } finally {
-         // We clear the local loading state; if a redirect happens this
-         // component will unmount anyway, otherwise user sees the change.
+         // Note: This may not execute if OAuth redirect happens
          setGoogleLoading(false);
       }
    };
-
-   // OAuth callback handling has been consolidated to the dedicated
-   // callback page at `/auth/callback`. Leaving this component free of
-   // session-from-URL parsing avoids races between multiple handlers.
 
    const form = useForm<TAdminSigninSchema>({
       resolver: zodResolver(AdminSigninSchema),
