@@ -56,9 +56,8 @@ const AdminSigninForm: FC<AdminSigninFormProps> = ({ redirect }) => {
 
    // Google sign-in handler - FIXED
    const handleGoogleSignIn = async () => {
+      setGoogleLoading(true);
       try {
-         setGoogleLoading(true);
-
          // Build redirect URL that preserves the redirect parameter
          const origin =
             typeof window !== "undefined" ? window.location.origin : "";
@@ -81,14 +80,20 @@ const AdminSigninForm: FC<AdminSigninFormProps> = ({ redirect }) => {
             },
          });
 
+         // Do not show an immediate toast for OAuth redirect starts; in many
+         // environments the SDK will return an error object even though a
+         // redirect is about to happen. Log instead and let the callback
+         // page handle final UX and errors.
          if (error) {
-            setGoogleLoading(false);
-            toast.error(error.message || "Google sign-in failed");
+            console.warn("Google OAuth initiation error:", error);
          }
-         // If successful, the browser will redirect - no need to handle further
       } catch (err: any) {
-         setGoogleLoading(false);
+         console.error("Google sign-in failed:", err);
          toast.error(err?.message || "Google sign-in failed");
+      } finally {
+         // We clear the local loading state; if a redirect happens this
+         // component will unmount anyway, otherwise user sees the change.
+         setGoogleLoading(false);
       }
    };
 

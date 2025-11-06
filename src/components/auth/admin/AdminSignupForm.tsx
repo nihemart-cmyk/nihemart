@@ -37,18 +37,28 @@ const AdminSignupForm: FC<AdminSignupFormProps> = ({}) => {
    // Google sign-up handler (same as sign-in)
    const handleGoogleSignUp = async () => {
       setGoogleLoading(true);
-      const { error } = await supabase.auth.signInWithOAuth({
-         provider: "google",
-         options: {
-            redirectTo:
-               typeof window !== "undefined"
-                  ? `${window.location.origin}/signin`
-                  : "/signin",
-         },
-      });
-      setGoogleLoading(false);
-      if (error) {
-         toast.error(error.message || "Google sign up failed");
+      try {
+         const { error } = await supabase.auth.signInWithOAuth({
+            provider: "google",
+            options: {
+               redirectTo:
+                  typeof window !== "undefined"
+                     ? `${window.location.origin}/signin`
+                     : "/signin",
+            },
+         });
+
+         if (error) {
+            // Don't surface an immediate toast here — the SDK may return an
+            // initiation warning even when redirecting. The callback page
+            // will handle final success/failure UX.
+            console.warn("Google OAuth initiation error (signup):", error);
+         }
+      } catch (err: any) {
+         console.error("Google sign-up failed:", err);
+         toast.error(err?.message || "Google sign up failed");
+      } finally {
+         setGoogleLoading(false);
       }
    };
 

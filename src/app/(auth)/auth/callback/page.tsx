@@ -23,75 +23,33 @@ export default function AuthCallback() {
                setRoles,
             });
 
-            // If the helper handled the session, prefer its redirectParam.
-            // Otherwise we'll attempt to read the session ourselves.
-            let {
-               data: { session },
-            } = await supabase.auth.getSession();
+            // If helper handled the session already, use the returned redirect
+            // parameter (if any) and navigate. The helper already set
+            // session/user in the store and fetched roles, so we don't need
+            // to re-check the session aggressively here.
+            if (result?.sessionHandled) {
+               const redirectParam = result.redirectParam;
+               const safeRedirect =
+                  redirectParam &&
+                  redirectParam.startsWith("/") &&
+                  !redirectParam.includes("..")
+                     ? redirectParam
+                     : "/";
 
-            // If helper reported sessionHandled but session isn't visible yet,
-            // we still fall back to the short auth-state-change wait below.
-            const helperRedirect = result?.sessionHandled
-               ? result.redirectParam
-               : null;
-
-            // If still no session, wait briefly for auth state change (robustness)
-            if (!session?.user) {
-               try {
-                  const waitForSignIn = new Promise<void>((resolve) => {
-                     const { data } = supabase.auth.onAuthStateChange(
-                        (event, newSession) => {
-                           if (event === "SIGNED_IN" && newSession?.user) {
-                              try {
-                                 session = newSession as any;
-                              } catch (e) {
-                                 // ignore
-                              }
-                              resolve();
-                           }
-                        }
-                     );
-
-                     const to = setTimeout(() => resolve(), 3000);
-                     waitForSignIn.finally(() => {
-                        try {
-                           data.subscription?.unsubscribe();
-                        } catch (e) {
-                           // ignore
-                        }
-                        clearTimeout(to);
-                     });
-                  });
-
-                  await waitForSignIn;
-                  const got = await supabase.auth.getSession();
-                  session = got.data.session;
-               } catch (e) {
-                  console.warn("Auth state wait failed:", e);
-               }
-            }
-
-            if (!session?.user) {
-               router.replace("/signin");
+               router.replace(safeRedirect);
                return;
             }
 
-            // Step 3: Determine redirect target. Prefer the helper's value
-            // (it preserved/returned the redirect param), otherwise read
-            // current URL search params.
-            const redirectParam =
-               helperRedirect ??
-               new URLSearchParams(window.location.search).get("redirect");
-
-            const safeRedirect =
-               redirectParam &&
-               redirectParam.startsWith("/") &&
-               !redirectParam.includes("..")
-                  ? redirectParam
-                  : "/";
-
-            // Step 4: Immediate redirect using replace to prevent back navigation
-            router.replace(safeRedirect);
+            // Fallback: attempt a single explicit session read. If still no
+            // session, send user back to signin. Avoid long waits here - the
+            // helper should normally handle the session on the callback.
+            const { data } = await supabase.auth.getSession();
+            if (data?.session?.user) {
+               // No redirect param returned by helper, so fall back to root
+               router.replace("/");
+            } else {
+               router.replace("/signin");
+            }
          } catch (error) {
             console.error("OAuth callback error:", error);
             router.replace("/signin?error=callback_error");
