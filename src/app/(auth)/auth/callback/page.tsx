@@ -10,24 +10,26 @@ import { Loader } from "lucide-react";
 export default function AuthCallback() {
    const router = useRouter();
    const { setUser, setSession, fetchRoles, setRoles } = useAuthStore();
-   const [debugInfo, setDebugInfo] = useState<string>("");
+   const [hasProcessed, setHasProcessed] = useState(false);
+   const [showRefresh, setShowRefresh] = useState(false);
 
    useEffect(() => {
+      // Show refresh button after 5 seconds if still on callback page
+      const timer = setTimeout(() => {
+         setShowRefresh(true);
+      }, 5000);
+
+      return () => clearTimeout(timer);
+   }, []);
+
+   useEffect(() => {
+      // Prevent double processing
+      if (hasProcessed) return;
+
       const handleOAuthCallback = async () => {
          try {
-            // Add debug logging
-            const urlParams = new URLSearchParams(window.location.search);
-            const hasCode = urlParams.has("code");
-            const redirectParam = urlParams.get("redirect");
-
-            setDebugInfo(
-               `Code: ${hasCode}, Redirect: ${redirectParam || "none"}`
-            );
-            console.log("Callback debug:", {
-               hasCode,
-               redirectParam,
-               fullUrl: window.location.href,
-            });
+            // Mark as processed to prevent double execution
+            setHasProcessed(true);
 
             // Process the OAuth redirect
             const result = await processOAuthRedirect(supabase, {
@@ -37,66 +39,88 @@ export default function AuthCallback() {
                setRoles,
             });
 
-            console.log("OAuth process result:", result);
-
             if (result?.sessionHandled) {
                // Session was successfully established
-               const redirectParam = result.redirectParam;
+               const redirectTarget = result.redirectParam;
                const safeRedirect =
-                  redirectParam &&
-                  redirectParam.startsWith("/") &&
-                  !redirectParam.includes("..")
-                     ? redirectParam
+                  redirectTarget &&
+                  redirectTarget.startsWith("/") &&
+                  !redirectTarget.includes("..")
+                     ? redirectTarget
                      : "/";
 
-               console.log("Redirecting to:", safeRedirect);
+               // Small delay to ensure state is updated
+               await new Promise((resolve) => setTimeout(resolve, 500));
 
-               // Use replace to avoid back button issues
                router.replace(safeRedirect);
                return;
             }
 
-            // If session wasn't handled by the helper, do one final check
-            console.log("Session not handled, checking current session...");
+            // If session wasn't handled, wait a bit and try one more time
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+
             const { data } = await supabase.auth.getSession();
 
             if (data?.session?.user) {
-               console.log("Found existing session, redirecting to /");
-               router.replace("/");
+               setSession(data.session);
+               setUser(data.session.user);
+
+               await fetchRoles(data.session.user.id);
+
+               const storedRedirect = localStorage.getItem("oauth_redirect");
+               const safeRedirect =
+                  storedRedirect &&
+                  storedRedirect.startsWith("/") &&
+                  !storedRedirect.includes("..")
+                     ? storedRedirect
+                     : "/";
+
+               localStorage.removeItem("oauth_redirect");
+
+               router.replace(safeRedirect);
             } else {
-               console.log("No session found, redirecting to signin");
+               await new Promise((resolve) => setTimeout(resolve, 1000));
                router.replace("/signin?error=no_session");
             }
-         } catch (error) {
-            console.error("OAuth callback error:", error);
-            setDebugInfo(`Error: ${error}`);
-
-            // Wait a bit before redirecting on error so user can see what happened
-            setTimeout(() => {
-               router.replace("/signin?error=callback_error");
-            }, 2000);
+         } catch (error: any) {
+            // Wait before redirecting so user can see the error
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+            router.replace("/signin?error=callback_error");
          }
       };
 
       handleOAuthCallback();
-   }, [router, setSession, setUser, fetchRoles, setRoles]);
+   }, [router, setSession, setUser, fetchRoles, setRoles, hasProcessed]);
+
+   const handleRefresh = () => {
+      window.location.href = "/signin";
+   };
 
    return (
-      <div className="fixed inset-0 flex items-center justify-center bg-gray-50/80 backdrop-blur-sm">
-         <div className="bg-white p-6 rounded-lg shadow-lg text-center max-w-md">
-            <div className="relative">
-               <Loader className="h-8 w-8 animate-spin mx-auto text-brand-orange" />
-               <div className="absolute inset-0 animate-pulse opacity-50 blur-sm">
-                  <Loader className="h-8 w-8 mx-auto text-brand-orange" />
+      <div className="fixed inset-0 flex items-center justify-center bg-gradient-to-br from-blue-50 to-orange-50">
+         <div className="bg-white p-8 rounded-2xl shadow-xl text-center max-w-md w-full mx-4 border border-gray-100">
+            <div className="relative mb-6">
+               <div className="relative inline-block">
+                  <Loader className="h-12 w-12 animate-spin text-blue-500" />
+                  <div className="absolute inset-0 animate-pulse opacity-30 blur-sm">
+                     <Loader className="h-12 w-12 text-orange-500" />
+                  </div>
                </div>
             </div>
-            <p className="text-lg text-gray-700 font-medium mt-4">
+            <h2 className="text-2xl text-gray-800 font-bold mb-2">
                Almost there...
+            </h2>
+            <p className="text-sm text-gray-500 mb-6">
+               Completing your sign in
             </p>
-            {debugInfo && (
-               <p className="text-xs text-gray-500 mt-2 font-mono">
-                  {debugInfo}
-               </p>
+
+            {showRefresh && (
+               <button
+                  onClick={handleRefresh}
+                  className="w-full px-6 py-3 bg-gradient-to-r from-blue-500 to-orange-500 text-white rounded-lg hover:from-blue-600 hover:to-orange-600 transition-all duration-200 font-medium shadow-md hover:shadow-lg"
+               >
+                  Taking too long? Click to refresh
+               </button>
             )}
          </div>
       </div>
