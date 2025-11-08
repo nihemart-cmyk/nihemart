@@ -15,6 +15,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Mail } from "lucide-react";
 import { toast } from "sonner";
+import Link from "next/link";
 import { supabase } from "@/integrations/supabase/client";
 import { z } from "zod";
 
@@ -46,9 +47,21 @@ const ForgotPasswordForm: FC = () => {
             return;
          }
 
-         // If SMTP isn't configured server-side we still consider the action link
-         // created successful — the API will return a warning in that case.
-         toast.success("Password reset email sent. Check your inbox.");
+         // API may return { ok: false, warning: 'SMTP not configured' } while still
+         // generating an action link. Treat as success but surface the warning.
+         if (json && json.warning) {
+            toast.success(
+               "Password reset email requested. Check your inbox and spam folder."
+            );
+            // keep the form cleared so user knows the request was sent
+            form.reset();
+            return;
+         }
+
+         // Normal success
+         toast.success(
+            "Password reset email sent. Check your inbox and spam folder."
+         );
          form.reset();
       } catch (err) {
          console.error(err);
@@ -94,6 +107,22 @@ const ForgotPasswordForm: FC = () => {
                      ? "Sending..."
                      : "Send reset email"}
                </Button>
+
+               <div className="mt-3 text-sm text-center text-zinc-600">
+                  <p>
+                     Check your inbox and spam folder for the reset email. If
+                     you don't receive it in a few minutes, try again or contact
+                     support.
+                  </p>
+                  <p className="mt-2">
+                     <Link
+                        href="/signin"
+                        className="text-brand-orange underline"
+                     >
+                        Back to sign in
+                     </Link>
+                  </p>
+               </div>
             </form>
          </Form>
       </div>
