@@ -10,7 +10,12 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { ProductSelect } from "@/components/orders/ProductSelect";
 import { useProducts } from "@/hooks/useProducts";
-import { Product } from "@/integrations/supabase/products";
+import {
+   Product,
+   fetchProductForEdit,
+   fetchProductsLight,
+} from "@/integrations/supabase/products";
+import { useQuery } from "@tanstack/react-query";
 import { useOrders } from "@/hooks/useOrders";
 import { useRouter } from "next/navigation";
 import { useExternalOrders } from "@/hooks/useExternalOrders";
@@ -19,7 +24,14 @@ import { DialogHeader, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { UserAvatarProfile } from "@/components/user-avatar-profile";
-import { Plus, Trash2, Loader2, Phone, MessageSquare, ShoppingCart } from "lucide-react";
+import {
+   Plus,
+   Trash2,
+   Loader2,
+   Phone,
+   MessageSquare,
+   ShoppingCart,
+} from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 
 interface ExternalOrderItemInput {
@@ -48,9 +60,15 @@ export default function AddExternalOrderPage() {
    const router = useRouter();
    const { createExternalOrder } = useExternalOrders();
    const productsHook = useProducts();
-   const { data: products, isLoading: productsLoading } =
-      productsHook.useProducts();
+   // lightweight product list for selectors to avoid heavy joins and timeouts
+   const { data: productsList, isLoading: productsLoading } = useQuery({
+      queryKey: ["products", "light"],
+      queryFn: () => fetchProductsLight(500),
+   });
    const [selectedProducts, setSelectedProducts] = useState<Product[]>([]);
+   const [selectedProductDetails, setSelectedProductDetails] = useState<
+      Record<number, any>
+   >({});
    const [isSubmitting, setIsSubmitting] = useState(false);
 
    const [formData, setFormData] = useState<ExternalOrderFormData>({
@@ -263,7 +281,9 @@ export default function AddExternalOrderPage() {
                         <CardContent className="space-y-4">
                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                               <div>
-                                 <Label htmlFor="customerName">Customer Name *</Label>
+                                 <Label htmlFor="customerName">
+                                    Customer Name *
+                                 </Label>
                                  <Input
                                     id="customerName"
                                     value={formData.customer_name}
@@ -337,7 +357,9 @@ export default function AddExternalOrderPage() {
                         </CardHeader>
                         <CardContent className="space-y-4">
                            <div>
-                              <Label htmlFor="address">Delivery Address *</Label>
+                              <Label htmlFor="address">
+                                 Delivery Address *
+                              </Label>
                               <Input
                                  id="address"
                                  value={formData.delivery_address}
@@ -384,7 +406,9 @@ export default function AddExternalOrderPage() {
                                     required
                                  >
                                     <option value="pending">Pending</option>
-                                    <option value="processing">Processing</option>
+                                    <option value="processing">
+                                       Processing
+                                    </option>
                                     <option value="delivered">Delivered</option>
                                     <option value="cancelled">Cancelled</option>
                                  </select>
@@ -443,19 +467,140 @@ export default function AddExternalOrderPage() {
                                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                     <div className="md:col-span-2">
                                        <Label>Product *</Label>
-                                       <ProductSelect
-                                          products={products?.data || []}
-                                          selectedProduct={selectedProducts[index]}
-                                          onSelect={(product) => {
-                                             setSelectedProducts((prev) => {
-                                                const next = [...prev];
-                                                next[index] = product;
-                                                return next;
-                                             });
-                                             handleItemChange(index, "product_name", product.name);
-                                             handleItemChange(index, "price", product.price);
-                                          }}
-                                       />
+                                       <div>
+                                          <ProductSelect
+                                             products={productsList || []}
+                                             isLoading={productsLoading}
+                                             selectedProduct={
+                                                selectedProducts[index]
+                                             }
+                                             onSelect={async (product) => {
+                                                setSelectedProducts((prev) => {
+                                                   const next = [...prev];
+                                                   next[index] = product;
+                                                   return next;
+                                                });
+                                                handleItemChange(
+                                                   index,
+                                                   "product_name",
+                                                   product.name
+                                                );
+                                                handleItemChange(
+                                                   index,
+                                                   "price",
+                                                   product.price
+                                                );
+                                                // fetch product details to get variants and images
+                                                try {
+                                                   const details =
+                                                      await fetchProductForEdit(
+                                                         product.id
+                                                      );
+                                                   setSelectedProductDetails(
+                                                      (prev) => ({
+                                                         ...prev,
+                                                         [index]: details,
+                                                      })
+                                                   );
+                                                } catch (err) {
+                                                   console.error(
+                                                      "Failed to fetch product details",
+                                                      err
+                                                   );
+                                                }
+                                             }}
+                                          />
+
+                                          {/* Thumbnail + variant selector (if available) */}
+                                          {selectedProducts[index] && (
+                                             <div className="mt-2 flex items-center gap-3">
+                                                {selectedProducts[index]
+                                                   .main_image_url ? (
+                                                   // eslint-disable-next-line @next/next/no-img-element
+                                                   <img
+                                                      src={
+                                                         selectedProducts[index]
+                                                            .main_image_url
+                                                      }
+                                                      alt={
+                                                         selectedProducts[index]
+                                                            .name
+                                                      }
+                                                      className="h-10 w-10 rounded object-cover"
+                                                   />
+                                                ) : (
+                                                   <div className="h-10 w-10 rounded bg-slate-100" />
+                                                )}
+
+                                                {selectedProductDetails[index]
+                                                   ?.variations?.length > 0 && (
+                                                   <select
+                                                      className="flex h-9 rounded-md border border-input bg-background px-3 text-sm"
+                                                      onChange={(e) => {
+                                                         const vIdx = parseInt(
+                                                            e.target.value
+                                                         );
+                                                         const variation =
+                                                            selectedProductDetails[
+                                                               index
+                                                            ].variations[vIdx];
+                                                         if (variation) {
+                                                            handleItemChange(
+                                                               index,
+                                                               "variation_name",
+                                                               Object.values(
+                                                                  variation.attributes
+                                                               ).join(" / ")
+                                                            );
+                                                            handleItemChange(
+                                                               index,
+                                                               "price",
+                                                               variation.price ??
+                                                                  selectedProducts[
+                                                                     index
+                                                                  ].price ??
+                                                                  0
+                                                            );
+                                                         }
+                                                      }}
+                                                   >
+                                                      <option value="-1">
+                                                         Select variant
+                                                         (optional)
+                                                      </option>
+                                                      {selectedProductDetails[
+                                                         index
+                                                      ].variations.map(
+                                                         (
+                                                            v: any,
+                                                            vi: number
+                                                         ) => (
+                                                            <option
+                                                               key={v.id || vi}
+                                                               value={vi}
+                                                            >
+                                                               {Object.values(
+                                                                  v.attributes
+                                                               ).join(
+                                                                  " / "
+                                                               )}{" "}
+                                                               —{" "}
+                                                               {(
+                                                                  (v.price ??
+                                                                     selectedProducts[
+                                                                        index
+                                                                     ].price) ||
+                                                                  0
+                                                               ).toLocaleString()}{" "}
+                                                               RWF
+                                                            </option>
+                                                         )
+                                                      )}
+                                                   </select>
+                                                )}
+                                             </div>
+                                          )}
+                                       </div>
                                     </div>
                                     <div>
                                        <Label>Price (RWF) *</Label>
@@ -468,7 +613,9 @@ export default function AddExternalOrderPage() {
                                              handleItemChange(
                                                 index,
                                                 "price",
-                                                e.target.value ? parseFloat(e.target.value) : 0
+                                                e.target.value
+                                                   ? parseFloat(e.target.value)
+                                                   : 0
                                              )
                                           }
                                           required
@@ -484,7 +631,9 @@ export default function AddExternalOrderPage() {
                                              handleItemChange(
                                                 index,
                                                 "quantity",
-                                                e.target.value ? parseInt(e.target.value) : 1
+                                                e.target.value
+                                                   ? parseInt(e.target.value)
+                                                   : 1
                                              )
                                           }
                                           required
@@ -507,7 +656,9 @@ export default function AddExternalOrderPage() {
                            <div className="space-y-2">
                               <div className="flex justify-between font-semibold text-lg border-t pt-2">
                                  <span>Total</span>
-                                 <span>{formData.total.toLocaleString()} RWF</span>
+                                 <span>
+                                    {formData.total.toLocaleString()} RWF
+                                 </span>
                               </div>
                            </div>
                         </CardContent>
@@ -521,40 +672,63 @@ export default function AddExternalOrderPage() {
                         <CardContent className="space-y-4">
                            <div className="flex items-center justify-between rounded-lg border p-3">
                               <div className="space-y-0.5">
-                                 <Label className="text-base">External Order</Label>
+                                 <Label className="text-base">
+                                    External Order
+                                 </Label>
                                  <div className="text-sm text-muted-foreground">
                                     Processed outside the website
                                  </div>
                               </div>
-                              <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+                              <Badge
+                                 variant="secondary"
+                                 className="bg-blue-100 text-blue-800"
+                              >
                                  Yes
                               </Badge>
                            </div>
                            <div className="flex items-center justify-between rounded-lg border p-3">
                               <div className="space-y-0.5">
-                                 <Label className="text-base">Payment Status</Label>
+                                 <Label className="text-base">
+                                    Payment Status
+                                 </Label>
                                  <div className="text-sm text-muted-foreground">
                                     External orders are marked as paid
                                  </div>
                               </div>
-                              <Badge variant="secondary" className="bg-green-100 text-green-800">
+                              <Badge
+                                 variant="secondary"
+                                 className="bg-green-100 text-green-800"
+                              >
                                  Paid
                               </Badge>
                            </div>
                            <div className="flex items-center justify-between rounded-lg border p-3">
                               <div className="space-y-0.5">
-                                 <Label className="text-base">Source Channel</Label>
+                                 <Label className="text-base">
+                                    Source Channel
+                                 </Label>
                                  <div className="text-sm text-muted-foreground">
-                                    {formData.source === "whatsapp" && "WhatsApp communication"}
-                                    {formData.source === "phone" && "Phone call order"}
-                                    {formData.source === "other" && "Other communication channel"}
+                                    {formData.source === "whatsapp" &&
+                                       "WhatsApp communication"}
+                                    {formData.source === "phone" &&
+                                       "Phone call order"}
+                                    {formData.source === "other" &&
+                                       "Other communication channel"}
                                  </div>
                               </div>
                               <div className="flex items-center gap-2">
-                                 {formData.source === "whatsapp" && <MessageSquare className="h-4 w-4 text-green-600" />}
-                                 {formData.source === "phone" && <Phone className="h-4 w-4 text-blue-600" />}
-                                 {formData.source === "other" && <ShoppingCart className="h-4 w-4 text-gray-600" />}
-                                 <span className="text-sm capitalize">{formData.source}</span>
+                                 {formData.source === "whatsapp" && (
+                                    <MessageSquare className="h-4 w-4 text-green-600" />
+                                 )}
+                                 {formData.source === "phone" && (
+                                    <Phone className="h-4 w-4 text-blue-600" />
+                                 )}
+                                 {formData.source === "other" && (
+                                    <ShoppingCart className="h-4 w-4 text-gray-600" />
+                                 )}
+                                 <span className="text-sm capitalize">
+                                    {formData.source}
+                                 </span>
                               </div>
                            </div>
                         </CardContent>
@@ -567,7 +741,11 @@ export default function AddExternalOrderPage() {
                         </CardHeader>
                         <CardContent className="space-y-4">
                            <div className="text-sm text-muted-foreground">
-                              External orders are automatically marked as paid and processed outside the regular website flow. They represent orders received through other channels like WhatsApp, phone calls, or in-person sales.
+                              External orders are automatically marked as paid
+                              and processed outside the regular website flow.
+                              They represent orders received through other
+                              channels like WhatsApp, phone calls, or in-person
+                              sales.
                            </div>
                         </CardContent>
                      </Card>

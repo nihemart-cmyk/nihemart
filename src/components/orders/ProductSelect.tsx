@@ -22,15 +22,24 @@ interface ProductSelectProps {
    onSelect: (product: Product) => void;
    products: Product[];
    selectedProduct?: Product | null;
+   isLoading?: boolean;
 }
 
 export function ProductSelect({
    onSelect,
    products,
    selectedProduct,
+   isLoading,
 }: ProductSelectProps) {
    const [open, setOpen] = useState(false);
+   const [query, setQuery] = useState("");
 
+   const truncateWords = (s: string | undefined, count = 5) => {
+      if (!s) return "";
+      const parts = s.trim().split(/\s+/);
+      if (parts.length <= count) return s;
+      return parts.slice(0, count).join(" ") + "...";
+   };
    return (
       <Popover
          open={open}
@@ -43,38 +52,70 @@ export function ProductSelect({
                aria-expanded={open}
                className="w-full justify-between"
             >
-               {selectedProduct ? selectedProduct.name : "Select product..."}
+               {selectedProduct ? (
+                  <span title={selectedProduct.name}>
+                     {truncateWords(selectedProduct.name, 5)}
+                  </span>
+               ) : (
+                  "Select product..."
+               )}
                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
             </Button>
          </PopoverTrigger>
          <PopoverContent className="w-full p-0">
             <Command>
-               <CommandInput placeholder="Search products..." />
-               <CommandEmpty>No product found.</CommandEmpty>
+               <CommandInput
+                  placeholder="Search products..."
+                  value={query}
+                  onValueChange={(val) => setQuery(val)}
+               />
+               <CommandEmpty>
+                  {isLoading ? "Loading products..." : "No product found."}
+               </CommandEmpty>
                <CommandGroup className="max-h-60 overflow-y-auto">
-                  {products.map((product) => (
-                     <CommandItem
-                        key={product.id}
-                        value={product.name}
-                        onSelect={() => {
-                           onSelect(product);
-                           setOpen(false);
-                        }}
-                     >
-                        <Check
-                           className={cn(
-                              "mr-2 h-4 w-4",
-                              selectedProduct?.id === product.id
-                                 ? "opacity-100"
-                                 : "opacity-0"
-                           )}
-                        />
-                        {product.name}
-                        <span className="ml-auto text-muted-foreground">
-                           {product.price?.toLocaleString()} RWF
-                        </span>
-                     </CommandItem>
-                  ))}
+                  {products
+                     .filter(
+                        (p) =>
+                           !query ||
+                           p.name.toLowerCase().includes(query.toLowerCase())
+                     )
+                     .map((product) => (
+                        <CommandItem
+                           key={product.id}
+                           value={product.name}
+                           onSelect={() => {
+                              onSelect(product);
+                              setOpen(false);
+                           }}
+                        >
+                           <Check
+                              className={cn(
+                                 "mr-2 h-4 w-4",
+                                 selectedProduct?.id === product.id
+                                    ? "opacity-100"
+                                    : "opacity-0"
+                              )}
+                           />
+                           <div className="flex items-center gap-3 w-full">
+                              {product.main_image_url ? (
+                                 // eslint-disable-next-line @next/next/no-img-element
+                                 <img
+                                    src={product.main_image_url}
+                                    alt={product.name}
+                                    className="h-8 w-8 rounded object-cover"
+                                 />
+                              ) : (
+                                 <div className="h-8 w-8 rounded bg-slate-100" />
+                              )}
+                              <div className="flex-1 text-left truncate">
+                                 {product.name}
+                              </div>
+                              <span className="ml-auto text-muted-foreground">
+                                 {product.price?.toLocaleString()} RWF
+                              </span>
+                           </div>
+                        </CommandItem>
+                     ))}
                </CommandGroup>
             </Command>
          </PopoverContent>
