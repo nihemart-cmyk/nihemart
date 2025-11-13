@@ -17,6 +17,7 @@ export type OrderMeta = {
    customer_name?: string;
    customer_phone?: string;
    delivery_address?: string;
+   delivery_time?: string;
 };
 
 function formatCurrency(amount: number, currency = "RWF"): string {
@@ -92,6 +93,26 @@ export function buildOrderConfirmationEmail(
             ? `<div style=\\"font-size:12px;color:#666;margin-top:6px\\">Deliver to: ${meta.delivery_address}</div>`
             : ""
       }
+         ${
+            meta.delivery_time
+               ? (() => {
+                    try {
+                       const d = new Date(meta.delivery_time as string);
+                       const fmt = d.toLocaleString("en-RW", {
+                          timeZone: "Africa/Kigali",
+                          year: "numeric",
+                          month: "short",
+                          day: "numeric",
+                          hour: "numeric",
+                          minute: "numeric",
+                       } as any);
+                       return `<div style=\"font-size:12px;color:#666;margin-top:6px\">Requested delivery time: ${fmt} (Kigali)</div>`;
+                    } catch (e) {
+                       return `<div style=\"font-size:12px;color:#666;margin-top:6px\">Requested delivery time: ${meta.delivery_time}</div>`;
+                    }
+                 })()
+               : ""
+         }
       <div style=\"text-align:center;margin-top:18px\"><a href=\"${
          process.env.NEXT_PUBLIC_APP_URL || "#"
       }/orders\" style=\"background:#1DB4E7;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;display:inline-block;font-weight:600\">View your order</a></div>

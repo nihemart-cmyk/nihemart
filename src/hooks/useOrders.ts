@@ -155,20 +155,60 @@ export function useCreateOrder() {
             throw new Error("Invalid order data structure");
          }
          try {
-            // Check if orders are enabled (server-side setting)
+            // Check if orders are enabled (server-side setting).
+            // When orders are disabled we still allow customers to place external/internal orders
+            // but they must supply a delivery_time scheduled for the next day. If delivery_time is
+            // missing or invalid we throw a descriptive error so the UI can prompt the user.
             try {
                const resp = await fetch("/api/admin/settings/orders-enabled");
                if (resp.ok) {
                   const j = await resp.json();
                   const enabled = Boolean(j.enabled);
-                  // If orders are disabled and this is not an external order, block
                   if (!enabled && !orderData.order.is_external) {
-                     const msg =
-                        j.message ||
-                        "Ordering is currently disabled by the admin. Please try again later.";
-                     const e: any = new Error(msg);
-                     e.code = "ORDERS_DISABLED";
-                     throw e;
+                     // Require delivery_time when admin has disabled ordering
+                     const dt = orderData.order.delivery_time;
+                     if (!dt) {
+                        const e: any = new Error(
+                           j.message ||
+                              "Ordering is currently restricted — please choose a delivery time for next day."
+                        );
+                        e.code = "ORDERS_NEED_DELIVERY_TIME";
+                        throw e;
+                     }
+
+                     // Validate that delivery_time falls on the next calendar day (local)
+                     try {
+                        const delivery = new Date(dt);
+                        if (isNaN(delivery.getTime())) {
+                           const e: any = new Error(
+                              "Invalid delivery time format"
+                           );
+                           e.code = "ORDERS_INVALID_DELIVERY_TIME";
+                           throw e;
+                        }
+
+                        const now = new Date();
+                        const tomorrow = new Date(
+                           now.getFullYear(),
+                           now.getMonth(),
+                           now.getDate() + 1
+                        );
+                        const dayAfter = new Date(
+                           tomorrow.getFullYear(),
+                           tomorrow.getMonth(),
+                           tomorrow.getDate() + 1
+                        );
+
+                        if (delivery < tomorrow || delivery >= dayAfter) {
+                           const e: any = new Error(
+                              "When orders are disabled delivery must be scheduled for the next day"
+                           );
+                           e.code = "ORDERS_DELIVERY_TIME_NOT_NEXT_DAY";
+                           throw e;
+                        }
+                     } catch (dtErr) {
+                        throw dtErr;
+                     }
                   }
                }
             } catch (flagErr) {

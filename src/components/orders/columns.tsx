@@ -134,6 +134,22 @@ export const columns: ColumnDef<Order>[] = [
    },
 
    {
+      accessorKey: "delivery_time",
+      header: "DELIVERY",
+      cell: ({ row }) => {
+         const v = row.getValue("delivery_time");
+         if (!v)
+            return <span className="text-sm text-muted-foreground">—</span>;
+         const d = typeof v === "string" ? new Date(v) : (v as Date);
+         return (
+            <span className="text-sm text-muted-foreground">
+               {isValid(d) ? format(d, "MMM d, HH:mm") : String(v)}
+            </span>
+         );
+      },
+   },
+
+   {
       id: "customer",
       header: "CUSTOMER",
       cell: ({ row }) => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { format } from "date-fns";
+import { format, isValid } from "date-fns";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Order, OrderItem, Rider } from "@/types/orders";
 import { Button } from "@/components/ui/button";
@@ -265,6 +265,17 @@ export function OrderDetailsDialog({
                         {order.delivery_notes && (
                            <p className="text-sm text-muted-foreground italic">
                               Note: {order.delivery_notes}
+                           </p>
+                        )}
+                        {order.delivery_time && (
+                           <p className="text-sm text-muted-foreground mt-2">
+                              <strong>Requested delivery time: </strong>
+                              {isValid(new Date(order.delivery_time))
+                                 ? format(
+                                      new Date(order.delivery_time),
+                                      "MMMM d, yyyy 'at' HH:mm"
+                                   )
+                                 : String(order.delivery_time)}
                            </p>
                         )}
                      </div>

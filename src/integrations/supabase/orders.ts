@@ -1223,6 +1223,104 @@ export async function createOrder({
          throw new Error("Invalid order data provided");
       }
 
+      // Server-side enforcement: when orders are effectively disabled (either
+      // explicitly by admin or by the off-hours schedule), require the client
+      // to provide a requested delivery_time that falls on the next calendar
+      // day in Kigali local time. This prevents clients from bypassing the
+      // client-side guard.
+      try {
+         // Fetch admin setting if present
+         const { data: ss, error: ssErr } = await sb
+            .from("site_settings")
+            .select("value")
+            .eq("key", "orders_enabled")
+            .maybeSingle();
+         if (ssErr) throw ssErr;
+         const val = ss?.value;
+         const adminHasSetting = typeof val !== "undefined" && val !== null;
+         const adminEnabled = adminHasSetting
+            ? val === true || String(val) === "true" || (val && val === "true")
+            : null;
+
+         // Kigali offset (UTC+2)
+         const KIGALI_OFFSET_HOURS = 2;
+         const OFFSET_MS = KIGALI_OFFSET_HOURS * 60 * 60 * 1000;
+         const nowMs = Date.now();
+         const kigaliMs = nowMs + OFFSET_MS;
+         const kigaliDate = new Date(kigaliMs);
+         const kYear = kigaliDate.getUTCFullYear();
+         const kMonth = kigaliDate.getUTCMonth();
+         const kDate = kigaliDate.getUTCDate();
+
+         // Determine schedule-based disabled window (21:30-09:00)
+         const kHour = kigaliDate.getUTCHours();
+         const kMinute = kigaliDate.getUTCMinutes();
+         const minuteOfDay = kHour * 60 + kMinute;
+         const offStart = 21 * 60 + 30; // 21:30
+         const offEnd = 9 * 60; // 09:00
+         const scheduleDisabled =
+            minuteOfDay >= offStart || minuteOfDay < offEnd;
+
+         const enabled =
+            adminEnabled !== null ? Boolean(adminEnabled) : !scheduleDisabled;
+
+         if (!enabled) {
+            // Must provide delivery_time
+            const dt = (order as any).delivery_time;
+            if (!dt) {
+               const e: any = new Error(
+                  "Delivery time required when orders are disabled"
+               );
+               e.code = "ORDERS_NEED_DELIVERY_TIME";
+               throw e;
+            }
+            const parsed = new Date(dt);
+            if (isNaN(parsed.getTime())) {
+               const e: any = new Error("Invalid delivery_time format");
+               e.code = "ORDERS_INVALID_DELIVERY_TIME";
+               throw e;
+            }
+
+            // Convert provided timestamp to Kigali local calendar date by adding offset
+            const deliveryKigaliMs = parsed.getTime() + OFFSET_MS;
+            const deliveryKigali = new Date(deliveryKigaliMs);
+            const dYear = deliveryKigali.getUTCFullYear();
+            const dMonth = deliveryKigali.getUTCMonth();
+            const dDate = deliveryKigali.getUTCDate();
+
+            // Tomorrow's Kigali local date
+            const tomorrowKigaliUtcMs = Date.UTC(
+               kYear,
+               kMonth,
+               kDate + 1,
+               0,
+               0,
+               0,
+               0
+            );
+            const tomorrow = new Date(tomorrowKigaliUtcMs);
+            const tYear = tomorrow.getUTCFullYear();
+            const tMonth = tomorrow.getUTCMonth();
+            const tDate = tomorrow.getUTCDate();
+
+            if (!(dYear === tYear && dMonth === tMonth && dDate === tDate)) {
+               const e: any = new Error(
+                  "Delivery time must be for the next calendar day (Kigali local time)"
+               );
+               e.code = "ORDERS_DELIVERY_TIME_NOT_NEXT_DAY";
+               throw e;
+            }
+         }
+      } catch (svErr) {
+         // If this is a structured validation error, rethrow to be handled by outer catch
+         if ((svErr as any)?.code) throw svErr;
+         // Otherwise, log and continue (do not block order creation for transient validation lookup failures)
+         console.warn(
+            "createOrder: server-side validation lookup failed:",
+            svErr
+         );
+      }
+
       // Start transaction by creating the order first
       const orderToCreate = {
          ...order,

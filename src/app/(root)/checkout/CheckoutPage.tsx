@@ -354,6 +354,43 @@ const CheckoutPage = ({
       airtel_money?: string;
    }>({});
    const [ordersEnabled, setOrdersEnabled] = useState<boolean | null>(null);
+   // When orders are disabled admin-side, customers must pick a delivery time (next day)
+   const [deliveryTime, setDeliveryTime] = useState<string | null>(null);
+   const formatLocalDateTimeForInput = (d: Date) => {
+      const pad = (n: number) => String(n).padStart(2, "0");
+      const yyyy = d.getFullYear();
+      const mm = pad(d.getMonth() + 1);
+      const dd = pad(d.getDate());
+      const hh = pad(d.getHours());
+      const min = pad(d.getMinutes());
+      return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
+   };
+   const nextDayMinLocal = (() => {
+      const now = new Date();
+      const tomorrow = new Date(
+         now.getFullYear(),
+         now.getMonth(),
+         now.getDate() + 1,
+         0,
+         0,
+         0,
+         0
+      );
+      return formatLocalDateTimeForInput(tomorrow);
+   })();
+   const nextDayMaxLocal = (() => {
+      const now = new Date();
+      const tomorrowEnd = new Date(
+         now.getFullYear(),
+         now.getMonth(),
+         now.getDate() + 1,
+         23,
+         59,
+         0,
+         0
+      );
+      return formatLocalDateTimeForInput(tomorrowEnd);
+   })();
    const [preventPersistence, setPreventPersistence] = useState(false);
    const formatPhoneInput = (input: string) => {
       // Remove all non-digit characters except +
@@ -1665,14 +1702,16 @@ const CheckoutPage = ({
       // If in retry mode, we still allow the pre-pay flow using the local
       // persisted checkout snapshot instead of fetching the server order.
 
-      // Block creation early if orders are disabled
+      // If orders are disabled, require a delivery time scheduled for next day
       if (ordersEnabled === false) {
-         toast.error(
-            t("checkout.ordersDisabledMessage") ||
-               "Ordering is currently disabled. Please try later."
-         );
-         setIsSubmitting(false);
-         return;
+         if (!deliveryTime) {
+            toast.error(
+               t("checkout.pickDeliveryTimeNextDay") ||
+                  "Ordering is restricted. Please choose a delivery time for next day."
+            );
+            setIsSubmitting(false);
+            return;
+         }
       }
 
       try {
@@ -1717,6 +1756,10 @@ const CheckoutPage = ({
                payment_method: paymentMethod || "cash_on_delivery",
                delivery_notes:
                   (formData.delivery_notes || "").trim() || undefined,
+               // attach scheduled delivery time when provided
+               ...(deliveryTime
+                  ? { delivery_time: new Date(deliveryTime).toISOString() }
+                  : {}),
             },
             items: orderItems.map((item) => {
                const explicitProductId = (item as any).product_id as
@@ -1753,6 +1796,13 @@ const CheckoutPage = ({
             orderData.order.delivery_notes = formData.delivery_notes;
          }
 
+         // If orders are disabled but deliveryTime was provided ensure it is included
+         if (ordersEnabled === false && deliveryTime) {
+            orderData.order.delivery_time = new Date(
+               deliveryTime
+            ).toISOString();
+         }
+
          if (!createOrder || typeof createOrder.mutate !== "function") {
             console.error("createOrder mutation is not available", createOrder);
             toast.error(
@@ -1767,7 +1817,6 @@ const CheckoutPage = ({
             paymentMethod !== "cash_on_delivery" &&
             paymentVerified
          ) {
-          
             // Create the order now (payment already completed)
             try {
                // Prevent the empty-cart redirect while we create the order and navigate
@@ -3215,6 +3264,32 @@ Total: ${total.toLocaleString()} RWF
                                     {t("common.edit")}
                                  </Button>
                               </div>
+                           </div>
+                        )}
+
+                        {/* When admin disables ordering prompt user to pick next-day delivery time */}
+                        {ordersEnabled === false && (
+                           <div className="mt-3 p-3 border rounded-md bg-yellow-50 border-yellow-200">
+                              <p className="text-sm text-yellow-900 font-medium">
+                                 {t("checkout.ordersDisabledPrompt") ||
+                                    "We are not accepting regular deliveries right now. Please choose a preferred delivery time for the next day:"}
+                              </p>
+                              <div className="mt-2 flex gap-2 items-center">
+                                 <Input
+                                    type="datetime-local"
+                                    value={deliveryTime || nextDayMinLocal}
+                                    min={nextDayMinLocal}
+                                    max={nextDayMaxLocal}
+                                    step={900}
+                                    onChange={(e) =>
+                                       setDeliveryTime(e.target.value)
+                                    }
+                                 />
+                              </div>
+                              <p className="text-xs text-yellow-800 mt-2">
+                                 {t("checkout.pickDeliveryTimeHint") ||
+                                    "You may select any time on the next day. Admin will see the requested delivery time on the dashboard."}
+                              </p>
                            </div>
                         )}
 

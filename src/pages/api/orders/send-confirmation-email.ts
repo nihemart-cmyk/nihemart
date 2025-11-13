@@ -34,14 +34,13 @@ export default async function handler(
          currency: order.currency,
          customer_name: order.customer_first_name || order.customer_name,
          delivery_address: order.delivery_address,
+         delivery_time: order.delivery_time,
       });
       const result = await sendEmail(order.customer_email, subject, html);
       return res.status(200).json(result);
    } catch (e: any) {
-      return res
-         .status(500)
-         .json({
-            error: e.message || "Failed to send order confirmation email",
-         });
+      return res.status(500).json({
+         error: e.message || "Failed to send order confirmation email",
+      });
    }
 }
