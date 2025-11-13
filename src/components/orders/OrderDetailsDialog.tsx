@@ -101,6 +101,10 @@ export function OrderDetailsDialog({
    const [productImages, setProductImages] = useState<
       Record<string, string | null>
    >({});
+   // Map of product_variation_id -> variation name (populated from product detail fetch)
+   const [productVariationNames, setProductVariationNames] = useState<
+      Record<string, string>
+   >({});
 
    useEffect(() => {
       let mounted = true;
@@ -119,17 +123,33 @@ export function OrderDetailsDialog({
             );
             if (ids.length === 0) return;
             const map: Record<string, string | null> = {};
+            const variationMap: Record<string, string> = {};
             await Promise.all(
                ids.map(async (id) => {
                   try {
                      const data = await fetchStoreProductById(id);
                      map[id] = data?.product?.main_image_url || null;
+                     // collect variations mapping for this product
+                     if (data && Array.isArray(data.variations)) {
+                        for (const v of data.variations) {
+                           if (v && v.id && v.name) {
+                              variationMap[v.id] = v.name;
+                           }
+                        }
+                     }
                   } catch (e) {
                      map[id] = null;
                   }
                })
             );
-            if (mounted) setProductImages(map);
+            if (mounted) {
+               setProductImages(map);
+               // merge with existing mapping without clobbering
+               setProductVariationNames((prev) => ({
+                  ...prev,
+                  ...variationMap,
+               }));
+            }
          } catch (e) {
             // ignore
          }
@@ -343,11 +363,25 @@ export function OrderDetailsDialog({
                                        </>
                                     ) : null}
                                  </div>
-                                 {item.variation_name && (
-                                    <p className="text-sm text-muted-foreground">
-                                       Variation: {item.variation_name}
-                                    </p>
-                                 )}
+                                 {/* Prefer explicit variation_name saved on the order item, but
+                                     fall back to a product variation lookup (fetched above)
+                                     when available. This ensures admins see which variation
+                                     the user selected even if the order row did not include
+                                     the variation_name field. */}
+                                 {(() => {
+                                    const vLabel =
+                                       item.variation_name ||
+                                       (item.product_variation_id
+                                          ? productVariationNames[
+                                               item.product_variation_id
+                                            ]
+                                          : undefined);
+                                    return vLabel ? (
+                                       <p className="text-sm text-muted-foreground">
+                                          Variation: {vLabel}
+                                       </p>
+                                    ) : null;
+                                 })()}
                                  <div className="flex justify-between items-center mt-2">
                                     <p className="text-sm text-muted-foreground">
                                        Quantity: {item.quantity} ×{" "}

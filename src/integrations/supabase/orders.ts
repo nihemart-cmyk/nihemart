@@ -1251,6 +1251,43 @@ export async function createOrder({
       const isUuid = (v: any) =>
          typeof v === "string" && /^[0-9a-fA-F-]{36}$/.test(v);
 
+      // Preload variation names for any provided product_variation_id so we can
+      // persist a human-readable variation_name on the order item when the
+      // client didn't include it. This makes the admin UI deterministic and
+      // avoids needing runtime lookups later.
+      const variationIds = Array.from(
+         new Set(
+            items
+               .map((it) =>
+                  isUuid(it.product_variation_id)
+                     ? it.product_variation_id
+                     : null
+               )
+               .filter(Boolean) as string[]
+         )
+      );
+
+      let variationNameMap: Record<string, string> = {};
+      try {
+         if (variationIds.length > 0) {
+            const { data: variations, error: varErr } = await sb
+               .from("product_variations")
+               .select("id, name")
+               .in("id", variationIds as string[]);
+            if (!varErr && Array.isArray(variations)) {
+               for (const v of variations) {
+                  if (v && v.id) variationNameMap[v.id] = v.name || "";
+               }
+            }
+         }
+      } catch (e) {
+         // Non-fatal: we'll still create the order items without the variation name
+         console.warn(
+            "Failed to preload product variations for order items:",
+            e
+         );
+      }
+
       const orderItems = items.map((item) => {
          const pid = item.product_id;
          const pvid = item.product_variation_id;
@@ -1265,13 +1302,21 @@ export async function createOrder({
             );
          }
 
+         // Prefer variation_name provided by client; otherwise use the
+         // preloaded variation name where available.
+         const finalVariationName =
+            item.variation_name ||
+            (normalizedVariationId
+               ? variationNameMap[normalizedVariationId] || null
+               : null);
+
          return {
             order_id: createdOrder.id,
             product_id: normalizedProductId,
             product_variation_id: normalizedVariationId,
             product_name: item.product_name,
             product_sku: item.product_sku || null,
-            variation_name: item.variation_name || null,
+            variation_name: finalVariationName,
             price: item.price,
             quantity: item.quantity,
             total: item.price * item.quantity,

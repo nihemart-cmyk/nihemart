@@ -132,6 +132,7 @@ export const columns: ColumnDef<Order>[] = [
          );
       },
    },
+
    {
       id: "customer",
       header: "CUSTOMER",
