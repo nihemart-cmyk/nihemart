@@ -6,6 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useState } from "react";
 import { useOrders } from "@/hooks/useOrders";
 import { Order } from "@/types/orders";
+import { fetchOrderById } from "@/integrations/supabase/orders";
 import { format } from "date-fns";
 import Link from "next/link";
 import { ColumnDef } from "@tanstack/react-table";
@@ -22,6 +23,7 @@ import {
 import { MoreHorizontal, PlusCircle, Dot } from "lucide-react";
 import { UserAvatarProfile } from "@/components/user-avatar-profile";
 import { DataTable } from "@/components/orders/data-table";
+import { ManageRefundDialog } from "@/components/orders/ManageRefundDialog";
 import {
    Pagination,
    PaginationContent,
@@ -55,110 +57,6 @@ interface ExternalOrder {
    items: ExternalOrderItem[];
 }
 import type { OrderStatus } from "@/types/orders";
-
-const columns: ColumnDef<ExternalOrder>[] = [
-   {
-      accessorKey: "order_number",
-      header: "ORDER",
-      cell: ({ row }) => (
-         <span className="text-text-primary">
-            #{row.getValue("order_number") || row.original.id}
-         </span>
-      ),
-   },
-   {
-      accessorKey: "order_date",
-      header: "DATE",
-      cell: ({ row }) =>
-         format(new Date(row.getValue("order_date")), "MMM d, yyyy"),
-   },
-   {
-      accessorKey: "customer_name",
-      header: "CUSTOMER",
-      cell: ({ row }) => {
-         const order = row.original;
-         return (
-            <UserAvatarProfile
-               user={{
-                  fullName: order.customer_name,
-                  subTitle: order.customer_phone,
-               }}
-               showInfo
-            />
-         );
-      },
-   },
-   {
-      accessorKey: "source",
-      header: "SOURCE",
-      cell: ({ row }) => (
-         <Badge
-            variant="secondary"
-            className="capitalize"
-         >
-            {row.getValue("source")}
-         </Badge>
-      ),
-   },
-   {
-      accessorKey: "status",
-      header: "STATUS",
-      cell: ({ row }) => {
-         const status = row.getValue("status") as string;
-         return (
-            <Badge
-               className={cn("capitalize font-semibold", {
-                  "bg-green-500/10 text-green-500": status === "delivered",
-                  "bg-yellow-500/10 text-yellow-500":
-                     status === "pending" || status === "processing",
-                  "bg-red-500/10 text-red-500": status === "cancelled",
-               })}
-            >
-               {status}
-            </Badge>
-         );
-      },
-   },
-   {
-      accessorKey: "total",
-      header: "TOTAL",
-      cell: ({ row }) => (
-         <div className="font-medium">
-            {row.getValue<number>("total").toLocaleString()} RWF
-         </div>
-      ),
-   },
-   {
-      id: "actions",
-      cell: ({ row }) => {
-         const order = row.original;
-         return (
-            <DropdownMenu>
-               <DropdownMenuTrigger asChild>
-                  <Button
-                     variant="ghost"
-                     className="h-8 w-8 p-0"
-                  >
-                     <span className="sr-only">Open menu</span>
-                     <MoreHorizontal className="h-4 w-4" />
-                  </Button>
-               </DropdownMenuTrigger>
-               <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                  <DropdownMenuItem
-                     onClick={() => navigator.clipboard.writeText(order.id)}
-                  >
-                     Copy order ID
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem>View order details</DropdownMenuItem>
-                  <DropdownMenuItem>Update status</DropdownMenuItem>
-               </DropdownMenuContent>
-            </DropdownMenu>
-         );
-      },
-   },
-];
 
 export default function ExternalOrdersPage() {
    const { useAllOrders } = useOrders();
@@ -219,6 +117,165 @@ export default function ExternalOrdersPage() {
       for (let i = start; i <= end; i++) pages.push(i);
       return pages;
    };
+
+   // Admin refund helpers / state
+   const { useRequestRefundOrder } = useOrders();
+   const requestRefundOrder = useRequestRefundOrder();
+   const [showManageRefund, setShowManageRefund] = useState(false);
+   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+
+   // Table columns (defined inside component so we can access local state)
+   const columns: ColumnDef<ExternalOrder>[] = [
+      {
+         accessorKey: "order_number",
+         header: "ORDER",
+         cell: ({ row }) => (
+            <span className="text-text-primary">
+               #{row.getValue("order_number") || row.original.id}
+            </span>
+         ),
+      },
+      {
+         accessorKey: "order_date",
+         header: "DATE",
+         cell: ({ row }) =>
+            format(new Date(row.getValue("order_date")), "MMM d, yyyy"),
+      },
+      {
+         accessorKey: "customer_name",
+         header: "CUSTOMER",
+         cell: ({ row }) => (
+            <UserAvatarProfile
+               user={{
+                  fullName: row.original.customer_name,
+                  subTitle: row.original.customer_phone,
+               }}
+               showInfo
+            />
+         ),
+      },
+      {
+         accessorKey: "source",
+         header: "SOURCE",
+         cell: ({ row }) => (
+            <Badge
+               variant="secondary"
+               className="capitalize"
+            >
+               {row.getValue("source")}
+            </Badge>
+         ),
+      },
+      {
+         accessorKey: "status",
+         header: "STATUS",
+         cell: ({ row }) => {
+            const status = row.getValue("status") as string;
+            return (
+               <Badge
+                  className={cn("capitalize font-semibold", {
+                     "bg-green-500/10 text-green-500": status === "delivered",
+                     "bg-yellow-500/10 text-yellow-500":
+                        status === "pending" || status === "processing",
+                     "bg-red-500/10 text-red-500": status === "cancelled",
+                  })}
+               >
+                  {status}
+               </Badge>
+            );
+         },
+      },
+      {
+         accessorKey: "total",
+         header: "TOTAL",
+         cell: ({ row }) => (
+            <div className="font-medium">
+               {row.getValue<number>("total").toLocaleString()} RWF
+            </div>
+         ),
+      },
+      {
+         id: "actions",
+         cell: ({ row }) => {
+            const order = row.original;
+            // Admin-only page; keep action available to admins
+            return (
+               <>
+                  <DropdownMenu>
+                     <DropdownMenuTrigger asChild>
+                        <Button
+                           variant="ghost"
+                           className="h-8 w-8 p-0"
+                        >
+                           <span className="sr-only">Open menu</span>
+                           <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                     </DropdownMenuTrigger>
+                     <DropdownMenuContent align="end">
+                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                        <DropdownMenuItem
+                           onClick={() =>
+                              navigator.clipboard.writeText(order.id)
+                           }
+                        >
+                           Copy order ID
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                           onClick={async () => {
+                              try {
+                                 // Try to find the full order from the fetched page
+                                 const full = ordersResponse?.data?.find(
+                                    (o: Order) => o.id === order.id
+                                 );
+                                 if (full) {
+                                    if (full.refund_status !== "requested") {
+                                       // create admin-initiated refund request then open dialog
+                                       const updated =
+                                          await requestRefundOrder.mutateAsync({
+                                             orderId: full.id,
+                                             reason: "Admin initiated refund",
+                                          });
+                                       setSelectedOrder(updated as Order);
+                                    } else {
+                                       setSelectedOrder(full as Order);
+                                    }
+                                    setShowManageRefund(true);
+                                 } else {
+                                    const fetched = await fetchOrderById(
+                                       order.id
+                                    );
+                                    if (!fetched)
+                                       throw new Error("Order not found");
+                                    if (fetched.refund_status !== "requested") {
+                                       const updated =
+                                          await requestRefundOrder.mutateAsync({
+                                             orderId: fetched.id,
+                                             reason: "Admin initiated refund",
+                                          });
+                                       setSelectedOrder(updated as Order);
+                                    } else {
+                                       setSelectedOrder(fetched as Order);
+                                    }
+                                    setShowManageRefund(true);
+                                 }
+                              } catch (err) {
+                                 console.error("Manage refund failed:", err);
+                              }
+                           }}
+                        >
+                           Manage refund
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem>View order details</DropdownMenuItem>
+                        <DropdownMenuItem>Update status</DropdownMenuItem>
+                     </DropdownMenuContent>
+                  </DropdownMenu>
+               </>
+            );
+         },
+      },
+   ];
 
    return (
       <ScrollArea className="bg-surface-secondary h-[calc(100vh-5rem)]">
@@ -282,6 +339,16 @@ export default function ExternalOrdersPage() {
                   data={ordersData}
                />
             </div>
+            {selectedOrder && (
+               <ManageRefundDialog
+                  open={showManageRefund}
+                  onOpenChange={(v) => {
+                     setShowManageRefund(v);
+                     if (!v) setSelectedOrder(null);
+                  }}
+                  order={selectedOrder}
+               />
+            )}
             <div className="mt-4">
                <Pagination>
                   <PaginationContent>

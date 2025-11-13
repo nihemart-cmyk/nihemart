@@ -126,5 +126,47 @@ export async function createExternalOrder(
       throw new Error(`Failed to create order items: ${itemsError.message}`);
    }
 
+   // If this external order was paid at creation time, create a payments row
+   // so admin can later process refunds using the existing payments/refunds flows.
+   if (is_paid) {
+      try {
+         const reference = `EXT_${Date.now()}_${Math.random()
+            .toString(36)
+            .slice(2, 8)}`;
+
+         const paymentRow: any = {
+            order_id: orderData.id,
+            amount: total,
+            currency: "RWF",
+            payment_method: "manual",
+            status: "completed",
+            reference,
+            customer_name: customer_name,
+            customer_email: customer_email || "",
+            customer_phone: customer_phone,
+            completed_at: new Date().toISOString(),
+         };
+
+         const { error: paymentError } = await sb
+            .from("payments")
+            .insert([paymentRow]);
+
+         if (paymentError) {
+            // Log but do not fail — order and items were created; admin can still
+            // create the payment manually if necessary. However, surface a clear
+            // error for debugging.
+            console.error(
+               "Failed to create payment row for external order:",
+               paymentError
+            );
+         }
+      } catch (err) {
+         console.error(
+            "Unexpected error creating payment row for external order:",
+            err
+         );
+      }
+   }
+
    return orderData;
 }
