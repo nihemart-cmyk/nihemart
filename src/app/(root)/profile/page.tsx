@@ -117,7 +117,8 @@ const Profile = () => {
          try {
             const res = await fetch("/api/admin/settings/orders-enabled");
             if (!res.ok) {
-               if (mounted) setOrdersEnabled(true);
+               // Treat missing/unreachable API as unknown so schedule controls the flag by default
+               if (mounted) setOrdersEnabled(null);
             } else {
                const j = await res.json();
                if (!mounted) return;
@@ -129,7 +130,8 @@ const Profile = () => {
                "Failed to fetch orders_enabled for profile page:",
                err
             );
-            if (mounted) setOrdersEnabled(true);
+            // On error, leave null so the scheduler (auto) behavior is used by default
+            if (mounted) setOrdersEnabled(null);
          }
       })();
 

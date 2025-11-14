@@ -146,20 +146,21 @@ const OrdersTable: FC<OrdersTableProps> = () => {
       allOrdersUnpaginated?.count ?? ordersData?.count ?? orders.length ?? 0;
    const totalCount = Number(authoritativeCount || 0);
    const totalPages = Math.max(1, Math.ceil(totalCount / limit));
-      // Fallback: if authoritative counts are missing or 0 but current page is
-      // full (orders.length === limit), assume there may be more pages. This
-      // avoids disabling Next when the DB count isn't available or accurate.
-      const hasMore =
-         (totalCount > page * limit) || // authoritative says more
-         (orders.length === limit && (allOrdersUnpaginated?.count ?? ordersData?.count ?? 0) === 0);
+   // Fallback: if authoritative counts are missing or 0 but current page is
+   // full (orders.length === limit), assume there may be more pages. This
+   // avoids disabling Next when the DB count isn't available or accurate.
+   const hasMore =
+      totalCount > page * limit || // authoritative says more
+      (orders.length === limit &&
+         (allOrdersUnpaginated?.count ?? ordersData?.count ?? 0) === 0);
 
-      // If authoritative count is missing (0) but we detect that current page
-      // is full (hasMore), expose an extra page so users can navigate forward.
-      const effectiveTotalPages =
-         totalCount > 0 ? totalPages : hasMore ? Math.max(1, page + 1) : 1;
+   // If authoritative count is missing (0) but we detect that current page
+   // is full (hasMore), expose an extra page so users can navigate forward.
+   const effectiveTotalPages =
+      totalCount > 0 ? totalPages : hasMore ? Math.max(1, page + 1) : 1;
 
-      const rangeStart = totalCount === 0 ? 0 : (page - 1) * limit + 1;
-      const rangeEnd = Math.min(totalCount, page * limit);
+   const rangeStart = totalCount === 0 ? 0 : (page - 1) * limit + 1;
+   const rangeEnd = Math.min(totalCount, page * limit);
 
    // Debug: log authoritative and fallback counts to diagnose mismatches
    console.log("OrdersTable counts:", {
@@ -218,7 +219,8 @@ const OrdersTable: FC<OrdersTableProps> = () => {
             }
          } catch (err) {
             console.warn("Failed to load orders_enabled setting", err);
-            if (mounted) setOrdersEnabled(true);
+            // Leave as `null` so the UI treats missing/admin setting as schedule-controlled (auto)
+            if (mounted) setOrdersEnabled(null);
          }
       })();
       return () => {
@@ -281,7 +283,6 @@ const OrdersTable: FC<OrdersTableProps> = () => {
 
    return (
       <div className="p-5 rounded-2xl bg-white mt-10">
-        
          <div className="flex gap-5 justify-between flex-col 2xl:flex-row pb-8">
             <div className="hidden md:block rounded-[8px] h-fit py-2 px-3 bg-[#E8F6FB] p-[2px] relative">
                <AnimatedBackground
@@ -773,56 +774,62 @@ const OrdersTable: FC<OrdersTableProps> = () => {
             </div>
          ) : (
             <div className="space-y-4">
-               <DataTable columns={columns} data={orders} />
+               <DataTable
+                  columns={columns}
+                  data={orders}
+               />
 
                <Pagination>
-            <PaginationContent>
-               <PaginationItem>
-                  <PaginationPrevious
-                     href="#"
-                     onClick={(e) => {
-                        e.preventDefault();
-                        handlePageChange(page - 1);
-                     }}
-                     className={
-                        page === 1 ? "pointer-events-none opacity-50" : ""
-                     }
-                  />
-               </PaginationItem>
-               {getPageNumbers().map((p) => (
-                  <PaginationItem key={p}>
-                     <PaginationLink
-                        href="#"
-                        isActive={p === page}
-                        onClick={(e) => {
-                           e.preventDefault();
-                           handlePageChange(p);
-                        }}
-                     >
-                        {p}
-                     </PaginationLink>
-                  </PaginationItem>
-               ))}
-               {page + 2 < effectiveTotalPages && (
-                  <PaginationItem>
-                     <PaginationEllipsis />
-                  </PaginationItem>
-               )}
-               <PaginationItem>
-                     <PaginationNext
-                     href="#"
-                     onClick={(e) => {
-                        e.preventDefault();
-                        if (hasMore) handlePageChange(page + 1);
-                     }}
-                     className={hasMore ? "" : "pointer-events-none opacity-50"}
-                  />
-               </PaginationItem>
-            </PaginationContent>
+                  <PaginationContent>
+                     <PaginationItem>
+                        <PaginationPrevious
+                           href="#"
+                           onClick={(e) => {
+                              e.preventDefault();
+                              handlePageChange(page - 1);
+                           }}
+                           className={
+                              page === 1 ? "pointer-events-none opacity-50" : ""
+                           }
+                        />
+                     </PaginationItem>
+                     {getPageNumbers().map((p) => (
+                        <PaginationItem key={p}>
+                           <PaginationLink
+                              href="#"
+                              isActive={p === page}
+                              onClick={(e) => {
+                                 e.preventDefault();
+                                 handlePageChange(p);
+                              }}
+                           >
+                              {p}
+                           </PaginationLink>
+                        </PaginationItem>
+                     ))}
+                     {page + 2 < effectiveTotalPages && (
+                        <PaginationItem>
+                           <PaginationEllipsis />
+                        </PaginationItem>
+                     )}
+                     <PaginationItem>
+                        <PaginationNext
+                           href="#"
+                           onClick={(e) => {
+                              e.preventDefault();
+                              if (hasMore) handlePageChange(page + 1);
+                           }}
+                           className={
+                              hasMore ? "" : "pointer-events-none opacity-50"
+                           }
+                        />
+                     </PaginationItem>
+                  </PaginationContent>
                </Pagination>
-            </div>)}
-         </div>
-      );
+            </div>
+         )}
+      </div>
+   );
 };
 
 export default OrdersTable;

@@ -153,7 +153,9 @@ export default function OrdersMetrics() {
 
    // Orders enabled toggle
    const [ordersEnabled, setOrdersEnabled] = useState<boolean | null>(null);
-   const [ordersSource, setOrdersSource] = useState<"admin" | "schedule" | null>(null);
+   const [ordersSource, setOrdersSource] = useState<
+      "admin" | "schedule" | null
+   >(null);
    const [toggling, setToggling] = useState(false);
    const [ordersDisabledMessage, setOrdersDisabledMessage] = useState<
       string | null
@@ -177,7 +179,7 @@ export default function OrdersMetrics() {
          setOrdersSource(json.source || null);
          setOrdersDisabledMessage(json.message || null);
          setOrdersScheduleDisabled(Boolean(json.scheduleDisabled));
-         
+
          // If server returned nextToggleAt, schedule a refetch at that time so UI updates automatically
          if (json.nextToggleAt) {
             try {
@@ -192,7 +194,8 @@ export default function OrdersMetrics() {
          }
       } catch (err) {
          console.warn("Failed to load orders_enabled setting", err);
-         setOrdersEnabled(true);
+         // Prefer leaving state null so UI treats missing admin setting as schedule-controlled (auto)
+         setOrdersEnabled(null);
       }
    };
 
@@ -289,21 +292,23 @@ export default function OrdersMetrics() {
                      </p>
                      {ordersSource === "schedule" && (
                         <p className="text-xs mt-1">
-                           Orders are automatically controlled by schedule (9 AM - 9:30 PM Kigali time)
+                           Orders are automatically controlled by schedule (9 AM
+                           - 9:30 PM Kigali time)
                         </p>
                      )}
                   </div>
                </div>
             </div>
          )}
-         
+
          {/* Show info when in schedule mode and enabled */}
          {ordersSource === "schedule" && ordersEnabled === true && (
             <div className="p-3 rounded bg-blue-50 border border-blue-200 text-blue-800">
                <div className="flex items-start gap-2">
                   <Clock className="h-5 w-5 flex-shrink-0 mt-0.5" />
                   <p className="text-sm">
-                     Orders are automatically controlled by schedule (9 AM - 9:30 PM Kigali time)
+                     Orders are automatically controlled by schedule (9 AM -
+                     9:30 PM Kigali time)
                   </p>
                </div>
             </div>
@@ -327,7 +332,7 @@ export default function OrdersMetrics() {
                <Link href="/admin/orders/external">
                   <Button variant="outline">External Orders</Button>
                </Link>
-               
+
                {/* Orders control dropdown with 3 options */}
                <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -337,7 +342,8 @@ export default function OrdersMetrics() {
                         className={
                            ordersSource === "admin" && ordersEnabled === false
                               ? "border-red-500 text-red-600"
-                              : ordersSource === "admin" && ordersEnabled === true
+                              : ordersSource === "admin" &&
+                                ordersEnabled === true
                               ? "border-green-500 text-green-600"
                               : "border-blue-500 text-blue-600"
                         }

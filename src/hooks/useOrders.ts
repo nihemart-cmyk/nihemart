@@ -896,10 +896,13 @@ export function useOrders() {
             mutationFn: ({
                orderId,
                reason,
+               adminInitiated,
             }: {
                orderId: string;
                reason: string;
-            }) => requestRefundForOrder(orderId, reason),
+               adminInitiated?: boolean;
+            }) =>
+               requestRefundForOrder(orderId, reason, Boolean(adminInitiated)),
             onMutate: async ({
                orderId,
                reason,

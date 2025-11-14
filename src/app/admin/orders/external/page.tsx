@@ -24,6 +24,8 @@ import { MoreHorizontal, PlusCircle, Dot } from "lucide-react";
 import { UserAvatarProfile } from "@/components/user-avatar-profile";
 import { DataTable } from "@/components/orders/data-table";
 import { ManageRefundDialog } from "@/components/orders/ManageRefundDialog";
+import { AssignRiderDialog } from "@/components/orders/AssignRiderDialog";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
    Pagination,
    PaginationContent,
@@ -123,6 +125,8 @@ export default function ExternalOrdersPage() {
    const requestRefundOrder = useRequestRefundOrder();
    const [showManageRefund, setShowManageRefund] = useState(false);
    const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+   const [showAssignDialog, setShowAssignDialog] = useState(false);
+   const [assignOrderId, setAssignOrderId] = useState<string | null>(null);
 
    // Table columns (defined inside component so we can access local state)
    const columns: ColumnDef<ExternalOrder>[] = [
@@ -235,7 +239,8 @@ export default function ExternalOrdersPage() {
                                           await requestRefundOrder.mutateAsync({
                                              orderId: full.id,
                                              reason: "Admin initiated refund",
-                                          });
+                                             adminInitiated: true,
+                                          } as any);
                                        setSelectedOrder(updated as Order);
                                     } else {
                                        setSelectedOrder(full as Order);
@@ -252,7 +257,8 @@ export default function ExternalOrdersPage() {
                                           await requestRefundOrder.mutateAsync({
                                              orderId: fetched.id,
                                              reason: "Admin initiated refund",
-                                          });
+                                             adminInitiated: true,
+                                          } as any);
                                        setSelectedOrder(updated as Order);
                                     } else {
                                        setSelectedOrder(fetched as Order);
@@ -266,6 +272,16 @@ export default function ExternalOrdersPage() {
                         >
                            Manage refund
                         </DropdownMenuItem>
+                        {order.status === "pending" && (
+                           <DropdownMenuItem
+                              onClick={() => {
+                                 setAssignOrderId(order.id);
+                                 setShowAssignDialog(true);
+                              }}
+                           >
+                              Assign to rider
+                           </DropdownMenuItem>
+                        )}
                         <DropdownMenuSeparator />
                         <DropdownMenuItem>View order details</DropdownMenuItem>
                         <DropdownMenuItem>Update status</DropdownMenuItem>
@@ -296,6 +312,80 @@ export default function ExternalOrdersPage() {
                      Add External Order
                   </Button>
                </Link>
+            </div>
+
+            {/* External orders metrics (compact) */}
+            <div className="mb-6">
+               {(() => {
+                  const list = (ordersResponse?.data || []) as Order[];
+                  const total = list.length;
+                  const pending = list.filter(
+                     (o) => o.status === "pending"
+                  ).length;
+                  const processing = list.filter(
+                     (o) => o.status === "processing"
+                  ).length;
+                  const delivered = list.filter(
+                     (o) => o.status === "delivered"
+                  ).length;
+                  const shipped = list.filter(
+                     (o) => o.status === "shipped"
+                  ).length;
+                  const cancelled = list.filter(
+                     (o) => o.status === "cancelled"
+                  ).length;
+
+                  const newOrders = pending + processing;
+                  const completed = delivered + shipped;
+
+                  const metrics = [
+                     {
+                        title: "Total External Orders",
+                        value: total.toLocaleString(),
+                        subtitle: "All external orders",
+                     },
+                     {
+                        title: "New",
+                        value: newOrders.toLocaleString(),
+                        subtitle: "Pending / Processing",
+                     },
+                     {
+                        title: "Completed",
+                        value: completed.toLocaleString(),
+                        subtitle: "Delivered / Shipped",
+                     },
+                     {
+                        title: "Cancelled",
+                        value: cancelled.toLocaleString(),
+                        subtitle: "Cancelled orders",
+                     },
+                  ];
+
+                  return (
+                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                        {metrics.map((m) => (
+                           <Card
+                              key={m.title}
+                              className="relative"
+                           >
+                              <CardHeader className="flex items-center justify-between pb-2">
+                                 <h3 className="text-sm font-semibold">
+                                    {m.title}
+                                 </h3>
+                              </CardHeader>
+                              <CardContent>
+                                 <div className="text-2xl font-bold text-[#023337]">
+                                    {m.value}
+                                 </div>
+                                 <div className="text-xs text-muted-foreground mt-2">
+                                    {m.subtitle}
+                                 </div>
+                              </CardContent>
+                           </Card>
+                        ))}
+                     </div>
+                  );
+               })()}
             </div>
 
             {/* Search and Filters */}
@@ -342,13 +432,21 @@ export default function ExternalOrdersPage() {
             {selectedOrder && (
                <ManageRefundDialog
                   open={showManageRefund}
-                  onOpenChange={(v) => {
+                  onOpenChange={(v: boolean) => {
                      setShowManageRefund(v);
                      if (!v) setSelectedOrder(null);
                   }}
                   order={selectedOrder}
                />
             )}
+            <AssignRiderDialog
+               open={showAssignDialog}
+               onOpenChange={(v: boolean) => {
+                  setShowAssignDialog(v);
+                  if (!v) setAssignOrderId(null);
+               }}
+               orderId={assignOrderId ?? ""}
+            />
             <div className="mt-4">
                <Pagination>
                   <PaginationContent>

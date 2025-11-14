@@ -1282,14 +1282,16 @@ const CheckoutPage = ({
          try {
             const res = await fetch("/api/admin/settings/orders-enabled");
             if (!res.ok) {
-               if (mounted) setOrdersEnabled(true);
+               // API unreachable or non-2xx: treat as unknown so schedule controls default behavior
+               if (mounted) setOrdersEnabled(null);
             } else {
                const j = await res.json();
                if (mounted) setOrdersEnabled(Boolean(j.enabled));
             }
          } catch (err) {
             console.warn("Failed to fetch orders_enabled flag:", err);
-            if (mounted) setOrdersEnabled(true);
+            // On error, do not force enabled; leave null to allow schedule-managed default
+            if (mounted) setOrdersEnabled(null);
          }
       })();
 

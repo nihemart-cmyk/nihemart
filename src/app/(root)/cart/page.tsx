@@ -58,8 +58,9 @@ const Cart = () => {
             setOrdersDisabledMessage(json.message || null);
          } catch (err) {
             console.warn("Failed to load orders_enabled setting", err);
+            // Do not assume orders are enabled on fetch error; prefer schedule-managed default
             if (!mounted) return;
-            setOrdersEnabled(true);
+            setOrdersEnabled(null);
          }
       };
 

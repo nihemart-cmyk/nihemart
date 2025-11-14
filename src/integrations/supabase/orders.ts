@@ -116,7 +116,11 @@ export async function requestRefundForItem(itemId: string, reason: string) {
 }
 
 // Request a full-order refund (customer)
-export async function requestRefundForOrder(orderId: string, reason: string) {
+export async function requestRefundForOrder(
+   orderId: string,
+   reason: string,
+   adminInitiated: boolean = false
+) {
    const { data: existing, error: fetchError } = await sb
       .from("orders")
       .select(
@@ -143,22 +147,34 @@ export async function requestRefundForOrder(orderId: string, reason: string) {
       }
    }
 
-   // If order was not delivered, treat this as a client-side reject and mark final
+   // If order was not delivered, customers' requests should be treated as
+   // client-side rejects and be final (refund_status = 'rejected'). However
+   // when an admin initiates the refund flow we want to create an admin
+   // reviewable request (refund_status = 'requested') so the admin can
+   // approve it via the Manage Refund dialog. The `adminInitiated` flag
+   // allows callers to opt-in to that behavior.
    const isRejectOrder = !existing?.delivered_at;
-   const updatePayloadOrder: any = isRejectOrder
-      ? {
-           refund_requested: false,
-           refund_reason: reason,
-           refund_status: "rejected",
-           refund_requested_at: now,
-        }
-      : {
-           refund_requested: true,
-           refund_reason: reason,
-           refund_status: "requested",
-           refund_requested_at: now,
-           refund_expires_at: expiresAt,
-        };
+   let updatePayloadOrder: any;
+   if (isRejectOrder && !adminInitiated) {
+      // customer-initiated reject (final)
+      updatePayloadOrder = {
+         refund_requested: false,
+         refund_reason: reason,
+         refund_status: "rejected",
+         refund_requested_at: now,
+      };
+   } else {
+      // Either delivered order (normal refund) or admin-initiated refund for
+      // an undelivered order: create a request entry to be reviewed/approved
+      // by admins.
+      updatePayloadOrder = {
+         refund_requested: true,
+         refund_reason: reason,
+         refund_status: "requested",
+         refund_requested_at: now,
+         refund_expires_at: expiresAt,
+      };
+   }
 
    const { data, error } = await sb
       .from("orders")
