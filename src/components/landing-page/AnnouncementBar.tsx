@@ -141,17 +141,42 @@ const AnnouncementBar: FC<AnnouncementBarProps> = ({}) => {
                </DropdownMenuContent>
             </DropdownMenu>
             <div className="hidden items-center gap-1 md:flex">
-               <Link href={"#"}>
+               <Link
+                  href={"https://www.instagram.com/nihe_mart/"}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Instagram"
+                  className="hover:text-brand-orange transition-colors"
+               >
                   <Icons.landingPage.instagram className="h-6 w-6" />
                </Link>
-               <Link href={"#"}>
+               <Link
+                  href={
+                     "https://web.facebook.com/profile.php?id=61554500515881#"
+                  }
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Facebook"
+                  className="hover:text-brand-orange transition-colors"
+               >
                   <Icons.landingPage.facebook className="h-6 w-6" />
                </Link>
-               <Link href={"#"}></Link>
-               <Link href={"#"}>
+               <Link
+                  href={"https://www.tiktok.com/@nihe_mart"}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="TikTok"
+                  className="hover:text-brand-orange transition-colors"
+               >
                   <Icons.landingPage.tiktok className="h-6 w-6" />
                </Link>
-               <Link href={"#"}>
+               <Link
+                  href={"https://youtube.com/@nihemart?si=ekAIqtCjygt9hgTW"}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="YouTube"
+                  className="hover:text-brand-orange transition-colors"
+               >
                   <Icons.landingPage.youtube className="h-6 w-6" />
                </Link>
             </div>
