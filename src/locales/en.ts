@@ -163,6 +163,12 @@ export const en: Record<string, string> = {
       "We are currently not working, please order again at 9:00",
    "checkout.ordersDisabledBanner":
       "Ordering is currently disabled by the admin.",
+   "checkout.ordersDisabledPrompt":
+      "We are not accepting regular deliveries right now. Please choose a preferred delivery time for the next day:",
+   "checkout.pickDeliveryTimeHint":
+      "You may select any time on the next day. Admin will see the requested delivery time on the dashboard.",
+   "checkout.pickDeliveryTimeNextDay":
+      "Ordering is restricted. Please choose a delivery time for the next day.",
    "checkout.processing": "Processing Order...",
    "checkout.orderViaWhatsApp": "Order via WhatsApp",
    "checkout.orderNow": "Order Now",

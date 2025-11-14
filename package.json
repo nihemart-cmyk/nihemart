@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "NODE_ENV=production node server.js",
+    "start": "next start",
     "lint": "eslint",
     "supabase:start": "supabase start",
     "supabase:stop": "supabase stop",
@@ -17,6 +17,7 @@
     "supabase:typegen": "supabase gen types typescript --project-id $(supabase status --json | jq -r .project_id) --schema public > src/supabase/types.ts",
     "supabase:test": "supabase db reset && npm test",
     "seed:admin": "node scripts/seed-admin.js"
+    ,"toggle:orders": "node scripts/toggle-orders-schedule.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.1",

@@ -520,7 +520,8 @@ export default function AddExternalOrderPage() {
                                                    <img
                                                       src={
                                                          selectedProducts[index]
-                                                            .main_image_url
+                                                            .main_image_url ??
+                                                         undefined
                                                       }
                                                       alt={
                                                          selectedProducts[index]

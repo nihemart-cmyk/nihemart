@@ -132,6 +132,12 @@ export const rw: Record<string, string> = {
    "checkout.ordersDisabledSchedule":
       "Aka kanya ntago turi kwakira komande, Mwongere mugerageze 9:00",
    "checkout.ordersDisabledBanner": "Kwishyura ubu byahagaritswe n'umuyobozi.",
+   "checkout.ordersDisabledPrompt":
+      "Ubu ntitwamamaza uburyo busanzwe bwo gutanga. Nyamuneka hitamo igihe ushaka ko bazanira ejo:",
+   "checkout.pickDeliveryTimeHint":
+      "Ushobora guhitamo igihe cyose ku munsi ukurikiraho. Umuyobozi azabona igihe wasabye kuri dashboard.",
+   "checkout.pickDeliveryTimeNextDay":
+      "Gutangira komande byahagaritswe. Nyamuneka hitamo igihe cyo gutanga ku munsi ukurikiraho.",
    "checkout.processing": "Birimo gutunganya komande...",
    "checkout.orderViaWhatsApp": "Tumiza ukoresheje WhatsApp",
    "checkout.orderNow": "Tumiza Nonaha",

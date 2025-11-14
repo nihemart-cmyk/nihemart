@@ -8,6 +8,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useCart } from "@/contexts/CartContext";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 const Cart = () => {
    const { t } = useLanguage();
@@ -42,10 +43,11 @@ const Cart = () => {
       return () => clearTimeout(timer);
    }, []);
 
-   // Fetch whether orders are enabled (admin-controlled). If the
-   // fetch fails we'll default to enabled so customers can checkout.
+   // Fetch whether orders are enabled (admin-controlled) and subscribe to
+   // realtime updates so the UI reflects changes immediately.
    useEffect(() => {
       let mounted = true;
+
       const fetchOrdersEnabled = async () => {
          try {
             const res = await fetch("/api/admin/settings/orders-enabled");
@@ -60,9 +62,46 @@ const Cart = () => {
             setOrdersEnabled(true);
          }
       };
+
       fetchOrdersEnabled();
+
+      // Realtime subscription to update banner and button state immediately
+      // when `site_settings.key = 'orders_enabled'` changes.
+      const channel = supabase
+         .channel("cart_site_settings_orders_enabled")
+         .on(
+            "postgres_changes",
+            {
+               event: "*",
+               schema: "public",
+               table: "site_settings",
+               filter: "key=eq.orders_enabled",
+            },
+            (payload: any) => {
+               try {
+                  const val = payload?.new?.value ?? payload?.old?.value;
+                  const enabled =
+                     val === true ||
+                     String(val) === "true" ||
+                     (val && val === "true");
+                  setOrdersEnabled(Boolean(enabled));
+                  // If schedule message is present in payload (some writers include it), use it
+                  if (payload?.new?.message)
+                     setOrdersDisabledMessage(payload.new.message);
+               } catch (e) {
+                  // ignore
+               }
+            }
+         )
+         .subscribe();
+
       return () => {
          mounted = false;
+         try {
+            supabase.removeChannel(channel);
+         } catch (e) {
+            // ignore
+         }
       };
    }, []);
 
@@ -321,23 +360,27 @@ const Cart = () => {
                            </div>
                         )}
 
-                        {/* Place Order button: disable when orders are disabled */}
-                        {ordersEnabled === false ? (
-                           <Button
-                              className="w-full bg-orange-300 text-white text-sm sm:text-base h-11 sm:h-12 cursor-not-allowed"
-                              size="lg"
-                              disabled
-                           >
-                              {t("cart.order")}
-                           </Button>
-                        ) : (
-                           <Button
-                              className="w-full bg-orange-500 hover:bg-orange-600 text-white text-sm sm:text-base h-11 sm:h-12"
-                              size="lg"
-                              asChild
-                           >
-                              <Link href={"/checkout"}>{t("cart.order")}</Link>
-                           </Button>
+                        {/* Place Order button: always allow proceeding to checkout.
+                            The checkout page will prompt for delivery_time when orders
+                            are disabled, so we only visually indicate the state here. */}
+                        <Button
+                           className={
+                              `w-full text-white text-sm sm:text-base h-11 sm:h-12 ` +
+                              (ordersEnabled === false
+                                 ? "bg-orange-300 hover:bg-orange-300"
+                                 : "bg-orange-500 hover:bg-orange-600")
+                           }
+                           size="lg"
+                           asChild
+                        >
+                           <Link href={"/checkout"}>{t("cart.order")}</Link>
+                        </Button>
+
+                        {ordersEnabled === false && (
+                           <div className="text-xs text-muted-foreground mt-2">
+                              {t("checkout.ordersDisabledBanner") ||
+                                 "Orders are currently disabled — you'll be asked to select a delivery time at checkout."}
+                           </div>
                         )}
 
                         <Button

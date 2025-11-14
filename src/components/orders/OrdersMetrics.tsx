@@ -15,6 +15,7 @@ import {
    TrendingUp,
    TrendingDown,
    Loader2,
+   Clock,
 } from "lucide-react";
 import { useOrders } from "@/hooks/useOrders";
 import { Order } from "@/types/orders";
@@ -152,6 +153,7 @@ export default function OrdersMetrics() {
 
    // Orders enabled toggle
    const [ordersEnabled, setOrdersEnabled] = useState<boolean | null>(null);
+   const [ordersSource, setOrdersSource] = useState<"admin" | "schedule" | null>(null);
    const [toggling, setToggling] = useState(false);
    const [ordersDisabledMessage, setOrdersDisabledMessage] = useState<
       string | null
@@ -172,6 +174,10 @@ export default function OrdersMetrics() {
          if (!res.ok) throw new Error("Failed to fetch setting");
          const json = await res.json();
          setOrdersEnabled(Boolean(json.enabled));
+         setOrdersSource(json.source || null);
+         setOrdersDisabledMessage(json.message || null);
+         setOrdersScheduleDisabled(Boolean(json.scheduleDisabled));
+         
          // If server returned nextToggleAt, schedule a refetch at that time so UI updates automatically
          if (json.nextToggleAt) {
             try {
@@ -195,23 +201,33 @@ export default function OrdersMetrics() {
       // eslint-disable-next-line react-hooks/exhaustive-deps
    }, []);
 
-   const toggleOrders = async (next: boolean) => {
+   const toggleOrders = async (next: boolean | "auto") => {
       setToggling(true);
       try {
-         const res = await fetch("/api/admin/settings/orders-enabled", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ enabled: next }),
-         });
-         if (!res.ok) throw new Error("Failed to update setting");
-         const json = await res.json();
-         setOrdersEnabled(Boolean(json.enabled));
-         setOrdersDisabledMessage(json.message || null);
-         setOrdersScheduleDisabled(
-            typeof json.scheduleDisabled !== "undefined"
-               ? Boolean(json.scheduleDisabled)
-               : null
-         );
+         if (next === "auto") {
+            // Use DELETE method to clear admin override
+            const res = await fetch("/api/admin/settings/orders-enabled", {
+               method: "DELETE",
+            });
+            if (!res.ok) throw new Error("Failed to update setting");
+            const json = await res.json();
+            setOrdersEnabled(Boolean(json.enabled));
+            setOrdersSource(json.source || null);
+            setOrdersDisabledMessage(json.message || null);
+            setOrdersScheduleDisabled(Boolean(json.scheduleDisabled));
+         } else {
+            const res = await fetch("/api/admin/settings/orders-enabled", {
+               method: "POST",
+               headers: { "Content-Type": "application/json" },
+               body: JSON.stringify({ enabled: next }),
+            });
+            if (!res.ok) throw new Error("Failed to update setting");
+            const json = await res.json();
+            setOrdersEnabled(Boolean(json.enabled));
+            setOrdersSource(json.source || null);
+            setOrdersDisabledMessage(json.message || null);
+            setOrdersScheduleDisabled(Boolean(json.scheduleDisabled));
+         }
       } catch (err) {
          console.error("Failed to toggle orders setting", err);
       } finally {
@@ -265,11 +281,34 @@ export default function OrdersMetrics() {
          {/* Show banner when orders are disabled */}
          {ordersEnabled === false && (
             <div className="p-3 rounded bg-yellow-50 border border-yellow-200 text-yellow-800">
-               {ordersDisabledMessage
-                  ? ordersDisabledMessage
-                  : CUSTOMER_FALLBACK_MSG}
+               <div className="flex items-start gap-2">
+                  <Clock className="h-5 w-5 flex-shrink-0 mt-0.5" />
+                  <div>
+                     <p className="font-medium">
+                        {ordersDisabledMessage || CUSTOMER_FALLBACK_MSG}
+                     </p>
+                     {ordersSource === "schedule" && (
+                        <p className="text-xs mt-1">
+                           Orders are automatically controlled by schedule (9 AM - 9:30 PM Kigali time)
+                        </p>
+                     )}
+                  </div>
+               </div>
             </div>
          )}
+         
+         {/* Show info when in schedule mode and enabled */}
+         {ordersSource === "schedule" && ordersEnabled === true && (
+            <div className="p-3 rounded bg-blue-50 border border-blue-200 text-blue-800">
+               <div className="flex items-start gap-2">
+                  <Clock className="h-5 w-5 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm">
+                     Orders are automatically controlled by schedule (9 AM - 9:30 PM Kigali time)
+                  </p>
+               </div>
+            </div>
+         )}
+
          {/* Header */}
          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-7 sm:gap-2">
             <div className="flex flex-col">
@@ -288,25 +327,59 @@ export default function OrdersMetrics() {
                <Link href="/admin/orders/external">
                   <Button variant="outline">External Orders</Button>
                </Link>
-               {/* Orders enable/disable toggle */}
-               <Button
-                  variant={ordersEnabled ? "destructive" : "ghost"}
-                  onClick={() => toggleOrders(!Boolean(ordersEnabled))}
-                  disabled={toggling || ordersEnabled === null}
-                  className={
-                     ordersEnabled === false
-                        ? "bg-green-500 hover:bg-green-600 text-white"
-                        : undefined
-                  }
-               >
-                  {toggling ? (
-                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  ) : ordersEnabled ? (
-                     "Disable Orders"
-                  ) : (
-                     "Enable Orders"
-                  )}
-               </Button>
+               
+               {/* Orders control dropdown with 3 options */}
+               <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                     <Button
+                        variant="outline"
+                        disabled={toggling || ordersEnabled === null}
+                        className={
+                           ordersSource === "admin" && ordersEnabled === false
+                              ? "border-red-500 text-red-600"
+                              : ordersSource === "admin" && ordersEnabled === true
+                              ? "border-green-500 text-green-600"
+                              : "border-blue-500 text-blue-600"
+                        }
+                     >
+                        {toggling ? (
+                           <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        ) : ordersSource === "schedule" ? (
+                           <Clock className="h-4 w-4 mr-2" />
+                        ) : null}
+                        {ordersSource === "schedule"
+                           ? "Auto Mode"
+                           : ordersEnabled
+                           ? "Orders Enabled"
+                           : "Orders Disabled"}
+                        <MoreHorizontal className="h-4 w-4 ml-2" />
+                     </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                     <DropdownMenuItem
+                        onClick={() => toggleOrders(true)}
+                        disabled={toggling}
+                        className="text-green-600"
+                     >
+                        Enable Orders (Manual)
+                     </DropdownMenuItem>
+                     <DropdownMenuItem
+                        onClick={() => toggleOrders(false)}
+                        disabled={toggling}
+                        className="text-red-600"
+                     >
+                        Disable Orders (Manual)
+                     </DropdownMenuItem>
+                     <DropdownMenuItem
+                        onClick={() => toggleOrders("auto")}
+                        disabled={toggling}
+                        className="text-blue-600"
+                     >
+                        <Clock className="h-4 w-4 mr-2" />
+                        Auto (Follow Schedule)
+                     </DropdownMenuItem>
+                  </DropdownMenuContent>
+               </DropdownMenu>
             </div>
          </div>
 
