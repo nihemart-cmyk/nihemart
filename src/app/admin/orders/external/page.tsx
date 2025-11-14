@@ -314,8 +314,9 @@ export default function ExternalOrdersPage() {
                </Link>
             </div>
 
-            {/* External orders metrics (compact) */}
+            {/* External orders metrics (improved) */}
             <div className="mb-6">
+               {/* Build metrics from fetched orders */}
                {(() => {
                   const list = (ordersResponse?.data || []) as Order[];
                   const total = list.length;
@@ -342,47 +343,68 @@ export default function ExternalOrdersPage() {
                      {
                         title: "Total External Orders",
                         value: total.toLocaleString(),
-                        subtitle: "All external orders",
+                        period: "All external orders",
                      },
                      {
                         title: "New",
                         value: newOrders.toLocaleString(),
-                        subtitle: "Pending / Processing",
+                        period: "Pending / Processing",
                      },
                      {
                         title: "Completed",
                         value: completed.toLocaleString(),
-                        subtitle: "Delivered / Shipped",
+                        period: "Delivered / Shipped",
                      },
                      {
                         title: "Cancelled",
                         value: cancelled.toLocaleString(),
-                        subtitle: "Cancelled orders",
+                        period: "Cancelled orders",
                      },
                   ];
 
                   return (
-                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                        {metrics.map((m) => (
-                           <Card
-                              key={m.title}
-                              className="relative"
-                           >
-                              <CardHeader className="flex items-center justify-between pb-2">
-                                 <h3 className="text-sm font-semibold">
-                                    {m.title}
-                                 </h3>
-                              </CardHeader>
-                              <CardContent>
-                                 <div className="text-2xl font-bold text-[#023337]">
-                                    {m.value}
-                                 </div>
-                                 <div className="text-xs text-muted-foreground mt-2">
-                                    {m.subtitle}
-                                 </div>
-                              </CardContent>
-                           </Card>
-                        ))}
+                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
+                        {isLoading
+                           ? // loading skeletons
+                             Array.from({ length: 4 }).map((_, i) => (
+                                <Card
+                                   key={i}
+                                   className="relative"
+                                >
+                                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                      <div className="h-5 bg-gray-200 rounded w-28 animate-pulse"></div>
+                                      <div className="h-8 w-8 bg-gray-200 rounded animate-pulse"></div>
+                                   </CardHeader>
+                                   <CardContent>
+                                      <div className="space-y-2">
+                                         <div className="h-8 bg-gray-200 rounded w-24 animate-pulse"></div>
+                                         <div className="h-4 bg-gray-200 rounded w-28 animate-pulse"></div>
+                                      </div>
+                                   </CardContent>
+                                </Card>
+                             ))
+                           : metrics.map((m) => (
+                                <Card
+                                   key={m.title}
+                                   className="relative"
+                                >
+                                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                      <h3 className="text-lg text-[#23272E] font-semibold">
+                                         {m.title}
+                                      </h3>
+                                   </CardHeader>
+                                   <CardContent>
+                                      <div className="space-y-2 flex items-end gap-2">
+                                         <div className="text-3xl font-bold text-[#023337]">
+                                            {m.value}
+                                         </div>
+                                      </div>
+                                      <div className="text-xs text-muted-foreground mt-2">
+                                         {m.period}
+                                      </div>
+                                   </CardContent>
+                                </Card>
+                             ))}
                      </div>
                   );
                })()}
