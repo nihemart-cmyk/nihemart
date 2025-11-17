@@ -1469,11 +1469,6 @@ const CheckoutPage = ({
    // Debug: when retrying, log order items and subtotal to help diagnose UI showing only delivery fee
    // No debug logs here
    const selectedSectorObj = sectors.find((s) => s.sct_id === selectedSector);
-   const sectorFee = selectedSectorObj
-      ? (sectorsFees as any)[selectedSectorObj.sct_name]
-      : undefined;
-   const transport = sectorFee ?? (hasAddress ? 2000 : 0);
-   const total = subtotal + transport;
 
    // Pre-pay gating: compute required completion flags
    const hasItems = orderItems.length > 0;
@@ -1524,6 +1519,13 @@ const CheckoutPage = ({
    ).toString();
    const formattedPhoneForCheck = formatPhoneNumber(phoneForCheck || "");
    const hasValidPhone = /^07\d{8}$/.test(formattedPhoneForCheck);
+
+   // Compute transport fee after determining whether an address exists
+   const sectorFee = selectedSectorObj
+      ? (sectorsFees as any)[selectedSectorObj.sct_name]
+      : undefined;
+   const transport = sectorFee ?? (hasAddress ? 2000 : 0);
+   const total = subtotal + transport;
 
    // Payment selection: For pre-pay we require a non-COD method to be selected and verified
    const paymentRequiresVerification =
