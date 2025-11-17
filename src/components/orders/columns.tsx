@@ -356,7 +356,9 @@ export const columns: ColumnDef<Order>[] = [
                         <DropdownMenuItem
                            onClick={() => setShowManageRefund(true)}
                         >
-                           Manage refund
+                           {order.is_external
+                              ? "Refund By Admin"
+                              : "Manage refund"}
                         </DropdownMenuItem>
                      )}
                      {order.status === "pending" && (

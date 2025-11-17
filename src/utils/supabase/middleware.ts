@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { createServiceSupabaseClient } from "@/utils/supabase/service";
 
 export async function updateSession(request: NextRequest) {
    let supabaseResponse = NextResponse.next({
@@ -83,12 +84,83 @@ export async function updateSession(request: NextRequest) {
    });
 
    // If user is NOT logged in and trying to access protected route
+   // Redirect to an identification page so we can ask for the user's email
+   // and decide whether to send them to signup or signin.
    if (!user && isProtectedRoute) {
-      const redirectUrl = new URL("/signin", request.url);
-      redirectUrl.searchParams.set(
-         "redirect",
-         request.nextUrl.pathname + request.nextUrl.search
-      );
+      // Attempt to detect whether the visitor already has an account
+      // using background signals: cookie `email`, `email` query param,
+      // or a custom header `x-email`. If we can detect an email we
+      // will use a service-role Supabase client to check for existence
+      // of a user and redirect to signup or signin accordingly. If
+      // we cannot detect an email, fallback to the normal signin page.
+
+      const emailFromCookie = request.cookies.get("email")?.value;
+      const emailFromQuery = request.nextUrl.searchParams.get("email");
+      const emailFromHeader = request.headers.get("x-email");
+      const email = (emailFromCookie || emailFromQuery || emailFromHeader || "")
+         .toString()
+         .trim()
+         .toLowerCase();
+
+      const redirectParam = request.nextUrl.pathname + request.nextUrl.search;
+
+      // If we have an email, try to check user existence with service client
+      if (email) {
+         try {
+            const svc = createServiceSupabaseClient();
+
+            // Prefer admin.listUsers when available
+            if ((svc as any)?.auth?.admin?.listUsers) {
+               const listRes = await (svc as any).auth.admin.listUsers({
+                  per_page: 100,
+               });
+               const users = (listRes?.data || []) as any[];
+               const exists = users.some(
+                  (u) => (u?.email || "").toString().toLowerCase() === email
+               );
+               const target = exists ? "/signin" : "/signup";
+               const url = new URL(target, request.url);
+               url.searchParams.set("redirect", redirectParam);
+               url.searchParams.set("email", email);
+               return NextResponse.redirect(url);
+            }
+
+            // Fallback: check `profiles` table for matching email (best-effort)
+            const { data: profiles, error: profilesError } = await svc
+               .from("profiles")
+               .select("id")
+               .ilike("email", email)
+               .limit(1);
+
+            if (
+               !profilesError &&
+               Array.isArray(profiles) &&
+               profiles.length > 0
+            ) {
+               const url = new URL("/signin", request.url);
+               url.searchParams.set("redirect", redirectParam);
+               url.searchParams.set("email", email);
+               return NextResponse.redirect(url);
+            }
+
+            // Not found -> go to signup
+            const url = new URL("/signup", request.url);
+            url.searchParams.set("redirect", redirectParam);
+            url.searchParams.set("email", email);
+            return NextResponse.redirect(url);
+         } catch (err) {
+            // Any error -> fallback to signin
+            console.error("middleware check-user error", err);
+            const redirectUrl = new URL("/signin", request.url);
+            redirectUrl.searchParams.set("redirect", redirectParam);
+            return NextResponse.redirect(redirectUrl);
+         }
+      }
+
+      // No email available; default to signup so new visitors are guided to create
+      // an account rather than assuming they already have one.
+      const redirectUrl = new URL("/signup", request.url);
+      redirectUrl.searchParams.set("redirect", redirectParam);
       return NextResponse.redirect(redirectUrl);
    }
 

@@ -22,11 +22,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
 import { Mail, Lock, Eye, EyeOff, Loader } from "lucide-react";
 import { toast } from "sonner";
+import { setEmailCookie } from "@/utils/emailCookie";
 import { useAuth } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { GoogleSignInButton } from "./google-signin-button";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface AdminSigninFormProps {
    redirect?: string | null;
@@ -54,7 +56,22 @@ const AdminSigninForm: FC<AdminSigninFormProps> = ({ redirect }) => {
       }
    }, []);
 
+   // Prefill email field if provided as a query param (eg. ?email=...)
+   useEffect(() => {
+      try {
+         const params = new URLSearchParams(window.location.search);
+         const emailParam = params.get("email");
+         if (emailParam) {
+            form.setValue("email", emailParam);
+         }
+      } catch (e) {
+         // ignore
+      }
+   }, []);
+
    // Google sign-in handler - FIXED
+   const { t } = useLanguage();
+
    const handleGoogleSignIn = async () => {
       setGoogleLoading(true);
       try {
@@ -89,7 +106,7 @@ const AdminSigninForm: FC<AdminSigninFormProps> = ({ redirect }) => {
 
          // Inform the user that we're redirecting them to Google
          try {
-            toast("Redirecting to Google...");
+            toast(t("auth.redirectingToGoogle"));
          } catch (e) {
             // ignore toast errors
          }
@@ -108,7 +125,7 @@ const AdminSigninForm: FC<AdminSigninFormProps> = ({ redirect }) => {
          // Only handle errors that prevent the redirect
          if (error) {
             console.error("Google OAuth initiation error:", error);
-            toast.error("Failed to start Google sign-in");
+            toast.error(t("auth.google.startFailed"));
 
             // Clear stored redirect on error
             try {
@@ -119,7 +136,7 @@ const AdminSigninForm: FC<AdminSigninFormProps> = ({ redirect }) => {
          }
       } catch (err: any) {
          console.error("Google sign-in failed:", err);
-         toast.error(err?.message || "Google sign-in failed");
+         toast.error(err?.message || t("auth.google.failed"));
 
          // Clear stored redirect on error
          try {
@@ -145,6 +162,12 @@ const AdminSigninForm: FC<AdminSigninFormProps> = ({ redirect }) => {
    const onSubmit = async (formData: TAdminSigninSchema) => {
       try {
          const { email, password } = formData;
+         // Persist email to cookie so middleware can detect if user exists
+         try {
+            setEmailCookie(email);
+         } catch (e) {
+            // ignore cookie errors
+         }
          const { error } = await signIn(email, password);
 
          if (error) {
@@ -152,7 +175,7 @@ const AdminSigninForm: FC<AdminSigninFormProps> = ({ redirect }) => {
             return;
          }
 
-         toast.success("Logged in successfully");
+         toast.success(t("auth.loggedInSuccess"));
          form.reset();
 
          // Use redirect parameter if available and safe
@@ -174,7 +197,7 @@ const AdminSigninForm: FC<AdminSigninFormProps> = ({ redirect }) => {
             }
          }
       } catch (error: any) {
-         toast.error(error?.message || "Sign in failed");
+         toast.error(error?.message || t("auth.signin.failed"));
       }
    };
 
@@ -210,7 +233,7 @@ const AdminSigninForm: FC<AdminSigninFormProps> = ({ redirect }) => {
                      render={({ field }) => (
                         <FormItem>
                            <FormLabel className="text-zinc-500">
-                              Email
+                              {t("auth.email")}
                            </FormLabel>
                            <FormControl>
                               <div className="relative">
@@ -218,6 +241,14 @@ const AdminSigninForm: FC<AdminSigninFormProps> = ({ redirect }) => {
                                  <Input
                                     placeholder="admin@nihemart.com"
                                     {...field}
+                                    onChange={(e) => {
+                                       field.onChange(e);
+                                       try {
+                                          setEmailCookie(e.target.value);
+                                       } catch (err) {
+                                          // ignore
+                                       }
+                                    }}
                                     className="pl-10 border-gray-400 placeholder:text-gray-400 h-12 rounded-xl"
                                  />
                               </div>
@@ -233,7 +264,7 @@ const AdminSigninForm: FC<AdminSigninFormProps> = ({ redirect }) => {
                      render={({ field }) => (
                         <FormItem>
                            <FormLabel className="text-zinc-500">
-                              Password
+                              {t("auth.password")}
                            </FormLabel>
                            <FormControl>
                               <div className="relative">
@@ -293,7 +324,7 @@ const AdminSigninForm: FC<AdminSigninFormProps> = ({ redirect }) => {
                         href="/forgot-password"
                         className="text-sm text-blue-500 hover:underline"
                      >
-                        Forgot Password?
+                        {t("auth.forgotPassword")}
                      </Link>
                   </div>
 
@@ -306,10 +337,10 @@ const AdminSigninForm: FC<AdminSigninFormProps> = ({ redirect }) => {
                      {form.formState.isSubmitting ? (
                         <>
                            <Loader className="mr-2 h-4 w-4 animate-spin" />
-                           Signing In...
+                           {t("auth.signingIn")}
                         </>
                      ) : (
-                        "Sign In"
+                        t("auth.signin.button")
                      )}
                   </Button>
                   <Link
@@ -322,7 +353,7 @@ const AdminSigninForm: FC<AdminSigninFormProps> = ({ redirect }) => {
                            : "/signup"
                      }
                   >
-                     Don&apos;t have an account? Sign up
+                     {t("auth.prompt.noAccount")}
                   </Link>
                </form>
             </Form>

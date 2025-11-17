@@ -26,6 +26,8 @@ import { redirect } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { GoogleSignInButton } from "./google-signin-button";
+import { useLanguage } from "@/contexts/LanguageContext";
+import { setEmailCookie } from "@/utils/emailCookie";
 
 interface AdminSignupFormProps {}
 
@@ -50,7 +52,7 @@ const AdminSignupForm: FC<AdminSignupFormProps> = ({}) => {
 
          // Inform the user that we're redirecting them to Google
          try {
-            toast("Redirecting to Google...");
+            toast(t("auth.redirectingToGoogle"));
          } catch (e) {
             // ignore toast errors
          }
@@ -67,11 +69,11 @@ const AdminSignupForm: FC<AdminSignupFormProps> = ({}) => {
 
          if (error) {
             console.error("Google OAuth initiation error (signup):", error);
-            toast.error("Failed to start Google sign-up");
+            toast.error(t("auth.google.startFailed"));
          }
       } catch (err: any) {
          console.error("Google sign-up failed:", err);
-         toast.error(err?.message || "Google sign-up failed");
+         toast.error(err?.message || t("auth.google.failed"));
       } finally {
          setGoogleLoading(false);
       }
@@ -152,10 +154,18 @@ const AdminSignupForm: FC<AdminSignupFormProps> = ({}) => {
    //    }
    // };
 
+   const { t } = useLanguage();
+
    const onSubmit = async (formData: TAdminSignupSchema) => {
       if (formData.password !== formData.confirmPassword) {
          toast.error("Passwords do not match");
          return;
+      }
+
+      try {
+         setEmailCookie(formData.email);
+      } catch (e) {
+         // ignore
       }
 
       const { error } = await signUp(
@@ -170,9 +180,7 @@ const AdminSignupForm: FC<AdminSignupFormProps> = ({}) => {
          return;
       }
 
-      toast.success(
-         "Registration successful. Please check your email to confirm."
-      );
+      toast.success(t("auth.registrationSuccess"));
       redirect("/signin");
    };
 
@@ -208,7 +216,7 @@ const AdminSignupForm: FC<AdminSignupFormProps> = ({}) => {
                      render={({ field }) => (
                         <FormItem>
                            <FormLabel className="text-zinc-500">
-                              Email
+                              {t("auth.email")}
                            </FormLabel>
                            <FormControl>
                               <div className="relative">
@@ -231,7 +239,7 @@ const AdminSignupForm: FC<AdminSignupFormProps> = ({}) => {
                      render={({ field }) => (
                         <FormItem>
                            <FormLabel className="text-zinc-500">
-                              Username
+                              {t("auth.fullName")}
                            </FormLabel>
                            <FormControl>
                               <div className="relative">
@@ -282,7 +290,7 @@ const AdminSignupForm: FC<AdminSignupFormProps> = ({}) => {
                      render={({ field }) => (
                         <FormItem>
                            <FormLabel className="text-zinc-500">
-                              Password
+                              {t("auth.password")}
                            </FormLabel>
                            <FormControl>
                               <div className="relative">
@@ -394,13 +402,15 @@ const AdminSignupForm: FC<AdminSignupFormProps> = ({}) => {
                      size="lg"
                      disabled={form.formState.isSubmitting}
                   >
-                     {form.formState.isSubmitting ? "Signing up..." : "Sign Up"}
+                     {form.formState.isSubmitting
+                        ? t("auth.signingUp")
+                        : t("auth.signup.button")}
                   </Button>
                   <Link
                      className="text-sm text-center mt-4 text-orange-600 underline cursor-pointer"
                      href={"/signin"}
                   >
-                     Have an account? Sign In
+                     {t("auth.prompt.haveAccount")}
                   </Link>
                </form>
             </Form>

@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import Link from "next/link";
 import { supabase } from "@/integrations/supabase/client";
 import { z } from "zod";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 const ForgotSchema = z.object({
    email: z.string().email(),
@@ -30,6 +31,8 @@ const ForgotPasswordForm: FC = () => {
       resolver: zodResolver(ForgotSchema),
       defaultValues: { email: "" },
    });
+
+   const { t } = useLanguage();
 
    const onSubmit = async (data: TForgot) => {
       try {
@@ -50,18 +53,14 @@ const ForgotPasswordForm: FC = () => {
          // API may return { ok: false, warning: 'SMTP not configured' } while still
          // generating an action link. Treat as success but surface the warning.
          if (json && json.warning) {
-            toast.success(
-               "Password reset email requested. Check your inbox and spam folder."
-            );
+            toast.success(t("auth.resetEmailRequested"));
             // keep the form cleared so user knows the request was sent
             form.reset();
             return;
          }
 
          // Normal success
-         toast.success(
-            "Password reset email sent. Check your inbox and spam folder."
-         );
+         toast.success(t("auth.resetEmailSent"));
          form.reset();
       } catch (err) {
          console.error(err);
@@ -81,7 +80,9 @@ const ForgotPasswordForm: FC = () => {
                   name="email"
                   render={({ field }) => (
                      <FormItem>
-                        <FormLabel className="text-zinc-500">Email</FormLabel>
+                        <FormLabel className="text-zinc-500">
+                           {t("auth.email")}
+                        </FormLabel>
                         <FormControl>
                            <div className="relative">
                               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
@@ -104,8 +105,8 @@ const ForgotPasswordForm: FC = () => {
                   disabled={form.formState.isSubmitting}
                >
                   {form.formState.isSubmitting
-                     ? "Sending..."
-                     : "Send reset email"}
+                     ? t("auth.sending")
+                     : t("auth.sendResetEmail")}
                </Button>
 
                <div className="mt-3 text-sm text-center text-zinc-600">
@@ -119,7 +120,7 @@ const ForgotPasswordForm: FC = () => {
                         href="/signin"
                         className="text-brand-orange underline"
                      >
-                        Back to sign in
+                        {t("auth.backToSignIn")}
                      </Link>
                   </p>
                </div>

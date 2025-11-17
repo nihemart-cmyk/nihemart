@@ -42,11 +42,32 @@ export async function POST(req: NextRequest) {
          );
       }
 
-      // Determine redirect targets
-      const origin =
+      // Determine redirect targets. Prefer configured app URL, otherwise
+      // derive origin from the incoming request so the Supabase admin
+      // `generate_link` receives an absolute redirect URL (required).
+      let origin =
          process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || "";
+
+      if (!origin) {
+         // Try to derive origin from request headers (works on many hosts,
+         // including cPanel setups behind proxies). Use x-forwarded-* when present.
+         const host =
+            req.headers.get("x-forwarded-host") ||
+            req.headers.get("host") ||
+            "";
+         const proto =
+            req.headers.get("x-forwarded-proto") ||
+            req.headers.get("x-forwarded-protocol") ||
+            "https";
+         if (host) {
+            origin = `${proto}://${host.replace(/:\d+$/, "")}`;
+         }
+      }
+
       const redirectTo =
-         type === "recovery" ? `${origin}/reset-password` : `${origin}/signin`;
+         type === "recovery"
+            ? `${origin.replace(/\/$/, "")}/reset-password`
+            : `${origin.replace(/\/$/, "")}/signin`;
 
       // Call Supabase admin generate_link endpoint to create an action link
       let effectiveType: "recovery" | "signup" =

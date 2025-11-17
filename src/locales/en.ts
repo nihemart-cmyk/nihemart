@@ -212,6 +212,33 @@ export const en: Record<string, string> = {
    "auth.confirmPassword": "Confirm Password",
    "auth.fullName": "Full Name",
    "auth.phone": "Phone Number",
+   // Auth - additional labels
+   "auth.signin.button": "Sign In",
+   "auth.signup.button": "Sign Up",
+   "auth.google.signin": "Continue with Google",
+   "auth.google.signup": "Sign up with Google",
+   "auth.prompt.haveAccount": "Already have an account? Sign in.",
+   "auth.prompt.noAccount": "Don't have an account? Sign up.",
+   "auth.backToSignIn": "Back to sign in",
+   "auth.password.updated": "Password updated. Please sign in.",
+   "auth.signin.failed": "Sign in failed",
+   "auth.forgotPassword": "Forgot Password?",
+   "auth.signingIn": "Signing In...",
+   "auth.loggedInSuccess": "Logged in successfully",
+   "auth.redirectingToGoogle": "Redirecting to Google...",
+   "auth.google.startFailed": "Failed to start Google sign-in",
+   "auth.google.failed": "Google sign-in failed",
+   "auth.updatePassword": "Update password",
+   "auth.updating": "Updating...",
+   "auth.sending": "Sending...",
+   "auth.sendResetEmail": "Send reset email",
+   "auth.resetEmailRequested":
+      "Password reset email requested. Check your inbox and spam folder.",
+   "auth.resetEmailSent":
+      "Password reset email sent. Check your inbox and spam folder.",
+   "auth.signingUp": "Signing up...",
+   "auth.registrationSuccess":
+      "Registration successful. Please check your email to confirm.",
 
    // Admin
    "admin.dashboard": "Admin Dashboard",

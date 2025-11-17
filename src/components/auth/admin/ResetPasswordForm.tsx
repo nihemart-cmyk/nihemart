@@ -16,6 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Lock } from "lucide-react";
 import { toast } from "sonner";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { supabase } from "@/integrations/supabase/client";
 import { z } from "zod";
 
@@ -32,7 +33,30 @@ const ResetPasswordForm: FC = () => {
    const [token, setToken] = useState<string | null>(null);
 
    useEffect(() => {
-      const t = searchParams?.get("access_token") || searchParams?.get("token");
+      // Try query params first (Next.js `useSearchParams`), then fall back
+      // to parsing the URL hash (Supabase sometimes returns tokens in the fragment).
+      const fromQuery =
+         searchParams?.get("access_token") || searchParams?.get("token");
+
+      let t: string | null = fromQuery ?? null;
+
+      if (!t && typeof window !== "undefined") {
+         const hash = window.location.hash.replace(/^#/, "");
+         if (hash) {
+            const params = new URLSearchParams(hash);
+            t = params.get("access_token") || params.get("token") || null;
+
+            // Remove token from URL to avoid leaking it via referrers or logs
+            if (t) {
+               const cleanUrl =
+                  window.location.origin +
+                  window.location.pathname +
+                  window.location.search;
+               window.history.replaceState(null, "", cleanUrl);
+            }
+         }
+      }
+
       setToken(t ?? null);
    }, [searchParams]);
 
@@ -40,6 +64,8 @@ const ResetPasswordForm: FC = () => {
       resolver: zodResolver(ResetSchema),
       defaultValues: { password: "", confirmPassword: "" },
    });
+
+   const { t } = useLanguage();
 
    const onSubmit = async (data: TReset) => {
       if (data.password !== data.confirmPassword) {
@@ -57,7 +83,7 @@ const ResetPasswordForm: FC = () => {
                toast.error(error.message || "Failed to update password");
                return;
             }
-            toast.success("Password updated. Please sign in.");
+            toast.success(t("auth.password.updated"));
             router.push("/signin");
             return;
          }
@@ -76,7 +102,7 @@ const ResetPasswordForm: FC = () => {
                toast.error(error.message || "Failed to update password");
                return;
             }
-            toast.success("Password updated. Please sign in.");
+            toast.success(t("auth.password.updated"));
             router.push("/signin");
             return;
          }
@@ -116,7 +142,7 @@ const ResetPasswordForm: FC = () => {
             return;
          }
 
-         toast.success("Password updated. Please sign in.");
+         toast.success(t("auth.password.updated"));
          router.push("/signin");
       } catch (err) {
          console.error(err);
@@ -137,7 +163,7 @@ const ResetPasswordForm: FC = () => {
                   render={({ field }) => (
                      <FormItem>
                         <FormLabel className="text-zinc-500">
-                           New Password
+                           {t("auth.password")}
                         </FormLabel>
                         <FormControl>
                            <div className="relative">
@@ -186,8 +212,8 @@ const ResetPasswordForm: FC = () => {
                   disabled={form.formState.isSubmitting}
                >
                   {form.formState.isSubmitting
-                     ? "Updating..."
-                     : "Update password"}
+                     ? t("auth.updating")
+                     : t("auth.updatePassword")}
                </Button>
             </form>
          </Form>

@@ -1,5 +1,6 @@
 import { Loader } from "lucide-react";
 import { toast } from "sonner";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 // Google SVG Icon Component
 const GoogleIcon = () => (
@@ -42,9 +43,13 @@ const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
    text,
    variant = "signin",
 }) => {
+   const { t } = useLanguage();
+
    const buttonText =
       text ||
-      (variant === "signin" ? "Continue with Google" : "Sign up with Google");
+      (variant === "signin"
+         ? t("auth.google.signin")
+         : t("auth.google.signup"));
 
    return (
       <button
@@ -73,7 +78,7 @@ const GoogleSignInButton: React.FC<GoogleSignInButtonProps> = ({
             </div>
          )}
          <span className="flex-1 text-center font-roboto">
-            {loading ? "Please wait..." : buttonText}
+            {loading ? t("common.loading") : buttonText}
          </span>
          {/* Invisible element to center the text properly */}
          <div className="w-5 h-5 flex-shrink-0 opacity-0">
@@ -97,9 +102,13 @@ const GoogleSignInButtonAdvanced: React.FC<
    size = "md",
    fullWidth = true,
 }) => {
+   const { t } = useLanguage();
+
    const buttonText =
       text ||
-      (variant === "signin" ? "Continue with Google" : "Sign up with Google");
+      (variant === "signin"
+         ? t("auth.google.signin")
+         : t("auth.google.signup"));
 
    const sizeClasses = {
       sm: "h-10 px-3 text-sm gap-2",
@@ -136,7 +145,7 @@ const GoogleSignInButtonAdvanced: React.FC<
             </div>
          )}
          <span className="flex-1 text-center font-medium tracking-wide">
-            {loading ? "Please wait..." : buttonText}
+            {loading ? t("common.loading") : buttonText}
          </span>
          {/* Invisible spacer for perfect centering */}
          <div className="w-5 h-5 flex-shrink-0 opacity-0">

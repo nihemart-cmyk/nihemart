@@ -145,8 +145,7 @@ export const rw: Record<string, string> = {
    "checkout.contactPhoneLabel": "Telefoni y'itumanaho:",
    "checkout.paymentMethod": "Uburyo bwo kwishyura",
    // Missing-steps banner / validation messages
-   "checkout.missing.header":
-      "Nyamuneka urangize ibi mbere yo gukora Komande:",
+   "checkout.missing.header": "Nyamuneka urangize ibi mbere yo gukora Komande:",
    "checkout.missing.addItems": "Ongeramo ibicuruzwa mu gatebo kawe",
    "checkout.missing.address": "Hitamo cyangwa ongeraho aderesi yo koherezaho",
    "checkout.missing.email": "Tanga imeyili ikwiye",
@@ -202,6 +201,33 @@ export const rw: Record<string, string> = {
    "auth.confirmPassword": "Emeza Ijambo ryibanga",
    "auth.fullName": "Amazina yose",
    "auth.phone": "Telefoni",
+   // Auth - additional labels (Kinyarwanda)
+   "auth.signin.button": "Injira",
+   "auth.signup.button": "Iyandikishe",
+   "auth.google.signin": "Injira na Google",
+   "auth.google.signup": "Iyandikishe na Google",
+   "auth.prompt.haveAccount": "Ufite Konti? Injira muri Konti Yawe.",
+   "auth.prompt.noAccount": "Nta Konti Ufite? Iyandikishe.",
+   "auth.backToSignIn": "Subira mu kwinjira",
+   "auth.password.updated": "Ijambo ry'ibanga ryavuguruwe. Nyamuneka injira.",
+   "auth.signin.failed": "Kwinjira byanze",
+   "auth.forgotPassword": "Wibagiwe ijambo ry'ibanga?",
+   "auth.signingIn": "Uri kwinjira...",
+   "auth.loggedInSuccess": "Winjiye neza",
+   "auth.redirectingToGoogle": "Turagutwara kuri Google...",
+   "auth.google.startFailed": "Ntibyashobotse gutangira kwinjira na Google",
+   "auth.google.failed": "Kwinjira na Google byanze",
+   "auth.updatePassword": "Hindura ijambo ry'ibanga",
+   "auth.updating": "Birimo kuvugurura...",
+   "auth.sending": "Birimo koherezwa...",
+   "auth.sendResetEmail": "Ohereza imeyili yo gusubizamo ijambo ry'ibanga",
+   "auth.resetEmailRequested":
+      "Gusaba imeyili yo gusubiza ijambo ry'ibanga byakiriwe. Reba inbox na spam.",
+   "auth.resetEmailSent":
+      "Imeyili yo guhindura ijambo ry'ibanga yoherejwe. Reba inbox na spam.",
+   "auth.signingUp": "Birimo kwiyandikisha...",
+   "auth.registrationSuccess":
+      "Kwiyandikisha byagenze. Nyamuneka reba imeyili yawe kugirango wemeze.",
 
    // Admin
    "admin.dashboard": "Dashboard y'Umuyobozi",
