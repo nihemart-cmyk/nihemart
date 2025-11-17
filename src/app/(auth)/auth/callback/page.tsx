@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuthStore } from "@/store/auth.store";
 import { processOAuthRedirect } from "@/providers/processOAuthRedirect";
 import { Loader } from "lucide-react";
+import { toast } from "sonner";
 
 export default function AuthCallback() {
    const router = useRouter();
@@ -15,6 +16,7 @@ export default function AuthCallback() {
 
    useEffect(() => {
       // Show refresh button after 5 seconds if still on callback page
+      // (shorter timeout improves perceived responsiveness)
       const timer = setTimeout(() => {
          setShowRefresh(true);
       }, 5000);
@@ -41,6 +43,12 @@ export default function AuthCallback() {
 
             if (result?.sessionHandled) {
                // Session was successfully established
+               // Notify the user both in English and Kinyarwanda
+               try {
+                  toast.success("You are now logged in to Nihemart");
+               } catch (e) {
+                  // ignore toast errors
+               }
                const redirectTarget = result.redirectParam;
                const safeRedirect =
                   redirectTarget &&
@@ -52,6 +60,7 @@ export default function AuthCallback() {
                // Small delay to ensure state is updated
                await new Promise((resolve) => setTimeout(resolve, 500));
 
+               setShowRefresh(false);
                router.replace(safeRedirect);
                return;
             }
@@ -77,14 +86,28 @@ export default function AuthCallback() {
 
                localStorage.removeItem("oauth_redirect");
 
+               try {
+                  toast.success("You are now logged in to Nihemart");
+               } catch (e) {
+                  // ignore
+               }
+
                router.replace(safeRedirect);
             } else {
                await new Promise((resolve) => setTimeout(resolve, 1000));
+               toast.error("Could not complete sign-in. Please try again.");
                router.replace("/signin?error=no_session");
             }
          } catch (error: any) {
-            // Wait before redirecting so user can see the error
-            await new Promise((resolve) => setTimeout(resolve, 2000));
+            // Show user-facing error and redirect back to sign-in
+            try {
+               toast.error(
+                  error?.message || "Sign-in callback failed. Please try again."
+               );
+            } catch (e) {
+               // ignore
+            }
+            await new Promise((resolve) => setTimeout(resolve, 1500));
             router.replace("/signin?error=callback_error");
          }
       };

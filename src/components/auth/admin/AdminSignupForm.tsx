@@ -48,13 +48,19 @@ const AdminSignupForm: FC<AdminSignupFormProps> = ({}) => {
          console.log("Starting Google signup...");
          console.log("- Callback URL:", redirectTo);
 
+         // Inform the user that we're redirecting them to Google
+         try {
+            toast("Redirecting to Google...");
+         } catch (e) {
+            // ignore toast errors
+         }
+
          const { error } = await supabase.auth.signInWithOAuth({
             provider: "google",
             options: {
                redirectTo,
                queryParams: {
                   access_type: "offline",
-                  prompt: "consent",
                },
             },
          });
