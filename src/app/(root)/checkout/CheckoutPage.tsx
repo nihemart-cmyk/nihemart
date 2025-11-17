@@ -1472,7 +1472,7 @@ const CheckoutPage = ({
    const sectorFee = selectedSectorObj
       ? (sectorsFees as any)[selectedSectorObj.sct_name]
       : undefined;
-   const transport = sectorFee ?? 2000;
+   const transport = sectorFee ?? (hasAddress ? 2000 : 0);
    const total = subtotal + transport;
 
    // Pre-pay gating: compute required completion flags
@@ -1555,13 +1555,13 @@ const CheckoutPage = ({
          String(paymentMethod) === "cash_on_delivery");
 
    let missingSteps: string[] = [];
-   if (!hasItems) missingSteps.push("Add items to your cart");
-   if (!hasAddress) missingSteps.push("Select or add a delivery address");
-   if (!hasEmail) missingSteps.push("Provide a valid email");
-   if (!hasValidPhone) missingSteps.push("Provide a valid Rwanda phone number");
-   if (!paymentMethod) missingSteps.push("Select a payment method");
+   if (!hasItems) missingSteps.push("checkout.missing.addItems");
+   if (!hasAddress) missingSteps.push("checkout.missing.address");
+   if (!hasEmail) missingSteps.push("checkout.missing.email");
+   if (!hasValidPhone) missingSteps.push("checkout.missing.phone");
+   if (!paymentMethod) missingSteps.push("checkout.missing.paymentMethod");
    if (paymentRequiresVerification && !paymentVerified)
-      missingSteps.push("Complete the payment (you will be redirected)");
+      missingSteps.push("checkout.missing.completePayment");
 
    // When in retry mode we restore state from localStorage. To avoid showing
    // misleading missing-step messages while restoration completes (or when
@@ -1569,7 +1569,8 @@ const CheckoutPage = ({
    // select another payment method rather than listing cart/email items.
    if (effectiveIsRetry) {
       const retryOnly: string[] = [];
-      if (!paymentMethod) retryOnly.push("Select another payment method");
+      if (!paymentMethod)
+         retryOnly.push("checkout.missing.selectAnotherMethod");
       missingSteps = retryOnly;
    }
 
@@ -2304,35 +2305,15 @@ Total: ${total.toLocaleString()} RWF
                      <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                            <div className="font-semibold text-sm">
-                              Please complete the following before placing your
-                              order:
+                              {t("checkout.missing.header")}
                            </div>
                            <ul className="mt-1 text-sm list-disc pl-5 space-y-0.5">
                               {missingSteps.map((m) => (
-                                 <li key={m}>{m}</li>
+                                 <li key={m}>{t(m)}</li>
                               ))}
                            </ul>
                         </div>
-                        <div className="flex-shrink-0">
-                           <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => {
-                                 // Scroll to order section to help the user
-                                 const el = document.querySelector(
-                                    "[data-checkout-order-section]"
-                                 );
-                                 if (el) {
-                                    (el as HTMLElement).scrollIntoView({
-                                       behavior: "smooth",
-                                       block: "center",
-                                    });
-                                 }
-                              }}
-                           >
-                              Take me there
-                           </Button>
-                        </div>
+                        {/** removed 'Take me there' quick-jump button per request */}
                      </div>
                   </div>
                </div>
@@ -3322,14 +3303,20 @@ Total: ${total.toLocaleString()} RWF
                                              !paymentMethod;
                                           if (disabled) {
                                              if (missingSteps.length > 0) {
+                                                const msg = missingSteps
+                                                   .map((k) => t(k))
+                                                   .join(", ");
                                                 toast.error(
-                                                   `Please complete: ${missingSteps.join(
-                                                      ", "
-                                                   )}`
+                                                   `${t(
+                                                      "checkout.missing.toastPrefix"
+                                                   )} ${msg}`
                                                 );
                                              } else {
                                                 toast.error(
-                                                   "Please complete all required steps before placing your order."
+                                                   t(
+                                                      "checkout.missing.completeAllToast"
+                                                   ) ||
+                                                      "Please complete all required steps before placing your order."
                                                 );
                                              }
                                              return;
@@ -3369,7 +3356,9 @@ Total: ${total.toLocaleString()} RWF
                                           id="checkout-missing-steps"
                                           className="sr-only"
                                        >
-                                          {missingSteps.join(". ")}
+                                          {missingSteps
+                                             .map((k) => t(k))
+                                             .join(". ")}
                                        </div>
                                     )}
                                  </div>

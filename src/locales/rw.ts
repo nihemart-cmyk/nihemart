@@ -126,7 +126,7 @@ export const rw: Record<string, string> = {
    "checkout.selectPaymentMethod":
       "Hitamo uburyo bwo kwishyura kuri iyi komande.",
    // Payment option labels
-   "checkout.cashOnDelivery": "Amafaranga kugeze aho (Cash on Delivery)",
+   "checkout.cashOnDelivery": "Ishyura Bikugezeho",
    "checkout.ordersDisabledMessage":
       "Gutanga komande ubu byahagaritswe. Mwongere mugerageze mukanya.",
    // Schedule-specific message (night hours)
@@ -144,6 +144,20 @@ export const rw: Record<string, string> = {
    "checkout.orderNow": "Tumiza Nonaha",
    "checkout.contactPhoneLabel": "Telefoni y'itumanaho:",
    "checkout.paymentMethod": "Uburyo bwo kwishyura",
+   // Missing-steps banner / validation messages
+   "checkout.missing.header":
+      "Nyamuneka urangize ibi mbere yo gukora Komande:",
+   "checkout.missing.addItems": "Ongeramo ibicuruzwa mu gatebo kawe",
+   "checkout.missing.address": "Hitamo cyangwa ongeraho aderesi yo koherezaho",
+   "checkout.missing.email": "Tanga imeyili ikwiye",
+   "checkout.missing.phone": "Tanga nimero ya telefone iboneye mu Rwanda",
+   "checkout.missing.paymentMethod": "Hitamo uburyo bwo kwishyura",
+   "checkout.missing.completePayment":
+      "Uzuza uburyo bwo kwishyura (kuri paji y'ubwishyu)",
+   "checkout.missing.selectAnotherMethod": "Hitamo ubundi buryo bwo kwishyura",
+   "checkout.missing.toastPrefix": "Nyamuneka urangize:",
+   "checkout.missing.completeAllToast":
+      "Nyamuneka urangize byose bisabwa mbere yo gukora Komande.",
    // Provinces
    "province.south": "Amajyepfo",
    "province.north": "Amajyaruguru",
