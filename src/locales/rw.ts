@@ -80,7 +80,8 @@ export const rw: Record<string, string> = {
    "products.search": "Shakisha ibicuruzwa...",
    "products.filter": "Shiraho",
    "products.sort": "Shiraho",
-   "products.addToCart": "Shira mu gatebo",
+   "products.addToCart": "Shyira mu Gatebo",
+   "products.buyNow": "Gura Nonaha",
    "products.outOfStock": "Ntibihari",
    "products.viewDetails": "Reba Amakuru",
 

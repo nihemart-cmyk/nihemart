@@ -81,6 +81,7 @@ export const en: Record<string, string> = {
    "products.filter": "Filter",
    "products.sort": "Sort",
    "products.addToCart": "Add to Cart",
+   "products.buyNow": "Buy Now",
    "products.outOfStock": "Out of Stock",
    "products.viewDetails": "View Details",
 
