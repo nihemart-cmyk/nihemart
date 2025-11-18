@@ -95,6 +95,8 @@ export const rw: Record<string, string> = {
    "cart.continue": "Komeza guhaha",
    "cart.addProducts": "Ongeramo ibicuruzwa kugirango utangire!",
    "cart.order": "Tumiza!",
+   "cart.text": "Reba neza ibicuruzwa ugiye kugura",
+   "cart.help": "Niba ufite ikibazo mu kugura, twandikire kuri iyi numero tugufashe:",
 
    // Checkout
    "checkout.title": "Kwishyura",

@@ -119,6 +119,8 @@ export const en: Record<string, string> = {
    "cart.continue": "Continue shopping",
    "cart.addProducts": "Add some products to get started!",
    "cart.order": "Place order!",
+   "cart.text": "Review your items and proceed to checkout",
+   "cart.help": "If you have any issue in buying, please contact us on this number for help:",
 
    // Checkout page
    "checkout.title": "Checkout",
