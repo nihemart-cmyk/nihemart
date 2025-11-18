@@ -168,7 +168,7 @@ export function CustomerTable() {
                         <SelectContent>
                            <SelectItem value="all">All</SelectItem>
                            <SelectItem value="admin">Admin</SelectItem>
-                           <SelectItem value="rider">Rider</SelectItem>
+                           {/* <SelectItem value="rider">Rider</SelectItem> */}
                            <SelectItem value="user">User</SelectItem>
                         </SelectContent>
                      </Select>

@@ -40,8 +40,11 @@ export default async function handler(
          { data: authUsers },
          { data: ordersAgg },
       ] = await Promise.all([
-         // fetch profiles (all) so we can union with auth users server-side
-         supabase.from("profiles").select("id, full_name, phone, created_at"),
+         // fetch profiles excluding riders (users with role "rider")
+         supabase
+            .from("profiles")
+            .select("id, full_name, phone, created_at")
+            .not("id", "in", supabase.from("user_roles").select("user_id").eq("role", "rider")),
          supabase.from("user_roles").select("user_id, role"),
          supabase.from("users").select("id, email, created_at"),
          // Call RPC that aggregates orders per user (see migration)
