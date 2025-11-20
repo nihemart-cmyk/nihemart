@@ -1515,7 +1515,7 @@ const CheckoutPage = ({
    const sectorFee = selectedSectorObj
       ? (sectorsFees as any)[selectedSectorObj.sct_name]
       : undefined;
-   const transport = sectorFee ?? (hasAddress ? 2000 : 0);
+   const transport = sectorFee ?? (hasAddress ? 1000 : 0);
    const total = subtotal + transport;
 
    // Payment selection: For pre-pay we require a non-COD method to be selected and verified

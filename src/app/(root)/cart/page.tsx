@@ -178,8 +178,11 @@ const Cart = () => {
             <h1 className="text-2xl sm:text-3xl font-bold mb-1 text-gray-900">
                {t("cart.title")}
             </h1>
-            <p className="text-xs sm:text-sm text-muted-foreground">
-               Review your items and proceed to checkout
+            <p className="text-sm text-muted-foreground">
+               {t("cart.text")}
+            </p>
+            <p className="text-sm text-muted-foreground">
+               {t("cart.help")} <span className="text-orange-500">0792412177</span>
             </p>
             <div className="flex items-center mt-2">
                <span className="text-sm text-gray-600 bg-orange-50 px-2 py-1 rounded-full">

@@ -95,6 +95,8 @@ export const rw: Record<string, string> = {
    "cart.continue": "Komeza guhaha",
    "cart.addProducts": "Ongeramo ibicuruzwa kugirango utangire!",
    "cart.order": "Tumiza!",
+   "cart.text": "Reba neza ibicuruzwa ugiye kugura",
+   "cart.help": "Niba ufite ikibazo mu kugura, twandikire kuri iyi numero tugufashe:",
 
    // Checkout
    "checkout.title": "Kwishyura",
@@ -163,7 +165,7 @@ export const rw: Record<string, string> = {
    // Missing-steps banner / validation messages
    "checkout.missing.header": "Nyamuneka urangize ibi mbere yo gukora Komande:",
    "checkout.missing.addItems": "Ongeramo ibicuruzwa mu gatebo kawe",
-   "checkout.missing.address": "Hitamo cyangwa ongeraho aderesi yo koherezaho",
+   "checkout.missing.address": "Nyamuneka wuzuze aderesi yawe",
    "checkout.missing.email": "Tanga imeyili ikwiye",
    "checkout.missing.phone": "Tanga nimero ya telefone iboneye mu Rwanda",
    "checkout.missing.paymentMethod": "Hitamo uburyo bwo kwishyura",
@@ -208,6 +210,7 @@ export const rw: Record<string, string> = {
    "checkout.loginToPlaceOrder":
       "Nyamuneka winjire kugirango ushyireho komande",
    "checkout.loginToContinue": "Injira kugirango ukomeze",
+   "checkout.errors.validPhone": "Tanga nimero ya telefone iboneye (imibare 10)",
 
    // Auth
    "auth.login.title": "Injira mu Konti yawe",
