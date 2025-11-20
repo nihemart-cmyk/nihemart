@@ -170,6 +170,8 @@ export const en: Record<string, string> = {
       "You may select any time on the next day. Admin will see the requested delivery time on the dashboard.",
    "checkout.pickDeliveryTimeNextDay":
       "Ordering is restricted. Please choose a delivery time for the next day.",
+   "checkout.confirmScheduleDelivery":
+      "Please confirm you want this order delivered tomorrow during working hours.",
    "checkout.processing": "Processing Order...",
    "checkout.orderViaWhatsApp": "Order via WhatsApp",
    "checkout.orderNow": "Order Now",

@@ -35,6 +35,9 @@ export function AssignRiderDialog({
 
    const ridersQuery = useRiders();
    const assignMutation = useAssignOrder();
+   const reassignMutation = useReassignOrder();
+   const [isSubmitting, setIsSubmitting] = useState(false);
+   const [submittingLabel, setSubmittingLabel] = useState<string | null>(null);
    const orders = useOrders();
 
    useEffect(() => {
@@ -65,26 +68,42 @@ export function AssignRiderDialog({
       };
    }, [open, orderId]);
 
-   const reassignMutation = useReassignOrder();
-
    const handleAssign = async () => {
       if (!selectedRider) {
          toast.error("Please select a rider to assign");
          return;
       }
-
+      setIsSubmitting(true);
+      setSubmittingLabel("Processing...");
       try {
-         // Determine whether this is a new assign or a reassignment
-         // Fetch current assignment quickly to decide
-         const cur = (await fetch(`/api/orders/${orderId}/assignment`)
-            .then((r) =>
-               r.ok ? r.json().catch(() => ({} as any)) : ({} as any)
-            )
-            .catch(() => ({} as any))) as any;
-         const currentRiderId = cur?.rider?.id || null;
+         // Determine whether this is a new assign or a reassignment.
+         // Fetch current assignment and the order row to inspect status.
+         const [curResp, orderResp] = await Promise.all([
+            fetch(`/api/orders/${orderId}/assignment`).catch(() => ({} as any)),
+            fetch(`/api/orders/${orderId}`).catch(() => ({} as any)),
+         ]);
 
-         if (currentRiderId && currentRiderId !== selectedRider) {
-            // perform reassign
+         const cur =
+            curResp && curResp.ok
+               ? await curResp.json().catch(() => ({} as any))
+               : ({} as any);
+         const order =
+            orderResp && orderResp.ok
+               ? await orderResp.json().catch(() => ({} as any))
+               : ({} as any);
+
+         const currentRiderId = cur?.rider?.id || null;
+         const orderStatus = (order && order.status) || null;
+
+         // If the order is not pending, prefer the reassign flow so we don't
+         // accidentally call the initial `assign` endpoint which requires
+         // status === 'pending'. Also treat an existing different rider as
+         // a reassign.
+         if (
+            (currentRiderId && currentRiderId !== selectedRider) ||
+            (orderStatus && orderStatus !== "pending")
+         ) {
+            setSubmittingLabel("Reassigning...");
             await reassignMutation.mutateAsync({
                orderId,
                riderId: selectedRider,
@@ -92,7 +111,7 @@ export function AssignRiderDialog({
             });
             toast.success("Order reassigned to new rider");
          } else {
-            // perform initial assign
+            setSubmittingLabel("Assigning...");
             await assignMutation.mutateAsync({
                orderId,
                riderId: selectedRider,
@@ -113,6 +132,9 @@ export function AssignRiderDialog({
             (typeof err === "string" ? err : null) ||
             "Failed to assign order";
          toast.error(String(msg));
+      } finally {
+         setIsSubmitting(false);
+         setSubmittingLabel(null);
       }
    };
 
@@ -139,6 +161,7 @@ export function AssignRiderDialog({
                      <Select
                         value={selectedRider}
                         onValueChange={(v) => setSelectedRider(v || undefined)}
+                        disabled={isSubmitting || ridersQuery.isLoading}
                      >
                         <SelectTrigger>
                            <SelectValue
@@ -179,6 +202,7 @@ export function AssignRiderDialog({
                      value={note}
                      onChange={(e) => setNote(e.target.value)}
                      placeholder="Add a note (optional)"
+                     disabled={isSubmitting}
                   />
                </div>
 
@@ -186,21 +210,26 @@ export function AssignRiderDialog({
                   <Button
                      variant="ghost"
                      onClick={() => onOpenChange(false)}
+                     disabled={isSubmitting}
                   >
                      Cancel
                   </Button>
                   <Button
                      onClick={handleAssign}
                      disabled={
+                        isSubmitting ||
                         assignMutation.status === "pending" ||
+                        reassignMutation.status === "pending" ||
                         ridersQuery.isLoading ||
                         !selectedRider
                      }
                   >
-                     {assignMutation.status === "pending" ? (
+                     {isSubmitting ||
+                     assignMutation.status === "pending" ||
+                     reassignMutation.status === "pending" ? (
                         <>
                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                           Assigning...
+                           {submittingLabel || "Processing..."}
                         </>
                      ) : (
                         "Assign"

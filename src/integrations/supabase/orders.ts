@@ -1641,12 +1641,25 @@ export async function createOrder({
                      if (typeof window === "undefined") {
                         // Server: import sendEmail directly and send to all admins
                         const { sendEmail } = await import("@/lib/email/send");
-                        await Promise.all(
+                        const results = await Promise.all(
                            adminEmails.map((to) => sendEmail(to, subject, html))
                         );
+                        // Log any non-ok responses to aid debugging (e.g. missing SMTP env)
+                        try {
+                           results.forEach((r, idx) => {
+                              if (!r || (r as any).ok === false) {
+                                 console.warn(
+                                    `Admin email send failed for ${adminEmails[idx]}:`,
+                                    r
+                                 );
+                              }
+                           });
+                        } catch (e) {
+                           // ignore logging errors
+                        }
                      } else {
                         // Browser: proxy send through API route
-                        await Promise.all(
+                        const fetchResults = await Promise.all(
                            adminEmails.map((to) =>
                               fetch("/api/email/send-generic", {
                                  method: "POST",
@@ -1657,6 +1670,20 @@ export async function createOrder({
                               })
                            )
                         );
+                        try {
+                           // Log non-2xx responses
+                           fetchResults.forEach(async (res, idx) => {
+                              if (!res || !res.ok) {
+                                 let bodyText = "";
+                                 try {
+                                    bodyText = await res.text();
+                                 } catch (e) {}
+                                 console.warn(
+                                    `Admin email proxy failed for ${adminEmails[idx]}: status=${res?.status} body=${bodyText}`
+                                 );
+                              }
+                           });
+                        } catch (e) {}
                      }
                   } catch (adminEmailErr) {
                      console.warn(
@@ -1695,9 +1722,15 @@ export async function createOrder({
                            const { sendEmail } = await import(
                               "@/lib/email/send"
                            );
-                           await sendEmail(envAdmin, subject, html);
+                           const r = await sendEmail(envAdmin, subject, html);
+                           if (!r || (r as any).ok === false) {
+                              console.warn(
+                                 "Fallback admin email send failed:",
+                                 r
+                              );
+                           }
                         } else {
-                           await fetch("/api/email/send-generic", {
+                           const res = await fetch("/api/email/send-generic", {
                               method: "POST",
                               headers: { "Content-Type": "application/json" },
                               body: JSON.stringify({
@@ -1706,6 +1739,15 @@ export async function createOrder({
                                  html,
                               }),
                            });
+                           if (!res.ok) {
+                              let txt = "";
+                              try {
+                                 txt = await res.text();
+                              } catch (e) {}
+                              console.warn(
+                                 `Fallback admin email proxy failed: status=${res.status} body=${txt}`
+                              );
+                           }
                         }
                      } catch (e) {
                         console.warn("Fallback admin email send failed:", e);

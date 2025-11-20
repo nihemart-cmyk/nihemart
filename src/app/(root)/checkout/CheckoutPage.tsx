@@ -18,6 +18,14 @@ import {
    CollapsibleTrigger,
    CollapsibleContent,
 } from "@/components/ui/collapsible";
+import {
+   Dialog,
+   DialogContent,
+   DialogHeader,
+   DialogFooter,
+   DialogTitle,
+   DialogDescription,
+} from "@/components/ui/dialog";
 import { useAddresses } from "@/hooks/useAddresses";
 import {
    Select,
@@ -354,43 +362,16 @@ const CheckoutPage = ({
       airtel_money?: string;
    }>({});
    const [ordersEnabled, setOrdersEnabled] = useState<boolean | null>(null);
-   // When orders are disabled admin-side, customers must pick a delivery time (next day)
-   const [deliveryTime, setDeliveryTime] = useState<string | null>(null);
-   const formatLocalDateTimeForInput = (d: Date) => {
-      const pad = (n: number) => String(n).padStart(2, "0");
-      const yyyy = d.getFullYear();
-      const mm = pad(d.getMonth() + 1);
-      const dd = pad(d.getDate());
-      const hh = pad(d.getHours());
-      const min = pad(d.getMinutes());
-      return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
-   };
-   const nextDayMinLocal = (() => {
-      const now = new Date();
-      const tomorrow = new Date(
-         now.getFullYear(),
-         now.getMonth(),
-         now.getDate() + 1,
-         0,
-         0,
-         0,
-         0
-      );
-      return formatLocalDateTimeForInput(tomorrow);
-   })();
-   const nextDayMaxLocal = (() => {
-      const now = new Date();
-      const tomorrowEnd = new Date(
-         now.getFullYear(),
-         now.getMonth(),
-         now.getDate() + 1,
-         23,
-         59,
-         0,
-         0
-      );
-      return formatLocalDateTimeForInput(tomorrowEnd);
-   })();
+   // track whether the orders_enabled flag came from an admin override or schedule
+   const [ordersSource, setOrdersSource] = useState<"admin" | "schedule" | null>(null);
+   const [ordersDisabledMessage, setOrdersDisabledMessage] = useState<string | null>(null);
+
+   // When orders are disabled by schedule, require a one-time confirmation
+   // from the customer to deliver the order the next working day. The input
+   // for extra notes is optional.
+   const [scheduleConfirmChecked, setScheduleConfirmChecked] = useState(false);
+   const [scheduleNotes, setScheduleNotes] = useState<string>("");
+   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
    const [preventPersistence, setPreventPersistence] = useState(false);
    const formatPhoneInput = (input: string) => {
       // Remove all non-digit characters except +
@@ -1282,16 +1263,26 @@ const CheckoutPage = ({
          try {
             const res = await fetch("/api/admin/settings/orders-enabled");
             if (!res.ok) {
-               // API unreachable or non-2xx: treat as unknown so schedule controls default behavior
-               if (mounted) setOrdersEnabled(null);
+               if (mounted) {
+                  setOrdersEnabled(null);
+                  setOrdersSource(null);
+                  setOrdersDisabledMessage(null);
+               }
             } else {
                const j = await res.json();
-               if (mounted) setOrdersEnabled(Boolean(j.enabled));
+               if (mounted) {
+                  setOrdersEnabled(Boolean(j.enabled));
+                  setOrdersSource(j.source || null);
+                  setOrdersDisabledMessage(j.message || null);
+               }
             }
          } catch (err) {
             console.warn("Failed to fetch orders_enabled flag:", err);
-            // On error, do not force enabled; leave null to allow schedule-managed default
-            if (mounted) setOrdersEnabled(null);
+            if (mounted) {
+               setOrdersEnabled(null);
+               setOrdersSource(null);
+               setOrdersDisabledMessage(null);
+            }
          }
       })();
 
@@ -1707,15 +1698,29 @@ const CheckoutPage = ({
       // If in retry mode, we still allow the pre-pay flow using the local
       // persisted checkout snapshot instead of fetching the server order.
 
-      // If orders are disabled, require a delivery time scheduled for next day
+      // If orders are disabled, behavior depends on source:
+      // - admin override: block submission (customer cannot place order)
+      // - schedule-controlled (outside working hours): allow checkout but require explicit confirmation
       if (ordersEnabled === false) {
-         if (!deliveryTime) {
+         if (ordersSource === "admin") {
             toast.error(
-               t("checkout.pickDeliveryTimeNextDay") ||
-                  "Ordering is restricted. Please choose a delivery time for next day."
+               ordersDisabledMessage ||
+                  t("checkout.ordersDisabledMessage") ||
+                  "Ordering is currently disabled by the admin."
             );
             setIsSubmitting(false);
             return;
+         }
+
+         if (ordersSource === "schedule") {
+            if (!scheduleConfirmChecked) {
+               toast.error(
+                  t("checkout.confirmScheduleDelivery") ||
+                     "Please confirm you want this order delivered tomorrow during working hours."
+               );
+               setIsSubmitting(false);
+               return;
+            }
          }
       }
 
@@ -1761,10 +1766,8 @@ const CheckoutPage = ({
                payment_method: paymentMethod || "cash_on_delivery",
                delivery_notes:
                   (formData.delivery_notes || "").trim() || undefined,
-               // attach scheduled delivery time when provided
-               ...(deliveryTime
-                  ? { delivery_time: new Date(deliveryTime).toISOString() }
-                  : {}),
+               // note: scheduled delivery time selection removed — if user provided
+               // schedule notes we attach them to delivery_notes below
             },
             items: orderItems.map((item) => {
                const explicitProductId = (item as any).product_id as
@@ -1801,11 +1804,13 @@ const CheckoutPage = ({
             orderData.order.delivery_notes = formData.delivery_notes;
          }
 
-         // If orders are disabled but deliveryTime was provided ensure it is included
-         if (ordersEnabled === false && deliveryTime) {
-            orderData.order.delivery_time = new Date(
-               deliveryTime
-            ).toISOString();
+         // If schedule notes were provided when orders are disabled by schedule,
+         // append them to delivery_notes so admin can see them.
+         if (ordersEnabled === false && ordersSource === "schedule" && scheduleNotes) {
+            const existing = orderData.order.delivery_notes || "";
+            orderData.order.delivery_notes = (
+               existing + (existing ? "\n\n" : "") + scheduleNotes
+            ).trim();
          }
 
          if (!createOrder || typeof createOrder.mutate !== "function") {
@@ -2246,7 +2251,12 @@ Subtotal: ${subtotal.toLocaleString()} RWF
 Transport: ${transport.toLocaleString()} RWF
 Total: ${total.toLocaleString()} RWF
     `;
-      return encodeURIComponent(message);
+      // If schedule notes exist (customer confirmed outside working hours), append them
+      let final = message;
+      if (ordersEnabled === false && ordersSource === "schedule" && scheduleNotes) {
+         final = final + `\n\nSchedule notes:\n${scheduleNotes}`;
+      }
+      return encodeURIComponent(final);
    };
 
    const handleWhatsAppCheckout = () => {
@@ -2259,6 +2269,28 @@ Total: ${total.toLocaleString()} RWF
       if (orderItems.length === 0) {
          toast.error("Your cart is empty");
          return;
+      }
+
+      // Respect orders-enabled flag for WhatsApp flow as well
+      if (ordersEnabled === false) {
+         if (ordersSource === "admin") {
+            toast.error(
+               ordersDisabledMessage ||
+                  t("checkout.ordersDisabledMessage") ||
+                  "Ordering is currently disabled by the admin."
+            );
+            return;
+         }
+
+         if (ordersSource === "schedule" && !scheduleConfirmChecked) {
+            // Prompt the user via the confirmation dialog to confirm schedule delivery
+            setConfirmDialogOpen(true);
+            toast.info(
+               t("checkout.confirmScheduleDelivery") ||
+                  "Please confirm you want this order delivered tomorrow during working hours."
+            );
+            return;
+         }
       }
 
       // Updated WhatsApp number (international format without +)
@@ -3253,37 +3285,114 @@ Total: ${total.toLocaleString()} RWF
                         )}
 
                         {/* When admin disables ordering prompt user to pick next-day delivery time */}
-                        {ordersEnabled === false && (
+                        {/* When orders are disabled by schedule allow checkout but
+                            require a one-time confirmation. When disabled manually
+                            by admin, continue to show a blocking message below. */}
+                        {ordersEnabled === false && ordersSource === "schedule" && (
                            <div className="mt-3 p-3 border rounded-md bg-yellow-50 border-yellow-200">
                               <p className="text-sm text-yellow-900 font-medium">
-                                 {t("checkout.ordersDisabledPrompt") ||
-                                    "We are not accepting regular deliveries right now. Please choose a preferred delivery time for the next day:"}
+                                 {t("checkout.ordersDisabledScheduleMessage") ||
+                                    "Mutwihanganire ubu amasaha yakazi yarangiye gusa niba ushaka iyi komande wakemeza mukadirishya kari hasi tukazayizana ejo musaha yamazi ( 9:30am -9pm),"}
                               </p>
-                              <div className="mt-2 flex gap-2 items-center">
-                                 <Input
-                                    type="datetime-local"
-                                    value={deliveryTime || nextDayMinLocal}
-                                    min={nextDayMinLocal}
-                                    max={nextDayMaxLocal}
-                                    step={900}
-                                    onChange={(e) =>
-                                       setDeliveryTime(e.target.value)
-                                    }
-                                 />
+
+                              <div className="mt-3 flex items-center justify-between">
+                                 <div>
+                                    {!scheduleConfirmChecked ? (
+                                       <p className="text-sm text-yellow-900">
+                                          {t("checkout.ordersDisabledScheduleShort") ||
+                                             "Turafunga ubu — ushobora gukomeza no kwemeza ko iyi komande izatangwa ejo.")}
+                                       </p>
+                                    ) : (
+                                       <div className="inline-flex items-center gap-2 px-2 py-1 bg-yellow-100 text-yellow-800 rounded">
+                                          <CheckCircle2 className="h-4 w-4 text-yellow-700" />
+                                          <span className="text-sm">{t("checkout.scheduleConfirmedLabel") || "Yemejwe kuboneka ejo"}</span>
+                                       </div>
+                                    )}
+                                 </div>
+
+                                 <div>
+                                    <Button
+                                       size="sm"
+                                       onClick={() => setConfirmDialogOpen(true)}
+                                       className="text-sm h-9"
+                                    >
+                                       {scheduleConfirmChecked
+                                          ? t("common.edit")
+                                          : t("checkout.confirmScheduleCTA") ||
+                                            "Confirm delivery tomorrow"}
+                                    </Button>
+                                 </div>
                               </div>
-                              <p className="text-xs text-yellow-800 mt-2">
-                                 {t("checkout.pickDeliveryTimeHint") ||
-                                    "You may select any time on the next day. Admin will see the requested delivery time on the dashboard."}
-                              </p>
+
+                              {/* Modal dialog for confirmation & optional notes */}
+                              <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
+                                 <DialogContent className="sm:max-w-md">
+                                    <DialogHeader>
+                                       <DialogTitle>
+                                          {t("checkout.ordersDisabledScheduleModalTitle") || "Outside working hours"}
+                                       </DialogTitle>
+                                       <DialogDescription>
+                                          {t("checkout.ordersDisabledScheduleMessage") ||
+                                             "Mutwihanganire ubu amasaha yakazi yarangiye gusa niba ushaka iyi komande wakemeza mukadirishya kari hasi tukazayizana ejo musaha yamazi ( 9:30am -9pm),"}
+                                       </DialogDescription>
+                                    </DialogHeader>
+
+                                    <div className="mt-4">
+                                       <div className="flex items-start gap-3">
+                                          <input
+                                             id="schedule-confirm-dialog"
+                                             type="checkbox"
+                                             checked={scheduleConfirmChecked}
+                                             onChange={(e) => setScheduleConfirmChecked(e.target.checked)}
+                                             className="h-4 w-4 mt-1"
+                                          />
+                                          <label htmlFor="schedule-confirm-dialog" className="text-sm text-gray-900">
+                                             {t("checkout.scheduleConfirmLabel") ||
+                                                "Ndemera ko iyi komande izatanzwe ejo mu masaha y'akazi (9:30am - 9pm)."}
+                                          </label>
+                                       </div>
+
+                                       <div className="mt-4">
+                                          <Label className="text-xs sm:text-sm font-medium text-gray-700">
+                                             {t("checkout.scheduleNotesLabel") || "Icyitonderwa (optional)"}
+                                          </Label>
+                                          <textarea
+                                             rows={4}
+                                             placeholder={t("checkout.scheduleNotesPlaceholder") || "niba hari ikindi wifuza nkigihe twayizana cyagwa ikindi byandike aho habugenewe"}
+                                             value={scheduleNotes}
+                                             onChange={(e) => setScheduleNotes(e.target.value)}
+                                             className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 resize-none transition-colors text-xs sm:text-sm"
+                                          />
+                                          <p className="text-xs text-yellow-800 mt-2">
+                                             {t("checkout.ordersDisabledScheduleHint") || "Icyitonderwa: Uyu mwandiko ni optional."}
+                                          </p>
+                                       </div>
+                                    </div>
+
+                                    <DialogFooter>
+                                       <Button variant="outline" onClick={() => setConfirmDialogOpen(false)}>
+                                          {t("common.cancel")}
+                                       </Button>
+                                       <Button
+                                          onClick={() => {
+                                             // Save and close
+                                             setConfirmDialogOpen(false);
+                                             setScheduleConfirmChecked(true);
+                                          }}
+                                       >
+                                          {t("common.save")}
+                                       </Button>
+                                    </DialogFooter>
+                                 </DialogContent>
+                              </Dialog>
                            </div>
                         )}
 
                         {/* Order buttons */}
                         <div className="pt-1">
-                           {ordersEnabled === false && (
+                           {ordersEnabled === false && ordersSource === "admin" && (
                               <div className="mb-3 p-3 rounded bg-yellow-50 border border-yellow-200 text-yellow-900 text-sm">
-                                 {t("checkout.ordersDisabledMessage") ||
-                                    "Ordering is currently disabled by the admin."}
+                                 {ordersDisabledMessage || t("checkout.ordersDisabledMessage") || "Ordering is currently disabled by the admin."}
                               </div>
                            )}
                            {isKigali ? (
@@ -3302,7 +3411,9 @@ Total: ${total.toLocaleString()} RWF
                                              !hasAddress ||
                                              !hasEmail ||
                                              !hasValidPhone ||
-                                             !paymentMethod;
+                                             !paymentMethod ||
+                                             (ordersEnabled === false && ordersSource === "schedule" && !scheduleConfirmChecked) ||
+                                             (ordersEnabled === false && ordersSource === "admin");
                                           if (disabled) {
                                              if (missingSteps.length > 0) {
                                                 const msg = missingSteps
@@ -3333,7 +3444,9 @@ Total: ${total.toLocaleString()} RWF
                                           !hasAddress ||
                                           !hasEmail ||
                                           !hasValidPhone ||
-                                          !paymentMethod
+                                          !paymentMethod ||
+                                          (ordersEnabled === false && ordersSource === "schedule" && !scheduleConfirmChecked) ||
+                                          (ordersEnabled === false && ordersSource === "admin")
                                        }
                                     >
                                        {isSubmitting || isInitiating ? (

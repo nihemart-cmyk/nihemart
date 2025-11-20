@@ -129,12 +129,28 @@ export const rw: Record<string, string> = {
    "checkout.cashOnDelivery": "Ishyura Bikugezeho",
    "checkout.ordersDisabledMessage":
       "Gutanga komande ubu byahagaritswe. Mwongere mugerageze mukanya.",
+   "checkout.ordersDisabledScheduleMessage":
+      "Mutwihanganire ubu amasaha  yakazi yarangiye gusa niba ushaka iyi komande wakemeza mukadirishya kari hasi tukazayizana ejo mu masaha  yamazi ( 9:30am -9pm),",
    // Schedule-specific message (night hours)
    "checkout.ordersDisabledSchedule":
       "Aka kanya ntago turi kwakira komande, Mwongere mugerageze 9:00",
+   "checkout.ordersDisabledScheduleShort":
+      "Turafunga ubu — ushobora gukomeza no kwemeza ko iyi komande izatangwa ejo.",
+   "checkout.scheduleConfirmedLabel": "Yemejwe kuboneka ejo",
+   "checkout.confirmScheduleCTA": "Emeza",
+   "checkout.ordersDisabledScheduleModalTitle":
+      "Turafunga ubu — Emeza ko ushaka gutumiza",
+   "checkout.scheduleConfirmLabel":
+      "Ndemera ko iyi komande izatanzwe ejo mu masaha y'akazi (9:30am - 9:00pm).",
+   "checkout.scheduleNotesLabel": "Andika ibyo wifuza (optional)",
+   "checkout.scheduleNotesPlaceholder":
+      "niba hari ikindi wifuza nkigihe twayizana cyagwa ikindi byandike aho habugenewe",
+   "checkout.ordersDisabledScheduleHint": "Icyitonderwa: Ntago ari itegeko.",
+   "checkout.confirmScheduleDelivery":
+      "Nyamuneka wemeze ko ushaka ko iyi komande izatangwa ejo mu masaha y'akazi.",
    "checkout.ordersDisabledBanner": "Kwishyura ubu byahagaritswe n'umuyobozi.",
    "checkout.ordersDisabledPrompt":
-      "Ubu ntitwamamaza uburyo busanzwe bwo gutanga. Nyamuneka hitamo igihe ushaka ko bazanira ejo:",
+      "Ubu Gutanga Komande Byahagaritswe. Nyamuneka hitamo igihe ushaka ko bayizanira ejo:",
    "checkout.pickDeliveryTimeHint":
       "Ushobora guhitamo igihe cyose ku munsi ukurikiraho. Umuyobozi azabona igihe wasabye kuri dashboard.",
    "checkout.pickDeliveryTimeNextDay":
