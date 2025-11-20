@@ -29,7 +29,7 @@ import { Badge } from "../ui/badge";
 import Image from "next/image";
 import { momoIcon } from "@/assets";
 import { Icons } from "../icons";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { CustomerDetailsDialog } from "./CustomerDetailsDialog";
 import { OrderDetailsDialog } from "./OrderDetailsDialog";
@@ -132,7 +132,6 @@ export const columns: ColumnDef<Order>[] = [
          );
       },
    },
-
    {
       accessorKey: "delivery_time",
       header: "DELIVERY",
@@ -148,7 +147,6 @@ export const columns: ColumnDef<Order>[] = [
          );
       },
    },
-
    {
       id: "customer",
       header: "CUSTOMER",
@@ -168,7 +166,59 @@ export const columns: ColumnDef<Order>[] = [
          );
       },
    },
+   {
+      id: "rider",
+      header: "RIDER",
+      cell: ({ row }) => {
+         const orderId = row.original.id;
+         const [loading, setLoading] = useState(false);
+         const [rider, setRider] = useState<any>(null);
 
+         useEffect(() => {
+            let mounted = true;
+            (async () => {
+               try {
+                  setLoading(true);
+                  const res = await fetch(`/api/orders/${orderId}/assignment`);
+                  if (!res.ok) return;
+                  const json = await res.json();
+                  if (!mounted) return;
+                  setRider(json?.rider || null);
+               } catch (e) {
+                  // ignore
+               } finally {
+                  if (mounted) setLoading(false);
+               }
+            })();
+            return () => {
+               mounted = false;
+            };
+         }, [orderId]);
+
+         if (loading)
+            return (
+               <span className="text-sm text-muted-foreground">Loading…</span>
+            );
+         if (!rider)
+            return (
+               <span className="text-sm text-muted-foreground">Unassigned</span>
+            );
+         return (
+            <div className="flex items-center gap-2">
+               <UserAvatarProfile
+                  user={{
+                     fullName: rider.full_name || rider.name,
+                     subTitle: rider.phone || undefined,
+                  }}
+                  showInfo={false}
+               />
+               <span className="text-sm">
+                  {rider.full_name || rider.name || rider.id}
+               </span>
+            </div>
+         );
+      },
+   },
    {
       accessorKey: "status",
       header: "STATUS",
@@ -262,16 +312,6 @@ export const columns: ColumnDef<Order>[] = [
          );
       },
    },
-   /*
-   {
-      id: "method",
-      header: "METHOD",
-      // The payment method UI cell is preserved here for reference.
-      // Commented out per request to hide the column while keeping the
-      // implementation available for future re-enablement.
-      cell: () => <PaymentMethod method="mobile_money" />,
-   },
-   */
    {
       accessorKey: "total",
       header: "AMOUNT",
@@ -368,6 +408,14 @@ export const columns: ColumnDef<Order>[] = [
                            Assign to rider
                         </DropdownMenuItem>
                      )}
+                     {(order.status === "assigned" ||
+                        order.status === "processing") && (
+                        <DropdownMenuItem
+                           onClick={() => setShowAssignDialog(true)}
+                        >
+                           Change rider
+                        </DropdownMenuItem>
+                     )}
                      {isAdmin &&
                         (order.status === "pending" ||
                            order.status === "processing") && (
@@ -424,7 +472,7 @@ export const columns: ColumnDef<Order>[] = [
                            Are you sure you want to cancel order #
                            {order.order_number || order.id}? This action cannot
                            be undone and will set the order status to
-                           &quot;cancelled&quot;.
+                           "cancelled".
                         </AlertDialogDescription>
                      </AlertDialogHeader>
                      <AlertDialogFooter>

@@ -1581,6 +1581,140 @@ export async function createOrder({
                   );
                }
             }
+            // Send admin email notification (best-effort)
+            try {
+               // Attempt to collect admin emails from user_roles -> users
+               let adminEmails: string[] = [];
+               try {
+                  const { data: adminRoles, error: arErr } = await sb
+                     .from("user_roles")
+                     .select("user_id")
+                     .eq("role", "admin");
+                  if (
+                     !arErr &&
+                     Array.isArray(adminRoles) &&
+                     adminRoles.length
+                  ) {
+                     const ids = adminRoles
+                        .map((r: any) => r.user_id)
+                        .filter(Boolean);
+                     if (ids.length) {
+                        const { data: adminUsers, error: uErr } = await sb
+                           .from("users")
+                           .select("email")
+                           .in("id", ids as any[]);
+                        if (!uErr && Array.isArray(adminUsers)) {
+                           adminEmails = adminUsers
+                              .map((u: any) => u?.email)
+                              .filter(Boolean);
+                        }
+                     }
+                  }
+               } catch (fetchAdminErr) {
+                  console.warn("Failed to fetch admin emails:", fetchAdminErr);
+               }
+
+               if (adminEmails.length > 0) {
+                  try {
+                     // Build admin-facing email using the same confirmation template
+                     const { buildOrderConfirmationEmail } = await import(
+                        "@/lib/email/notifications"
+                     );
+                     const customerName =
+                        (
+                           (quickOrder.customer_first_name || "") +
+                           (quickOrder.customer_last_name
+                              ? ` ${quickOrder.customer_last_name}`
+                              : "")
+                        ).trim() || undefined;
+                     const { subject, html } = buildOrderConfirmationEmail({
+                        order_id: quickOrder.id,
+                        order_number: quickOrder.order_number,
+                        items: quickOrder.items || [],
+                        total: quickOrder.total,
+                        currency: quickOrder.currency,
+                        customer_name: customerName,
+                        delivery_address: quickOrder.delivery_address,
+                        delivery_time: quickOrder.delivery_time ?? undefined,
+                     });
+
+                     if (typeof window === "undefined") {
+                        // Server: import sendEmail directly and send to all admins
+                        const { sendEmail } = await import("@/lib/email/send");
+                        await Promise.all(
+                           adminEmails.map((to) => sendEmail(to, subject, html))
+                        );
+                     } else {
+                        // Browser: proxy send through API route
+                        await Promise.all(
+                           adminEmails.map((to) =>
+                              fetch("/api/email/send-generic", {
+                                 method: "POST",
+                                 headers: {
+                                    "Content-Type": "application/json",
+                                 },
+                                 body: JSON.stringify({ to, subject, html }),
+                              })
+                           )
+                        );
+                     }
+                  } catch (adminEmailErr) {
+                     console.warn(
+                        "Failed to send admin emails for new order:",
+                        adminEmailErr
+                     );
+                  }
+               } else {
+                  // fallback: try single env var if present
+                  const envAdmin =
+                     process.env.ADMIN_EMAIL ||
+                     process.env.NEWSLETTER_ADMIN_EMAIL;
+                  if (envAdmin) {
+                     try {
+                        const { buildOrderConfirmationEmail } = await import(
+                           "@/lib/email/notifications"
+                        );
+                        const customerName =
+                           (
+                              (quickOrder.customer_first_name || "") +
+                              (quickOrder.customer_last_name
+                                 ? ` ${quickOrder.customer_last_name}`
+                                 : "")
+                           ).trim() || undefined;
+                        const { subject, html } = buildOrderConfirmationEmail({
+                           order_id: quickOrder.id,
+                           order_number: quickOrder.order_number,
+                           items: quickOrder.items || [],
+                           total: quickOrder.total,
+                           currency: quickOrder.currency,
+                           customer_name: customerName,
+                           delivery_address: quickOrder.delivery_address,
+                           delivery_time: quickOrder.delivery_time ?? undefined,
+                        });
+                        if (typeof window === "undefined") {
+                           const { sendEmail } = await import(
+                              "@/lib/email/send"
+                           );
+                           await sendEmail(envAdmin, subject, html);
+                        } else {
+                           await fetch("/api/email/send-generic", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                 to: envAdmin,
+                                 subject,
+                                 html,
+                              }),
+                           });
+                        }
+                     } catch (e) {
+                        console.warn("Fallback admin email send failed:", e);
+                     }
+                  }
+               }
+            } catch (e) {
+               console.warn("Admin email notification flow failed:", e);
+            }
          } catch (e) {
             console.warn(
                "Failed to create notifications or send email for new order:",

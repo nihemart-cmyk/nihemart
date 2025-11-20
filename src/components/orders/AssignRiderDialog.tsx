@@ -12,7 +12,7 @@ import {
    SelectTrigger,
    SelectValue,
 } from "@/components/ui/select";
-import { useRiders, useAssignOrder } from "@/hooks/useRiders";
+import { useRiders, useAssignOrder, useReassignOrder } from "@/hooks/useRiders";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { useOrders } from "@/hooks/useOrders";
@@ -44,6 +44,29 @@ export function AssignRiderDialog({
       }
    }, [open]);
 
+   // Load current assignment when dialog opens so we can prefill and switch to "Change" flow
+   useEffect(() => {
+      let mounted = true;
+      if (!open) return;
+      (async () => {
+         try {
+            const res = await fetch(`/api/orders/${orderId}/assignment`);
+            if (!res.ok) return;
+            const json = await res.json();
+            if (!mounted) return;
+            const rider = json?.rider || null;
+            if (rider && rider.id) setSelectedRider(rider.id);
+         } catch (e) {
+            // ignore
+         }
+      })();
+      return () => {
+         mounted = false;
+      };
+   }, [open, orderId]);
+
+   const reassignMutation = useReassignOrder();
+
    const handleAssign = async () => {
       if (!selectedRider) {
          toast.error("Please select a rider to assign");
@@ -51,18 +74,39 @@ export function AssignRiderDialog({
       }
 
       try {
-         await assignMutation.mutateAsync({
-            orderId,
-            riderId: selectedRider,
-            notes: note,
-         });
-         toast.success("Order assigned to rider");
+         // Determine whether this is a new assign or a reassignment
+         // Fetch current assignment quickly to decide
+         const cur = (await fetch(`/api/orders/${orderId}/assignment`)
+            .then((r) =>
+               r.ok ? r.json().catch(() => ({} as any)) : ({} as any)
+            )
+            .catch(() => ({} as any))) as any;
+         const currentRiderId = cur?.rider?.id || null;
+
+         if (currentRiderId && currentRiderId !== selectedRider) {
+            // perform reassign
+            await reassignMutation.mutateAsync({
+               orderId,
+               riderId: selectedRider,
+               notes: note,
+            });
+            toast.success("Order reassigned to new rider");
+         } else {
+            // perform initial assign
+            await assignMutation.mutateAsync({
+               orderId,
+               riderId: selectedRider,
+               notes: note,
+            });
+            toast.success("Order assigned to rider");
+         }
+
          // refresh orders and riders
          orders.invalidateOrders();
          // close dialog
          onOpenChange(false);
       } catch (err: any) {
-         console.error("Failed to assign order:", err);
+         console.error("Failed to assign/reassign order:", err);
          const msg =
             (err && err.error && (err.error.message || err.error)) ||
             err?.message ||

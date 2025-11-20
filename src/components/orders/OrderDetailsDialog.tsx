@@ -106,6 +106,66 @@ export function OrderDetailsDialog({
       Record<string, string>
    >({});
 
+   // Helper to render variation information for an order item
+   const renderVariationLabel = (item: OrderItem) => {
+      // Prefer explicit variation_name saved on the order item
+      const explicit = item.variation_name;
+      if (explicit) {
+         // Sometimes variation_name may be a JSON string of attributes
+         try {
+            const parsed = JSON.parse(explicit);
+            if (parsed && typeof parsed === "object") {
+               const pairs = Object.entries(parsed)
+                  .map(([k, v]) => `${k}: ${v}`)
+                  .join(", ");
+               return (
+                  <p className="text-sm text-muted-foreground">
+                     Variation: {pairs}
+                  </p>
+               );
+            }
+         } catch (e) {
+            // not JSON, fall back to plain string
+         }
+         return (
+            <p className="text-sm text-muted-foreground">
+               Variation: {explicit}
+            </p>
+         );
+      }
+
+      // Fall back to variation lookup fetched from product details
+      const lookup =
+         item.product_variation_id &&
+         productVariationNames[item.product_variation_id]
+            ? productVariationNames[item.product_variation_id]
+            : undefined;
+      if (lookup) {
+         return (
+            <p className="text-sm text-muted-foreground">Variation: {lookup}</p>
+         );
+      }
+
+      // As a last resort show SKU or the raw variation id so user can identify
+      if (item.product_sku) {
+         return (
+            <p className="text-sm text-muted-foreground">
+               SKU: {item.product_sku}
+            </p>
+         );
+      }
+
+      if (item.product_variation_id) {
+         return (
+            <p className="text-sm text-muted-foreground">
+               Variation id: {item.product_variation_id}
+            </p>
+         );
+      }
+
+      return null;
+   };
+
    useEffect(() => {
       let mounted = true;
       // Fetch latest assignment's rider when the dialog opens and the order
@@ -379,20 +439,7 @@ export function OrderDetailsDialog({
                                      when available. This ensures admins see which variation
                                      the user selected even if the order row did not include
                                      the variation_name field. */}
-                                 {(() => {
-                                    const vLabel =
-                                       item.variation_name ||
-                                       (item.product_variation_id
-                                          ? productVariationNames[
-                                               item.product_variation_id
-                                            ]
-                                          : undefined);
-                                    return vLabel ? (
-                                       <p className="text-sm text-muted-foreground">
-                                          Variation: {vLabel}
-                                       </p>
-                                    ) : null;
-                                 })()}
+                                 {renderVariationLabel(item)}
                                  <div className="flex justify-between items-center mt-2">
                                     <p className="text-sm text-muted-foreground">
                                        Quantity: {item.quantity} ×{" "}
@@ -434,14 +481,12 @@ export function OrderDetailsDialog({
                               {Number(order.subtotal || 0).toLocaleString()} RWF
                            </p>
                         </div>
-                        {order.tax && (
-                           <div className="flex justify-between">
-                              <p className="text-muted-foreground">Tax</p>
-                              <p>
-                                 {Number(order.tax || 0).toLocaleString()} RWF
-                              </p>
-                           </div>
-                        )}
+                        <div className="flex justify-between">
+                           <p className="text-muted-foreground">
+                              Transport fee
+                           </p>
+                           <p>{Number(order.tax || 0).toLocaleString()} RWF</p>
+                        </div>
                         <div className="flex justify-between font-semibold border-t pt-2">
                            <p>Total</p>
                            <p>

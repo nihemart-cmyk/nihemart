@@ -389,6 +389,190 @@ export async function assignOrderToRider(
    }
 }
 
+// Admin-only: reassign an order from its current rider to a new rider
+export async function reassignOrderToRider(
+   orderId: string,
+   newRiderId: string,
+   notes?: string
+) {
+   try {
+      // Fetch order and current assignment (if any)
+      const { data: order, error: orderErr } = await sb
+         .from("orders")
+         .select(`*, items:order_items(*)`)
+         .eq("id", orderId)
+         .maybeSingle();
+      if (orderErr) throw orderErr;
+      if (!order) {
+         const e: any = new Error("Order not found");
+         e.code = "ORDER_NOT_FOUND";
+         throw e;
+      }
+
+      // Ensure new rider exists and is active
+      const { data: newRiderRow, error: newRiderErr } = await sb
+         .from("riders")
+         .select("*")
+         .eq("id", newRiderId)
+         .maybeSingle();
+      if (newRiderErr) throw newRiderErr;
+      if (!newRiderRow) {
+         const e: any = new Error("Rider not found");
+         e.code = "RIDER_NOT_FOUND";
+         throw e;
+      }
+      if (newRiderRow.active === false) {
+         const e: any = new Error(
+            "Rider is inactive and cannot be assigned orders"
+         );
+         e.code = "RIDER_INACTIVE";
+         throw e;
+      }
+
+      // Find latest active assignment for this order (if any)
+      const { data: existingAssignments } = await sb
+         .from("order_assignments")
+         .select("*")
+         .eq("order_id", orderId)
+         .order("assigned_at", { ascending: false })
+         .limit(1);
+
+      const prev = (existingAssignments && existingAssignments[0]) || null;
+
+      // Mark previous assignment as 'reassigned' if present and not completed
+      if (prev && prev.id) {
+         try {
+            await sb
+               .from("order_assignments")
+               .update({
+                  status: "reassigned",
+                  responded_at: new Date().toISOString(),
+               })
+               .eq("id", prev.id);
+         } catch (e) {
+            // best-effort; continue
+            console.warn("Failed to mark previous assignment as reassigned", e);
+         }
+
+         // Notify previous rider that assignment was removed
+         try {
+            const prevRiderRow = await sb
+               .from("riders")
+               .select("*")
+               .eq("id", prev.rider_id)
+               .maybeSingle();
+            const prevRider = prevRiderRow?.data || null;
+            if (prevRider) {
+               await createNotification({
+                  p_recipient_user_id: prevRider.user_id || null,
+                  p_recipient_role: "rider",
+                  p_type: "assignment_reassigned",
+                  p_title: `Assignment removed for order ${
+                     order.order_number || order.id
+                  }`,
+                  p_body: null,
+                  p_meta: {
+                     order_id: order.id,
+                     order_number: order.order_number,
+                     previous_assignment_id: prev.id,
+                     previous_rider_id: prev.rider_id,
+                  },
+               });
+            }
+         } catch (e) {
+            console.warn(
+               "Failed to notify previous rider about reassignment",
+               e
+            );
+         }
+      }
+
+      // Insert new assignment
+      const { data: newAssignment, error: insertErr } = await sb
+         .from("order_assignments")
+         .insert([{ order_id: orderId, rider_id: newRiderId, notes }])
+         .select()
+         .single();
+      if (insertErr) throw insertErr;
+
+      // Ensure order status is 'assigned'
+      await sb.from("orders").update({ status: "assigned" }).eq("id", orderId);
+
+      // Create notifications: customer, admin, new rider
+      try {
+         // customer
+         if (order?.user_id) {
+            await createNotification({
+               p_recipient_user_id: order.user_id,
+               p_recipient_role: "user",
+               p_type: "order_reassigned",
+               p_title: null,
+               p_body: null,
+               p_meta: {
+                  order,
+                  items: order.items || [],
+                  new_rider_name:
+                     newRiderRow.full_name ||
+                     newRiderRow.name ||
+                     "Delivery Rider",
+                  new_rider_id: newRiderId,
+                  assignment_id: newAssignment.id,
+               },
+            });
+         }
+      } catch (e) {
+         console.warn("Failed to notify customer for reassignment", e);
+      }
+
+      try {
+         // admin
+         await createNotification({
+            p_recipient_user_id: null,
+            p_recipient_role: "admin",
+            p_type: "assignment_reassigned",
+            p_title: null,
+            p_body: null,
+            p_meta: {
+               order,
+               items: order.items || [],
+               new_rider_id: newRiderId,
+               new_rider_name:
+                  newRiderRow.full_name || newRiderRow.name || "Delivery Rider",
+               previous_assignment_id: prev?.id || null,
+               assignment_id: newAssignment.id,
+            },
+         });
+      } catch (e) {
+         console.warn("Failed to notify admins for reassignment", e);
+      }
+
+      try {
+         // notify new rider (DB trigger may have created a rider notification already; still attempt richer payload)
+         await createNotification({
+            p_recipient_user_id: newRiderRow.user_id || null,
+            p_recipient_role: "rider",
+            p_type: "assignment_created",
+            p_title: null,
+            p_body: null,
+            p_meta: {
+               order,
+               items: order.items || [],
+               rider_name:
+                  newRiderRow.full_name || newRiderRow.name || "Delivery Rider",
+               rider_id: newRiderId,
+               assignment_id: newAssignment.id,
+            },
+         });
+      } catch (e) {
+         console.warn("Failed to notify new rider for reassignment", e);
+      }
+
+      return newAssignment as any;
+   } catch (err) {
+      throw err;
+   }
+}
+
 export async function deleteRider(riderId: string) {
    const { data, error } = await sb
       .from("riders")

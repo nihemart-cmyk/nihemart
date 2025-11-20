@@ -132,6 +132,35 @@ export function useAssignOrder() {
    });
 }
 
+// Admin: reassign an order to a different rider
+export function useReassignOrder() {
+   const qc = useQueryClient();
+   return useMutation({
+      mutationFn: async ({ orderId, riderId, notes }: any) => {
+         const res = await fetch(`/api/admin/reassign-order`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ orderId, riderId, notes }),
+         });
+         if (!res.ok) {
+            const json = await res.json().catch(() => ({}));
+            const errObj = json.error;
+            const message =
+               (errObj && errObj.message) ||
+               json.error ||
+               "Failed to reassign order";
+            const err = new Error(message);
+            (err as any).status = res.status;
+            (err as any).serverError = errObj || json;
+            throw err;
+         }
+         const json = await res.json();
+         return json.assignment;
+      },
+      onSuccess: () => qc.invalidateQueries({ queryKey: riderKeys.all }),
+   });
+}
+
 export function useRespondToAssignment() {
    const qc = useQueryClient();
    return useMutation({

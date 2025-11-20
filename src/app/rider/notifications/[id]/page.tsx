@@ -190,12 +190,15 @@ export default async function NotificationPage({
                                  </p>
                                  <p>{order.subtotal.toLocaleString()} RWF</p>
                               </div>
-                              {order.tax && (
-                                 <div className="flex justify-between">
-                                    <p className="text-muted-foreground">Tax</p>
-                                    <p>{order.tax.toLocaleString()} RWF</p>
-                                 </div>
-                              )}
+                              <div className="flex justify-between">
+                                 <p className="text-muted-foreground">
+                                    Transport fee
+                                 </p>
+                                 <p>
+                                    {Number(order.tax || 0).toLocaleString()}{" "}
+                                    RWF
+                                 </p>
+                              </div>
                               <div className="flex justify-between font-semibold border-t pt-2">
                                  <p>Total</p>
                                  <p>{order.total.toLocaleString()} RWF</p>
