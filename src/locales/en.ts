@@ -120,7 +120,8 @@ export const en: Record<string, string> = {
    "cart.addProducts": "Add some products to get started!",
    "cart.order": "Place order!",
    "cart.text": "Review your items and proceed to checkout",
-   "cart.help": "If you have any issue in buying, please contact us on this number for help:",
+   "cart.help":
+      "If you have any issue in buying, please contact us on this number for help:",
 
    // Checkout page
    "checkout.title": "Checkout",
@@ -208,7 +209,8 @@ export const en: Record<string, string> = {
    "checkout.loginToPlaceOrder": "Please log in to place an order",
    "checkout.loginToContinue": "Login to Continue",
    "checkout.missing.address": "Please fill in your address",
-   "checkout.missing.header": "Please fill the following before placing an order:",
+   "checkout.missing.header":
+      "Please fill the following before placing an order:",
    "checkout.errors.validPhone": "Enter a valid phone number (10 digits)",
 
    // Auth
@@ -357,6 +359,8 @@ export const en: Record<string, string> = {
    "contact.subject": "Subject",
    "contact.message": "Message",
    "contact.send": "Send Message",
+   "contact.sending": "Sending...",
+   "contact.sentSuccess": "Message sent. We'll get back to you shortly.",
    "contact.getInTouch": "Get in Touch",
    "contact.getInTouchDesc":
       "Have questions about our products or services? Our team is here to help you with anything you need. Reach out through any of the channels below.",

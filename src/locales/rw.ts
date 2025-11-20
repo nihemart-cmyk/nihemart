@@ -96,7 +96,8 @@ export const rw: Record<string, string> = {
    "cart.addProducts": "Ongeramo ibicuruzwa kugirango utangire!",
    "cart.order": "Tumiza!",
    "cart.text": "Reba neza ibicuruzwa ugiye kugura",
-   "cart.help": "Niba ufite ikibazo mu kugura, twandikire kuri iyi numero tugufashe:",
+   "cart.help":
+      "Niba ufite ikibazo mu kugura, twandikire kuri iyi numero tugufashe:",
 
    // Checkout
    "checkout.title": "Kwishyura",
@@ -210,7 +211,8 @@ export const rw: Record<string, string> = {
    "checkout.loginToPlaceOrder":
       "Nyamuneka winjire kugirango ushyireho komande",
    "checkout.loginToContinue": "Injira kugirango ukomeze",
-   "checkout.errors.validPhone": "Tanga nimero ya telefone iboneye (imibare 10)",
+   "checkout.errors.validPhone":
+      "Tanga nimero ya telefone iboneye (imibare 10)",
 
    // Auth
    "auth.login.title": "Injira mu Konti yawe",
@@ -360,6 +362,8 @@ export const rw: Record<string, string> = {
    "contact.subject": "Impamvu",
    "contact.message": "Ubutumwa",
    "contact.send": "Ohereza Ubutumwa",
+   "contact.sending": "Birimo koherezwa...",
+   "contact.sentSuccess": "Ubutumwa bwoherejwe. Tuzagusubiza vuba.",
    "contact.getInTouch": "Tuvugishe",
    "contact.getInTouchDesc":
       "Ufite ikibazo ku bicuruzwa cyangwa serivisi zacu? Itsinda ryacu rihari ngo rigufashe. Twandikire ukoresheje uburyo bwose bukurikira.",

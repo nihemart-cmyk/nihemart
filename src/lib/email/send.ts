@@ -47,7 +47,12 @@ export async function sendAuthEmail(
    return { ok: true, info };
 }
 
-export async function sendEmail(to: string, subject: string, html: string) {
+export async function sendEmail(
+   to: string,
+   subject: string,
+   html: string,
+   opts?: { replyTo?: string }
+) {
    const fromEmail = process.env.EMAIL_FROM || "nihemart@gmail.com";
 
    const smtpHost = process.env.SMTP_HOST;
@@ -72,12 +77,16 @@ export async function sendEmail(to: string, subject: string, html: string) {
       },
    });
 
-   const info = await transporter.sendMail({
+   const mailOptions: any = {
       from: `${fromEmail}`,
       to,
       subject,
       html,
-   });
+   };
+
+   if (opts?.replyTo) mailOptions.replyTo = opts.replyTo;
+
+   const info = await transporter.sendMail(mailOptions);
 
    return { ok: true, info } as const;
 }
