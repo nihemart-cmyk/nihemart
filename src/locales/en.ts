@@ -16,6 +16,7 @@ export const en: Record<string, string> = {
   "nav.notifications": "Notifications",
   "nav.returns": "Return & Refund Policy",
   "nav.rider": "Rider",
+  "nav.hello": "Hello",
 
   // Return and Refund Policy
   returnTitle: "Return and Refund Policy",
