@@ -64,10 +64,16 @@ export async function POST(req: NextRequest) {
          }
       }
 
+      // Route generated action links to our internal OAuth callback page so
+      // the SDK can parse the URL and establish a client session before we
+      // finally redirect the user to the intended page (reset or signin).
       const redirectTo =
          type === "recovery"
-            ? `${origin.replace(/\/$/, "")}/reset-password`
-            : `${origin.replace(/\/$/, "")}/signin`;
+            ? `${origin.replace(
+                 /\/$/,
+                 ""
+              )}/auth/callback?redirect=/reset-password`
+            : `${origin.replace(/\/$/, "")}/auth/callback?redirect=/signin`;
 
       // Call Supabase admin generate_link endpoint to create an action link
       let effectiveType: "recovery" | "signup" =
@@ -115,7 +121,7 @@ export async function POST(req: NextRequest) {
                   body: JSON.stringify({
                      type: "recovery",
                      email,
-                     redirect_to: `${origin}/reset-password`,
+                     redirect_to: `${origin}/auth/callback?redirect=/reset-password`,
                   }),
                }
             );
