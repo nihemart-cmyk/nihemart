@@ -5,30 +5,31 @@ const sb = supabase as any;
 export type ProductStatus = "active" | "draft" | "out_of_stock";
 
 export interface ProductBase {
-   name: string;
-   description?: string | null;
-   short_description?: string | null;
-   price: number;
-   compare_at_price?: number | null;
-   cost_price?: number | null;
-   sku?: string | null;
-   barcode?: string | null;
-   weight_kg?: number | null;
-   dimensions?: string | null;
-   category_id?: string | null;
-   subcategory_id?: string | null;
-   categories?: string[];
-   subcategories?: string[];
-   brand?: string | null;
-   tags?: string[] | null;
-   featured?: boolean;
-   status?: ProductStatus;
-   track_quantity?: boolean;
-   continue_selling_when_oos?: boolean;
-   requires_shipping?: boolean;
-   taxable?: boolean;
-   stock?: number;
-   main_image_url?: string | null;
+    name: string;
+    description?: string | null;
+    short_description?: string | null;
+    price: number;
+    compare_at_price?: number | null;
+    cost_price?: number | null;
+    sku?: string | null;
+    barcode?: string | null;
+    weight_kg?: number | null;
+    dimensions?: string | null;
+    category_id?: string | null;
+    subcategory_id?: string | null;
+    categories?: string[];
+    subcategories?: string[];
+    brand?: string | null;
+    tags?: string[] | null;
+    featured?: boolean;
+    status?: ProductStatus;
+    track_quantity?: boolean;
+    continue_selling_when_oos?: boolean;
+    requires_shipping?: boolean;
+    taxable?: boolean;
+    stock?: number;
+    main_image_url?: string | null;
+    social_media_link?: string | null;
 }
 
 export interface Product
