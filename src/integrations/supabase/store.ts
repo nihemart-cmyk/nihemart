@@ -43,6 +43,7 @@ export interface ProductDetail extends StoreProduct {
   short_description: string | null;
   compare_at_price: number | null;
   stock?: number | null | undefined;
+  social_media_link?: string | null;
 }
 export interface ProductVariationDetail {
   id: string;
@@ -281,7 +282,7 @@ export const fetchStoreProductById = cache(async (id: string): Promise<ProductPa
   const { data: product, error } = await sb
     .from("products")
     .select(
-      `id, name, description, short_description, stock, price, compare_at_price, main_image_url, average_rating, review_count, brand, category:categories(id, name), categories:product_categories(category:categories(id, name)), subcategories:product_subcategories(subcategory:subcategories(id, name))`
+      `id, name, description, short_description, stock, price, compare_at_price, main_image_url, average_rating, review_count, brand, social_media_link, category:categories(id, name), categories:product_categories(category:categories(id, name)), subcategories:product_subcategories(subcategory:subcategories(id, name))`
     )
     .eq("id", id)
     .in("status", ["active", "out_of_stock"])

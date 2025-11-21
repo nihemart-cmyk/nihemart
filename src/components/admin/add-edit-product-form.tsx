@@ -48,25 +48,26 @@ const variationSchema = z.object({
 });
 
 const productSchema = z.object({
-     name: z.string().min(3, "Product name is required"),
-     description: z.preprocess((val) => val === null || val === undefined || val === "" ? undefined : val, z.string().optional()),
-     short_description: z.string().optional(),
-     categories: z.array(z.string()).default([]),
-     subcategories: z.array(z.string()).default([]),
-     price: z.coerce.number().min(0, "Base price is required"),
-     cost_price: z.coerce.number().min(0, "Cost price is required").optional(),
-     compare_at_price: optionalNumber,
-     status: z.enum(["draft", "active", "out_of_stock"]),
-     sku: z.string().optional(),
-     featured: z.boolean().default(false),
-     track_quantity: z.boolean().default(true),
-     continue_selling_when_oos: z.boolean().default(false),
-     requires_shipping: z.boolean().default(true),
-     taxable: z.boolean().default(false),
-     dimensions: z.string().optional(),
-     tags: z.array(z.string()).default([]),
-     variations: z.array(variationSchema).min(0),
- });
+      name: z.string().min(3, "Product name is required"),
+      description: z.preprocess((val) => val === null || val === undefined || val === "" ? undefined : val, z.string().optional()),
+      short_description: z.string().optional(),
+      categories: z.array(z.string()).default([]),
+      subcategories: z.array(z.string()).default([]),
+      price: z.coerce.number().min(0, "Base price is required"),
+      cost_price: z.coerce.number().min(0, "Cost price is required").optional(),
+      compare_at_price: optionalNumber,
+      status: z.enum(["draft", "active", "out_of_stock"]),
+      sku: z.string().optional(),
+      featured: z.boolean().default(false),
+      track_quantity: z.boolean().default(true),
+      continue_selling_when_oos: z.boolean().default(false),
+      requires_shipping: z.boolean().default(true),
+      taxable: z.boolean().default(false),
+      dimensions: z.string().optional(),
+      tags: z.array(z.string()).default([]),
+      variations: z.array(variationSchema).min(0),
+      social_media_link: z.string().optional(),
+  });
 
 type ProductFormData = z.infer<typeof productSchema>;
 interface DisplayImage { url: string; file?: File; isExisting?: boolean; }
@@ -96,47 +97,49 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
         // @ts-ignore
         defaultValues: isEditMode
             ? {
-                 ...initialData.product,
-                 name: initialData.product.name || 'Product Name',
-                 status: initialData.product.status && ["draft", "active", "out_of_stock"].includes(initialData.product.status) ? initialData.product.status : "draft",
-                 price: initialData.product.price ?? 0,
-                 cost_price: initialData.product.cost_price ?? 0,
-                 sku: initialData.product.sku ?? undefined,
-                 compare_at_price: initialData.product.compare_at_price ?? null,
-                 short_description: initialData.product.short_description ?? '',
-                 categories: initialData.product.categories ?? [],
-                 subcategories: initialData.product.subcategories ?? [],
-                 dimensions: initialData.product.dimensions ?? '',
-                 tags: initialData.product.tags ?? [],
-                 variations: initialData.variations.map(v => ({
-                     id: undefined,
-                     price: v.price ?? 0,
-                     stock: v.stock ?? 0,
-                     name: v.name ?? '',
-                     sku: v.sku ?? '',
-                     barcode: v.barcode ?? '',
-                     attributes: Object.entries(v.attributes || {}).filter(([name, value]) => typeof value === 'string' && name.trim() && value.trim()).map(([name, value]) => ({ name: name.trim(), value: (value as string).trim() })),
-                     imageFiles: [],
-                     existingImages: v.images || [],
-                 })),
-             }
+                  ...initialData.product,
+                  name: initialData.product.name || 'Product Name',
+                  status: initialData.product.status && ["draft", "active", "out_of_stock"].includes(initialData.product.status) ? initialData.product.status : "draft",
+                  price: initialData.product.price ?? 0,
+                  cost_price: initialData.product.cost_price ?? 0,
+                  sku: initialData.product.sku ?? undefined,
+                  compare_at_price: initialData.product.compare_at_price ?? null,
+                  short_description: initialData.product.short_description ?? '',
+                  categories: initialData.product.categories ?? [],
+                  subcategories: initialData.product.subcategories ?? [],
+                  dimensions: initialData.product.dimensions ?? '',
+                  tags: initialData.product.tags ?? [],
+                  social_media_link: initialData.product.social_media_link ?? '',
+                  variations: initialData.variations.map(v => ({
+                      id: undefined,
+                      price: v.price ?? 0,
+                      stock: v.stock ?? 0,
+                      name: v.name ?? '',
+                      sku: v.sku ?? '',
+                      barcode: v.barcode ?? '',
+                      attributes: Object.entries(v.attributes || {}).filter(([name, value]) => typeof value === 'string' && name.trim() && value.trim()).map(([name, value]) => ({ name: name.trim(), value: (value as string).trim() })),
+                      imageFiles: [],
+                      existingImages: v.images || [],
+                  })),
+              }
             : {
-                 name: "",
-                 status: "draft",
-                 price: 0,
-                 cost_price: 0,
-                 compare_at_price: null,
-                 featured: false,
-                 track_quantity: true,
-                 continue_selling_when_oos: false,
-                 requires_shipping: true,
-                 taxable: false,
-                 categories: [],
-                 subcategories: [],
-                 tags: [],
-                 variations: [],
-                //  variations: [{ name: "Default", price: 0, stock: 0, attributes: [{ name: "Title", value: "Default" }], imageFiles: [] }],
-             },
+                  name: "",
+                  status: "draft",
+                  price: 0,
+                  cost_price: 0,
+                  compare_at_price: null,
+                  featured: false,
+                  track_quantity: true,
+                  continue_selling_when_oos: false,
+                  requires_shipping: true,
+                  taxable: false,
+                  categories: [],
+                  subcategories: [],
+                  tags: [],
+                  social_media_link: "",
+                  variations: [],
+                 //  variations: [{ name: "Default", price: 0, stock: 0, attributes: [{ name: "Title", value: "Default" }], imageFiles: [] }],
+              },
     });
     
     useEffect(() => {
@@ -228,6 +231,7 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
                 stock: data.variations.reduce((sum, v) => sum + Number(v.stock), 0),
                 categories: data.categories,
                 subcategories: data.subcategories,
+                social_media_link: data.social_media_link || null,
             };
 
             console.log({productBaseData})
@@ -293,6 +297,8 @@ export default function AddEditProductForm({ initialData }: { initialData?: { pr
                                     <FormField control={form.control} name="sku" render={({ field }) => <FormItem><FormLabel>Product Sku</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>} />
                                     {/* @ts-ignore */}
                                     <FormField control={form.control} name="short_description" render={({ field }) => <FormItem><FormLabel>Short Description</FormLabel><FormControl><Textarea {...field} /></FormControl><FormMessage /></FormItem>} />
+                                    {/* @ts-ignore */}
+                                    <FormField control={form.control} name="social_media_link" render={({ field }) => <FormItem><FormLabel>Social Media Link</FormLabel><FormControl><Input {...field} placeholder="https://..." /></FormControl><FormMessage /></FormItem>} />
                                     <FormItem><FormLabel>Full Description</FormLabel><div className="border rounded-md"><div ref={quillRef} className="min-h-[200px] bg-white" /></div></FormItem>
                                 </CardContent></Card>
 

@@ -536,6 +536,23 @@ export default function ProductClientPage({
                            }}
                         />
                      </Card>
+                     {product.social_media_link && (
+                        <Card className="mt-4">
+                           <CardHeader>
+                              <CardTitle>Social Media</CardTitle>
+                           </CardHeader>
+                           <CardContent>
+                              <a
+                                 href={product.social_media_link}
+                                 target="_blank"
+                                 rel="noopener noreferrer"
+                                 className="text-blue-600 hover:text-blue-800 underline"
+                              >
+                                 {product.social_media_link}
+                              </a>
+                           </CardContent>
+                        </Card>
+                     )}
                   </TabsContent>
                   <TabsContent
                      value="reviews"
