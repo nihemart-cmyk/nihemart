@@ -101,7 +101,7 @@ export function useAddresses() {
 
       // Helper to add a timeout to promises so UI doesn't hang forever
       const withTimeout = <T>(p: Promise<T>, ms = 10000): Promise<T> => {
-         let timer: NodeJS.Timeout;
+         let timer: ReturnType<typeof setTimeout>;
          return Promise.race([
             p,
             new Promise<T>((_, reject) => {
