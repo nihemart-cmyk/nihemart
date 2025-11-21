@@ -363,8 +363,12 @@ const CheckoutPage = ({
    }>({});
    const [ordersEnabled, setOrdersEnabled] = useState<boolean | null>(null);
    // track whether the orders_enabled flag came from an admin override or schedule
-   const [ordersSource, setOrdersSource] = useState<"admin" | "schedule" | null>(null);
-   const [ordersDisabledMessage, setOrdersDisabledMessage] = useState<string | null>(null);
+   const [ordersSource, setOrdersSource] = useState<
+      "admin" | "schedule" | null
+   >(null);
+   const [ordersDisabledMessage, setOrdersDisabledMessage] = useState<
+      string | null
+   >(null);
 
    // When orders are disabled by schedule, require a one-time confirmation
    // from the customer to deliver the order the next working day. The input
@@ -1806,10 +1810,16 @@ const CheckoutPage = ({
 
          // If schedule notes were provided when orders are disabled by schedule,
          // append them to delivery_notes so admin can see them.
-         if (ordersEnabled === false && ordersSource === "schedule" && scheduleNotes) {
+         if (
+            ordersEnabled === false &&
+            ordersSource === "schedule" &&
+            scheduleNotes
+         ) {
             const existing = orderData.order.delivery_notes || "";
             orderData.order.delivery_notes = (
-               existing + (existing ? "\n\n" : "") + scheduleNotes
+               existing +
+               (existing ? "\n\n" : "") +
+               scheduleNotes
             ).trim();
          }
 
@@ -2253,7 +2263,11 @@ Total: ${total.toLocaleString()} RWF
     `;
       // If schedule notes exist (customer confirmed outside working hours), append them
       let final = message;
-      if (ordersEnabled === false && ordersSource === "schedule" && scheduleNotes) {
+      if (
+         ordersEnabled === false &&
+         ordersSource === "schedule" &&
+         scheduleNotes
+      ) {
          final = final + `\n\nSchedule notes:\n${scheduleNotes}`;
       }
       return encodeURIComponent(final);
@@ -3288,113 +3302,163 @@ Total: ${total.toLocaleString()} RWF
                         {/* When orders are disabled by schedule allow checkout but
                             require a one-time confirmation. When disabled manually
                             by admin, continue to show a blocking message below. */}
-                        {ordersEnabled === false && ordersSource === "schedule" && (
-                           <div className="mt-3 p-3 border rounded-md bg-yellow-50 border-yellow-200">
-                              <p className="text-sm text-yellow-900 font-medium">
-                                 {t("checkout.ordersDisabledScheduleMessage") ||
-                                    "Mutwihanganire ubu amasaha yakazi yarangiye gusa niba ushaka iyi komande wakemeza mukadirishya kari hasi tukazayizana ejo musaha yamazi ( 9:30am -9pm),"}
-                              </p>
+                        {ordersEnabled === false &&
+                           ordersSource === "schedule" && (
+                              <div className="mt-3 p-3 border rounded-md bg-yellow-50 border-yellow-200">
+                                 <p className="text-sm text-yellow-900 font-medium">
+                                    {t(
+                                       "checkout.ordersDisabledScheduleMessage"
+                                    ) ||
+                                       "Mutwihanganire ubu amasaha yakazi yarangiye gusa niba ushaka iyi komande wakemeza mukadirishya kari hasi tukazayizana ejo musaha yamazi ( 9:30am -9pm),"}
+                                 </p>
 
-                              <div className="mt-3 flex items-center justify-between">
-                                 <div>
-                                    {!scheduleConfirmChecked ? (
-                                       <p className="text-sm text-yellow-900">
-                                          {t("checkout.ordersDisabledScheduleShort") ||
-                                             "Turafunga ubu — ushobora gukomeza no kwemeza ko iyi komande izatangwa ejo.")}
-                                       </p>
-                                    ) : (
-                                       <div className="inline-flex items-center gap-2 px-2 py-1 bg-yellow-100 text-yellow-800 rounded">
-                                          <CheckCircle2 className="h-4 w-4 text-yellow-700" />
-                                          <span className="text-sm">{t("checkout.scheduleConfirmedLabel") || "Yemejwe kuboneka ejo"}</span>
-                                       </div>
-                                    )}
-                                 </div>
-
-                                 <div>
-                                    <Button
-                                       size="sm"
-                                       onClick={() => setConfirmDialogOpen(true)}
-                                       className="text-sm h-9"
-                                    >
-                                       {scheduleConfirmChecked
-                                          ? t("common.edit")
-                                          : t("checkout.confirmScheduleCTA") ||
-                                            "Confirm delivery tomorrow"}
-                                    </Button>
-                                 </div>
-                              </div>
-
-                              {/* Modal dialog for confirmation & optional notes */}
-                              <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
-                                 <DialogContent className="sm:max-w-md">
-                                    <DialogHeader>
-                                       <DialogTitle>
-                                          {t("checkout.ordersDisabledScheduleModalTitle") || "Outside working hours"}
-                                       </DialogTitle>
-                                       <DialogDescription>
-                                          {t("checkout.ordersDisabledScheduleMessage") ||
-                                             "Mutwihanganire ubu amasaha yakazi yarangiye gusa niba ushaka iyi komande wakemeza mukadirishya kari hasi tukazayizana ejo musaha yamazi ( 9:30am -9pm),"}
-                                       </DialogDescription>
-                                    </DialogHeader>
-
-                                    <div className="mt-4">
-                                       <div className="flex items-start gap-3">
-                                          <input
-                                             id="schedule-confirm-dialog"
-                                             type="checkbox"
-                                             checked={scheduleConfirmChecked}
-                                             onChange={(e) => setScheduleConfirmChecked(e.target.checked)}
-                                             className="h-4 w-4 mt-1"
-                                          />
-                                          <label htmlFor="schedule-confirm-dialog" className="text-sm text-gray-900">
-                                             {t("checkout.scheduleConfirmLabel") ||
-                                                "Ndemera ko iyi komande izatanzwe ejo mu masaha y'akazi (9:30am - 9pm)."}
-                                          </label>
-                                       </div>
-
-                                       <div className="mt-4">
-                                          <Label className="text-xs sm:text-sm font-medium text-gray-700">
-                                             {t("checkout.scheduleNotesLabel") || "Icyitonderwa (optional)"}
-                                          </Label>
-                                          <textarea
-                                             rows={4}
-                                             placeholder={t("checkout.scheduleNotesPlaceholder") || "niba hari ikindi wifuza nkigihe twayizana cyagwa ikindi byandike aho habugenewe"}
-                                             value={scheduleNotes}
-                                             onChange={(e) => setScheduleNotes(e.target.value)}
-                                             className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 resize-none transition-colors text-xs sm:text-sm"
-                                          />
-                                          <p className="text-xs text-yellow-800 mt-2">
-                                             {t("checkout.ordersDisabledScheduleHint") || "Icyitonderwa: Uyu mwandiko ni optional."}
+                                 <div className="mt-3 flex items-center justify-between">
+                                    <div>
+                                       {!scheduleConfirmChecked ? (
+                                          <p className="text-sm text-yellow-900">
+                                             {t(
+                                                "checkout.ordersDisabledScheduleShort"
+                                             ) ||
+                                                "Amasaha y'akazi yarangiye — ushobora kwemeza ko iyi komande yakugeraho ejo."}
                                           </p>
-                                       </div>
+                                       ) : (
+                                          <div className="inline-flex items-center gap-2 px-2 py-1 bg-yellow-100 text-yellow-800 rounded">
+                                             <CheckCircle2 className="h-4 w-4 text-yellow-700" />
+                                             <span className="text-sm">
+                                                {t(
+                                                   "checkout.scheduleConfirmedLabel"
+                                                ) || "Yemejwe kuboneka ejo"}
+                                             </span>
+                                          </div>
+                                       )}
                                     </div>
 
-                                    <DialogFooter>
-                                       <Button variant="outline" onClick={() => setConfirmDialogOpen(false)}>
-                                          {t("common.cancel")}
-                                       </Button>
+                                    <div>
                                        <Button
-                                          onClick={() => {
-                                             // Save and close
-                                             setConfirmDialogOpen(false);
-                                             setScheduleConfirmChecked(true);
-                                          }}
+                                          size="sm"
+                                          onClick={() =>
+                                             setConfirmDialogOpen(true)
+                                          }
+                                          className="text-sm h-9"
                                        >
-                                          {t("common.save")}
+                                          {scheduleConfirmChecked
+                                             ? t("common.edit")
+                                             : t(
+                                                  "checkout.confirmScheduleCTA"
+                                               ) || "Confirm delivery tomorrow"}
                                        </Button>
-                                    </DialogFooter>
-                                 </DialogContent>
-                              </Dialog>
-                           </div>
-                        )}
+                                    </div>
+                                 </div>
+
+                                 {/* Modal dialog for confirmation & optional notes */}
+                                 <Dialog
+                                    open={confirmDialogOpen}
+                                    onOpenChange={setConfirmDialogOpen}
+                                 >
+                                    <DialogContent className="sm:max-w-md">
+                                       <DialogHeader>
+                                          <DialogTitle>
+                                             {t(
+                                                "checkout.ordersDisabledScheduleModalTitle"
+                                             ) || "Outside working hours"}
+                                          </DialogTitle>
+                                          <DialogDescription>
+                                             {t(
+                                                "checkout.ordersDisabledScheduleMessage"
+                                             ) ||
+                                                "Mutwihanganire ubu amasaha yakazi yarangiye gusa niba ushaka iyi komande wakemeza mukadirishya kari hasi tukazayizana ejo musaha yamazi ( 9:30am -9pm),"}
+                                          </DialogDescription>
+                                       </DialogHeader>
+
+                                       <div className="mt-4">
+                                          <div className="flex items-start gap-3">
+                                             <input
+                                                id="schedule-confirm-dialog"
+                                                type="checkbox"
+                                                checked={scheduleConfirmChecked}
+                                                onChange={(e) =>
+                                                   setScheduleConfirmChecked(
+                                                      e.target.checked
+                                                   )
+                                                }
+                                                className="h-4 w-4 mt-1"
+                                             />
+                                             <label
+                                                htmlFor="schedule-confirm-dialog"
+                                                className="text-sm text-gray-900"
+                                             >
+                                                {t(
+                                                   "checkout.scheduleConfirmLabel"
+                                                ) ||
+                                                   "Ndemera ko iyi komande izatanzwe ejo mu masaha y'akazi (9:30am - 9pm)."}
+                                             </label>
+                                          </div>
+
+                                          <div className="mt-4">
+                                             <Label className="text-xs sm:text-sm font-medium text-gray-700">
+                                                {t(
+                                                   "checkout.scheduleNotesLabel"
+                                                ) || "Icyitonderwa (optional)"}
+                                             </Label>
+                                             <textarea
+                                                rows={4}
+                                                placeholder={
+                                                   t(
+                                                      "checkout.scheduleNotesPlaceholder"
+                                                   ) ||
+                                                   "niba hari ikindi wifuza nkigihe twayizana cyagwa ikindi byandike aho habugenewe"
+                                                }
+                                                value={scheduleNotes}
+                                                onChange={(e) =>
+                                                   setScheduleNotes(
+                                                      e.target.value
+                                                   )
+                                                }
+                                                className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 resize-none transition-colors text-xs sm:text-sm"
+                                             />
+                                             <p className="text-xs text-yellow-800 mt-2">
+                                                {t(
+                                                   "checkout.ordersDisabledScheduleHint"
+                                                ) ||
+                                                   "Icyitonderwa: Uyu mwandiko ni optional."}
+                                             </p>
+                                          </div>
+                                       </div>
+
+                                       <DialogFooter>
+                                          <Button
+                                             variant="outline"
+                                             onClick={() =>
+                                                setConfirmDialogOpen(false)
+                                             }
+                                          >
+                                             {t("common.cancel")}
+                                          </Button>
+                                          <Button
+                                             onClick={() => {
+                                                // Save and close
+                                                setConfirmDialogOpen(false);
+                                                setScheduleConfirmChecked(true);
+                                             }}
+                                          >
+                                             {t("common.save")}
+                                          </Button>
+                                       </DialogFooter>
+                                    </DialogContent>
+                                 </Dialog>
+                              </div>
+                           )}
 
                         {/* Order buttons */}
                         <div className="pt-1">
-                           {ordersEnabled === false && ordersSource === "admin" && (
-                              <div className="mb-3 p-3 rounded bg-yellow-50 border border-yellow-200 text-yellow-900 text-sm">
-                                 {ordersDisabledMessage || t("checkout.ordersDisabledMessage") || "Ordering is currently disabled by the admin."}
-                              </div>
-                           )}
+                           {ordersEnabled === false &&
+                              ordersSource === "admin" && (
+                                 <div className="mb-3 p-3 rounded bg-yellow-50 border border-yellow-200 text-yellow-900 text-sm">
+                                    {ordersDisabledMessage ||
+                                       t("checkout.ordersDisabledMessage") ||
+                                       "Ordering is currently disabled by the admin."}
+                                 </div>
+                              )}
                            {isKigali ? (
                               isLoggedIn ? (
                                  <div className="space-y-2">
@@ -3412,8 +3476,11 @@ Total: ${total.toLocaleString()} RWF
                                              !hasEmail ||
                                              !hasValidPhone ||
                                              !paymentMethod ||
-                                             (ordersEnabled === false && ordersSource === "schedule" && !scheduleConfirmChecked) ||
-                                             (ordersEnabled === false && ordersSource === "admin");
+                                             (ordersEnabled === false &&
+                                                ordersSource === "schedule" &&
+                                                !scheduleConfirmChecked) ||
+                                             (ordersEnabled === false &&
+                                                ordersSource === "admin");
                                           if (disabled) {
                                              if (missingSteps.length > 0) {
                                                 const msg = missingSteps
@@ -3445,8 +3512,11 @@ Total: ${total.toLocaleString()} RWF
                                           !hasEmail ||
                                           !hasValidPhone ||
                                           !paymentMethod ||
-                                          (ordersEnabled === false && ordersSource === "schedule" && !scheduleConfirmChecked) ||
-                                          (ordersEnabled === false && ordersSource === "admin")
+                                          (ordersEnabled === false &&
+                                             ordersSource === "schedule" &&
+                                             !scheduleConfirmChecked) ||
+                                          (ordersEnabled === false &&
+                                             ordersSource === "admin")
                                        }
                                     >
                                        {isSubmitting || isInitiating ? (

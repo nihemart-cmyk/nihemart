@@ -133,7 +133,7 @@ export const rw: Record<string, string> = {
    "checkout.ordersDisabledMessage":
       "Gutanga komande ubu byahagaritswe. Mwongere mugerageze mukanya.",
    "checkout.ordersDisabledScheduleMessage":
-      "Mutwihanganire ubu amasaha  yakazi yarangiye gusa niba ushaka iyi komande wakemeza mukadirishya kari hasi tukazayizana ejo mu masaha  yamazi ( 9:30am -9pm),",
+      "Mutwihanganire ubu amasaha  yakazi yarangiye gusa niba ushaka iyi komande wakemeza mukadirishya kari hasi tukazayizana ejo mu masaha  yakazi ( 9:30am -9pm),",
    // Schedule-specific message (night hours)
    "checkout.ordersDisabledSchedule":
       "Aka kanya ntago turi kwakira komande, Mwongere mugerageze 9:00",
