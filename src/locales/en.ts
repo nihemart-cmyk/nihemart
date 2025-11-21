@@ -209,6 +209,7 @@ export const en: Record<string, string> = {
    "checkout.loginToPlaceOrder": "Please log in to place an order",
    "checkout.loginToContinue": "Login to Continue",
    "checkout.missing.address": "Please fill in your address",
+   "checkout.missing.phone": "Please provide a valid phone number",
    "checkout.missing.header":
       "Please fill the following before placing an order:",
    "checkout.errors.validPhone": "Enter a valid phone number (10 digits)",
