@@ -420,22 +420,51 @@ export async function respondToRefundRequest(
       } catch (restockErr) {
          console.warn("Error restoring stock for refunded item:", restockErr);
       }
-      // Adjust parent order totals by subtracting the item's total (price * qty)
+      // Adjust parent order totals by recomputing from remaining (non-refunded) items.
+      // This is more reliable for multi-item orders than attempting a simple subtraction.
       try {
-         const itemTotal =
-            Number(existing.price || 0) * Number(existing.quantity || 0);
          if (parentOrder) {
-            const newSubtotal = Math.max(
-               0,
-               Number(parentOrder.subtotal || 0) - itemTotal
-            );
-            // naive total adjustment: subtract itemTotal as well
-            const newTotal = Math.max(
-               0,
-               Number(parentOrder.total || 0) - itemTotal
-            );
-            const upd: any = { subtotal: newSubtotal, total: newTotal };
-            // If mode is refund and all items are refunded, set status to 'refunded'
+            // Fetch all items for this order to compute up-to-date subtotal
+            const { data: allItems, error: itemsErr } = await sb
+               .from("order_items")
+               .select("total, refund_status")
+               .eq("order_id", existing.order_id);
+
+            if (itemsErr) {
+               console.warn(
+                  "Failed to fetch order items for total recalculation:",
+                  itemsErr
+               );
+            }
+
+            const remainingSubtotal = Array.isArray(allItems)
+               ? allItems
+                    .filter(
+                       (it: any) =>
+                          it.refund_status !== "approved" &&
+                          it.refund_status !== "refunded"
+                    )
+                    .reduce(
+                       (s: number, it: any) => s + Number(it.total || 0),
+                       0
+                    )
+               : Math.max(0, Number(parentOrder.subtotal || 0));
+
+            // Preserve previous tax proportion if available, otherwise keep tax as-is
+            const previousSubtotal = Number(parentOrder.subtotal || 0);
+            const previousTax = Number(parentOrder.tax || 0);
+            const taxRate =
+               previousSubtotal > 0 ? previousTax / previousSubtotal : 0;
+            const newTax = Math.max(0, remainingSubtotal * taxRate);
+            const newTotal = Math.max(0, remainingSubtotal + newTax);
+
+            const upd: any = {
+               subtotal: Number(remainingSubtotal.toFixed(2)),
+               tax: Number(newTax.toFixed(2)),
+               total: Number(newTotal.toFixed(2)),
+            };
+
+            // If all items are approved/refunded after this action, mark order as refunded/cancelled
             try {
                const { data: siblingItems, error: siblingErr } = await sb
                   .from("order_items")
