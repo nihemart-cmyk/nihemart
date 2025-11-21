@@ -113,6 +113,9 @@ const NavBar: FC<NavBarProps> = ({}) => {
       setLanguage(lang);
    };
 
+   const getLangShort = (lang: Language) => (lang === "rw" ? "KIN" : lang.toUpperCase());
+   const getLangFull = (lang: Language) => (lang === "rw" ? t("language.rw") : t("language.en"));
+
    const handleLogout = async () => {
       try {
          await signOut();
@@ -171,12 +174,14 @@ const NavBar: FC<NavBarProps> = ({}) => {
                   <Search className="h-5 w-5 text-slate-700" />
                </Button>
 
-               {showMobileSearch && (
-                  <div className="absolute top-full left-0 w-full bg-white border-t shadow-md px-4 py-2 z-[999] md:hidden">
-                     {/* reuse popover search inside mobile drawer */}
-                     <SearchPopover />
-                  </div>
-               )}
+               {/* <Button
+                  aria-label={t("nav.language") || "Select language"}
+                  className="flex lg:items-center bg-white text-orange-500 hover:bg-white/90 outline-none border-none"
+               >
+                  <Globe className="h-4 w-4" />
+                  <span className="hidden lg:flex">{getLangFull(language)}</span>
+                  <span className="lg:hidden">{getLangShort(language)}</span>
+               </Button> */}
 
                {/* Cart */}
                <Button
@@ -336,13 +341,12 @@ const NavBar: FC<NavBarProps> = ({}) => {
                               <DropdownMenu>
                                  <DropdownMenuTrigger asChild>
                                     <Button
-                                       aria-label={
-                                          t("nav.language") || "Select language"
-                                       }
+                                       aria-label={t("nav.language") || "Select language"}
                                        className="bg-orange-500 hover:bg-orange-500/90 w-full mt-2 flex items-center justify-center gap-2"
                                     >
                                        <Globe className="h-4 w-4" />
-                                       <span>{language.toUpperCase()}</span>
+                                       <span className="hidden lg:flex">{getLangFull(language)}</span>
+                                       <span className="lg:hidden">{getLangShort(language)}</span>
                                     </Button>
                                  </DropdownMenuTrigger>
 

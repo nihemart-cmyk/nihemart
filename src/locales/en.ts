@@ -160,6 +160,35 @@ export const en: Record<string, string> = {
   "checkout.selectPaymentMethod": "Select payment method at checkout.",
   // Payment option labels
   "checkout.cashOnDelivery": "Cash on Delivery",
+  "checkout.missing.paymentMethod": "Please select a payment method",
+
+  // Payment method translations
+  "payment.method.cash_on_delivery.name": "Cash on Delivery",
+  "payment.method.cash_on_delivery.description":
+    "Pay with cash when your order is delivered",
+  "payment.method.cash_on_delivery.badge": "Traditional",
+
+  "payment.method.mtn_momo.name": "MTN Mobile Money",
+  "payment.method.mtn_momo.description":
+    "Pay using your MTN Mobile Money wallet",
+  "payment.method.mtn_momo.badge": "Popular",
+
+  "payment.method.airtel_money.name": "Airtel Money",
+  "payment.method.airtel_money.description":
+    "Pay using your Airtel Money wallet",
+  "payment.method.airtel_money.badge": "Mobile",
+
+  "payment.method.visa_card.name": "Visa Card",
+  "payment.method.visa_card.description": "Pay securely with your Visa card",
+  "payment.method.visa_card.badge": "Secure",
+
+  "payment.method.mastercard.name": "MasterCard",
+  "payment.method.mastercard.description": "Pay securely with your MasterCard",
+  "payment.method.mastercard.badge": "Secure",
+
+  "payment.method.spenn.name": "SPENN",
+  "payment.method.spenn.description": "Pay using your SPENN digital wallet",
+  "payment.method.spenn.badge": "Digital",
   "checkout.ordersDisabledMessage":
     "We are currently not allowing orders, please try again later",
   // Schedule-specific message (night hours)

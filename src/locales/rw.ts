@@ -130,6 +130,34 @@ export const rw: Record<string, string> = {
     "Hitamo uburyo bwo kwishyura kuri iyi komande.",
   // Payment option labels
   "checkout.cashOnDelivery": "Ishyura Bikugezeho",
+
+  // Payment method translations (Kinyarwanda)
+  "payment.method.cash_on_delivery.name": "Ishyurwa bikugezeho",
+  "payment.method.cash_on_delivery.description":
+    "Wishyura amafaranga mu gihe ibyo watumije bikugezeho",
+  "payment.method.cash_on_delivery.badge": "Ibisanzwe",
+
+  "payment.method.mtn_momo.name": "MTN Mobile Money",
+  "payment.method.mtn_momo.description":
+    "Wishyura ukoresheje MTN Mobile Money",
+  "payment.method.mtn_momo.badge": "Ikunzwe",
+
+  "payment.method.airtel_money.name": "Airtel Money",
+  "payment.method.airtel_money.description": "Wishyura ukoresheje Airtel Money",
+  "payment.method.airtel_money.badge": "Mobile",
+
+  "payment.method.visa_card.name": "Visa Card",
+  "payment.method.visa_card.description": "Wishyura ukoresheje ikarita ya Visa",
+  "payment.method.visa_card.badge": "Bitekanye",
+
+  "payment.method.mastercard.name": "MasterCard",
+  "payment.method.mastercard.description": "Wishyura ukoresheje MasterCard",
+  "payment.method.mastercard.badge": "Bitekanye",
+
+  "payment.method.spenn.name": "SPENN",
+  "payment.method.spenn.description":
+    "Wishyura ukoresheje SPENN digital wallet",
+  "payment.method.spenn.badge": "Bigezweho",
   "checkout.ordersDisabledMessage":
     "Gutanga komande ubu byahagaritswe. Mwongere mugerageze mukanya.",
   "checkout.ordersDisabledScheduleMessage":
