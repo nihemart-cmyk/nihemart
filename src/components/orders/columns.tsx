@@ -151,38 +151,22 @@ export const columns: ColumnDef<Order>[] = [
       id: "customer",
       header: "CUSTOMER",
       cell: ({ row }) => {
-         // If order has a linked user_id show their name/email; otherwise
-         // clearly indicate this is a guest/unknown user.
-         const hasLinkedUser = Boolean(row.original.user_id);
-         const customerName = hasLinkedUser
-            ? `${row.original.customer_first_name || ""} ${
-                 row.original.customer_last_name || ""
-              }`.trim() || "Unknown"
-            : "Guest";
-         const customerEmail = hasLinkedUser
-            ? row.original.customer_email || "Unknown"
-            : row.original.customer_email || "";
+         // Requirements: do not display "User" — leave empty for registered
+         // users. For guest (no linked user_id) show a small, attractive
+         // badge that reads "Guest".
+         const isGuest = !row.original.user_id;
+         if (!isGuest) {
+            // keep the cell visually empty for registered users
+            return (
+               <span className="text-sm text-muted-foreground">&nbsp;</span>
+            );
+         }
+
          return (
-            <div className="flex items-center gap-3">
-               <UserAvatarProfile
-                  user={{ fullName: customerName, subTitle: customerEmail }}
-                  showInfo={false}
-               />
-               <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                     <div className="font-medium text-sm truncate">
-                        {customerName}
-                     </div>
-                     <Badge className="text-xs">
-                        {hasLinkedUser ? "User" : "Guest"}
-                     </Badge>
-                  </div>
-                  {customerEmail && (
-                     <div className="text-xs text-muted-foreground truncate">
-                        {customerEmail}
-                     </div>
-                  )}
-               </div>
+            <div className="flex items-center">
+               <Badge className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 font-semibold">
+                  Guest
+               </Badge>
             </div>
          );
       },
