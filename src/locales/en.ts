@@ -203,6 +203,16 @@ export const en: Record<string, string> = {
       "We're currently closed. If you'd like this order delivered tomorrow during working hours (9:30 AM - 9:00 PM), confirm using the dialog below.",
    "checkout.ordersDisabledScheduleShort":
       "We're closed right now — you can confirm delivery for the next day.",
+   // CTA and dialog for confirming scheduled delivery when orders are disabled by schedule
+   "checkout.confirmScheduleCTA": "Confirm delivery for next working day",
+   "checkout.confirmScheduleDialog.title": "Confirm scheduled delivery",
+   "checkout.confirmScheduleDialog.description":
+      "We are currently closed. If you would like this order delivered tomorrow during working hours (9:30 AM - 9:00 PM), please confirm below.",
+   "checkout.confirmScheduleDialog.checkboxLabel":
+      "I confirm I want this order delivered tomorrow during working hours.",
+   "checkout.confirmScheduleDialog.cancel": "Cancel",
+   "checkout.confirmScheduleDialog.confirm": "Confirm delivery",
+   "checkout.scheduleNotesPlaceholder": "Optional notes about delivery",
    "checkout.ordersDisabledBanner":
       "Ordering is currently disabled by the admin.",
    "checkout.ordersDisabledPrompt":
