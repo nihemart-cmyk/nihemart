@@ -2163,6 +2163,68 @@ export async function updateOrderStatus(
       );
    }
 
+   // If the order was cancelled, mark any pending COD payments as failed
+   if (status === "cancelled") {
+      (async () => {
+         try {
+            const { data: orderRow, error: orderErr } = await sb
+               .from("orders")
+               .select("id, payment_method")
+               .eq("id", id)
+               .maybeSingle();
+            if (orderErr) {
+               console.warn(
+                  "Failed to fetch order for COD payment cancellation:",
+                  orderErr
+               );
+            } else if (
+               orderRow &&
+               orderRow.payment_method === "cash_on_delivery"
+            ) {
+               console.log(
+                  "Order cancelled — updating pending COD payments to failed:",
+                  { orderId: id }
+               );
+               try {
+                  const { error: upErr } = await sb
+                     .from("payments")
+                     .update({
+                        status: "failed",
+                        failure_reason: "order_cancelled",
+                        updated_at: new Date().toISOString(),
+                     })
+                     .eq("order_id", id)
+                     .eq("status", "pending")
+                     .eq("payment_method", "cash_on_delivery");
+                  if (upErr) {
+                     console.warn(
+                        "Failed to update COD payment status on cancellation:",
+                        upErr
+                     );
+                  } else {
+                     console.log(
+                        "Successfully marked pending COD payments as failed for order:",
+                        id
+                     );
+                  }
+               } catch (uCatch) {
+                  console.warn(
+                     "Error updating COD payments on cancellation:",
+                     uCatch
+                  );
+               }
+            }
+         } catch (e) {
+            console.warn(
+               "Error while checking/updating COD payments on cancellation:",
+               e
+            );
+         }
+      })().catch((e) =>
+         console.warn("Background COD payment cancellation failed:", e)
+      );
+   }
+
    return updatedOrder;
 }
 

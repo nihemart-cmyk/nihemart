@@ -36,6 +36,11 @@ export default function useSubmitOrder(args: any) {
          selectedAddress,
       } = args;
 
+      // Track whether we've navigated to an order page so the checkout
+      // empty-cart redirect doesn't race and send users back to the landing
+      // page after a successful navigation to the order details page.
+      let navigatedToOrder = false;
+
       if (isSubmitting) return;
 
       try {
@@ -420,6 +425,7 @@ export default function useSubmitOrder(args: any) {
                            // Navigate immediately for guests, then run cleanup
                            try {
                               if (user && (user as any).id) {
+                                 navigatedToOrder = true;
                                  router.push(`/orders/${(created as any)?.id}`);
                               } else {
                                  router.push(`/thank-you`);
@@ -446,8 +452,10 @@ export default function useSubmitOrder(args: any) {
                      },
                      onSettled: () => {
                         setIsSubmitting && setIsSubmitting(false);
-                        setSuppressEmptyCartRedirect &&
-                           setSuppressEmptyCartRedirect(false);
+                        if (!navigatedToOrder) {
+                           setSuppressEmptyCartRedirect &&
+                              setSuppressEmptyCartRedirect(false);
+                        }
                      },
                   });
                } catch (error: any) {
@@ -620,6 +628,7 @@ export default function useSubmitOrder(args: any) {
                            "useSubmitOrder: navigating to user order page (COD)",
                            created?.id
                         );
+                        navigatedToOrder = true;
                         await router.push(`/orders/${created?.id}`);
                      } catch (navErr) {
                         console.error(
@@ -676,8 +685,10 @@ export default function useSubmitOrder(args: any) {
                },
                onSettled: () => {
                   setIsSubmitting && setIsSubmitting(false);
-                  setSuppressEmptyCartRedirect &&
-                     setSuppressEmptyCartRedirect(false);
+                  if (!navigatedToOrder) {
+                     setSuppressEmptyCartRedirect &&
+                        setSuppressEmptyCartRedirect(false);
+                  }
                },
             });
          } catch (error: any) {
