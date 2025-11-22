@@ -1,3 +1,4 @@
+import { setInterval as setIntervalNode } from "timers";
 import type { NextRequest } from "next/server";
 import { sendEmail } from "@/lib/email/send";
 
@@ -35,7 +36,7 @@ function isRateLimited(key: string, limit: { windowMs: number; max: number }) {
 }
 
 // Periodic cleanup to avoid unbounded memory growth
-setInterval(() => {
+const _cleanupInterval = setIntervalNode(() => {
    const now = Date.now();
    for (const [k, v] of _rateStore.entries()) {
       // Find which limit applies (email vs ip) by key prefix
@@ -44,7 +45,11 @@ setInterval(() => {
          : RATE_CONFIG.ip.windowMs;
       if (now - v.first > limit * 2) _rateStore.delete(k);
    }
-}, 60 * 60 * 1000).unref?.();
+}, 60 * 60 * 1000);
+// In some TypeScript lib configurations setInterval is typed as number; call unref if available.
+if (typeof (_cleanupInterval as any)?.unref === "function") {
+   (_cleanupInterval as any).unref();
+}
 
 // POST { name, email, subject, message }
 export async function POST(req: NextRequest) {
