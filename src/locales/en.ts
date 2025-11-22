@@ -199,6 +199,10 @@ export const en: Record<string, string> = {
    // Schedule-specific message (night hours)
    "checkout.ordersDisabledSchedule":
       "We are currently not working, please order again at 9:00",
+   "checkout.ordersDisabledScheduleMessage":
+      "We're currently closed. If you'd like this order delivered tomorrow during working hours (9:30 AM - 9:00 PM), confirm using the dialog below.",
+   "checkout.ordersDisabledScheduleShort":
+      "We're closed right now — you can confirm delivery for the next day.",
    "checkout.ordersDisabledBanner":
       "Ordering is currently disabled by the admin.",
    "checkout.ordersDisabledPrompt":

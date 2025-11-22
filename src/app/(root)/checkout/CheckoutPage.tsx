@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { useLanguage } from "@/contexts/LanguageContext";
 import type { CreateOrderRequest } from "@/types/orders";
@@ -2477,6 +2478,81 @@ Total: ${total.toLocaleString()} RWF
                </Card>
             </div>
          </div>
+         {/* Confirmation dialog for schedule deliveries (when orders disabled by schedule) */}
+         <Dialog
+            open={confirmDialogOpen}
+            onOpenChange={setConfirmDialogOpen}
+         >
+            <DialogContent>
+               <DialogHeader>
+                  <DialogTitle>
+                     {t("checkout.ordersDisabledScheduleModalTitle") ||
+                        "Confirm scheduled delivery"}
+                  </DialogTitle>
+                  <DialogDescription>
+                     {t("checkout.ordersDisabledScheduleShort") ||
+                        "We're closed right now — you can confirm delivery for the next day."}
+                  </DialogDescription>
+               </DialogHeader>
+
+               <div className="mt-3 space-y-3">
+                  <label className="flex items-start gap-2">
+                     <Checkbox
+                        checked={scheduleConfirmChecked}
+                        onCheckedChange={(v: any) =>
+                           setScheduleConfirmChecked(Boolean(v))
+                        }
+                     />
+                     <span className="text-sm">
+                        {t("checkout.scheduleConfirmLabel") ||
+                           "I agree this order can be delivered tomorrow during working hours (9:30am - 9:00pm)."}
+                     </span>
+                  </label>
+
+                  <div>
+                     <Label
+                        htmlFor="schedule_notes"
+                        className="text-xs"
+                     >
+                        {t("checkout.scheduleNotesLabel") || "Notes"}
+                     </Label>
+                     <textarea
+                        id="schedule_notes"
+                        rows={3}
+                        value={scheduleNotes}
+                        onChange={(e) => setScheduleNotes(e.target.value)}
+                        placeholder={
+                           t("checkout.scheduleNotesPlaceholder") ||
+                           "Optional notes about delivery"
+                        }
+                        className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                     />
+                  </div>
+               </div>
+
+               <DialogFooter>
+                  <Button
+                     variant="outline"
+                     onClick={() => setConfirmDialogOpen(false)}
+                  >
+                     {t("common.cancel")}
+                  </Button>
+                  <Button
+                     onClick={() => {
+                        if (!scheduleConfirmChecked)
+                           setScheduleConfirmChecked(true);
+                        setConfirmDialogOpen(false);
+                        toast.success(
+                           t("checkout.scheduleConfirmedLabel") ||
+                              "Scheduled for next working day"
+                        );
+                     }}
+                  >
+                     {t("checkout.confirmScheduleCTA") || "Confirm"}
+                  </Button>
+               </DialogFooter>
+            </DialogContent>
+         </Dialog>
       </div>
    );
 };
