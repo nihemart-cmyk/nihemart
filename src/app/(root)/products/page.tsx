@@ -45,6 +45,7 @@ import { useDebounce } from "@/hooks/use-debounce";
 import { useMediaQuery } from "@/hooks/user-media-query";
 import Image from "next/image";
 import { useCart } from "@/contexts/CartContext";
+import { useBuyNow } from "@/contexts/BuyNowContext";
 import { WishlistButton } from "@/components/ui/wishlist-button";
 import { useLanguage } from "@/contexts/LanguageContext";
 
@@ -53,6 +54,7 @@ const PAGE_LIMIT = 32;
 function ProductListingComponent() {
    const router = useRouter();
    const { addItem } = useCart();
+   const { setBuyNowItem } = useBuyNow();
    const { t } = useLanguage();
    const isMobile = useMediaQuery("(max-width: 1023px)");
 
@@ -186,12 +188,13 @@ function ProductListingComponent() {
 
    const handleBuyNow = (e: React.MouseEvent, product: StoreProduct) => {
       e.stopPropagation();
-      // add the item then navigate to checkout
-      addItem({
+      // Use buy-now flow (do NOT add to main cart). Persist temporary item and go to checkout.
+      setBuyNowItem({
          product_id: product.id,
          name: product.name,
          price: product.price,
          image: product.main_image_url || "/placeholder.svg",
+         quantity: 1,
       });
       router.push("/checkout");
    };

@@ -26,6 +26,7 @@ import type {
    ProductReview,
 } from "@/integrations/supabase/store";
 import { useCart } from "@/contexts/CartContext";
+import { useBuyNow } from "@/contexts/BuyNowContext";
 import { cn, optimizeImageUrl } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import type { User } from "@supabase/supabase-js";
@@ -44,6 +45,7 @@ export default function ProductClientPage({
 }: ProductClientPageProps) {
    const router = useRouter();
    const { addItem } = useCart();
+   const { setBuyNowItem } = useBuyNow();
    const { t } = useLanguage();
    const [data] = useState<ProductPageData>(initialData);
 
@@ -230,9 +232,25 @@ export default function ProductClientPage({
    };
 
    const handleBuyNow = () => {
-      // reuse same validation/add-to-cart logic, then go to checkout
-      handleAddToCart();
-      // navigate to checkout
+      // Do not touch the main cart. Use buy-now temporary session and go to checkout.
+      const hasVariants = variations.length > 0;
+      if (hasVariants && !singleSelectedVariation) {
+         toast.error("Please select a complete and valid product combination.");
+         return;
+      }
+
+      const itemToBuy = {
+         product_id: product.id,
+         name: product.name,
+         price: singleSelectedVariation?.price ?? product.price,
+         image: product.main_image_url || "/placeholder.svg",
+         variant: singleSelectedVariation
+            ? Object.values(singleSelectedVariation.attributes).join(" / ")
+            : undefined,
+         quantity: quantity,
+      };
+
+      setBuyNowItem(itemToBuy);
       router.push("/checkout");
    };
 

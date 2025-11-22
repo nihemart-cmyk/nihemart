@@ -101,6 +101,7 @@ export const rw: Record<string, string> = {
 
    // Checkout
    "checkout.title": "Kwishyura",
+   "checkout.guestDetails": "Ibikuranga",
    "checkout.securePayment": "Kwishyura Mu Mutekano",
    "checkout.securePaymentDesc":
       "Uburyo bwo kwishyura bwose bukorerwa mu mutekano hakoreshejwe uburyo bugezweho bwo guhisha amakuru.",
@@ -108,7 +109,10 @@ export const rw: Record<string, string> = {
    "checkout.email": "Imeyili",
    "checkout.firstName": "Izina rya mbere",
    "checkout.lastName": "Izina rya nyuma",
+   "checkout.firstNamePlaceholder": "izina",
+   "checkout.lastNamePlaceholder": "irindi zina",
    "checkout.address": "Aderesi",
+   "checkout.emailPlaceholder": "wam@gmail.com",
    "checkout.city": "Umujyi",
    "checkout.phone": "Telefoni",
    "checkout.orderSummary": "Ibyerekeye Komande",
@@ -129,7 +133,8 @@ export const rw: Record<string, string> = {
    "checkout.selectPaymentMethod":
       "Hitamo uburyo bwo kwishyura kuri iyi komande.",
    // Payment option labels
-   "checkout.cashOnDelivery": "Ishyura Bikugezeho",
+   "checkout.cashOnDelivery": "Kwishyura Bikugezeho",
+   "checkout.cashOnDeliveryDesc": "Wishyura kashi igihe komande ikugezeho",
    "checkout.ordersDisabledMessage":
       "Gutanga komande ubu byahagaritswe. Mwongere mugerageze mukanya.",
    "checkout.ordersDisabledScheduleMessage":

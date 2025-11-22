@@ -62,8 +62,6 @@ export async function updateSession(request: NextRequest) {
 
    // Define protected routes
    const protectedRoutes = [
-      "/checkout",
-      "/checkout/:path*",
       "/profile",
       "/profile/:path*",
       "/admin",

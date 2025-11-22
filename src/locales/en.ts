@@ -132,8 +132,12 @@ export const en: Record<string, string> = {
    "checkout.email": "Email",
    "checkout.firstName": "First Name",
    "checkout.lastName": "Last Name",
+   "checkout.firstNamePlaceholder": "First name",
+   "checkout.lastNamePlaceholder": "Last name",
    "checkout.address": "Address",
+   "checkout.emailPlaceholder": "you@domain.com",
    "checkout.city": "City",
+   "checkout.guestDetails": "Guest details",
    "checkout.phone": "Phone",
    "checkout.orderSummary": "Order Summary",
    "checkout.subtotal": "Subtotal",
@@ -160,6 +164,7 @@ export const en: Record<string, string> = {
    "checkout.selectPaymentMethod": "Select payment method at checkout.",
    // Payment option labels
    "checkout.cashOnDelivery": "Cash on Delivery",
+   "checkout.cashOnDeliveryDesc": "Pay with cash when your order is delivered",
    "checkout.ordersDisabledMessage":
       "We are currently not allowing orders, please try again later",
    // Schedule-specific message (night hours)
@@ -210,6 +215,8 @@ export const en: Record<string, string> = {
    "checkout.loginToContinue": "Login to Continue",
    "checkout.missing.address": "Please fill in your address",
    "checkout.missing.phone": "Please provide a valid phone number",
+   "checkout.missing.email": "Please provide your email address",
+   "checkout.missing.paymentMethod": "Please select a payment method",
    "checkout.missing.header":
       "Please fill the following before placing an order:",
    "checkout.errors.validPhone": "Enter a valid phone number (10 digits)",
