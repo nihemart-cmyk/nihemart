@@ -176,7 +176,7 @@ export const columns: ColumnDef<Order>[] = [
                <UserAvatarProfile
                   user={{
                      fullName: fullName || email || phone || "User",
-                     subTitle: email || phone || undefined,
+                     subTitle: email || phone || "",
                   }}
                   showInfo={false}
                />
