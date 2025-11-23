@@ -683,6 +683,58 @@ const OrderClientPage = ({
                   </CardContent>
                </Card>
 
+               {/* Scheduled Delivery (for orders placed outside working hours) */}
+               {order.delivery_time && (
+                  <Card className="border-orange-200">
+                     <CardHeader className="bg-gradient-to-r from-orange-50 to-orange-25 py-4 sm:py-5">
+                        <CardTitle className="text-orange-800 text-lg sm:text-xl">
+                           Scheduled Delivery
+                        </CardTitle>
+                     </CardHeader>
+                     <CardContent className="p-4 sm:p-6 space-y-3">
+                        <div className="flex items-start space-x-3">
+                           <Calendar className="h-4 w-4 text-muted-foreground mt-1 flex-shrink-0" />
+                           <div className="min-w-0">
+                              <p className="text-sm font-semibold">
+                                 Requested delivery time
+                              </p>
+                              <p className="text-muted-foreground text-sm">
+                                 {(() => {
+                                    try {
+                                       const dt = new Date(
+                                          order.delivery_time as string
+                                       );
+                                       return dt.toLocaleString(undefined, {
+                                          year: "numeric",
+                                          month: "long",
+                                          day: "numeric",
+                                          hour: "2-digit",
+                                          minute: "2-digit",
+                                          timeZone: "Africa/Kigali",
+                                          hour12: false,
+                                       });
+                                    } catch (e) {
+                                       return order.delivery_time;
+                                    }
+                                 })()}
+                              </p>
+                           </div>
+                        </div>
+
+                        {order.schedule_notes && (
+                           <div className="pt-2 border-t">
+                              <p className="text-sm font-semibold mb-1">
+                                 Additional schedule notes
+                              </p>
+                              <p className="text-sm text-muted-foreground break-words">
+                                 {order.schedule_notes}
+                              </p>
+                           </div>
+                        )}
+                     </CardContent>
+                  </Card>
+               )}
+
                {/* Order Timeline */}
                <Card className="border-orange-200">
                   <CardHeader className="bg-gradient-to-r from-orange-50 to-orange-25 py-4 sm:py-5">

@@ -35,6 +35,7 @@ export default async function handler(
          customer_name: order.customer_first_name || order.customer_name,
          delivery_address: order.delivery_address,
          delivery_time: order.delivery_time,
+         schedule_notes: order.schedule_notes,
       });
       const result = await sendEmail(order.customer_email, subject, html);
       return res.status(200).json(result);

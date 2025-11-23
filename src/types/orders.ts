@@ -31,6 +31,8 @@ export interface OrderBase {
    delivery_address: string;
    delivery_city: string;
    delivery_notes?: string;
+   /** Optional free-text notes specifically for scheduled deliveries */
+   schedule_notes?: string | null;
    /** Optional scheduled delivery time requested by customer (ISO string) */
    delivery_time?: string | null;
    source?: string;

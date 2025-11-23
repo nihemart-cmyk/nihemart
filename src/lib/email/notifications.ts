@@ -18,6 +18,7 @@ export type OrderMeta = {
    customer_phone?: string;
    delivery_address?: string;
    delivery_time?: string;
+   schedule_notes?: string;
 };
 
 function formatCurrency(amount: number, currency = "RWF"): string {
@@ -113,6 +114,13 @@ export function buildOrderConfirmationEmail(
                  })()
                : ""
          }
+            ${
+               meta.schedule_notes
+                  ? `<div style="font-size:12px;color:#666;margin-top:6px">Schedule notes: ${String(
+                       meta.schedule_notes
+                    )}</div>`
+                  : ""
+            }
       <div style=\"text-align:center;margin-top:18px\"><a href=\"${
          process.env.NEXT_PUBLIC_APP_URL || "#"
       }/orders\" style=\"background:#1DB4E7;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;display:inline-block;font-weight:600\">View your order</a></div>
