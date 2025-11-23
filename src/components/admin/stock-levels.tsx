@@ -57,66 +57,70 @@ import Image from "next/image";
 
 // Stock update dialog component
 function StockUpdateDialog({
-   product,
-   variation,
-   onClose,
+    product,
+    variation,
+    onClose,
 }: {
-   product: StockProduct;
-   variation: any;
-   onClose: () => void;
+    product: StockProduct;
+    variation: any;
+    onClose: () => void;
 }) {
-   const [change, setChange] = useState<number>(0);
-   const [reason, setReason] = useState("");
-   const [isLoading, setIsLoading] = useState(false);
-   const queryClient = useQueryClient();
+    const [targetStock, setTargetStock] = useState<number>(0);
+    const [reason, setReason] = useState("");
+    const [isLoading, setIsLoading] = useState(false);
+    const queryClient = useQueryClient();
 
-   const currentStock = variation ? variation.stock : product.stock || 0;
+    const currentStock = variation ? variation.stock : product.stock || 0;
 
-   const handleUpdate = async () => {
-      if (change === 0 || !reason.trim()) {
-         toast.error("Please enter a change amount and reason");
-         return;
-      }
+    // Set initial target stock to current stock
+    useEffect(() => {
+        setTargetStock(currentStock);
+    }, [currentStock]);
 
-      setIsLoading(true);
-      try {
-         if (variation) {
-            await updateStockLevel({
-               productId: product.id,
-               variationId: variation.id,
-               change,
-               reason: reason.trim(),
-            });
-         } else {
-            await updateProductStock({
-               productId: product.id,
-               change,
-               reason: reason.trim(),
-            });
-         }
-         toast.success(
-            `Stock ${change > 0 ? "increased" : "decreased"} by ${Math.abs(
-               change
-            )} units`
-         );
-         queryClient.invalidateQueries({ queryKey: ["products-stock"] });
-         onClose();
-      } catch (error) {
-         toast.error("Failed to update stock");
-         console.error(error);
-      } finally {
-         setIsLoading(false);
-      }
-   };
+    // Calculate the change based on target stock
+    const change = targetStock - currentStock;
 
-   const quickActions = [
-      { label: "+1", value: 1, color: "bg-green-500 hover:bg-green-600" },
-      { label: "+5", value: 5, color: "bg-green-500 hover:bg-green-600" },
-      { label: "+10", value: 10, color: "bg-green-500 hover:bg-green-600" },
-      { label: "-1", value: -1, color: "bg-red-500 hover:bg-red-600" },
-      { label: "-5", value: -5, color: "bg-red-500 hover:bg-red-600" },
-      { label: "-10", value: -10, color: "bg-red-500 hover:bg-red-600" },
-   ];
+    const handleUpdate = async () => {
+        if (targetStock < 0 || !reason.trim()) {
+            toast.error("Please enter a valid stock amount (0 or more) and reason");
+            return;
+        }
+
+        if (change === 0) {
+            toast.error("New stock amount must be different from current stock");
+            return;
+        }
+
+        setIsLoading(true);
+        try {
+            if (variation) {
+                await updateStockLevel({
+                    productId: product.id,
+                    variationId: variation.id,
+                    change,
+                    reason: reason.trim(),
+                });
+            } else {
+                await updateProductStock({
+                    productId: product.id,
+                    change,
+                    reason: reason.trim(),
+                });
+            }
+            toast.success(
+                `Stock ${change > 0 ? "increased" : "decreased"} by ${Math.abs(
+                    change
+                )} units (New total: ${targetStock})`
+            );
+            queryClient.invalidateQueries({ queryKey: ["products-stock"] });
+            onClose();
+        } catch (error) {
+            toast.error("Failed to update stock");
+            console.error(error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
    return (
       <DialogContent className="max-w-md">
@@ -136,38 +140,21 @@ function StockUpdateDialog({
                   </span>
                </div>
             </div>
-            {/* Quick Action Buttons */}
-            <div>
-               <Label className="text-sm font-medium">Quick Actions</Label>
-               <div className="grid grid-cols-3 gap-2 mt-2">
-                  {quickActions.map((action) => (
-                     <Button
-                        key={action.label}
-                        variant="outline"
-                        size="sm"
-                        className={`${action.color} text-white border-0`}
-                        onClick={() => setChange(action.value)}
-                     >
-                        {action.label}
-                     </Button>
-                  ))}
-               </div>
-            </div>
 
-            {/* Manual Input */}
+            {/* New Stock Amount Input */}
             <div>
-               <Label htmlFor="change">Or enter custom amount</Label>
+               <Label htmlFor="targetStock">New Stock Amount</Label>
                <Input
-                  id="change"
+                  id="targetStock"
                   type="number"
-                  value={change}
-                  onChange={(e) => setChange(parseInt(e.target.value) || 0)}
-                  placeholder="e.g., 5 (add) or -3 (subtract)"
+                  min="0"
+                  value={targetStock}
+                  onChange={(e) => setTargetStock(parseInt(e.target.value) || 0)}
+                  placeholder={`e.g., ${currentStock + 10}`}
                   className="mt-1"
                />
                <p className="text-xs text-gray-500 mt-1">
-                  Use positive numbers to add stock, negative numbers to reduce
-                  stock
+                  Enter the new total stock amount (must be 0 or greater)
                </p>
             </div>
 
@@ -187,14 +174,19 @@ function StockUpdateDialog({
             {change !== 0 && (
                <div className="bg-blue-50 p-3 rounded-lg">
                   <div className="flex justify-between items-center text-sm">
-                     <span>New stock level:</span>
+                     <span>Stock change:</span>
                      <span
                         className={`font-bold ${
                            change > 0 ? "text-green-600" : "text-red-600"
                         }`}
                      >
-                        {currentStock + change} ({change > 0 ? "+" : ""}
-                        {change})
+                        {change > 0 ? "+" : ""}{change} units
+                     </span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm mt-1">
+                     <span>New total:</span>
+                     <span className="font-bold text-gray-900">
+                        {targetStock} units
                      </span>
                   </div>
                </div>
@@ -203,12 +195,12 @@ function StockUpdateDialog({
             <div className="flex gap-2 pt-2">
                <Button
                   onClick={handleUpdate}
-                  disabled={isLoading || change === 0 || !reason.trim()}
+                  disabled={isLoading || change === 0 || !reason.trim() || targetStock < 0}
                   className="bg-orange-500 hover:bg-orange-600 flex-1"
                >
                   {isLoading
                      ? "Updating..."
-                     : `Update Stock ${change > 0 ? "(Add)" : "(Reduce)"}`}
+                     : `Update Stock ${change > 0 ? "(Increase)" : "(Decrease)"}`}
                </Button>
                <Button
                   variant="outline"
@@ -866,7 +858,7 @@ function StockTable({
                                        <Button
                                           variant="ghost"
                                           size="sm"
-                                          title="Update Stock (Add/Reduce)"
+                                          title="Update Stock"
                                           onClick={() => {
                                              const product = products.find(
                                                 (p) => p.id === item.productId

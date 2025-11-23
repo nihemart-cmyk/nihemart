@@ -55,12 +55,20 @@ import {
 } from "@/components/ui/chart";
 
 // Type definitions
+interface TopProduct {
+    id: string;
+    name: string;
+    main_image_url?: string;
+    order_count: number;
+    price: number;
+}
+
 interface StatsCardProps {
-   title: string;
-   value: string;
-   change?: string;
-   icon: LucideIcon;
-   iconColor: string;
+    title: string;
+    value: string;
+    change?: string;
+    icon: LucideIcon;
+    iconColor: string;
 }
 
 interface DetailedStatsData {
@@ -153,59 +161,24 @@ const Dashboard: React.FC = () => {
    const { data: topProductsResponse, isLoading: topProductsLoading } = useQuery({
       queryKey: ['admin-top-products', dateRange?.from, dateRange?.to],
       queryFn: async () => {
-         // Get products with order count
-         const query = sb
-            .from('products')
-            .select(`
-               *,
-               order_items!inner(count)
-            `)
-            .order('created_at', { ascending: false })
-            .limit(5);
+         // 1. Prepare parameters for the RPC call. Pass null if date is not set.
+         const params = {
+            start_date: dateRange?.from ? dateRange.from.toISOString() : null,
+            end_date: dateRange?.to ? dateRange.to.toISOString() : null,
+         };
 
-         // Note: Supabase doesn't support COUNT in select directly, so we'll fetch order_items and count client-side
-         // For better performance, we can fetch order_items separately and aggregate
-         const { data: orderItems, error: itemsError } = await sb
-            .from('order_items')
-            .select('product_id, created_at')
-            .order('created_at', { ascending: false });
+         // 2. Call the RPC function with the parameters.
+         const { data, error } = await sb
+            .rpc('get_top_products', params);
 
-         if (itemsError) throw itemsError;
-
-         // Filter by date range if provided
-         let filteredItems = orderItems || [];
-         if (dateRange?.from) {
-            filteredItems = filteredItems.filter((item: { created_at: string | number | Date; }) => new Date(item.created_at) >= dateRange.from!);
-         }
-         if (dateRange?.to) {
-            filteredItems = filteredItems.filter((item: { created_at: string | number | Date; }) => new Date(item.created_at) <= dateRange.to!);
+         // 3. Handle error and return data.
+         if (error) {
+            console.error('Error fetching top products:', error);
+            throw error;
          }
 
-         // Count orders per product
-         const productOrderCounts: Record<string, number> = {};
-         filteredItems.forEach((item: { product_id: string | number; }) => {
-            productOrderCounts[item.product_id] = (productOrderCounts[item.product_id] || 0) + 1;
-         });
-
-         // Get top 5 products
-         const topProductIds = Object.entries(productOrderCounts)
-            .sort(([,a], [,b]) => b - a)
-            .slice(0, 5)
-            .map(([id]) => id);
-
-         if (topProductIds.length === 0) return [];
-
-         const { data: products, error } = await sb
-            .from('products')
-            .select('*')
-            .in('id', topProductIds);
-
-         if (error) throw error;
-
-         // Sort by order count
-         return (products || []).sort((a: { id: string | number; }, b: { id: string | number; }) =>
-            (productOrderCounts[b.id] || 0) - (productOrderCounts[a.id] || 0)
-         ) as any[];
+         // The data is already sorted and contains all the info you need.
+         return (data || []) as TopProduct[];
       },
       staleTime: 15 * 60 * 1000, // 15 minutes
       gcTime: 30 * 60 * 1000, // 30 minutes
@@ -218,12 +191,12 @@ const Dashboard: React.FC = () => {
       queryFn: async () => {
          const { count, error } = await sb
             .from('profiles')
-            .select('*', { count: 'exact', head: true });
-         if (error) throw error;
-         return count || 0;
+            .select('id', { count: 'exact', head: true });
+            if (error) throw error;
+            return count || 0;
       },
-      staleTime: 30 * 60 * 1000, // 30 minutes
-      gcTime: 60 * 60 * 1000, // 1 hour
+         staleTime: 30 * 60 * 1000, // 30 minutes
+         gcTime: 60 * 60 * 1000, // 1 hour
       refetchOnWindowFocus: false,
       refetchOnReconnect: true,
    });
@@ -238,7 +211,7 @@ const Dashboard: React.FC = () => {
                user_roles (role)
             `)
             .order('created_at', { ascending: false })
-            .limit(50); // Limit for performance
+            .limit(5); // Limit for performance
          if (error) throw error;
          return data as any[];
       },
@@ -248,9 +221,28 @@ const Dashboard: React.FC = () => {
       refetchOnReconnect: true,
    });
 
-   // Use the users from useUsers hook instead of separate query
-   const topUsersResponse = allUsers?.slice(0, 5) || [];
-   const topUsersLoading = allUsersLoading;
+   const { data: recentUsersResponse, isLoading: recentUsersLoading } = useQuery({
+      queryKey: ['admin-recent-users'],
+      queryFn: async () => {
+         const { data, error } = await sb
+            .from('profiles')
+            .select('id, full_name, created_at')
+            .order('created_at', { ascending: false })
+            .limit(5);
+            console.log({data,error})
+         if (error) throw error;
+         return data as any[];
+      },
+      staleTime: 30 * 60 * 1000, // 30 minutes
+      gcTime: 60 * 60 * 1000, // 1 hour
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: true,
+   });
+
+   console.log("Recent Users Response:", recentUsersResponse);
+
+   const topUsersResponse = recentUsersResponse || [];
+   const topUsersLoading = recentUsersLoading;
 
    const { data: ridersResponse, isLoading: ridersLoading } = useQuery({
       queryKey: ['admin-riders'],
@@ -688,10 +680,7 @@ const Dashboard: React.FC = () => {
                                           key={product.id || index}
                                           image={product.main_image_url}
                                           name={product.name}
-                                          code={
-                                             product.sku ||
-                                             `SKU-${product.id?.slice(-6)}`
-                                          }
+                                          code={`Sold: ${product.order_count}`}
                                           price={`RWF ${product.price.toLocaleString()}`}
                                           bgColor={
                                              index % 4 === 0
