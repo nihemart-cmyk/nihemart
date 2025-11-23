@@ -6,12 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { useLanguage } from "@/contexts/LanguageContext";
 import type { CreateOrderRequest } from "@/types/orders";
 import { useAuth } from "@/hooks/useAuth";
 import { useOrders } from "@/hooks/useOrders";
 import { useCart } from "@/contexts/CartContext";
+import { useBuyNow } from "@/contexts/BuyNowContext";
 import { supabase } from "@/integrations/supabase/client";
 import {
    Collapsible,
@@ -53,10 +55,20 @@ import {
    AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
+import GuestCheckoutForm from "@/components/guest/GuestCheckoutForm";
 import { z } from "zod";
-import PaymentMethodSelector from "@/components/payments/PaymentMethodSelector";
+import CheckoutHeader from "@/components/checkout/CheckoutHeader";
+import OrderItemsList from "@/components/checkout/OrderItemsList";
+import PriceSummary from "@/components/checkout/PriceSummary";
+import PaymentSection from "@/components/checkout/PaymentSection";
+import CheckoutFooter from "@/components/checkout/CheckoutFooter";
+import useCheckoutTotals from "@/hooks/useCheckoutTotals";
+import useCheckoutFlags from "@/hooks/useCheckoutFlags";
+import useSubmitOrder from "@/hooks/useSubmitOrder";
 import { useKPayPayment } from "@/hooks/useKPayPayment";
+import useGuestInfo from "@/hooks/useGuestInfo";
 import { PAYMENT_METHODS } from "@/lib/services/kpay";
+import CheckoutAddressForm from "@/components/checkout/CheckoutAddressForm";
 
 interface CartItem {
    id: string;
@@ -80,6 +92,8 @@ const CheckoutPage = ({
    const { createOrder } = useOrders();
    const router = useRouter();
    const searchParams = useSearchParams();
+
+   // Guest checkout allowed — do not force login here. Use middleware for server-side protection when needed.
 
    const [formData, setFormData] = useState({
       email: "",
@@ -168,31 +182,10 @@ const CheckoutPage = ({
                );
             } catch (e) {
                console.error(
-                  "[clearAllCheckoutClientState] Failed to clear checkout key:",
+                  "[clearAllCheckoutClientState] Failed to clear checkout:",
                   e
                );
             }
-            // Add any other potential checkout-related keys
-            const allKeys = Object.keys(localStorage);
-            const checkoutKeys = allKeys.filter(
-               (key) =>
-                  key.toLowerCase().includes("checkout") ||
-                  key.toLowerCase().includes("cart") ||
-                  key.toLowerCase().includes("nihemart")
-            );
-            checkoutKeys.forEach((key) => {
-               try {
-                  localStorage.removeItem(key);
-                  console.log(
-                     `[clearAllCheckoutClientState] ✓ Additional key cleared: ${key}`
-                  );
-               } catch (e) {
-                  console.error(
-                     `[clearAllCheckoutClientState] Failed to clear ${key}:`,
-                     e
-                  );
-               }
-            });
          }
       } catch (e) {
          console.error(
@@ -262,6 +255,7 @@ const CheckoutPage = ({
       );
    };
    const [orderItems, setOrderItems] = useState<CartItem[]>([]);
+   const [isBuyNowFlow, setIsBuyNowFlow] = useState(false);
    const [errors, setErrors] = useState<any>({});
 
    // Enhanced phone validation for Rwanda
@@ -308,7 +302,7 @@ const CheckoutPage = ({
       reloadSaved,
    } = useAddresses();
 
-   const { items: cartItems, clearCart } = useCart();
+   const { items: cartItems, clearCart, removeItem } = useCart();
 
    // KPay payment functionality
    const {
@@ -317,6 +311,8 @@ const CheckoutPage = ({
       validatePaymentRequest,
       isInitiating,
    } = useKPayPayment();
+
+   const { formatPhoneInput, normalizePhone, deriveFullName } = useGuestInfo();
 
    // Location data state
    const [provinces, setProvinces] = useState<any[]>([]);
@@ -338,7 +334,7 @@ const CheckoutPage = ({
    const [editingAddressId, setEditingAddressId] = useState<string | null>(
       null
    );
-   const [isSavingAddress, setIsSavingAddress] = useState(false);
+   // address saving is handled by `CheckoutAddressForm` component now
    // Pre-pay flow state: track when a payment returned to checkout and whether it's verified
    const [paymentReturnedOrderId, setPaymentReturnedOrderId] = useState<
       string | null
@@ -377,36 +373,6 @@ const CheckoutPage = ({
    const [scheduleNotes, setScheduleNotes] = useState<string>("");
    const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
    const [preventPersistence, setPreventPersistence] = useState(false);
-   const formatPhoneInput = (input: string) => {
-      // Remove all non-digit characters except +
-      const cleaned = input.replace(/[^\d+]/g, "");
-
-      // If starts with +250, format as +250 XXX XXX XXX
-      if (cleaned.startsWith("+250")) {
-         const digits = cleaned.slice(4);
-         if (digits.length <= 3) return `+250 ${digits}`;
-         if (digits.length <= 6)
-            return `+250 ${digits.slice(0, 3)} ${digits.slice(3)}`;
-         return `+250 ${digits.slice(0, 3)} ${digits.slice(
-            3,
-            6
-         )} ${digits.slice(6, 9)}`;
-      }
-
-      // If starts with 07, format as 07X XXX XXX
-      if (cleaned.startsWith("07")) {
-         const digits = cleaned;
-         if (digits.length <= 3) return digits;
-         if (digits.length <= 6)
-            return `${digits.slice(0, 3)} ${digits.slice(3)}`;
-         return `${digits.slice(0, 3)} ${digits.slice(3, 6)} ${digits.slice(
-            6,
-            10
-         )}`;
-      }
-
-      return cleaned;
-   };
 
    // Handle phone input with validation
    const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -435,28 +401,7 @@ const CheckoutPage = ({
       }
    };
 
-   // Normalize phone to E.164 format
-   const normalizePhone = (raw: string) => {
-      if (!raw) return raw;
-      const digits = raw.replace(/[^\d]/g, "");
-
-      // If it's 10 digits starting with 07
-      if (digits.length === 10 && digits.startsWith("07")) {
-         return `+250${digits.slice(1)}`;
-      }
-
-      // If it's 12 digits starting with 250
-      if (digits.length === 12 && digits.startsWith("250")) {
-         return `+${digits}`;
-      }
-
-      // If already in +250 format
-      if (raw.startsWith("+250")) {
-         return raw.replace(/[^\d+]/g, "");
-      }
-
-      return raw;
-   };
+   // Phone/name helpers provided by `useGuestInfo()`
 
    // Handle mobile money phone number changes
    const handleMobileMoneyPhoneChange = (
@@ -890,13 +835,6 @@ const CheckoutPage = ({
       }
    }, [searchParams]);
 
-   // Detect session-based return from KPay (no orderId in query). We store
-   // the kpay_reference in sessionStorage before redirecting. On return we
-   // poll the status endpoint by reference until the webhook has created the
-   // order (or a timeout occurs), then allow the user to finalize. If the
-   // query includes payment=success without an orderId, treat it as a
-   // session-based success and show a non-intrusive banner instead of
-   // re-initiating payments.
    useEffect(() => {
       let mounted = true;
 
@@ -919,7 +857,6 @@ const CheckoutPage = ({
 
                const data = await resp.json();
 
-               // If the status endpoint returned an order id (webhook created it), we can verify payments
                if (data.orderId) {
                   // Verify payments for the order
                   try {
@@ -964,9 +901,6 @@ const CheckoutPage = ({
                   }
                }
 
-               // If the status endpoint returned the session info but no orderId,
-               // and the session status is 'completed', call the finalize endpoint
-               // to create the order and link payments.
                if (!data.orderId && data.status === "completed") {
                   try {
                      // Call finalize endpoint with the reference
@@ -1035,11 +969,6 @@ const CheckoutPage = ({
                await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
             }
 
-            // If we exit loop without finding an order, notify and clear only
-            // the KPay reference. Preserve the checkout snapshot so the user
-            // can still complete the order on this page (avoids losing delivery
-            // instructions or other form data). The checkout storage will be
-            // cleared only after an actual order creation.
             if (mounted) {
                const msg =
                   "Payment verification timed out. You can retry or choose another payment method.";
@@ -1049,7 +978,6 @@ const CheckoutPage = ({
                   // keep the reference in storage so finalize can still pick it up if webhook runs later
                   // sessionStorage.removeItem("kpay_reference");
                } catch (e) {}
-               // NOTE: do NOT clear nihemart_checkout_v1 here — preserve checkout state
             }
          } catch (err) {
             console.error("Failed to poll payment status by reference:", err);
@@ -1071,14 +999,7 @@ const CheckoutPage = ({
          // If already handled by the orderId-based flow above, skip
          if (p === "success" && oid) return;
 
-         // If the URL indicates a success but there is no orderId (session-based)
-         // then clear any stored reference and show success banner; do NOT
-         // start polling or re-initiate payments from the checkout page.
          if (p === "success" && !oid) {
-            // User returned from payment provider but no orderId was created by
-            // the webhook yet. Do NOT remove the stored kpay_reference here -
-            // preserve it so the checkout page (or the auto-link flow after
-            // order creation) can link the payment to the newly created order.
             try {
                const ref =
                   typeof window !== "undefined"
@@ -1124,18 +1045,11 @@ const CheckoutPage = ({
       };
    }, [searchParams]);
 
-   // If saved addresses finish loading after we fetched the existing order,
-   // try matching and selecting the saved address. This runs separately so
-   // that address preselection works even when addresses load asynchronously
-   // after the order fetch.
    useEffect(() => {
       try {
          // If there are no saved addresses, nothing to do
          if (!Array.isArray(savedAddresses) || savedAddresses.length === 0)
             return;
-
-         // If we're in retry mode, attempt to restore a previously persisted
-         // checkout snapshot from localStorage and match the saved address.
          if (effectiveIsRetry) {
             const persisted = loadCheckoutFromStorage();
             if (persisted && persisted.formData) {
@@ -1200,12 +1114,8 @@ const CheckoutPage = ({
       }
    }, [effectiveIsRetry, savedAddresses, selectedAddress, sectors, districts]);
 
-   // Auto-select a reasonable default address when none is selected.
-   // Priority: already-selected (do nothing) -> saved default (is_default) -> single address -> first address
    useEffect(() => {
       try {
-         // If there are no saved addresses, do nothing - let the user click the button
-         // This prevents the form from auto-opening and re-opening after cancel
          if (!Array.isArray(savedAddresses) || savedAddresses.length === 0) {
             return;
          }
@@ -1256,6 +1166,35 @@ const CheckoutPage = ({
          console.error("Auto-select address error:", err);
       }
    }, [savedAddresses, selectedAddress, sectors, districts, selectAddress]);
+
+   // If a saved address is selected but location lists (sectors/districts)
+   // were not available at the time of selection, attempt to derive the
+   // corresponding sector/district/province once those lists load.
+   useEffect(() => {
+      try {
+         if (!selectedAddress) return;
+         // If province already set, nothing to do
+         if (selectedProvince) return;
+         if (!Array.isArray(sectors) || sectors.length === 0) return;
+
+         const foundSector = sectors.find(
+            (s: any) =>
+               s.sct_name === selectedAddress.street ||
+               s.sct_name === selectedAddress.display_name ||
+               s.sct_name === selectedAddress.city
+         );
+         if (foundSector) {
+            setSelectedSector(foundSector.sct_id);
+            setSelectedDistrict(foundSector.sct_district);
+            const foundDistrict = districts.find(
+               (d: any) => d.dst_id === foundSector.sct_district
+            );
+            if (foundDistrict) setSelectedProvince(foundDistrict.dst_province);
+         }
+      } catch (err) {
+         console.error("Address -> location post-sync error:", err);
+      }
+   }, [selectedAddress, selectedProvince, sectors, districts]);
 
    // Show a small banner when retrying due to timeout
    const retryTimedOut = Boolean(searchParams?.get("timedout"));
@@ -1325,8 +1264,8 @@ const CheckoutPage = ({
    // Keep local orderItems in sync with cart context
    useEffect(() => {
       try {
+         // If in retry mode, try to restore a persisted lightweight checkout snapshot
          if (effectiveIsRetry) {
-            // Try restoring a lightweight cart snapshot from localStorage
             const persisted = loadCheckoutFromStorage();
             if (persisted) {
                if (persisted.cart && Array.isArray(persisted.cart)) {
@@ -1341,21 +1280,14 @@ const CheckoutPage = ({
                   setFormData((prev) => ({ ...prev, ...persisted.formData }));
                }
 
-               // In retry mode, do NOT restore payment method - force user to choose a new one
-               // This prevents using the same payment method that failed
-               setPaymentMethod(""); // Reset to empty so user must select new method
-
-               // Also reset mobile money phones in retry mode to avoid confusion
+               // reset certain transient UI state when restoring
+               setPaymentMethod("");
                setMobileMoneyPhones({});
-
-               console.debug(
-                  "CheckoutPage: Restored checkout snapshot from storage for retry mode (payment method reset to force new selection)"
-               );
                return;
             }
-            // If no persisted snapshot, fall through to sync from cart context
          }
 
+         // Normal path: sync from CartContext items into local orderItems
          if (Array.isArray(cartItems)) {
             console.debug("CheckoutPage: Syncing cart items to order items");
             const cleaned = cartItems.map((item: any) => ({
@@ -1370,6 +1302,7 @@ const CheckoutPage = ({
                      : item.variation_id || item.product_variation_id,
             }));
             setOrderItems(cleaned);
+            setIsBuyNowFlow(false);
          }
       } catch (err) {
          console.error(
@@ -1391,6 +1324,46 @@ const CheckoutPage = ({
          }));
       }
    }, [cartItems, user, effectiveIsRetry]);
+
+   // Buy-now sync: prefer buy-now item over cart when present
+   const { item: buyNowItem, clearBuyNowItem } = useBuyNow();
+
+   useEffect(() => {
+      try {
+         if (buyNowItem) {
+            // adapt shape to CartItem
+            const mapped: any = {
+               id: buyNowItem.id,
+               product_id: buyNowItem.product_id,
+               name: buyNowItem.name,
+               price: buyNowItem.price,
+               quantity: buyNowItem.quantity || 1,
+               variation_name: buyNowItem.variant,
+            };
+            setOrderItems([mapped]);
+            setIsBuyNowFlow(true);
+         } else {
+            // If buyNow cleared and cart has items, restore cart sync
+            if (Array.isArray(cartItems) && cartItems.length > 0) {
+               const cleaned = cartItems.map((item: any) => ({
+                  ...item,
+                  id:
+                     typeof item.id === "string"
+                        ? item.id.replace(/-$/, "")
+                        : item.id,
+                  variation_id:
+                     typeof item.product_variation_id === "string"
+                        ? item.product_variation_id.replace(/-$/, "")
+                        : item.variation_id || item.product_variation_id,
+               }));
+               setOrderItems(cleaned);
+               setIsBuyNowFlow(false);
+            }
+         }
+      } catch (e) {
+         console.error("BuyNow sync failed:", e);
+      }
+   }, [buyNowItem, cartItems]);
 
    // Load location data from JSON imports
    useEffect(() => {
@@ -1429,9 +1402,6 @@ const CheckoutPage = ({
 
    // Redirect if cart is empty (but not in retry mode or while submitting/initiating payment)
    useEffect(() => {
-      // Do not redirect while an order/payment is being processed to avoid
-      // navigating the user away (e.g. to landing page) before redirecting
-      // to the external payment gateway.
       if (
          orderItems.length === 0 &&
          !isRetryMode &&
@@ -1455,79 +1425,48 @@ const CheckoutPage = ({
       paymentInProgress,
    ]);
 
-   const subtotal = orderItems.reduce(
-      (sum, item) =>
-         sum + (Number(item.price) || 0) * (Number(item.quantity) || 0),
-      0
-   );
+   const { subtotal, selectedSectorObj, transport, total } = useCheckoutTotals({
+      orderItems,
+      sectors,
+      sectorsFees,
+      selectedAddress,
+      selectedSector,
+      hasAddress: Boolean(
+         // Determine isKigali and hasAddress inline to keep behavior identical
+         (selectedAddress &&
+            (selectedAddress.display_name || selectedAddress.city)) ||
+            (formData.address && formData.address.trim())
+      ),
+   });
 
-   // Debug: when retrying, log order items and subtotal to help diagnose UI showing only delivery fee
-   // No debug logs here
-   const selectedSectorObj = sectors.find((s) => s.sct_id === selectedSector);
+   const {
+      hasItems,
+      isKigali,
+      hasAddress,
+      hasEmail,
+      hasValidPhone,
+      paymentRequiresVerification,
+      missingSteps,
+      allStepsCompleted,
+      selectedProvinceObj,
+   } = useCheckoutFlags({
+      orderItemsCount: orderItems.length,
+      selectedAddress,
+      formData,
+      selectedProvince,
+      provinces,
+      selectedSector,
+      sectors,
+      formatPhoneNumber,
+      paymentMethod: paymentMethod as any,
+      paymentVerified,
+      effectiveIsRetry,
+      ordersEnabled,
+      ordersSource,
+      scheduleConfirmChecked,
+   });
 
-   // Pre-pay gating: compute required completion flags
-   const hasItems = orderItems.length > 0;
-
-   // Determine if the selected location is Kigali
-   // Check both the saved address and the province selection state
-   const selectedProvinceObj = selectedProvince
-      ? provinces.find(
-           (p: any) => String(p.prv_id) === String(selectedProvince)
-        )
-      : null;
-   const provinceIsKigali = Boolean(
-      selectedProvinceObj?.prv_name?.toLowerCase().includes("kigali")
-   );
-
-   const isKigaliBySavedAddress = Boolean(
-      selectedAddress &&
-         [
-            selectedAddress.city,
-            selectedAddress.street,
-            selectedAddress.display_name,
-         ]
-            .filter(Boolean)
-            .join(" ")
-            .toLowerCase()
-            .includes("kigali")
-   );
-   const isKigali = isKigaliBySavedAddress || provinceIsKigali;
-
-   // For Kigali addresses, require a saved selectedAddress
-   // For non-Kigali, allow either selectedAddress or formData.address
-   const hasAddress = isKigali
-      ? Boolean(
-           selectedAddress &&
-              (selectedAddress.display_name || selectedAddress.city)
-        )
-      : Boolean(
-           (selectedAddress &&
-              (selectedAddress.display_name || selectedAddress.city)) ||
-              (formData.address && formData.address.trim())
-        );
-
-   const hasEmail = Boolean(formData.email && formData.email.trim());
-   const phoneForCheck = (
-      selectedAddress?.phone ||
-      formData.phone ||
-      ""
-   ).toString();
-   const formattedPhoneForCheck = formatPhoneNumber(phoneForCheck || "");
-   const hasValidPhone = /^07\d{8}$/.test(formattedPhoneForCheck);
-
-   // Compute transport fee after determining whether an address exists
-   const sectorFee = selectedSectorObj
-      ? (sectorsFees as any)[selectedSectorObj.sct_name]
-      : undefined;
-   const transport = sectorFee ?? (hasAddress ? 1000 : 0);
-   const total = subtotal + transport;
-
-   // Payment selection: For pre-pay we require a non-COD method to be selected and verified
-   const paymentRequiresVerification =
-      paymentMethod && paymentMethod !== "cash_on_delivery";
-
-   // If user returned from a session-based payment success (payment=success with no orderId),
-   // treat the payment as verified and don't show the "Proceed to payment" button.
+   // payment URL/session helpers
    const urlPaymentParam =
       typeof window !== "undefined"
          ? new URLSearchParams(window.location.search).get("payment")
@@ -1538,38 +1477,6 @@ const CheckoutPage = ({
          : null;
    const sessionPaymentSuccess =
       urlPaymentParam === "success" && !urlOrderIdParam;
-
-   const allStepsCompleted =
-      hasItems &&
-      hasAddress &&
-      hasEmail &&
-      hasValidPhone &&
-      // Require that the user has explicitly selected a payment method
-      Boolean(paymentMethod) &&
-      // If payment requires verification, user must have completed payment return + verification
-      (!paymentRequiresVerification ||
-         paymentVerified ||
-         String(paymentMethod) === "cash_on_delivery");
-
-   let missingSteps: string[] = [];
-   if (!hasItems) missingSteps.push("checkout.missing.addItems");
-   if (!hasAddress) missingSteps.push("checkout.missing.address");
-   if (!hasEmail) missingSteps.push("checkout.missing.email");
-   if (!hasValidPhone) missingSteps.push("checkout.missing.phone");
-   if (!paymentMethod) missingSteps.push("checkout.missing.paymentMethod");
-   if (paymentRequiresVerification && !paymentVerified)
-      missingSteps.push("checkout.missing.completePayment");
-
-   // When in retry mode we restore state from localStorage. To avoid showing
-   // misleading missing-step messages while restoration completes (or when
-   // the URL contains orderId=null), simplify the message: only prompt to
-   // select another payment method rather than listing cart/email items.
-   if (effectiveIsRetry) {
-      const retryOnly: string[] = [];
-      if (!paymentMethod)
-         retryOnly.push("checkout.missing.selectAnotherMethod");
-      missingSteps = retryOnly;
-   }
 
    const getProvinceLabel = (p: any) => {
       const raw = String(p?.prv_name || "").toLowerCase();
@@ -1646,6 +1553,28 @@ const CheckoutPage = ({
             "Please enter a valid email";
       }
 
+      // When placing an order as a guest require the customer's name and phone
+      if (!isLoggedIn) {
+         if (!formData.firstName || !String(formData.firstName).trim()) {
+            formErrors.firstName =
+               t("checkout.errors.firstNameRequired") ||
+               "First name is required";
+         }
+
+         try {
+            // Phone may come from the selected address; prefer that when present
+            const phoneToValidate =
+               (selectedAddress && selectedAddress.phone) ||
+               formData.phone ||
+               "";
+            phoneSchema.parse({ phone: phoneToValidate });
+         } catch (ve: any) {
+            const first =
+               ve?.errors?.[0]?.message || t("checkout.errors.validPhone");
+            formErrors.phone = first;
+         }
+      }
+
       const hasAddressValue =
          (formData.address && formData.address.trim()) || selectedAddress;
       if (!hasAddressValue)
@@ -1659,557 +1588,56 @@ const CheckoutPage = ({
       return formErrors;
    };
 
+   const handleGuestPhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const input = e.target.value;
+      const formatted = formatPhoneInput(input);
+      setFormData((prev) => ({ ...prev, phone: formatted }));
+      if (errors?.phone)
+         setErrors((prev: any) => ({ ...prev, phone: undefined }));
+   };
+
    // NOTE: Retry flows no longer rely on fetching existing orders server-side.
    // We removed server-order-dependent retry logic. The checkout now uses the
    // persisted local storage snapshot (CHECKOUT_STORAGE_KEY) and the current
    // in-memory cart to initiate a new payment session.
 
-   // Handle order creation or retry payment
-   const handleCreateOrder = async () => {
-      if (isSubmitting) return;
-      // Clear any previous payment failure when initiating a new attempt
-      try {
-         setPaymentFailure(null);
-      } catch (e) {}
-
-      const formErrors = validateForm();
-      if (Object.keys(formErrors).length > 0) {
-         setErrors(formErrors);
-         const msgs = Object.values(formErrors).filter(Boolean);
-         if (msgs.length > 0) {
-            toast.error(String(msgs[0]));
-         } else {
-            toast.error("Please fix the highlighted errors and try again.");
-         }
-         return;
-      }
-
-      if (!isLoggedIn) {
-         toast.error(t("checkout.loginToPlaceOrder"));
-         const currentPath = "/checkout";
-         router.push(`/signin?redirect=${encodeURIComponent(currentPath)}`);
-         return;
-      }
-
-      if (orderItems.length === 0) {
-         toast.error(t("cart.empty"));
-         return;
-      }
-
-      setIsSubmitting(true);
-      setErrors({});
-
-      // If in retry mode, we still allow the pre-pay flow using the local
-      // persisted checkout snapshot instead of fetching the server order.
-
-      // If orders are disabled, behavior depends on source:
-      // - admin override: block submission (customer cannot place order)
-      // - schedule-controlled (outside working hours): allow checkout but require explicit confirmation
-      if (ordersEnabled === false) {
-         if (ordersSource === "admin") {
-            toast.error(
-               ordersDisabledMessage ||
-                  t("checkout.ordersDisabledMessage") ||
-                  "Ordering is currently disabled by the admin."
-            );
-            setIsSubmitting(false);
-            return;
-         }
-
-         if (ordersSource === "schedule") {
-            if (!scheduleConfirmChecked) {
-               toast.error(
-                  t("checkout.confirmScheduleDelivery") ||
-                     "Please confirm you want this order delivered tomorrow during working hours."
-               );
-               setIsSubmitting(false);
-               return;
-            }
-         }
-      }
-
-      try {
-         const derivedCity = deriveCity();
-
-         // Derive full name from user profile when available, otherwise fallback to form fields
-         const derivedFullNameForOrder =
-            user?.user_metadata?.full_name?.trim() ||
-            `${formData.firstName || ""} ${formData.lastName || ""}`.trim();
-
-         const [derivedFirstName, ...derivedLastParts] = (
-            derivedFullNameForOrder || ""
-         ).split(" ");
-         const derivedLastName = derivedLastParts.join(" ");
-
-         const orderData: CreateOrderRequest = {
-            order: {
-               user_id: user!.id,
-               subtotal: subtotal,
-               tax: transport,
-               total: total,
-               customer_email: formData.email.trim(),
-               customer_first_name: (derivedFirstName || "").trim(),
-               customer_last_name: (derivedLastName || "").trim(),
-               customer_phone:
-                  (selectedAddress?.phone || formData.phone || "").trim() ||
-                  undefined,
-               delivery_address: (
-                  selectedAddress?.street ??
-                  selectedAddress?.display_name ??
-                  formData.address ??
-                  ""
-               ).trim(),
-               // Use derived city (sector/district/province or saved address)
-               delivery_city: (
-                  derivedCity ||
-                  selectedAddress?.city ||
-                  formData.city ||
-                  ""
-               ).trim(),
-               status: "pending" as const,
-               payment_method: paymentMethod || "cash_on_delivery",
-               delivery_notes:
-                  (formData.delivery_notes || "").trim() || undefined,
-               // note: scheduled delivery time selection removed — if user provided
-               // schedule notes we attach them to delivery_notes below
-            },
-            items: orderItems.map((item) => {
-               const explicitProductId = (item as any).product_id as
-                  | string
-                  | undefined;
-               let resolvedProductId: string | undefined = explicitProductId;
-               if (!resolvedProductId && typeof item.id === "string") {
-                  const idStr = item.id as string;
-                  if (idStr.length === 36) {
-                     resolvedProductId = idStr;
-                  } else if (idStr.length >= 73 && idStr[36] === "-") {
-                     resolvedProductId = idStr.slice(0, 36);
-                  } else {
-                     resolvedProductId = idStr;
-                  }
-               }
-
-               const product_id = resolvedProductId ?? String(item.id);
-
-               return {
-                  product_id: product_id,
-                  product_variation_id: item.variation_id ?? undefined,
-                  product_name: item.name,
-                  product_sku: item.sku ?? undefined,
-                  variation_name: item.variation_name ?? undefined,
-                  price: item.price,
-                  quantity: item.quantity,
-                  total: item.price * item.quantity,
-               };
-            }),
-         };
-
-         if (formData.delivery_notes) {
-            orderData.order.delivery_notes = formData.delivery_notes;
-         }
-
-         // If schedule notes were provided when orders are disabled by schedule,
-         // append them to delivery_notes so admin can see them.
-         if (
-            ordersEnabled === false &&
-            ordersSource === "schedule" &&
-            scheduleNotes
-         ) {
-            const existing = orderData.order.delivery_notes || "";
-            orderData.order.delivery_notes = (
-               existing +
-               (existing ? "\n\n" : "") +
-               scheduleNotes
-            ).trim();
-         }
-
-         if (!createOrder || typeof createOrder.mutate !== "function") {
-            console.error("createOrder mutation is not available", createOrder);
-            toast.error(
-               "Unable to submit order right now. Please try again later."
-            );
-            setIsSubmitting(false);
-            return;
-         }
-
-         if (
-            paymentMethod &&
-            paymentMethod !== "cash_on_delivery" &&
-            paymentVerified
-         ) {
-            // Create the order now (payment already completed)
-            try {
-               // Prevent the empty-cart redirect while we create the order and navigate
-               setSuppressEmptyCartRedirect(true);
-               setPreventPersistence(true);
-               createOrder.mutate(orderData as CreateOrderRequest, {
-                  onSuccess: async (createdOrder: any) => {
-                     // Clear cart and order items state first
-                     try {
-                        clearCart();
-                     } catch (e) {
-                        console.error("Failed to clear cart:", e);
-                     }
-                     setOrderItems([]);
-
-                     // Attempt to link the completed session payment to the new order
-                     try {
-                        let linkSucceeded = false;
-                        const ref =
-                           typeof window !== "undefined"
-                              ? sessionStorage.getItem("kpay_reference")
-                              : null;
-
-                        if (!ref) {
-                           // No reference to link — treat as success for cleanup
-                           linkSucceeded = true;
-                        } else {
-                           console.log(
-                              "Linking payment to order via reference",
-                              { reference: ref, orderId: createdOrder.id }
-                           );
-                           // Primary linking path: server will find completed payment by reference and link
-                           try {
-                              const linkResp = await fetch(
-                                 "/api/payments/link",
-                                 {
-                                    method: "POST",
-                                    headers: {
-                                       "Content-Type": "application/json",
-                                    },
-                                    body: JSON.stringify({
-                                       orderId: createdOrder.id,
-                                       reference: ref,
-                                    }),
-                                 }
-                              );
-                              if (linkResp.ok) {
-                                 linkSucceeded = true;
-                              } else {
-                                 const linkErr = await linkResp
-                                    .json()
-                                    .catch(() => ({}));
-                                 console.warn(
-                                    "/api/payments/link failed, falling back to status->PATCH",
-                                    linkErr
-                                 );
-                                 // Fallback: query status to obtain paymentId, then PATCH link
-                                 try {
-                                    const statusResp = await fetch(
-                                       "/api/payments/kpay/status",
-                                       {
-                                          method: "POST",
-                                          headers: {
-                                             "Content-Type": "application/json",
-                                          },
-                                          body: JSON.stringify({
-                                             reference: ref,
-                                          }),
-                                       }
-                                    );
-                                    if (statusResp.ok) {
-                                       const statusData =
-                                          await statusResp.json();
-                                       const payId = statusData?.paymentId;
-                                       if (payId) {
-                                          const patchResp = await fetch(
-                                             `/api/payments/${payId}`,
-                                             {
-                                                method: "PATCH",
-                                                headers: {
-                                                   "Content-Type":
-                                                      "application/json",
-                                                },
-                                                body: JSON.stringify({
-                                                   order_id: createdOrder.id,
-                                                }),
-                                             }
-                                          );
-                                          if (patchResp.ok) {
-                                             linkSucceeded = true;
-                                          } else {
-                                             const pErr = await patchResp
-                                                .json()
-                                                .catch(() => ({}));
-                                             console.error(
-                                                "Failed to PATCH link payment to order",
-                                                pErr
-                                             );
-                                          }
-                                       }
-                                    }
-                                 } catch (fbe) {
-                                    console.error(
-                                       "Fallback linking path failed",
-                                       fbe
-                                    );
-                                 }
-                              }
-                           } catch (linkErr) {
-                              console.error(
-                                 "Error linking payment via reference",
-                                 linkErr
-                              );
-                           }
-                        }
-                        // Always clear checkout state after order creation, regardless of linking status
-                        // The order has been created successfully
-                        try {
-                           clearAllCheckoutClientState();
-                        } catch (e) {
-                           console.error("Failed to clear checkout state:", e);
-                        }
-
-                        if (!linkSucceeded) {
-                           // Notify user if linking failed but don't block success
-                           toast(
-                              "Order created but payment linking did not complete. Please check your orders page."
-                           );
-                        }
-
-                        toast.success(
-                           `Order #${createdOrder.order_number} has been created successfully!`
-                        );
-                        router.push(`/orders/${createdOrder.id}`);
-                     } catch (outerError) {
-                        console.error(
-                           "Unexpected error during payment linking",
-                           { orderId: createdOrder.id, error: outerError }
-                        );
-                        // In the unexpected error case, avoid clearing checkout snapshot
-                        toast(
-                           "Order created but an unexpected error occurred during payment linking. Your checkout data has been preserved."
-                        );
-                        router.push(`/orders/${createdOrder.id}`);
-                     }
-                  },
-                  onError: (error: any) => {
-                     console.error("createOrder.onError", error);
-                     try {
-                        setPaymentInProgress(false);
-                     } catch (e) {
-                        /* ignore */
-                     }
-                     setPreventPersistence(false);
-                     toast.error(
-                        `Failed to create order: ${
-                           error?.message || "Unknown error"
-                        }`
-                     );
-                  },
-                  onSettled: () => {
-                     setIsSubmitting(false);
-                     setSuppressEmptyCartRedirect(false);
-                  },
-               });
-            } catch (error: any) {
-               console.error("Order creation failed (sync):", error);
-               try {
-                  setPaymentInProgress(false);
-               } catch (e) {
-                  /* ignore */
-               }
-               toast.error(
-                  `Failed to create order: ${error?.message || "Unknown error"}`
-               );
-               setIsSubmitting(false);
-            }
-
-            return;
-         }
-
-         if (paymentMethod && paymentMethod !== "cash_on_delivery") {
-            try {
-               setPaymentInProgress(true);
-
-               const customerPhone =
-                  paymentMethod === "mtn_momo" ||
-                  paymentMethod === "airtel_money"
-                     ? mobileMoneyPhones[paymentMethod] ||
-                       formatPhoneNumber(
-                          selectedAddress?.phone || formData.phone || ""
-                       )
-                     : formatPhoneNumber(
-                          selectedAddress?.phone || formData.phone || ""
-                       );
-
-               const derivedFullName =
-                  user?.user_metadata?.full_name?.trim() ||
-                  `${formData.firstName || ""} ${
-                     formData.lastName || ""
-                  }`.trim();
-
-               const cartSnapshot = orderItems.map((it) => ({
-                  product_id: (it as any).product_id || it.id,
-                  name: it.name,
-                  price: it.price,
-                  quantity: it.quantity,
-                  sku: it.sku,
-                  variation_id: it.variation_id,
-                  variation_name: it.variation_name,
-               }));
-
-               const paymentRequest = {
-                  amount: total,
-                  customerName: derivedFullName || undefined,
-                  customerEmail: formData.email,
-                  customerPhone,
-                  paymentMethod: paymentMethod as keyof typeof PAYMENT_METHODS,
-                  redirectUrl: `${window.location.origin}/checkout?payment=success`,
-                  cart: cartSnapshot,
-               } as any;
-
-               const validationErrors = validatePaymentRequest(paymentRequest);
-               if (validationErrors.length > 0) {
-                  setPaymentInProgress(false);
-                  toast.error(
-                     `Payment validation failed: ${validationErrors[0]}`
-                  );
-                  return;
-               }
-
-               const paymentResult = await initiatePayment(paymentRequest);
-
-               if (paymentResult.success) {
-                  toast.success("Redirecting to payment gateway...");
-
-                  const ref =
-                     paymentResult.reference ||
-                     paymentResult.session?.reference ||
-                     null;
-
-                  // persist reference for other flows/effects
-                  if (ref) {
-                     try {
-                        sessionStorage.setItem("kpay_reference", String(ref));
-                     } catch (e) {}
-                  }
-
-                  // Redirect current window to the external checkout URL so the user
-                  // completes the payment in the same tab. The gateway will redirect
-                  // back to the checkout page (or the configured returl) when done,
-                  // at which point the existing session-based return logic will
-                  // finalize/create the order automatically.
-                  if (paymentResult.checkoutUrl) {
-                     // Use same-window navigation for better UX
-                     window.location.href = String(paymentResult.checkoutUrl);
-                     return;
-                  }
-
-                  // For internal/mobile-money session flows, navigate the current
-                  // page to our internal payment status route which shows instructions
-                  // and polls server-side. This keeps the UX one-way: user completes
-                  // payment and the webhook/return flow creates the order.
-                  const sessionId =
-                     paymentResult.sessionId ||
-                     paymentResult.paymentId ||
-                     paymentResult.session?.id;
-                  if (sessionId) {
-                     try {
-                        router.push(`/payment/${sessionId}`);
-                        return;
-                     } catch (e) {
-                        // fallback to setting location
-                        window.location.href = `${window.location.origin}/payment/${sessionId}`;
-                        return;
-                     }
-                  }
-
-                  // If no redirect URL or session id provided, inform the user and preserve checkout
-                  toast.error(
-                     "Payment started but no redirect information was provided. Please check your payments page or contact support."
-                  );
-                  setPaymentInProgress(false);
-                  return;
-               } else {
-                  setPaymentInProgress(false);
-                  toast.error(
-                     `Payment initiation failed: ${
-                        paymentResult.error || "Unknown error"
-                     }`
-                  );
-                  return;
-               }
-            } catch (err) {
-               console.error("Session-based payment initiation failed:", err);
-               setPaymentInProgress(false);
-               toast.error("Failed to start payment. Please try again.");
-               return;
-            }
-         }
-
-         // Cash on delivery: create the order now
-         // Prevent the empty-cart redirect while we create the order and navigate
-         setSuppressEmptyCartRedirect(true);
-         createOrder.mutate(orderData as CreateOrderRequest, {
-            onSuccess: async (createdOrder: any) => {
-               // Clear ALL checkout state FIRST (localStorage + sessionStorage)
-               setPreventPersistence(true);
-               try {
-                  clearAllCheckoutClientState();
-                  console.log(
-                     "✓ Checkout state cleared after COD order success"
-                  );
-               } catch (e) {
-                  console.error("Failed to clear checkout state:", e);
-               }
-
-               // Then clear cart context
-               try {
-                  clearCart();
-               } catch (e) {
-                  console.error("Failed to clear cart:", e);
-               }
-
-               // Clear local order items state
-               setOrderItems([]);
-
-               toast.success(
-                  `Order #${createdOrder.order_number} has been created successfully!`
-               );
-               router.push(`/orders/${createdOrder.id}`);
-            },
-            onError: (error: any) => {
-               console.error("createOrder.onError", error);
-               try {
-                  setPaymentInProgress(false);
-               } catch (e) {
-                  /* ignore */
-               }
-               if (error?.message?.includes("uuid")) {
-                  toast.error(
-                     "Invalid product data. Please refresh and try again."
-                  );
-               } else if (error?.message?.includes("foreign key")) {
-                  toast.error(
-                     "Product no longer available. Please update your cart."
-                  );
-               } else {
-                  toast.error(
-                     `Failed to create order: ${
-                        error?.message || "Unknown error"
-                     }`
-                  );
-               }
-            },
-            onSettled: () => {
-               setIsSubmitting(false);
-               setSuppressEmptyCartRedirect(false);
-            },
-         });
-      } catch (error: any) {
-         console.error("Order creation failed (sync):", error);
-         try {
-            setPaymentInProgress(false);
-         } catch (e) {
-            /* ignore */
-         }
-         toast.error(
-            `Failed to create order: ${error?.message || "Unknown error"}`
-         );
-         setIsSubmitting(false);
-      }
-   };
+   // Handle order creation or retry payment (moved into hook)
+   const handleCreateOrder = useSubmitOrder({
+      isSubmitting,
+      setPaymentFailure,
+      validateForm,
+      orderItems,
+      t,
+      toast,
+      setIsSubmitting,
+      setErrors,
+      ordersEnabled,
+      ordersSource,
+      scheduleConfirmChecked,
+      deriveCity,
+      user,
+      formData,
+      subtotal,
+      transport,
+      total,
+      createOrder,
+      setSuppressEmptyCartRedirect,
+      setPreventPersistence,
+      clearCart,
+      setOrderItems,
+      clearAllCheckoutClientState,
+      router,
+      setPaymentInProgress,
+      mobileMoneyPhones,
+      initiatePayment,
+      formatPhoneNumber,
+      validatePaymentRequest,
+      paymentVerified,
+      selectedAddress,
+      scheduleNotes,
+      ordersDisabledMessage,
+      paymentMethod,
+   });
 
    const generateWhatsAppMessage = () => {
       const productDetails = orderItems
@@ -2339,34 +1767,15 @@ Total: ${total.toLocaleString()} RWF
 
    return (
       <div className="container mx-auto px-3 sm:px-4 py-6 sm:py-8 max-w-[90vw]">
-         <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight mb-6 sm:mb-8 px-2 sm:px-0">
-            {isRetryMode
-               ? "Retry Payment with Different Method"
-               : t("checkout.title")}
-         </h1>
-
-         {/* Persistent banner at top showing missing steps */}
-         {missingSteps.length > 0 && (
-            <div className="sticky top-4 z-40 mb-4">
-               <div className="mx-auto max-w-[90vw] sm:max-w-7xl px-2 sm:px-0">
-                  <div className="p-3 rounded-lg bg-red-50 border border-red-100 text-red-800 shadow-sm">
-                     <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                           <div className="font-semibold text-sm">
-                              {t("checkout.missing.header")}
-                           </div>
-                           <ul className="mt-1 text-sm list-disc pl-5 space-y-0.5">
-                              {missingSteps.map((m) => (
-                                 <li key={m}>{t(m)}</li>
-                              ))}
-                           </ul>
-                        </div>
-                        {/** removed 'Take me there' quick-jump button per request */}
-                     </div>
-                  </div>
-               </div>
-            </div>
-         )}
+         <CheckoutHeader
+            title={
+               isRetryMode
+                  ? "Retry Payment with Different Method"
+                  : t("checkout.title")
+            }
+            missingSteps={missingSteps}
+            t={t}
+         />
 
          {/* Payment failure / timeout banner offering retry or alternate methods */}
          {paymentFailure && (
@@ -2413,7 +1822,6 @@ Total: ${total.toLocaleString()} RWF
                               <button
                                  className="px-3 py-1 text-sm bg-white border border-gray-300 rounded"
                                  onClick={() => {
-                                    // Allow user to place order with cash on delivery as fallback
                                     setPaymentFailure(null);
                                     setPaymentMethod("cash_on_delivery");
                                  }}
@@ -2433,6 +1841,7 @@ Total: ${total.toLocaleString()} RWF
                      </div>
                   </div>
                </div>
+               {/* Guest details for unauthenticated users are rendered below the Payment section */}
             </div>
          )}
 
@@ -2498,24 +1907,47 @@ Total: ${total.toLocaleString()} RWF
                            {t("checkout.addDeliveryAddress")}
                         </h2>
                      </div>
-                     <Button
-                        onClick={() => {
-                           setAddNewOpen(true);
-                           setAddressOpen(false);
-                           setSelectedProvince(null);
-                           setSelectedDistrict(null);
-                           setSelectedSector(null);
-                           setHouseNumber("");
-                           setPhoneInput("");
-                           setEditingAddressId(null);
-                        }}
-                        size="sm"
-                        variant="outline"
-                        className="border-orange-300 text-orange-600 hover:bg-orange-50 hover:border-orange-400 w-full sm:w-auto text-xs sm:text-sm"
-                     >
-                        <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
-                        {t("checkout.addNewAddress")}
-                     </Button>
+                     {isLoggedIn ? (
+                        <Button
+                           onClick={() => {
+                              setAddNewOpen(true);
+                              setAddressOpen(false);
+                              setSelectedProvince(null);
+                              setSelectedDistrict(null);
+                              setSelectedSector(null);
+                              setHouseNumber("");
+                              setPhoneInput("");
+                              setEditingAddressId(null);
+                           }}
+                           size="sm"
+                           variant="outline"
+                           className="border-orange-300 text-orange-600 hover:bg-orange-50 hover:border-orange-400 w-full sm:w-auto text-xs sm:text-sm"
+                        >
+                           <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                           {t("checkout.addNewAddress")}
+                        </Button>
+                     ) : (
+                        <Button
+                           onClick={() => {
+                              setAddNewOpen(true);
+                              setAddressOpen(false);
+                              setSelectedProvince(null);
+                              setSelectedDistrict(null);
+                              setSelectedSector(null);
+                              setHouseNumber("");
+                              setPhoneInput("");
+                              setEditingAddressId(null);
+                           }}
+                           size="sm"
+                           variant="outline"
+                           className="border-gray-300 text-gray-700 hover:bg-gray-50 w-full sm:w-auto text-xs sm:text-sm"
+                        >
+                           <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
+                           {t("checkout.addAddress")}
+                        </Button>
+                     )}
+
+                     {/* Guest details form removed from address header; shown below payment section for guests only */}
                   </div>
 
                   {/* Add New Address (collapsible) */}
@@ -2527,350 +1959,29 @@ Total: ${total.toLocaleString()} RWF
                         <div className="mt-2"></div>
                      </CollapsibleTrigger>
                      <CollapsibleContent className="mt-3 sm:mt-4">
-                        <div className="border border-orange-200 rounded-lg p-3 sm:p-4 bg-gradient-to-r from-orange-50 to-orange-25 space-y-3 sm:space-y-4">
-                           <div className="text-xs sm:text-sm font-medium text-orange-800">
-                              {t("checkout.addNewAddress")}
-                           </div>
-
-                           {/* Sequential selects */}
-                           <div className="space-y-2 sm:space-y-3">
-                              <div>
-                                 <Label className="text-xs sm:text-sm font-medium text-gray-700">
-                                    Province{" "}
-                                    <span className="text-red-500">*</span>
-                                 </Label>
-                                 <Select
-                                    value={selectedProvince ?? ""}
-                                    onValueChange={(v) =>
-                                       setSelectedProvince(v || null)
-                                    }
-                                 >
-                                    <SelectTrigger className="border-gray-300 focus:border-orange-500 focus:ring-orange-500 text-xs sm:text-sm h-9 sm:h-10">
-                                       <SelectValue
-                                          placeholder={t(
-                                             "checkout.selectProvincePlaceholder"
-                                          )}
-                                       />
-                                    </SelectTrigger>
-                                    <SelectContent className="text-xs sm:text-sm max-h-48 sm:max-h-56">
-                                       {provinces.map((p: any) => (
-                                          <SelectItem
-                                             key={p.prv_id}
-                                             value={String(p.prv_id)}
-                                             className="text-xs sm:text-sm"
-                                          >
-                                             {getProvinceLabel(p)}
-                                          </SelectItem>
-                                       ))}
-                                    </SelectContent>
-                                 </Select>
-                              </div>
-
-                              {selectedProvince && (
-                                 <div>
-                                    <Label className="text-xs sm:text-sm font-medium text-gray-700">
-                                       District{" "}
-                                       <span className="text-red-500">*</span>
-                                    </Label>
-                                    <Select
-                                       value={selectedDistrict ?? ""}
-                                       onValueChange={(v) =>
-                                          setSelectedDistrict(v || null)
-                                       }
-                                    >
-                                       <SelectTrigger className="border-gray-300 focus:border-orange-500 focus:ring-orange-500 text-xs sm:text-sm h-9 sm:h-10">
-                                          <SelectValue
-                                             placeholder={t(
-                                                "checkout.selectDistrictPlaceholder"
-                                             )}
-                                          />
-                                       </SelectTrigger>
-                                       <SelectContent className="text-xs sm:text-sm max-h-48 sm:max-h-56">
-                                          {districts
-                                             .filter(
-                                                (d: any) =>
-                                                   d.dst_province ===
-                                                   selectedProvince
-                                             )
-                                             .map((d: any) => (
-                                                <SelectItem
-                                                   key={d.dst_id}
-                                                   value={String(d.dst_id)}
-                                                   className="text-xs sm:text-sm"
-                                                >
-                                                   {d.dst_name}
-                                                </SelectItem>
-                                             ))}
-                                       </SelectContent>
-                                    </Select>
-                                 </div>
-                              )}
-
-                              {selectedDistrict &&
-                                 (() => {
-                                    const selectedProvinceObj = provinces.find(
-                                       (p: any) =>
-                                          String(p.prv_id) ===
-                                          String(selectedProvince)
-                                    );
-                                    const provinceIsKigali = Boolean(
-                                       selectedProvinceObj?.prv_name
-                                          ?.toLowerCase()
-                                          .includes("kigali")
-                                    );
-
-                                    if (!provinceIsKigali) return null;
-
-                                    return (
-                                       <div>
-                                          <Label className="text-xs sm:text-sm font-medium text-gray-700">
-                                             Sector{" "}
-                                             <span className="text-red-500">
-                                                *
-                                             </span>
-                                          </Label>
-                                          <Select
-                                             value={selectedSector ?? ""}
-                                             onValueChange={(v) =>
-                                                setSelectedSector(v || null)
-                                             }
-                                          >
-                                             <SelectTrigger className="border-gray-300 focus:border-orange-500 focus:ring-orange-500 text-xs sm:text-sm h-9 sm:h-10">
-                                                <SelectValue
-                                                   placeholder={t(
-                                                      "checkout.selectSectorPlaceholder"
-                                                   )}
-                                                />
-                                             </SelectTrigger>
-                                             <SelectContent className="text-xs sm:text-sm max-h-48 sm:max-h-56">
-                                                {sectors
-                                                   .filter(
-                                                      (s: any) =>
-                                                         s.sct_district ===
-                                                         selectedDistrict
-                                                   )
-                                                   .map((s: any) => (
-                                                      <SelectItem
-                                                         key={s.sct_id}
-                                                         value={String(
-                                                            s.sct_id
-                                                         )}
-                                                         className="text-xs sm:text-sm"
-                                                      >
-                                                         {s.sct_name}
-                                                      </SelectItem>
-                                                   ))}
-                                             </SelectContent>
-                                          </Select>
-                                       </div>
-                                    );
-                                 })()}
-                           </div>
-
-                           {/* Address form */}
-                           <div className="pt-1 sm:pt-2 space-y-2 sm:space-y-3">
-                              <div className="text-xs sm:text-sm font-medium text-gray-700">
-                                 {t("checkout.otherInfo")}
-                              </div>
-
-                              <div>
-                                 <Label className="text-xs sm:text-sm font-medium text-gray-700">
-                                    {t("checkout.houseStreet")}
-                                 </Label>
-                                 <Input
-                                    placeholder={t(
-                                       "checkout.houseStreetPlaceholder"
-                                    )}
-                                    value={houseNumber}
-                                    onChange={(e) =>
-                                       setHouseNumber(e.target.value)
-                                    }
-                                    className="border-gray-300 focus:border-orange-500 focus:ring-orange-500 text-xs sm:text-sm h-9 sm:h-10"
-                                 />
-                              </div>
-
-                              <div>
-                                 <Label className="text-xs sm:text-sm font-medium text-gray-700">
-                                    {t("checkout.phone")}{" "}
-                                    <span className="text-red-500">*</span>
-                                 </Label>
-                                 <div className="relative">
-                                    <Input
-                                       placeholder="07X XXX XXX or +250 XXX XXX XXX"
-                                       value={phoneInput}
-                                       onChange={handlePhoneChange}
-                                       className={`border-gray-300 focus:border-orange-500 focus:ring-orange-500 text-xs sm:text-sm h-9 sm:h-10 ${
-                                          errors?.phone
-                                             ? "border-red-500 focus:border-red-500 focus:ring-red-500"
-                                             : ""
-                                       }`}
-                                    />
-                                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2 text-xs text-gray-400">
-                                       {phoneInput.startsWith("+250")
-                                          ? "RW"
-                                          : phoneInput.startsWith("07")
-                                          ? "RW"
-                                          : ""}
-                                    </div>
-                                 </div>
-                                 {errors?.phone && (
-                                    <p className="text-xs text-red-600 mt-1">
-                                       {errors.phone}
-                                    </p>
-                                 )}
-                                 <p className="text-xs text-gray-500 mt-1">
-                                    Format: +250 XXX XXX XXX or 07X XXX XXX
-                                 </p>
-                              </div>
-
-                              <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 pt-1 sm:pt-2">
-                                 <Button
-                                    onClick={async () => {
-                                       if (isSavingAddress) return;
-
-                                       const selectedProvinceObj =
-                                          provinces.find(
-                                             (p: any) =>
-                                                String(p.prv_id) ===
-                                                String(selectedProvince)
-                                          );
-                                       const provinceIsKigali = Boolean(
-                                          selectedProvinceObj?.prv_name
-                                             ?.toLowerCase()
-                                             .includes("kigali")
-                                       );
-
-                                       if (
-                                          provinceIsKigali &&
-                                          !selectedSector
-                                       ) {
-                                          toast.error(
-                                             "Please select a sector for delivery"
-                                          );
-                                          return;
-                                       }
-
-                                       setIsSavingAddress(true);
-
-                                       // Validate phone with enhanced schema
-                                       try {
-                                          phoneSchema.parse({
-                                             phone: phoneInput,
-                                          });
-                                       } catch (ve: any) {
-                                          const first =
-                                             ve?.errors?.[0]?.message ||
-                                             t("checkout.errors.validPhone");
-                                          setErrors((prev: any) => ({
-                                             ...prev,
-                                             phone: first,
-                                          }));
-                                          toast.error(String(first));
-                                          setIsSavingAddress(false);
-                                          return;
-                                       }
-
-                                       const sectorObj = sectors.find(
-                                          (s) => s.sct_id === selectedSector
-                                       );
-                                       const districtObj = districts.find(
-                                          (d) => d.dst_id === selectedDistrict
-                                       );
-                                       const cityName = provinceIsKigali
-                                          ? sectorObj?.sct_name || ""
-                                          : districtObj?.dst_name || "";
-                                       const derivedDisplayName = sectorObj
-                                          ? `${sectorObj.sct_name} address`
-                                          : "Address";
-
-                                       try {
-                                          const normalizedPhone =
-                                             normalizePhone(phoneInput);
-
-                                          if (editingAddressId) {
-                                             const updated =
-                                                await updateAddress(
-                                                   editingAddressId,
-                                                   {
-                                                      display_name:
-                                                         derivedDisplayName,
-                                                      street: cityName,
-                                                      house_number: houseNumber,
-                                                      phone: normalizedPhone,
-                                                      city: cityName,
-                                                   }
-                                                );
-                                             if (updated)
-                                                toast.success(
-                                                   t("checkout.updatedSuccess")
-                                                );
-                                             else
-                                                toast.error(
-                                                   t("checkout.updateFailed")
-                                                );
-                                          } else {
-                                             const saved = await saveAddress({
-                                                display_name:
-                                                   derivedDisplayName,
-                                                lat: "0",
-                                                lon: "0",
-                                                address: { city: cityName },
-                                                street: cityName,
-                                                house_number: houseNumber,
-                                                phone: normalizedPhone,
-                                                is_default: false,
-                                             });
-                                             if (saved)
-                                                toast.success(
-                                                   t("checkout.savedSuccess")
-                                                );
-                                             else
-                                                toast.error(
-                                                   t("checkout.saveFailed")
-                                                );
-                                          }
-
-                                          // Refresh and switch UI
-                                          await reloadSaved();
-                                          setAddNewOpen(false);
-                                          setAddressOpen(true);
-                                          setEditingAddressId(null);
-                                          setHouseNumber("");
-                                          setPhoneInput("");
-                                       } catch (err) {
-                                          console.error(err);
-                                          toast.error(t("checkout.saveFailed"));
-                                       } finally {
-                                          setIsSavingAddress(false);
-                                       }
-                                    }}
-                                    disabled={isSavingAddress}
-                                    className="bg-orange-500 hover:bg-orange-600 text-white text-xs sm:text-sm h-9 sm:h-10"
-                                 >
-                                    {isSavingAddress ? (
-                                       <>
-                                          <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 animate-spin" />
-                                          {t("common.saving") || "Saving..."}
-                                       </>
-                                    ) : (
-                                       t("common.save")
-                                    )}
-                                 </Button>
-                                 <Button
-                                    variant="outline"
-                                    onClick={() => {
-                                       setEditingAddressId(null);
-                                       setHouseNumber("");
-                                       setPhoneInput("");
-                                       setAddNewOpen(false);
-                                    }}
-                                    className="border-gray-300 text-gray-700 hover:bg-gray-50 text-xs sm:text-sm h-9 sm:h-10"
-                                 >
-                                    {t("common.cancel")}
-                                 </Button>
-                              </div>
-                           </div>
-                        </div>
+                        <CheckoutAddressForm
+                           provinces={provinces}
+                           districts={districts}
+                           sectors={sectors}
+                           selectedProvince={selectedProvince}
+                           setSelectedProvince={setSelectedProvince}
+                           selectedDistrict={selectedDistrict}
+                           setSelectedDistrict={setSelectedDistrict}
+                           selectedSector={selectedSector}
+                           setSelectedSector={setSelectedSector}
+                           houseNumber={houseNumber}
+                           setHouseNumber={setHouseNumber}
+                           phoneInput={phoneInput}
+                           setPhoneInput={setPhoneInput}
+                           editingAddressId={editingAddressId}
+                           setEditingAddressId={setEditingAddressId}
+                           saveAddress={saveAddress}
+                           updateAddress={updateAddress}
+                           reloadSaved={reloadSaved}
+                           setAddNewOpen={setAddNewOpen}
+                           setAddressOpen={setAddressOpen}
+                           t={t}
+                        />
                      </CollapsibleContent>
                   </Collapsible>
 
@@ -3035,13 +2146,17 @@ Total: ${total.toLocaleString()} RWF
                                     </div>
                                  ))}
                                  <div className="flex flex-col sm:flex-row justify-between pt-3 sm:pt-4 gap-2 sm:gap-0">
-                                    <Button
-                                       variant="outline"
-                                       className="border-orange-300 text-orange-600 hover:bg-orange-50 text-xs sm:text-sm h-9 sm:h-10"
-                                       onClick={() => router.push("/addresses")}
-                                    >
-                                       Manage Addresses
-                                    </Button>
+                                    {isLoggedIn && (
+                                       <Button
+                                          variant="outline"
+                                          className="border-orange-300 text-orange-600 hover:bg-orange-50 text-xs sm:text-sm h-9 sm:h-10"
+                                          onClick={() =>
+                                             router.push("/addresses")
+                                          }
+                                       >
+                                          Manage Addresses
+                                       </Button>
+                                    )}
                                     <Button
                                        className="bg-orange-500 hover:bg-orange-600 text-white px-4 text-xs sm:text-sm h-9 sm:h-10"
                                        onClick={() => {
@@ -3074,6 +2189,30 @@ Total: ${total.toLocaleString()} RWF
                      </CollapsibleContent>
                   </Collapsible>
                </div>
+
+               {/* Guest details (for unauthenticated users) - shown for guests below payment section */}
+               {!isLoggedIn && (
+                  <div className="space-y-3 sm:space-y-4 mt-4">
+                     <Collapsible>
+                        <CollapsibleTrigger asChild>
+                           <button className="w-full text-left p-0 flex items-center space-x-2 sm:space-x-3 text-gray-600 hover:text-orange-600 transition-colors">
+                              <span className="text-base sm:text-lg font-medium">
+                                 {t("checkout.guestInfo")}
+                              </span>
+                           </button>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="mt-3 sm:mt-4">
+                           <GuestCheckoutForm
+                              formData={formData}
+                              setFormData={setFormData}
+                              errors={errors}
+                              onPhoneChange={handleGuestPhoneChange}
+                              phoneValue={formData.phone}
+                           />
+                        </CollapsibleContent>
+                     </Collapsible>
+                  </div>
+               )}
 
                {/* Delivery instructions section */}
                <div className="space-y-3 sm:space-y-4">
@@ -3155,15 +2294,14 @@ Total: ${total.toLocaleString()} RWF
                         </button>
                      </CollapsibleTrigger>
                      <CollapsibleContent className="mt-3 sm:mt-4">
-                        <PaymentMethodSelector
-                           selectedMethod={paymentMethod as any}
-                           onMethodChange={setPaymentMethod}
-                           disabled={isSubmitting || isInitiating}
-                           // Mobile Money
-                           onMobileMoneyPhoneChange={
+                        <PaymentSection
+                           paymentMethod={paymentMethod}
+                           setPaymentMethod={setPaymentMethod}
+                           handleMobileMoneyPhoneChange={
                               handleMobileMoneyPhoneChange
                            }
                            mobileMoneyPhones={mobileMoneyPhones}
+                           disabled={isSubmitting || isInitiating}
                         />
                      </CollapsibleContent>
                   </Collapsible>
@@ -3179,88 +2317,49 @@ Total: ${total.toLocaleString()} RWF
                      </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3 sm:space-y-4">
-                     {/* Order Items with proper wrapping */}
-                     <div className="max-h-60 sm:max-h-80 overflow-y-auto -mr-1 sm:-mr-2 pr-1 sm:pr-2">
-                        {orderItems.map((item, index) => (
-                           <div
-                              key={`${item.id}-${
-                                 item.variation_id || "no-variation"
-                              }-${index}`}
-                              className="border-b border-gray-100 pb-2 sm:pb-3 last:border-b-0"
-                           >
-                              <div className="flex items-start gap-2 sm:gap-3">
-                                 <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-orange-100 to-orange-200 rounded flex-shrink-0 flex items-center justify-center mt-0.5">
-                                    <Package className="h-4 w-4 sm:h-5 sm:w-5 text-orange-600" />
-                                 </div>
-                                 <div className="flex-1 min-w-0">
-                                    {/* Product name with proper line wrapping */}
-                                    <h4 className="font-medium text-xs sm:text-sm text-gray-900 break-words leading-tight">
-                                       {item.name}
-                                    </h4>
-                                    {item.variation_name && (
-                                       <p className="text-xs text-gray-500 mt-0.5">
-                                          Size: {item.variation_name}
-                                       </p>
-                                    )}
-                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-0 mt-1 sm:mt-2">
-                                       <p className="text-xs sm:text-sm font-medium text-gray-900">
-                                          RWF {item.price.toLocaleString()}
-                                       </p>
-                                       <div className="flex items-center justify-between sm:justify-end gap-2">
-                                          <p className="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded whitespace-nowrap">
-                                             Qty: {item.quantity}
-                                          </p>
-                                          <p className="text-xs sm:text-sm font-medium text-orange-600 whitespace-nowrap">
-                                             RWF{" "}
-                                             {(
-                                                item.price * item.quantity
-                                             ).toLocaleString()}
-                                          </p>
-                                       </div>
-                                    </div>
-                                 </div>
-                              </div>
-                           </div>
-                        ))}
-                     </div>
+                     <OrderItemsList
+                        orderItems={orderItems}
+                        onRemove={(it) => {
+                           try {
+                              if (isBuyNowFlow) {
+                                 // clearing buy-now session and return user
+                                 clearBuyNowItem();
+                                 setOrderItems([]);
+                                 // navigate back to product page if possible
+                                 const pid =
+                                    (it as any).product_id || (it as any).id;
+                                 if (pid) {
+                                    router.push(`/products/${pid}`);
+                                 } else {
+                                    router.push(`/`);
+                                 }
+                              } else {
+                                 // remove from main cart and update view
+                                 if ((it as any).id) {
+                                    removeItem((it as any).id);
+                                 }
+                                 // update local list immediately
+                                 setOrderItems((prev) =>
+                                    prev.filter((x) => x.id !== it.id)
+                                 );
+                              }
+                           } catch (e) {
+                              console.error(
+                                 "Failed to remove checkout item:",
+                                 e
+                              );
+                           }
+                        }}
+                     />
 
                      <Separator className="my-3 sm:my-4" />
 
-                     {/* Order Totals */}
-                     <div className="space-y-2 sm:space-y-3">
-                        <div className="flex justify-between text-xs sm:text-sm">
-                           <span className="text-gray-600">
-                              {t("checkout.subtotal")}
-                           </span>
-                           <span className="font-medium">
-                              RWF {subtotal.toLocaleString()}
-                           </span>
-                        </div>
-                        <div className="flex justify-between text-xs sm:text-sm items-center">
-                           <div className="flex items-center">
-                              <span className="text-gray-600">
-                                 {t("checkout.deliveryFee")}
-                              </span>
-                              <div className="ml-2 w-3 h-3 sm:w-4 sm:h-4 rounded-full border border-gray-400 flex items-center justify-center">
-                                 <span className="text-xs text-gray-400">
-                                    i
-                                 </span>
-                              </div>
-                           </div>
-                           <span className="font-medium text-orange-600">
-                              RWF {transport.toLocaleString()}
-                           </span>
-                        </div>
-                        <Separator />
-                        <div className="flex justify-between text-sm sm:text-lg font-bold">
-                           <span className="text-gray-900">
-                              {t("checkout.total")}
-                           </span>
-                           <span className="text-orange-600">
-                              RWF {total.toLocaleString()}
-                           </span>
-                        </div>
-                     </div>
+                     <PriceSummary
+                        subtotal={subtotal}
+                        transport={transport}
+                        total={total}
+                        t={t}
+                     />
 
                      {/* Delivery Address & Order Buttons */}
                      <div className="space-y-2 sm:space-y-3 pt-3 sm:pt-4">
@@ -3286,30 +2385,27 @@ Total: ${total.toLocaleString()} RWF
                                        </p>
                                     </div>
                                  </div>
-                                 <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => setAddressOpen(true)}
-                                    className="border-orange-300 text-orange-600 hover:bg-orange-50 flex-shrink-0 text-xs h-7 sm:h-9 whitespace-nowrap"
-                                 >
-                                    {t("common.edit")}
-                                 </Button>
+                                 {isLoggedIn && (
+                                    <Button
+                                       size="sm"
+                                       variant="outline"
+                                       onClick={() => setAddressOpen(true)}
+                                       className="border-orange-300 text-orange-600 hover:bg-orange-50 flex-shrink-0 text-xs h-7 sm:h-9 whitespace-nowrap"
+                                    >
+                                       {t("common.edit")}
+                                    </Button>
+                                 )}
                               </div>
                            </div>
                         )}
 
-                        {/* When admin disables ordering prompt user to pick next-day delivery time */}
-                        {/* When orders are disabled by schedule allow checkout but
-                            require a one-time confirmation. When disabled manually
-                            by admin, continue to show a blocking message below. */}
                         {ordersEnabled === false &&
                            ordersSource === "schedule" && (
                               <div className="mt-3 p-3 border rounded-md bg-yellow-50 border-yellow-200">
                                  <p className="text-sm text-yellow-900 font-medium">
                                     {t(
                                        "checkout.ordersDisabledScheduleMessage"
-                                    ) ||
-                                       "Mutwihanganire ubu amasaha yakazi yarangiye gusa niba ushaka iyi komande wakemeza mukadirishya kari hasi tukazayizana ejo musaha yamazi ( 9:30am -9pm),"}
+                                    )}
                                  </p>
 
                                  <div className="mt-3 flex items-center justify-between">
@@ -3318,8 +2414,7 @@ Total: ${total.toLocaleString()} RWF
                                           <p className="text-sm text-yellow-900">
                                              {t(
                                                 "checkout.ordersDisabledScheduleShort"
-                                             ) ||
-                                                "Amasaha y'akazi yarangiye — ushobora kwemeza ko iyi komande yakugeraho ejo."}
+                                             )}
                                           </p>
                                        ) : (
                                           <div className="inline-flex items-center gap-2 px-2 py-1 bg-yellow-100 text-yellow-800 rounded">
@@ -3327,7 +2422,7 @@ Total: ${total.toLocaleString()} RWF
                                              <span className="text-sm">
                                                 {t(
                                                    "checkout.scheduleConfirmedLabel"
-                                                ) || "Yemejwe kuboneka ejo"}
+                                                )}
                                              </span>
                                           </div>
                                        )}
@@ -3343,268 +2438,121 @@ Total: ${total.toLocaleString()} RWF
                                        >
                                           {scheduleConfirmChecked
                                              ? t("common.edit")
-                                             : t(
-                                                  "checkout.confirmScheduleCTA"
-                                               ) || "Confirm delivery tomorrow"}
+                                             : t("checkout.confirmScheduleCTA")}
                                        </Button>
                                     </div>
                                  </div>
-
-                                 {/* Modal dialog for confirmation & optional notes */}
-                                 <Dialog
-                                    open={confirmDialogOpen}
-                                    onOpenChange={setConfirmDialogOpen}
-                                 >
-                                    <DialogContent className="sm:max-w-md">
-                                       <DialogHeader>
-                                          <DialogTitle>
-                                             {t(
-                                                "checkout.ordersDisabledScheduleModalTitle"
-                                             ) || "Outside working hours"}
-                                          </DialogTitle>
-                                          <DialogDescription>
-                                             {t(
-                                                "checkout.ordersDisabledScheduleMessage"
-                                             ) ||
-                                                "Mutwihanganire ubu amasaha yakazi yarangiye gusa niba ushaka iyi komande wakemeza mukadirishya kari hasi tukazayizana ejo musaha yamazi ( 9:30am -9pm),"}
-                                          </DialogDescription>
-                                       </DialogHeader>
-
-                                       <div className="mt-4">
-                                          <div className="flex items-start gap-3">
-                                             <input
-                                                id="schedule-confirm-dialog"
-                                                type="checkbox"
-                                                checked={scheduleConfirmChecked}
-                                                onChange={(e) =>
-                                                   setScheduleConfirmChecked(
-                                                      e.target.checked
-                                                   )
-                                                }
-                                                className="h-4 w-4 mt-1"
-                                             />
-                                             <label
-                                                htmlFor="schedule-confirm-dialog"
-                                                className="text-sm text-gray-900"
-                                             >
-                                                {t(
-                                                   "checkout.scheduleConfirmLabel"
-                                                ) ||
-                                                   "Ndemera ko iyi komande izatanzwe ejo mu masaha y'akazi (9:30am - 9pm)."}
-                                             </label>
-                                          </div>
-
-                                          <div className="mt-4">
-                                             <Label className="text-xs sm:text-sm font-medium text-gray-700">
-                                                {t(
-                                                   "checkout.scheduleNotesLabel"
-                                                ) || "Icyitonderwa (optional)"}
-                                             </Label>
-                                             <textarea
-                                                rows={4}
-                                                placeholder={
-                                                   t(
-                                                      "checkout.scheduleNotesPlaceholder"
-                                                   ) ||
-                                                   "niba hari ikindi wifuza nkigihe twayizana cyagwa ikindi byandike aho habugenewe"
-                                                }
-                                                value={scheduleNotes}
-                                                onChange={(e) =>
-                                                   setScheduleNotes(
-                                                      e.target.value
-                                                   )
-                                                }
-                                                className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 resize-none transition-colors text-xs sm:text-sm"
-                                             />
-                                             <p className="text-xs text-yellow-800 mt-2">
-                                                {t(
-                                                   "checkout.ordersDisabledScheduleHint"
-                                                ) ||
-                                                   "Icyitonderwa: Uyu mwandiko ni optional."}
-                                             </p>
-                                          </div>
-                                       </div>
-
-                                       <DialogFooter>
-                                          <Button
-                                             variant="outline"
-                                             onClick={() =>
-                                                setConfirmDialogOpen(false)
-                                             }
-                                          >
-                                             {t("common.cancel")}
-                                          </Button>
-                                          <Button
-                                             onClick={() => {
-                                                // Save and close
-                                                setConfirmDialogOpen(false);
-                                                setScheduleConfirmChecked(true);
-                                             }}
-                                          >
-                                             {t("common.save")}
-                                          </Button>
-                                       </DialogFooter>
-                                    </DialogContent>
-                                 </Dialog>
                               </div>
                            )}
 
                         {/* Order buttons */}
                         <div className="pt-1">
-                           {ordersEnabled === false &&
-                              ordersSource === "admin" && (
-                                 <div className="mb-3 p-3 rounded bg-yellow-50 border border-yellow-200 text-yellow-900 text-sm">
-                                    {ordersDisabledMessage ||
-                                       t("checkout.ordersDisabledMessage") ||
-                                       "Ordering is currently disabled by the admin."}
-                                 </div>
-                              )}
-                           {isKigali ? (
-                              isLoggedIn ? (
-                                 <div className="space-y-2">
-                                    {/* Missing steps are shown in the persistent top banner */}
-
-                                    {/* Single "Order Now" button for all cases (COD and non-COD) */}
-                                    <Button
-                                       className="w-full bg-orange-500 hover:bg-orange-600 text-white text-sm sm:text-base h-10 sm:h-12"
-                                       onClick={() => {
-                                          const disabled =
-                                             isSubmitting ||
-                                             isInitiating ||
-                                             !hasItems ||
-                                             !hasAddress ||
-                                             !hasEmail ||
-                                             !hasValidPhone ||
-                                             !paymentMethod ||
-                                             (ordersEnabled === false &&
-                                                ordersSource === "schedule" &&
-                                                !scheduleConfirmChecked) ||
-                                             (ordersEnabled === false &&
-                                                ordersSource === "admin");
-                                          if (disabled) {
-                                             if (missingSteps.length > 0) {
-                                                const msg = missingSteps
-                                                   .map((k) => t(k))
-                                                   .join(", ");
-                                                toast.error(
-                                                   `${t(
-                                                      "checkout.missing.toastPrefix"
-                                                   )} ${msg}`
-                                                );
-                                             } else {
-                                                toast.error(
-                                                   t(
-                                                      "checkout.missing.completeAllToast"
-                                                   ) ||
-                                                      "Please complete all required steps before placing your order."
-                                                );
-                                             }
-                                             return;
-                                          }
-
-                                          handleCreateOrder();
-                                       }}
-                                       disabled={
-                                          isSubmitting ||
-                                          isInitiating ||
-                                          !hasItems ||
-                                          !hasAddress ||
-                                          !hasEmail ||
-                                          !hasValidPhone ||
-                                          !paymentMethod ||
-                                          (ordersEnabled === false &&
-                                             ordersSource === "schedule" &&
-                                             !scheduleConfirmChecked) ||
-                                          (ordersEnabled === false &&
-                                             ordersSource === "admin")
-                                       }
-                                    >
-                                       {isSubmitting || isInitiating ? (
-                                          <>
-                                             <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 animate-spin" />
-                                             {isInitiating
-                                                ? "Initiating Payment..."
-                                                : t("checkout.processing")}
-                                          </>
-                                       ) : (
-                                          <>
-                                             <CheckCircle2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
-                                             {t("checkout.orderNow") ||
-                                                "Order Now"}
-                                          </>
-                                       )}
-                                    </Button>
-
-                                    {/* Hidden accessible region describing missing steps */}
-                                    {missingSteps.length > 0 && (
-                                       <div
-                                          id="checkout-missing-steps"
-                                          className="sr-only"
-                                       >
-                                          {missingSteps
-                                             .map((k) => t(k))
-                                             .join(". ")}
-                                       </div>
-                                    )}
-                                 </div>
-                              ) : (
-                                 <div className="space-y-2">
-                                    <p className="text-xs sm:text-sm text-gray-600 text-center">
-                                       {t("checkout.loginToPlaceOrder")}
-                                    </p>
-                                    <Button
-                                       className="w-full bg-orange-500 hover:bg-orange-600 text-white text-sm sm:text-base h-10 sm:h-12"
-                                       onClick={() =>
-                                          router.push(
-                                             `/signin?redirect=${encodeURIComponent(
-                                                "/checkout"
-                                             )}`
-                                          )
-                                       }
-                                    >
-                                       {t("checkout.loginToContinue")}
-                                    </Button>
-                                 </div>
-                              )
-                           ) : (
-                              <>
-                                 {addNewOpen ? (
-                                    // While creating a new address, keep the default disabled Order Now button
-                                    <Button
-                                       className="w-full bg-orange-500 hover:bg-orange-600 text-white text-sm sm:text-base h-10 sm:h-12"
-                                       disabled={true}
-                                    >
-                                       {t("checkout.orderNow") || "Order Now"}
-                                    </Button>
-                                 ) : selectedAddress ? (
-                                    <Button
-                                       className="w-full bg-orange-500 hover:bg-orange-600 text-white text-sm sm:text-base h-10 sm:h-12"
-                                       onClick={handleWhatsAppCheckout}
-                                       disabled={
-                                          isSubmitting ||
-                                          orderItems.length === 0
-                                       }
-                                    >
-                                       {t("checkout.orderViaWhatsApp") ||
-                                          "Order via WhatsApp"}
-                                    </Button>
-                                 ) : (
-                                    // Default disabled button when no saved address is selected.
-                                    <Button
-                                       className="w-full bg-orange-500 hover:bg-orange-600 text-white text-sm sm:text-base h-10 sm:h-12"
-                                       disabled={true}
-                                    >
-                                       {t("checkout.orderNow") || "Order Now"}
-                                    </Button>
-                                 )}
-                              </>
-                           )}
+                           <CheckoutFooter
+                              isKigali={isKigali}
+                              isLoggedIn={isLoggedIn}
+                              isSubmitting={isSubmitting}
+                              isInitiating={isInitiating}
+                              hasItems={hasItems}
+                              hasAddress={hasAddress}
+                              hasEmail={hasEmail}
+                              hasValidPhone={hasValidPhone}
+                              paymentMethod={paymentMethod}
+                              ordersEnabled={ordersEnabled}
+                              ordersSource={ordersSource}
+                              scheduleConfirmChecked={scheduleConfirmChecked}
+                              missingSteps={missingSteps}
+                              t={t}
+                              onLoginClick={() =>
+                                 router.push(
+                                    `/signin?redirect=${encodeURIComponent(
+                                       "/checkout"
+                                    )}`
+                                 )
+                              }
+                              onOrderNowClick={handleCreateOrder}
+                              onWhatsAppClick={handleWhatsAppCheckout}
+                           />
                         </div>
                      </div>
                   </CardContent>
                </Card>
             </div>
          </div>
+         {/* Confirmation dialog for schedule deliveries (when orders disabled by schedule) */}
+         <Dialog
+            open={confirmDialogOpen}
+            onOpenChange={setConfirmDialogOpen}
+         >
+            <DialogContent>
+               <DialogHeader>
+                  <DialogTitle>
+                     {t("checkout.ordersDisabledScheduleModalTitle") ||
+                        "Confirm scheduled delivery"}
+                  </DialogTitle>
+                  <DialogDescription>
+                     {t("checkout.ordersDisabledScheduleShort") ||
+                        "We're closed right now — you can confirm delivery for the next day."}
+                  </DialogDescription>
+               </DialogHeader>
+
+               <div className="mt-3 space-y-3">
+                  <label className="flex items-start gap-2">
+                     <Checkbox
+                        checked={scheduleConfirmChecked}
+                        onCheckedChange={(v: any) =>
+                           setScheduleConfirmChecked(Boolean(v))
+                        }
+                     />
+                     <span className="text-sm">
+                        {t("checkout.scheduleConfirmLabel") ||
+                           "I agree this order can be delivered tomorrow during working hours (9:30am - 9:00pm)."}
+                     </span>
+                  </label>
+
+                  <div>
+                     <Label
+                        htmlFor="schedule_notes"
+                        className="text-xs"
+                     >
+                        {t("checkout.scheduleNotesLabel") || "Notes"}
+                     </Label>
+                     <textarea
+                        id="schedule_notes"
+                        rows={3}
+                        value={scheduleNotes}
+                        onChange={(e) => setScheduleNotes(e.target.value)}
+                        placeholder={
+                           t("checkout.scheduleNotesPlaceholder") ||
+                           "Optional notes about delivery"
+                        }
+                        className="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
+                     />
+                  </div>
+               </div>
+
+               <DialogFooter>
+                  <Button
+                     variant="outline"
+                     onClick={() => setConfirmDialogOpen(false)}
+                  >
+                     {t("common.cancel")}
+                  </Button>
+                  <Button
+                     onClick={() => {
+                        if (!scheduleConfirmChecked)
+                           setScheduleConfirmChecked(true);
+                        setConfirmDialogOpen(false);
+                        toast.success(
+                           t("checkout.scheduleConfirmedLabel") ||
+                              "Scheduled for next working day"
+                        );
+                     }}
+                  >
+                     {t("checkout.confirmScheduleCTA") || "Confirm"}
+                  </Button>
+               </DialogFooter>
+            </DialogContent>
+         </Dialog>
       </div>
    );
 };

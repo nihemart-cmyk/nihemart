@@ -10,12 +10,6 @@ import {
    type NotificationMeta,
 } from "@/utils/notification-formatters";
 
-if (
-   !process.env.NEXT_PUBLIC_SUPABASE_URL ||
-   !process.env.SUPABASE_SERVICE_ROLE_KEY
-) {
-   // no-op
-}
 const supabase =
    process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY
       ? createClient(
@@ -34,11 +28,9 @@ export default async function handler(
       return res.status(405).json({ error: "Method not allowed" });
 
    let { recipient_user_id, recipient_role, type, title, body, meta } =
-      req.body;
+      req.body || {};
    // If a recipient_user_id is provided but no explicit role, treat as a customer/user
-   if (recipient_user_id && !recipient_role) {
-      recipient_role = "user";
-   }
+   if (recipient_user_id && !recipient_role) recipient_role = "user";
    if (!type) return res.status(400).json({ error: "type required" });
 
    // Generate meaningful title and body if not provided
@@ -46,11 +38,8 @@ export default async function handler(
    let finalBody = body;
    try {
       const metaTyped = meta as NotificationMeta;
-
-      // Check if this is for admin (keep admin notifications short)
       const isAdmin = recipient_role === "admin";
 
-      // Use meta to enrich messages
       switch (type) {
          case "order_status_update": {
             const orderNumber = getOrderNumber(metaTyped);
@@ -62,24 +51,15 @@ export default async function handler(
             const address = formatDeliveryAddress(metaTyped);
 
             if (isAdmin) {
-               // Short notification for admin
                finalTitle = `Order Status Updated - ${orderNumber}`;
                finalBody = `Order ${orderNumber} status changed to ${status}`;
             } else {
-               // Detailed notification for customers/riders
                finalTitle = `Status Update - ${orderNumber}`;
-
                let detailedBody = `Your order status has been updated!\n\n`;
-
-               // Add status information
                detailedBody += `New Status: ${
                   status.charAt(0).toUpperCase() + status.slice(1)
                }\n\n`;
-
-               // Add order details
                detailedBody += `Order ${orderNumber}\n\n`;
-
-               // Add items if available
                if (items && items.length > 0) {
                   detailedBody += `Items:\n`;
                   items.forEach((item) => {
@@ -88,27 +68,114 @@ export default async function handler(
                         : item.product_name;
                      const unitPrice = formatCurrency(item.price || 0);
                      detailedBody += `${item.quantity}x ${itemName} ${unitPrice}`;
-                     if (items.indexOf(item) < items.length - 1) {
+                     if (items.indexOf(item) < items.length - 1)
                         detailedBody += `, `;
-                     }
                   });
                   detailedBody += `\n\n`;
                }
-
-               // Add total if available
-               if (total > 0) {
+               if (total > 0)
                   detailedBody += `Total: ${formatCurrency(total)}\n\n`;
-               }
-
-               // Add delivery address if available
-               if (address) {
-                  detailedBody += `Delivery to: ${address}\n\n`;
-               }
-
+               if (address) detailedBody += `Delivery to: ${address}\n\n`;
                detailedBody += `We'll keep you updated as your order progresses. Thank you for your patience!`;
-
                finalBody = detailedBody;
             }
+            break;
+         }
+         case "assignment_created": {
+            const orderNumber = getOrderNumber(metaTyped);
+            const address = formatDeliveryAddress(metaTyped);
+            const total = getOrderTotal(metaTyped.order, metaTyped.items);
+            const items = metaTyped.items || metaTyped.order?.items || [];
+            const customerName =
+               metaTyped.customer_name ||
+               `${metaTyped.order?.customer_first_name || ""} ${
+                  metaTyped.order?.customer_last_name || ""
+               }`.trim() ||
+               "Customer";
+
+            if (isAdmin) {
+               finalTitle = `Assignment Created - ${orderNumber}`;
+               finalBody = `New delivery assignment created for ${orderNumber}`;
+            } else {
+               finalTitle = `You have a new delivery assignment!`;
+               let detailedBody = `You have a new delivery assignment!\n\n`;
+               detailedBody += `Order ${orderNumber}\n\n`;
+               if (items && items.length > 0) {
+                  detailedBody += `Items:\n`;
+                  items.forEach((item) => {
+                     const itemName = item.variation_name
+                        ? `${item.product_name} (${item.variation_name})`
+                        : item.product_name;
+                     const unitPrice = formatCurrency(item.price || 0);
+                     detailedBody += `${item.quantity}x ${itemName} ${unitPrice}\n`;
+                  });
+                  detailedBody += `\n`;
+               }
+               if (total > 0)
+                  detailedBody += `Total: ${formatCurrency(total)}\n\n`;
+               detailedBody += `Delivery to: ${
+                  address || "Address not specified"
+               }\n\n`;
+               detailedBody += `Customer: ${customerName}\n\n`;
+               detailedBody += `📍 Delivery Address: ${
+                  address || "Address not specified"
+               }\n\n`;
+               if (total > 0)
+                  detailedBody += `💰 Order Value: ${formatCurrency(
+                     total
+                  )}\n\n`;
+               if (metaTyped.notes)
+                  detailedBody += `📋 Note: ${metaTyped.notes}\n\n`;
+               detailedBody += `⏰ Please accept or reject this assignment promptly to ensure timely delivery.`;
+               finalBody = detailedBody;
+            }
+            break;
+         }
+         case "order_created": {
+            const orderNumber = getOrderNumber(metaTyped);
+            const items = metaTyped.items || metaTyped.order?.items || [];
+            const total = getOrderTotal(metaTyped.order, items);
+            const customerName =
+               metaTyped.customer_name ||
+               `${metaTyped.order?.customer_first_name || ""} ${
+                  metaTyped.order?.customer_last_name || ""
+               }`.trim() ||
+               "Customer";
+
+            if (isAdmin) {
+               finalTitle = `New Order - ${orderNumber}`;
+               finalBody = `${customerName} placed an order (${items
+                  .map((it: any) => it.product_name || it.name || "item")
+                  .slice(0, 5)
+                  .join(", ")}${
+                  items.length > 5 ? ` and ${items.length - 5} more` : ""
+               })`;
+            } else {
+               finalTitle = `Order Confirmed - ${orderNumber}`;
+               let detailedBody = `Thank you ${customerName}! Your order has been placed successfully.\n\n`;
+               detailedBody += `Order ${orderNumber}\n\n`;
+               if (items && items.length > 0) {
+                  detailedBody += `Items:\n`;
+                  items.forEach((item: any, idx: number) => {
+                     const itemName = item.variation_name
+                        ? `${item.product_name} (${item.variation_name})`
+                        : item.product_name || item.name || `Item ${idx + 1}`;
+                     const unitPrice = formatCurrency(item.price || 0);
+                     detailedBody += `${
+                        item.quantity || 1
+                     }x ${itemName} ${unitPrice}`;
+                     if (idx < items.length - 1) detailedBody += `, `;
+                  });
+                  detailedBody += `\n\n`;
+               }
+               if (total > 0)
+                  detailedBody += `Total: ${formatCurrency(total)}\n\n`;
+               const address = formatDeliveryAddress(metaTyped);
+               if (address) detailedBody += `Delivery to: ${address}\n\n`;
+               detailedBody += `We'll let you know when a rider is assigned and when your order is out for delivery. Thank you for shopping with Nihemart!`;
+               finalBody = detailedBody;
+            }
+
             break;
          }
          case "assignment_created": {
@@ -588,7 +655,6 @@ export default async function handler(
       }
 
       // Avoid inserting near-duplicate notifications for the same target+order+type
-      // (protects against triggers + app-level inserts creating duplicates).
       try {
          const metaObj =
             (typeof meta === "string" ? JSON.parse(meta) : meta) || {};
@@ -606,14 +672,12 @@ export default async function handler(
                .gt("created_at", thirtySecondsAgo)
                .limit(1);
             if (!dupErr && Array.isArray(dupCheck) && dupCheck.length > 0) {
-               // Duplicate found recently — return existing to caller (no-op)
                return res
                   .status(200)
                   .json({ notification: dupCheck[0], skippedDuplicate: true });
             }
          }
       } catch (e) {
-         // If dup-check fails, continue to insert as a best-effort
          console.warn("notifications dup-check failed:", e);
       }
 

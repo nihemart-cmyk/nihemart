@@ -1376,18 +1376,66 @@ export async function createOrder({
 
       console.log("Creating order with data:", orderToCreate);
 
-      const { data: orderData, error: orderError } = await sb
-         .from("orders")
-         .insert([orderToCreate])
-         .select()
-         .single();
+      let createdOrder: Order;
+      try {
+         const { data: orderData, error: orderError } = await sb
+            .from("orders")
+            .insert([orderToCreate])
+            .select()
+            .single();
 
-      if (orderError) {
-         console.error("Order creation error:", orderError);
-         throw new Error(`Failed to create order: ${orderError.message}`);
+         if (orderError) {
+            // If the DB doesn't yet have the `schedule_notes` column (migration
+            // not applied), PostgREST will return an error mentioning the missing
+            // column. In that case, retry the insert without the field so
+            // existing ordering workflow continues to work.
+            const msg = String(orderError?.message || "").toLowerCase();
+            if (
+               orderToCreate &&
+               Object.prototype.hasOwnProperty.call(
+                  orderToCreate,
+                  "schedule_notes"
+               ) &&
+               msg.includes("schedule_notes") &&
+               msg.includes("does not exist")
+            ) {
+               try {
+                  const fallback = { ...orderToCreate };
+                  delete (fallback as any).schedule_notes;
+                  const { data: retryData, error: retryErr } = await sb
+                     .from("orders")
+                     .insert([fallback])
+                     .select()
+                     .single();
+                  if (retryErr) {
+                     console.error(
+                        "Order creation retry without schedule_notes failed:",
+                        retryErr
+                     );
+                     throw new Error(
+                        `Failed to create order (retry): ${retryErr.message}`
+                     );
+                  }
+                  createdOrder = retryData as Order;
+               } catch (retryEx) {
+                  console.error(
+                     "Order creation retry caught exception:",
+                     retryEx
+                  );
+                  throw retryEx;
+               }
+            } else {
+               console.error("Order creation error:", orderError);
+               throw new Error(`Failed to create order: ${orderError.message}`);
+            }
+         } else {
+            createdOrder = orderData as Order;
+         }
+      } catch (insErr) {
+         // Bubble up insertion errors
+         console.error("Order insertion failed:", insErr);
+         throw insErr;
       }
-
-      const createdOrder = orderData as Order;
 
       // Then create the order items
       // Validate and normalize item ids to avoid sending concatenated ids to UUID columns
@@ -1506,39 +1554,104 @@ export async function createOrder({
                order_id: quickOrder.id,
                order_number: quickOrder.order_number,
                items: quickOrder.items || [],
+               delivery_time: quickOrder.delivery_time ?? undefined,
+               schedule_notes: (quickOrder as any).schedule_notes ?? undefined,
             };
 
             // Notify admin
-            if (typeof window === "undefined") {
-               // Server-side: use RPC with service role client (sb will be server client)
-               await sb.rpc("insert_notification", {
-                  p_recipient_user_id: null,
-                  p_recipient_role: "admin",
-                  p_type: "order_created",
-                  p_title: null,
-                  p_body: null,
-                  p_meta: JSON.stringify(metaObj),
-               });
-            } else {
-               // Browser: call our server-side API which inserts using the service role key
-               try {
-                  await fetch("/api/notifications/create", {
-                     method: "POST",
-                     headers: { "Content-Type": "application/json" },
-                     body: JSON.stringify({
-                        recipient_user_id: null,
-                        recipient_role: "admin",
-                        type: "order_created",
-                        title: null,
-                        body: null,
-                        meta: metaObj,
-                     }),
+            const isServerClient =
+               typeof window === "undefined" &&
+               !!process.env.SUPABASE_SERVICE_ROLE_KEY &&
+               !!process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+            try {
+               if (isServerClient) {
+                  // Server-side with service-role: use RPC (insert_notification)
+                  await sb.rpc("insert_notification", {
+                     p_recipient_user_id: null,
+                     p_recipient_role: "admin",
+                     p_type: "order_created",
+                     p_title: null,
+                     p_body: null,
+                     p_meta: JSON.stringify(metaObj),
                   });
-               } catch (fetchErr) {
-                  console.warn(
-                     "Failed to POST admin notification to /api/notifications/create:",
-                     fetchErr
-                  );
+               } else {
+                  // Browser or server without service-role: POST to our notifications API
+                  try {
+                     await fetch("/api/notifications/create", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                           recipient_user_id: null,
+                           recipient_role: "admin",
+                           type: "order_created",
+                           title: null,
+                           body: null,
+                           meta: metaObj,
+                        }),
+                     });
+                  } catch (fetchErr) {
+                     // will be handled by outer catch below
+                     throw fetchErr;
+                  }
+               }
+            } catch (notifErr) {
+               console.warn(
+                  "Failed to create admin notification via RPC or API:",
+                  notifErr
+               );
+               // Fallback: if we cannot create an in-app notification (e.g. missing
+               // SUPABASE_SERVICE_ROLE_KEY or RPC permission), try sending an email
+               // to a configured admin address so orders are still surfaced.
+               try {
+                  const envAdmin =
+                     process.env.ADMIN_EMAIL ||
+                     process.env.NEWSLETTER_ADMIN_EMAIL;
+                  if (envAdmin) {
+                     try {
+                        const { buildOrderConfirmationEmail } = await import(
+                           "@/lib/email/notifications"
+                        );
+                        const customerName =
+                           (
+                              (quickOrder.customer_first_name || "") +
+                              (quickOrder.customer_last_name
+                                 ? ` ${quickOrder.customer_last_name}`
+                                 : "")
+                           ).trim() || undefined;
+                        const { subject, html } = buildOrderConfirmationEmail({
+                           order_id: quickOrder.id,
+                           order_number: quickOrder.order_number,
+                           items: quickOrder.items || [],
+                           total: quickOrder.total,
+                           currency: quickOrder.currency,
+                           customer_name: customerName,
+                           delivery_address: quickOrder.delivery_address,
+                           delivery_time: quickOrder.delivery_time ?? undefined,
+                        });
+                        const { sendEmail } = await import("@/lib/email/send");
+                        const r = await sendEmail(envAdmin, subject, html);
+                        if (!r || (r as any).ok === false) {
+                           console.warn("Fallback admin email send failed:", r);
+                        } else {
+                           console.info(
+                              "Fallback admin email sent to",
+                              envAdmin
+                           );
+                        }
+                     } catch (emailErr) {
+                        console.warn(
+                           "Fallback admin email attempt failed:",
+                           emailErr
+                        );
+                     }
+                  } else {
+                     console.warn(
+                        "No fallback admin email configured (ADMIN_EMAIL or NEWSLETTER_ADMIN_EMAIL)."
+                     );
+                  }
+               } catch (e) {
+                  console.warn("Admin notification fallback failed:", e);
                }
             }
 
@@ -2160,6 +2273,68 @@ export async function updateOrderStatus(
          }
       })().catch((bgErr) =>
          console.warn("Background stock decrement failed:", bgErr)
+      );
+   }
+
+   // If the order was cancelled, mark any pending COD payments as failed
+   if (status === "cancelled") {
+      (async () => {
+         try {
+            const { data: orderRow, error: orderErr } = await sb
+               .from("orders")
+               .select("id, payment_method")
+               .eq("id", id)
+               .maybeSingle();
+            if (orderErr) {
+               console.warn(
+                  "Failed to fetch order for COD payment cancellation:",
+                  orderErr
+               );
+            } else if (
+               orderRow &&
+               orderRow.payment_method === "cash_on_delivery"
+            ) {
+               console.log(
+                  "Order cancelled — updating pending COD payments to failed:",
+                  { orderId: id }
+               );
+               try {
+                  const { error: upErr } = await sb
+                     .from("payments")
+                     .update({
+                        status: "failed",
+                        failure_reason: "order_cancelled",
+                        updated_at: new Date().toISOString(),
+                     })
+                     .eq("order_id", id)
+                     .eq("status", "pending")
+                     .eq("payment_method", "cash_on_delivery");
+                  if (upErr) {
+                     console.warn(
+                        "Failed to update COD payment status on cancellation:",
+                        upErr
+                     );
+                  } else {
+                     console.log(
+                        "Successfully marked pending COD payments as failed for order:",
+                        id
+                     );
+                  }
+               } catch (uCatch) {
+                  console.warn(
+                     "Error updating COD payments on cancellation:",
+                     uCatch
+                  );
+               }
+            }
+         } catch (e) {
+            console.warn(
+               "Error while checking/updating COD payments on cancellation:",
+               e
+            );
+         }
+      })().catch((e) =>
+         console.warn("Background COD payment cancellation failed:", e)
       );
    }
 

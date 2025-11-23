@@ -327,6 +327,11 @@ export function OrderDetailsDialog({
                               Note: {order.delivery_notes}
                            </p>
                         )}
+                        {order.schedule_notes && (
+                           <p className="text-sm text-muted-foreground italic mt-1">
+                              Schedule notes: {order.schedule_notes}
+                           </p>
+                        )}
                         {order.delivery_time && (
                            <p className="text-sm text-muted-foreground mt-2">
                               <strong>Requested delivery time: </strong>

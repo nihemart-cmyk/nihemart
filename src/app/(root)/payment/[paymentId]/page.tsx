@@ -197,7 +197,11 @@ export default function PaymentPage() {
                            clearCart();
                         } catch (e) {}
 
-                        router.push(`/orders/${createdOrder.id}`);
+                        if (user && user.id) {
+                           router.push(`/orders/${createdOrder.id}`);
+                        } else {
+                           router.push(`/thank-you`);
+                        }
                      } catch (err) {
                         console.error(
                            "Error after creating order on payment page:",
@@ -494,7 +498,13 @@ export default function PaymentPage() {
                                        clearCart();
                                     } catch (e) {}
 
-                                    router.push(`/orders/${createdOrder.id}`);
+                                    if (user && user.id) {
+                                       router.push(
+                                          `/orders/${createdOrder.id}`
+                                       );
+                                    } else {
+                                       router.push(`/thank-you`);
+                                    }
                                  } catch (err) {
                                     console.error(
                                        "Error after creating order on payment page:",

@@ -156,16 +156,13 @@ export function useCreateOrder() {
          }
          try {
             // Check if orders are enabled (server-side setting).
-            // When orders are disabled we still allow customers to place external/internal orders
-            // but they must supply a delivery_time scheduled for the next day. If delivery_time is
-            // missing or invalid we throw a descriptive error so the UI can prompt the user.
+            // This check is best-effort; transient failures should not block checkout.
             try {
                const resp = await fetch("/api/admin/settings/orders-enabled");
                if (resp.ok) {
                   const j = await resp.json();
                   const enabled = Boolean(j.enabled);
                   if (!enabled && !orderData.order.is_external) {
-                     // Require delivery_time when admin has disabled ordering
                      const dt = orderData.order.delivery_time;
                      if (!dt) {
                         const e: any = new Error(
@@ -175,48 +172,54 @@ export function useCreateOrder() {
                         e.code = "ORDERS_NEED_DELIVERY_TIME";
                         throw e;
                      }
-
-                     // Validate that delivery_time falls on the next calendar day (local)
-                     try {
-                        const delivery = new Date(dt);
-                        if (isNaN(delivery.getTime())) {
-                           const e: any = new Error(
-                              "Invalid delivery time format"
-                           );
-                           e.code = "ORDERS_INVALID_DELIVERY_TIME";
-                           throw e;
-                        }
-
-                        const now = new Date();
-                        const tomorrow = new Date(
-                           now.getFullYear(),
-                           now.getMonth(),
-                           now.getDate() + 1
+                     const delivery = new Date(dt);
+                     if (isNaN(delivery.getTime())) {
+                        const e: any = new Error(
+                           "Invalid delivery time format"
                         );
-                        const dayAfter = new Date(
-                           tomorrow.getFullYear(),
-                           tomorrow.getMonth(),
-                           tomorrow.getDate() + 1
+                        e.code = "ORDERS_INVALID_DELIVERY_TIME";
+                        throw e;
+                     }
+                     const now = new Date();
+                     const tomorrow = new Date(
+                        now.getFullYear(),
+                        now.getMonth(),
+                        now.getDate() + 1
+                     );
+                     const dayAfter = new Date(
+                        tomorrow.getFullYear(),
+                        tomorrow.getMonth(),
+                        tomorrow.getDate() + 1
+                     );
+                     if (delivery < tomorrow || delivery >= dayAfter) {
+                        const e: any = new Error(
+                           "When orders are disabled delivery must be scheduled for the next day"
                         );
-
-                        if (delivery < tomorrow || delivery >= dayAfter) {
-                           const e: any = new Error(
-                              "When orders are disabled delivery must be scheduled for the next day"
-                           );
-                           e.code = "ORDERS_DELIVERY_TIME_NOT_NEXT_DAY";
-                           throw e;
-                        }
-                     } catch (dtErr) {
-                        throw dtErr;
+                        e.code = "ORDERS_DELIVERY_TIME_NOT_NEXT_DAY";
+                        throw e;
                      }
                   }
                }
             } catch (flagErr) {
-               // If the check fails, log and continue — fail open so checkout isn't blocked by transient errors
                console.warn("Failed to verify orders_enabled flag:", flagErr);
             }
 
-            const result = await createOrder(orderData);
+            // Create the order via a server-side API so the insertion uses the
+            // service role (avoids RLS denial when invoked from the browser).
+            const resp = await fetch("/api/orders/create", {
+               method: "POST",
+               headers: { "Content-Type": "application/json" },
+               body: JSON.stringify(orderData),
+            });
+
+            if (!resp.ok) {
+               const body = await resp.json().catch(() => ({}));
+               const msg =
+                  body?.error || `Failed to create order: ${resp.status}`;
+               throw new Error(msg);
+            }
+
+            const result = await resp.json();
             console.log(
                "Regular Order Mutation - integrations.createOrder returned:",
                result

@@ -94,7 +94,7 @@ export function AddressDialog({
          return;
       }
 
-      const timeoutId: NodeJS.Timeout = setTimeout(() => {
+      const timeoutId: ReturnType<typeof setTimeout> = setTimeout(() => {
          memoizedSearch(debouncedSearch);
       }, 100); // Small delay to prevent race conditions
 

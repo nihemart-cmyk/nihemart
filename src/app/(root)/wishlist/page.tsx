@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useState } from "react";
 import Image from "next/image";
@@ -13,7 +13,7 @@ import MaxWidthWrapper from "@/components/MaxWidthWrapper";
 import { useLanguage } from "@/contexts/LanguageContext";
 
 export default function WishlistPage() {
-  const { t } = useLanguage();  // Use the language context for translations
+  const { t } = useLanguage(); // Use the language context for translations
   const { wishlistItems, removeFromWishlist, isLoading } = useWishlist();
   const { addItem } = useCart();
   const [addingToCart, setAddingToCart] = useState<string | null>(null);
@@ -66,11 +66,15 @@ export default function WishlistPage() {
   return (
     <MaxWidthWrapper className="py-8">
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">{t("wishlist.title")}</h1>
+        <h1 className="text-3xl font-bold text-gray-900">
+          {t("wishlist.title")}
+        </h1>
         <p className="text-gray-600 mt-2">
           {wishlistItems.length === 0
             ? t("wishlist.empty")
-            : `${wishlistItems.length} ${t("wishlist.itemsInWishlist")}`}
+            : wishlistItems.length === 1
+              ? `${wishlistItems.length} ${t("wishlist.item")}`
+              : `${wishlistItems.length} ${t("wishlist.items")}`}
         </p>
       </div>
 
@@ -80,9 +84,7 @@ export default function WishlistPage() {
           <h2 className="text-xl font-semibold text-gray-600 mb-2">
             {t("wishlist.emptyTitle")}
           </h2>
-          <p className="text-gray-500 mb-6">
-            {t("wishlist.emptyDesc")}
-          </p>
+          <p className="text-gray-500 mb-6">{t("wishlist.emptyDesc")}</p>
           <Button asChild>
             <Link href="/products">{t("wishlist.browseProducts")}</Link>
           </Button>
@@ -116,7 +118,9 @@ export default function WishlistPage() {
 
                   <div className="flex items-center justify-between mb-4">
                     <span className="text-xl font-bold text-orange-600">
-                      {t(`wishlist.price.${item.product.price.toLocaleString()}`)}
+                      {t(
+                        "wishlist.price"
+                      )} {item.product.price.toLocaleString()}
                     </span>
                   </div>
 
@@ -127,7 +131,9 @@ export default function WishlistPage() {
                       className="flex-1 bg-orange-600 hover:bg-orange-700"
                     >
                       <ShoppingCart className="h-4 w-4 mr-2" />
-                      {addingToCart === item.product.id ? t("wishlist.adding") : t("wishlist.addToCart")}
+                      {addingToCart === item.product.id
+                        ? t("wishlist.adding")
+                        : t("wishlist.addToCart")}
                     </Button>
 
                     <Button

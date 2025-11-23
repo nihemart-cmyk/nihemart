@@ -223,15 +223,15 @@ export default function ProductPage() {
               <div className="flex items-center gap-3">
                 <Truck className="h-5 w-5 text-green-600" />
                 <div>
-                  <p className="font-medium text-green-600">Free Delivery</p>
-                  <p className="text-sm text-gray-600">Enter your Postal code for Delivery Availability</p>
+                  <p className="font-medium text-green-600">Fast Delivery</p>
+                  <p className="text-sm text-gray-600">Enter your location for Delivery</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
                 <RotateCcw className="h-5 w-5 text-orange-600" />
                 <div>
                   <p className="font-medium text-orange-600">Return Delivery</p>
-                  <p className="text-sm text-gray-600">Free 30 days Delivery Return. Details</p>
+                  <p className="text-sm text-gray-600">Can return products within 24 hours of order. Details</p>
                 </div>
               </div>
             </div>

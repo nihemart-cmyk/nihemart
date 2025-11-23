@@ -1,0 +1,104 @@
+"use client";
+
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import React from "react";
+import useGuestInfo from "@/hooks/useGuestInfo";
+import { useLanguage } from "@/contexts/LanguageContext";
+
+type Props = {
+   formData: any;
+   setFormData: (fn: (prev: any) => any) => void;
+   errors: any;
+   onPhoneChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+   phoneValue: string;
+};
+
+const GuestCheckoutForm: React.FC<Props> = ({
+   formData,
+   setFormData,
+   errors,
+   onPhoneChange,
+   phoneValue,
+}) => {
+   const { formatPhoneInput } = useGuestInfo();
+   const { t } = useLanguage();
+
+   const localPhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const input = e.target.value;
+      const formatted = formatPhoneInput(input);
+      setFormData((prev: any) => ({ ...prev, phone: formatted }));
+   };
+   return (
+      <div className="border border-gray-200 rounded-lg p-3 sm:p-4 bg-white">
+         <div className="text-sm font-medium mb-2">
+            {t("checkout.guestDetails")}
+         </div>
+
+         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
+            <div>
+               <Label className="text-xs sm:text-sm">
+                  {t("checkout.firstName")}{" "}
+                  <span className="text-red-500">*</span>
+               </Label>
+               <Input
+                  value={formData.firstName || ""}
+                  placeholder={
+                     t("checkout.firstNamePlaceholder") || "First name"
+                  }
+                  onChange={(e) =>
+                     setFormData((prev: any) => ({
+                        ...prev,
+                        firstName: e.target.value,
+                     }))
+                  }
+                  className={errors?.firstName ? "border-red-500" : ""}
+               />
+            </div>
+
+            <div>
+               <Label className="text-xs sm:text-sm">
+                  {t("checkout.lastName")}
+               </Label>
+               <Input
+                  value={formData.lastName || ""}
+                  placeholder={t("checkout.lastNamePlaceholder") || "Last name"}
+                  onChange={(e) =>
+                     setFormData((prev: any) => ({
+                        ...prev,
+                        lastName: e.target.value,
+                     }))
+                  }
+               />
+            </div>
+
+            <div className="sm:col-span-2">
+               <Label className="text-xs sm:text-sm">
+                  {t("checkout.email")} <span className="text-red-500">*</span>
+               </Label>
+               <Input
+                  value={formData.email || ""}
+                  placeholder={
+                     t("checkout.emailPlaceholder") || "you@domain.com"
+                  }
+                  onChange={(e) =>
+                     setFormData((prev: any) => ({
+                        ...prev,
+                        email: e.target.value,
+                     }))
+                  }
+                  className={errors?.email ? "border-red-500" : ""}
+               />
+               {errors?.email && (
+                  <p className="text-xs text-red-600 mt-1">{errors.email}</p>
+               )}
+            </div>
+
+            {/* Phone is collected from the selected address; do not show phone input here */}
+         </div>
+      </div>
+   );
+};
+
+export default GuestCheckoutForm;

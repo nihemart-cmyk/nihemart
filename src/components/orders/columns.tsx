@@ -151,17 +151,45 @@ export const columns: ColumnDef<Order>[] = [
       id: "customer",
       header: "CUSTOMER",
       cell: ({ row }) => {
-         const customerName =
-            `${row.original.customer_first_name || ""} ${
-               row.original.customer_last_name || ""
-            }`.trim() || "Unknown";
-         const customerEmail = row.original.customer_email || "Unknown";
+         // Show guest badge for anonymous orders. For registered users show
+         // their name (and email/phone if available) so admins can identify
+         // customers quickly from the list.
+         const isGuest = !row.original.user_id;
+         const firstName = row.original.customer_first_name || "";
+         const lastName = row.original.customer_last_name || "";
+         const fullName = `${firstName} ${lastName}`.trim();
+         const email = row.original.customer_email || null;
+         const phone = row.original.customer_phone || null;
+
+         if (isGuest) {
+            return (
+               <div className="flex items-center">
+                  <Badge className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 font-semibold">
+                     Guest
+                  </Badge>
+               </div>
+            );
+         }
+
          return (
-            <div className="">
+            <div className="flex items-center gap-3">
                <UserAvatarProfile
-                  user={{ fullName: customerName, subTitle: customerEmail }}
-                  showInfo
+                  user={{
+                     fullName: fullName || email || phone || "User",
+                     subTitle: email || phone || "",
+                  }}
+                  showInfo={false}
                />
+               <div className="flex flex-col">
+                  <span className="text-text-primary text-sm font-medium">
+                     {fullName || email || phone || "User"}
+                  </span>
+                  {(email || phone) && (
+                     <span className="text-text-secondary text-xs">
+                        {email ? email : phone}
+                     </span>
+                  )}
+               </div>
             </div>
          );
       },

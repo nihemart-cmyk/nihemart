@@ -35,7 +35,7 @@ const promos = [
 
 const services = [
   { label: "Customer service", Icon: Icons.landingPage.headSets },
-  { label: "Fast free Delivery", Icon: Icons.landingPage.ship },
+  { label: "Fast Delivery", Icon: Icons.landingPage.ship },
   { label: "Refer a friend", Icon: Icons.landingPage.friends },
   { label: "Secure payment", Icon: Icons.landingPage.verified },
 ];
@@ -71,7 +71,7 @@ const ProductCard = ({ product }: { product: StoreProduct }) => (
         })}
         alt={product.name}
         fill
-        className="object-cover transition-transform duration-300 group-hover:scale-105"
+        className="object-fit transition-transform duration-300 group-hover:scale-105"
         sizes="(max-width: 640px) 100vw, 33vw"
       />
     </div>

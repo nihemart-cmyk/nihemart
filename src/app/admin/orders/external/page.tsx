@@ -6,7 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useState } from "react";
 import { useOrders } from "@/hooks/useOrders";
 import { Order } from "@/types/orders";
-import { fetchOrderById } from "@/integrations/supabase/orders";
+// Note: avoid importing server-only modules on the client. Use API fetch instead.
 import { format } from "date-fns";
 import Link from "next/link";
 import { ColumnDef } from "@tanstack/react-table";
@@ -247,9 +247,13 @@ export default function ExternalOrdersPage() {
                                     }
                                     setShowManageRefund(true);
                                  } else {
-                                    const fetched = await fetchOrderById(
-                                       order.id
+                                    const resp = await fetch(
+                                       `/api/orders/get?id=${encodeURIComponent(
+                                          order.id
+                                       )}`
                                     );
+                                    const json = await resp.json();
+                                    const fetched = json?.order || null;
                                     if (!fetched)
                                        throw new Error("Order not found");
                                     if (fetched.refund_status !== "requested") {
