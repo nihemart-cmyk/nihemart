@@ -1376,18 +1376,66 @@ export async function createOrder({
 
       console.log("Creating order with data:", orderToCreate);
 
-      const { data: orderData, error: orderError } = await sb
-         .from("orders")
-         .insert([orderToCreate])
-         .select()
-         .single();
+      let createdOrder: Order;
+      try {
+         const { data: orderData, error: orderError } = await sb
+            .from("orders")
+            .insert([orderToCreate])
+            .select()
+            .single();
 
-      if (orderError) {
-         console.error("Order creation error:", orderError);
-         throw new Error(`Failed to create order: ${orderError.message}`);
+         if (orderError) {
+            // If the DB doesn't yet have the `schedule_notes` column (migration
+            // not applied), PostgREST will return an error mentioning the missing
+            // column. In that case, retry the insert without the field so
+            // existing ordering workflow continues to work.
+            const msg = String(orderError?.message || "").toLowerCase();
+            if (
+               orderToCreate &&
+               Object.prototype.hasOwnProperty.call(
+                  orderToCreate,
+                  "schedule_notes"
+               ) &&
+               msg.includes("schedule_notes") &&
+               msg.includes("does not exist")
+            ) {
+               try {
+                  const fallback = { ...orderToCreate };
+                  delete (fallback as any).schedule_notes;
+                  const { data: retryData, error: retryErr } = await sb
+                     .from("orders")
+                     .insert([fallback])
+                     .select()
+                     .single();
+                  if (retryErr) {
+                     console.error(
+                        "Order creation retry without schedule_notes failed:",
+                        retryErr
+                     );
+                     throw new Error(
+                        `Failed to create order (retry): ${retryErr.message}`
+                     );
+                  }
+                  createdOrder = retryData as Order;
+               } catch (retryEx) {
+                  console.error(
+                     "Order creation retry caught exception:",
+                     retryEx
+                  );
+                  throw retryEx;
+               }
+            } else {
+               console.error("Order creation error:", orderError);
+               throw new Error(`Failed to create order: ${orderError.message}`);
+            }
+         } else {
+            createdOrder = orderData as Order;
+         }
+      } catch (insErr) {
+         // Bubble up insertion errors
+         console.error("Order insertion failed:", insErr);
+         throw insErr;
       }
-
-      const createdOrder = orderData as Order;
 
       // Then create the order items
       // Validate and normalize item ids to avoid sending concatenated ids to UUID columns
@@ -1506,6 +1554,8 @@ export async function createOrder({
                order_id: quickOrder.id,
                order_number: quickOrder.order_number,
                items: quickOrder.items || [],
+               delivery_time: quickOrder.delivery_time ?? undefined,
+               schedule_notes: (quickOrder as any).schedule_notes ?? undefined,
             };
 
             // Notify admin

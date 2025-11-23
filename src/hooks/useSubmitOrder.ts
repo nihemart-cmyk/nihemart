@@ -172,12 +172,59 @@ export default function useSubmitOrder(args: any) {
                ordersSource === "schedule" &&
                args.scheduleNotes
             ) {
-               const existing = orderData.order.delivery_notes || "";
-               orderData.order.delivery_notes = (
-                  existing +
-                  (existing ? "\n\n" : "") +
-                  args.scheduleNotes
-               ).trim();
+               try {
+                  // Store schedule notes in a dedicated field so they are
+                  // easier to query and display separately from generic
+                  // delivery instructions.
+                  orderData.order.schedule_notes = (
+                     (args.scheduleNotes || "") as string
+                  ).trim();
+               } catch (e) {
+                  console.warn("Failed to set schedule_notes:", e);
+               }
+            }
+
+            // When orders are disabled by schedule and the customer confirmed
+            // delivery for the next working day, provide a server-validated
+            // `delivery_time` timestamp. Server expects a delivery_time that
+            // maps to the next calendar day in Kigali local time. We construct
+            // an ISO timestamp that represents 10:00 AM Kigali (UTC+2) on the
+            // next calendar day so server-side validation passes reliably.
+            try {
+               if (
+                  ordersEnabled === false &&
+                  ordersSource === "schedule" &&
+                  scheduleConfirmChecked
+               ) {
+                  // Kigali offset (UTC+2)
+                  const KIGALI_OFFSET_HOURS = 2;
+                  const OFFSET_MS = KIGALI_OFFSET_HOURS * 60 * 60 * 1000;
+                  const now = Date.now();
+                  const kigaliMs = now + OFFSET_MS;
+                  const kigaliDate = new Date(kigaliMs);
+                  const kYear = kigaliDate.getUTCFullYear();
+                  const kMonth = kigaliDate.getUTCMonth();
+                  const kDate = kigaliDate.getUTCDate();
+
+                  // Build a UTC timestamp that corresponds to 10:00 AM Kigali
+                  // on the *next* calendar day. 10:00 Kigali == 08:00 UTC.
+                  const deliveryUtcMs = Date.UTC(
+                     kYear,
+                     kMonth,
+                     kDate + 1,
+                     8,
+                     0,
+                     0,
+                     0
+                  );
+                  const deliveryIso = new Date(deliveryUtcMs).toISOString();
+                  orderData.order.delivery_time = deliveryIso;
+               }
+            } catch (e) {
+               console.warn(
+                  "Failed to compute delivery_time for scheduled order:",
+                  e
+               );
             }
 
             if (!createOrder || typeof createOrder.mutate !== "function") {
