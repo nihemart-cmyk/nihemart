@@ -136,6 +136,9 @@ export const en: Record<string, string> = {
    "checkout.firstNamePlaceholder": "First name",
    "checkout.lastName": "Last Name",
    "checkout.lastNamePlaceholder": "Last name",
+   "checkout.fullName": "Full name",
+   "checkout.fullNamePlaceholder": "Full name",
+   "checkout.errors.fullNameRequired": "Full name is required",
    "checkout.address": "Address",
    "checkout.city": "City",
    "checkout.phone": "Phone",
@@ -260,6 +263,7 @@ export const en: Record<string, string> = {
    "checkout.missing.phone": "Please provide a valid phone number",
    "checkout.missing.header":
       "Please fill the following before placing an order:",
+   "checkout.missing.email": "Please provide a valid email address",
    "checkout.errors.validPhone": "Enter a valid phone number (10 digits)",
 
    // Auth
