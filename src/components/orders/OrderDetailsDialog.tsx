@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 import Image from "next/image";
 import { fetchStoreProductById } from "@/integrations/supabase/store";
 import { useEffect } from "react";
+import { ManageRefundDialog } from "./ManageRefundDialog";
 
 interface OrderDetailsDialogProps {
    open: boolean;
@@ -79,6 +80,8 @@ export function OrderDetailsDialog({
    const isOwner = user?.id === order.user_id;
    const isAdmin = typeof hasRole === "function" ? hasRole("admin") : false;
    const [loadingItemId, setLoadingItemId] = useState<string | null>(null);
+   const [manageDialogOpen, setManageDialogOpen] = useState(false);
+   const [manageItem, setManageItem] = useState<OrderItem | null>(null);
    const customerName =
       `${order.customer_first_name} ${order.customer_last_name}`.trim();
    const [showOrderRefundDialog, setShowOrderRefundDialog] = useState(false);
@@ -225,354 +228,440 @@ export function OrderDetailsDialog({
    }, [order?.items, open]);
 
    return (
-      <Dialog
-         open={open}
-         onOpenChange={onOpenChange}
-      >
-         <DialogContent className="max-w-3xl px-1 sm:px-4">
-            <DialogHeader>
-               <DialogTitle>Order Details</DialogTitle>
-            </DialogHeader>
-            <ScrollArea className="max-h-[80vh] bg-gray-50 rounded-lg px-1 sm:px-0">
-               <div className="space-y-6 p-2 sm:p-4">
-                  {/* Order Header */}
-                  <Card className="p-4 mb-2 border-0 bg-gradient-to-br from-white to-gray-50 shadow-none">
-                     <div className="flex justify-between items-start gap-4">
-                        <div>
-                           <div className="flex items-center gap-2 mb-1">
-                              <ReceiptText className="h-5 w-5 text-blue-500" />
-                              <h3 className="text-lg font-semibold">
-                                 Order #{order.order_number}
-                              </h3>
-                           </div>
-                           <p className="text-sm text-muted-foreground mb-1">
-                              {format(
-                                 new Date(order.created_at),
-                                 "MMMM d, yyyy 'at' HH:mm"
-                              )}
-                           </p>
-                           {/* Rider section moved below — kept header concise */}
-                        </div>
-                        <Badge
-                           className={cn(
-                              "capitalize font-semibold text-base px-3 py-1 rounded-lg",
-                              {
-                                 "bg-green-500/10 text-green-500":
-                                    order.status === "delivered",
-                                 "bg-yellow-500/10 text-yellow-500": [
-                                    "pending",
-                                    "processing",
-                                    "shipped",
-                                 ].includes(order.status),
-                                 "bg-red-500/10 text-red-500":
-                                    order.status === "cancelled",
-                              }
-                           )}
-                        >
-                           {order.status}
-                        </Badge>
-                     </div>
-                  </Card>
-
-                  {/* Customer Information */}
-                  <Card className="p-4">
-                     <div className="flex items-center gap-2 mb-2">
-                        <User className="h-5 w-5 text-blue-500" />
-                        <h4 className="font-semibold text-base">
-                           Customer Information
-                        </h4>
-                     </div>
-                     <div className="flex items-center space-x-4 mb-4">
-                        <UserAvatarProfile
-                           user={{
-                              fullName: customerName,
-                              subTitle: order.customer_email,
-                           }}
-                           showInfo={false}
-                        />
-                        <div className="flex-1">
-                           <h5 className="font-medium">{customerName}</h5>
-                           <div className="flex items-center gap-2">
-                              <p className="text-sm text-muted-foreground">
-                                 {order.customer_email}
-                              </p>
-                              <CopyButton
-                                 text={order.customer_email}
-                                 label="Copy email"
-                              />
-                           </div>
-                           {order.customer_phone && (
-                              <div className="flex items-center gap-2">
-                                 <p className="text-sm text-muted-foreground">
-                                    {order.customer_phone}
-                                 </p>
-                                 <CopyButton
-                                    text={order.customer_phone}
-                                    label="Copy phone number"
-                                 />
+      <>
+         <Dialog
+            open={open}
+            onOpenChange={onOpenChange}
+         >
+            <DialogContent className="max-w-3xl px-1 sm:px-4">
+               <DialogHeader>
+                  <DialogTitle>Order Details</DialogTitle>
+               </DialogHeader>
+               <ScrollArea className="max-h-[80vh] bg-gray-50 rounded-lg px-1 sm:px-0">
+                  <div className="space-y-6 p-2 sm:p-4">
+                     {/* Order Header */}
+                     <Card className="p-4 mb-2 border-0 bg-gradient-to-br from-white to-gray-50 shadow-none">
+                        <div className="flex justify-between items-start gap-4">
+                           <div>
+                              <div className="flex items-center gap-2 mb-1">
+                                 <ReceiptText className="h-5 w-5 text-blue-500" />
+                                 <h3 className="text-lg font-semibold">
+                                    Order #{order.order_number}
+                                 </h3>
                               </div>
-                           )}
-                        </div>
-                     </div>
-                     <div className="space-y-2 border-t pt-2">
-                        <h4 className="font-medium">Delivery Address</h4>
-                        <p className="text-sm text-muted-foreground">
-                           {order.delivery_address}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                           {order.delivery_city}
-                        </p>
-                        {order.delivery_notes && (
-                           <p className="text-sm text-muted-foreground italic">
-                              Note: {order.delivery_notes}
-                           </p>
-                        )}
-                        {order.schedule_notes && (
-                           <p className="text-sm text-muted-foreground italic mt-1">
-                              Schedule notes: {order.schedule_notes}
-                           </p>
-                        )}
-                        {order.delivery_time && (
-                           <p className="text-sm text-muted-foreground mt-2">
-                              <strong>Requested delivery time: </strong>
-                              {isValid(new Date(order.delivery_time))
-                                 ? format(
-                                      new Date(order.delivery_time),
-                                      "MMMM d, yyyy 'at' HH:mm"
-                                   )
-                                 : String(order.delivery_time)}
-                           </p>
-                        )}
-                     </div>
-                  </Card>
-
-                  {/* Order Items */}
-                  <Card className="p-4">
-                     <div className="flex items-center gap-2 mb-2">
-                        <ShoppingCart className="h-5 w-5 text-orange-500" />
-                        <h4 className="font-semibold text-base">Order Items</h4>
-                     </div>
-                     <div className="space-y-4">
-                        {order.items?.map((item, index) => (
-                           <div
-                              key={item.id}
+                              <p className="text-sm text-muted-foreground mb-1">
+                                 {format(
+                                    new Date(order.created_at),
+                                    "MMMM d, yyyy 'at' HH:mm"
+                                 )}
+                              </p>
+                              {/* Rider section moved below — kept header concise */}
+                           </div>
+                           <Badge
                               className={cn(
-                                 "flex gap-4 rounded-lg hover:bg-gray-100 transition-colors p-2",
-                                 index !== 0 && "border-t pt-4"
+                                 "capitalize font-semibold text-base px-3 py-1 rounded-lg",
+                                 {
+                                    "bg-green-500/10 text-green-500":
+                                       order.status === "delivered",
+                                    "bg-yellow-500/10 text-yellow-500": [
+                                       "pending",
+                                       "processing",
+                                       "shipped",
+                                    ].includes(order.status),
+                                    "bg-red-500/10 text-red-500":
+                                       order.status === "cancelled",
+                                 }
                               )}
                            >
-                              {/* Product Image */}
-                              {/* Prefer product's canonical main image when available, else fall back to the image recorded on the order item */}
-                              {(productImages[item.product_id || ""] ||
-                                 item.product_image_url) && (
-                                 <div className="relative w-16 h-16 flex-shrink-0 bg-gray-100 rounded-md overflow-hidden">
-                                    <Image
-                                       src={
-                                          productImages[
-                                             item.product_id || ""
-                                          ] ||
-                                          item.product_image_url ||
-                                          ""
-                                       }
-                                       alt={item.product_name}
-                                       fill
-                                       className="object-cover"
-                                       sizes="64px"
-                                       onError={(e) => {
-                                          e.currentTarget.style.display =
-                                             "none";
-                                       }}
+                              {order.status}
+                           </Badge>
+                        </div>
+                     </Card>
+
+                     {/* Customer Information */}
+                     <Card className="p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                           <User className="h-5 w-5 text-blue-500" />
+                           <h4 className="font-semibold text-base">
+                              Customer Information
+                           </h4>
+                        </div>
+                        <div className="flex items-center space-x-4 mb-4">
+                           <UserAvatarProfile
+                              user={{
+                                 fullName: customerName,
+                                 subTitle: order.customer_email,
+                              }}
+                              showInfo={false}
+                           />
+                           <div className="flex-1">
+                              <h5 className="font-medium">{customerName}</h5>
+                              <div className="flex items-center gap-2">
+                                 <p className="text-sm text-muted-foreground">
+                                    {order.customer_email}
+                                 </p>
+                                 <CopyButton
+                                    text={order.customer_email}
+                                    label="Copy email"
+                                 />
+                              </div>
+                              {order.customer_phone && (
+                                 <div className="flex items-center gap-2">
+                                    <p className="text-sm text-muted-foreground">
+                                       {order.customer_phone}
+                                    </p>
+                                    <CopyButton
+                                       text={order.customer_phone}
+                                       label="Copy phone number"
                                     />
                                  </div>
                               )}
-                              <div className="flex-1">
-                                 <div className="flex items-center gap-2">
-                                    <p className="font-medium">
-                                       {item.product_name}
-                                    </p>
-                                    {item.refund_status ? (
-                                       <>
-                                          <Badge
-                                             variant={
-                                                item.refund_status ===
-                                                "approved"
-                                                   ? "default"
-                                                   : item.refund_status ===
-                                                     "rejected"
-                                                   ? "destructive"
-                                                   : "secondary"
-                                             }
-                                          >
-                                             {item.refund_status
-                                                .charAt(0)
-                                                .toUpperCase() +
-                                                item.refund_status.slice(1)}
-                                          </Badge>
-                                          {item.refund_status ===
-                                             "requested" && (
-                                             <Button
-                                                size="sm"
-                                                variant="ghost"
-                                                onClick={async () => {
-                                                   setLoadingItemId(item.id);
-                                                   try {
-                                                      await cancelRefund.mutateAsync(
-                                                         item.id
-                                                      );
-                                                   } catch (e) {
-                                                      // handled by mutation
-                                                   } finally {
-                                                      setLoadingItemId(null);
-                                                   }
-                                                }}
-                                                disabled={
-                                                   loadingItemId === item.id
+                           </div>
+                        </div>
+                        <div className="space-y-2 border-t pt-2">
+                           <h4 className="font-medium">Delivery Address</h4>
+                           <p className="text-sm text-muted-foreground">
+                              {order.delivery_address}
+                           </p>
+                           <p className="text-sm text-muted-foreground">
+                              {order.delivery_city}
+                           </p>
+                           {order.delivery_notes && (
+                              <p className="text-sm text-muted-foreground italic">
+                                 Note: {order.delivery_notes}
+                              </p>
+                           )}
+                           {order.schedule_notes && (
+                              <p className="text-sm text-muted-foreground italic mt-1">
+                                 Schedule notes: {order.schedule_notes}
+                              </p>
+                           )}
+                           {order.delivery_time && (
+                              <p className="text-sm text-muted-foreground mt-2">
+                                 <strong>Requested delivery time: </strong>
+                                 {isValid(new Date(order.delivery_time))
+                                    ? format(
+                                         new Date(order.delivery_time),
+                                         "MMMM d, yyyy 'at' HH:mm"
+                                      )
+                                    : String(order.delivery_time)}
+                              </p>
+                           )}
+                        </div>
+                     </Card>
+
+                     {/* Order Items */}
+                     <Card className="p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                           <ShoppingCart className="h-5 w-5 text-orange-500" />
+                           <h4 className="font-semibold text-base">
+                              Order Items
+                           </h4>
+                        </div>
+                        <div className="space-y-4">
+                           {order.items?.map((item, index) => (
+                              <div
+                                 key={item.id}
+                                 className={cn(
+                                    "flex gap-4 rounded-lg hover:bg-gray-100 transition-colors p-2",
+                                    index !== 0 && "border-t pt-4"
+                                 )}
+                              >
+                                 {/* Product Image */}
+                                 {/* Prefer product's canonical main image when available, else fall back to the image recorded on the order item */}
+                                 {(productImages[item.product_id || ""] ||
+                                    item.product_image_url) && (
+                                    <div className="relative w-16 h-16 flex-shrink-0 bg-gray-100 rounded-md overflow-hidden">
+                                       <Image
+                                          src={
+                                             productImages[
+                                                item.product_id || ""
+                                             ] ||
+                                             item.product_image_url ||
+                                             ""
+                                          }
+                                          alt={item.product_name}
+                                          fill
+                                          className="object-cover"
+                                          sizes="64px"
+                                          onError={(e) => {
+                                             e.currentTarget.style.display =
+                                                "none";
+                                          }}
+                                       />
+                                    </div>
+                                 )}
+                                 <div className="flex-1">
+                                    <div className="flex items-center gap-2">
+                                       <p className="font-medium">
+                                          {item.product_name}
+                                       </p>
+                                       {item.refund_status ? (
+                                          <>
+                                             <Badge
+                                                variant={
+                                                   item.refund_status ===
+                                                   "approved"
+                                                      ? "default"
+                                                      : item.refund_status ===
+                                                        "rejected"
+                                                      ? "destructive"
+                                                      : "secondary"
                                                 }
                                              >
-                                                {loadingItemId === item.id ? (
-                                                   <Loader2 className="h-4 w-4 animate-spin" />
-                                                ) : (
-                                                   "Cancel"
+                                                {item.refund_status
+                                                   .charAt(0)
+                                                   .toUpperCase() +
+                                                   item.refund_status.slice(1)}
+                                             </Badge>
+                                             {item.refund_status ===
+                                                "requested" && (
+                                                <Button
+                                                   size="sm"
+                                                   variant="ghost"
+                                                   onClick={async () => {
+                                                      setLoadingItemId(item.id);
+                                                      try {
+                                                         await cancelRefund.mutateAsync(
+                                                            item.id
+                                                         );
+                                                      } catch (e) {
+                                                         // handled by mutation
+                                                      } finally {
+                                                         setLoadingItemId(null);
+                                                      }
+                                                   }}
+                                                   disabled={
+                                                      loadingItemId === item.id
+                                                   }
+                                                >
+                                                   {loadingItemId ===
+                                                   item.id ? (
+                                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                                   ) : (
+                                                      "Cancel"
+                                                   )}
+                                                </Button>
+                                             )}
+                                             {isAdmin &&
+                                                item.refund_status ===
+                                                   "requested" && (
+                                                   <Button
+                                                      size="sm"
+                                                      variant="outline"
+                                                      onClick={() => {
+                                                         setManageItem(item);
+                                                         setManageDialogOpen(
+                                                            true
+                                                         );
+                                                      }}
+                                                   >
+                                                      Manage
+                                                   </Button>
                                                 )}
-                                             </Button>
-                                          )}
-                                       </>
-                                    ) : null}
-                                 </div>
-                                 {/* Prefer explicit variation_name saved on the order item, but
+
+                                             {isAdmin &&
+                                                !item.refund_status && (
+                                                   <Button
+                                                      size="sm"
+                                                      variant="ghost"
+                                                      onClick={async () => {
+                                                         setLoadingItemId(
+                                                            item.id
+                                                         );
+                                                         try {
+                                                            const updated =
+                                                               await requestRefund.mutateAsync(
+                                                                  {
+                                                                     orderItemId:
+                                                                        item.id,
+                                                                     reason:
+                                                                        "Admin initiated refund",
+                                                                     adminInitiated:
+                                                                        true,
+                                                                  } as any
+                                                               );
+                                                            // Open manage dialog for admin to approve/complete
+                                                            setManageItem(
+                                                               updated as any
+                                                            );
+                                                            setManageDialogOpen(
+                                                               true
+                                                            );
+                                                         } catch (e) {
+                                                            // handled by mutation
+                                                         } finally {
+                                                            setLoadingItemId(
+                                                               null
+                                                            );
+                                                         }
+                                                      }}
+                                                      disabled={
+                                                         loadingItemId ===
+                                                         item.id
+                                                      }
+                                                   >
+                                                      {loadingItemId ===
+                                                      item.id ? (
+                                                         <Loader2 className="h-4 w-4 animate-spin" />
+                                                      ) : (
+                                                         "Initiate refund"
+                                                      )}
+                                                   </Button>
+                                                )}
+                                          </>
+                                       ) : null}
+                                    </div>
+                                    {/* Prefer explicit variation_name saved on the order item, but
                                      fall back to a product variation lookup (fetched above)
                                      when available. This ensures admins see which variation
                                      the user selected even if the order row did not include
                                      the variation_name field. */}
-                                 {renderVariationLabel(item)}
-                                 <div className="flex justify-between items-center mt-2">
-                                    <p className="text-sm text-muted-foreground">
-                                       Quantity: {item.quantity} ×{" "}
-                                       {Number(
-                                          item.price || 0
-                                       ).toLocaleString()}{" "}
-                                       RWF
-                                    </p>
-                                    <p className="font-medium">
-                                       {Number(
-                                          item.total || 0
-                                       ).toLocaleString()}{" "}
-                                       RWF
-                                    </p>
-                                 </div>
-                                 {item.refund_reason && (
-                                    <p className="text-xs text-muted-foreground mt-1 italic">
-                                       Reason: {item.refund_reason}
-                                    </p>
-                                 )}
-                              </div>
-                           </div>
-                        ))}
-                     </div>
-                  </Card>
-
-                  {/* Order Summary */}
-                  <Card className="p-4">
-                     <div className="flex items-center gap-2 mb-2">
-                        <Package className="h-5 w-5 text-green-500" />
-                        <h4 className="font-semibold text-base">
-                           Order Summary
-                        </h4>
-                     </div>
-                     <div className="space-y-2">
-                        <div className="flex justify-between">
-                           <p className="text-muted-foreground">Subtotal</p>
-                           <p>
-                              {Number(order.subtotal || 0).toLocaleString()} RWF
-                           </p>
-                        </div>
-                        <div className="flex justify-between">
-                           <p className="text-muted-foreground">
-                              Transport fee
-                           </p>
-                           <p>{Number(order.tax || 0).toLocaleString()} RWF</p>
-                        </div>
-                        <div className="flex justify-between font-semibold border-t pt-2">
-                           <p>Total</p>
-                           <p>
-                              {Number(order.total || 0).toLocaleString()} RWF
-                           </p>
-                        </div>
-                     </div>
-                  </Card>
-
-                  {/* Rider Section (full-width, below other sections) */}
-                  <Card className="p-4">
-                     <div className="flex items-center gap-2 mb-2">
-                        <BadgeCheck className="h-5 w-5 text-blue-500" />
-                        <h4 className="font-semibold text-base">Rider</h4>
-                     </div>
-
-                     <div>
-                        {riderLoading ? (
-                           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                              <span>Loading rider...</span>
-                           </div>
-                        ) : rider ? (
-                           <div className="flex items-start gap-4">
-                              <UserAvatarProfile
-                                 user={{
-                                    fullName:
-                                       rider.full_name ||
-                                       (rider as any).name ||
-                                       "Unknown Rider",
-                                    subTitle: rider.phone || rider.email || "",
-                                    imageUrl:
-                                       (rider as any).image_url ||
-                                       (rider as any).imageUrl ||
-                                       undefined,
-                                 }}
-                                 showInfo={false}
-                              />
-                              <div className="flex-1 min-w-0">
-                                 <p className="text-sm font-medium truncate">
-                                    {rider.full_name ||
-                                       (rider as any).name ||
-                                       rider.email ||
-                                       "Unknown Rider"}
-                                 </p>
-                                 <div className="flex flex-wrap items-center gap-3 mt-2">
-                                    {rider.email && (
-                                       <div className="flex items-center gap-2">
-                                          <p className="text-sm text-muted-foreground truncate">
-                                             {rider.email}
-                                          </p>
-                                          <CopyButton
-                                             text={rider.email}
-                                             label="Copy email"
-                                          />
-                                       </div>
-                                    )}
-                                    {rider.phone && (
-                                       <div className="flex items-center gap-2">
-                                          <p className="text-sm text-muted-foreground">
-                                             {rider.phone}
-                                          </p>
-                                          <CopyButton
-                                             text={rider.phone}
-                                             label="Copy phone"
-                                          />
-                                       </div>
+                                    {renderVariationLabel(item)}
+                                    <div className="flex justify-between items-center mt-2">
+                                       <p className="text-sm text-muted-foreground">
+                                          Quantity: {item.quantity} ×{" "}
+                                          {Number(
+                                             item.price || 0
+                                          ).toLocaleString()}{" "}
+                                          RWF
+                                       </p>
+                                       <p className="font-medium">
+                                          {Number(
+                                             item.total || 0
+                                          ).toLocaleString()}{" "}
+                                          RWF
+                                       </p>
+                                    </div>
+                                    {item.refund_reason && (
+                                       <p className="text-xs text-muted-foreground mt-1 italic">
+                                          Reason: {item.refund_reason}
+                                       </p>
                                     )}
                                  </div>
                               </div>
+                           ))}
+                        </div>
+                     </Card>
+
+                     {/* Order Summary */}
+                     <Card className="p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                           <Package className="h-5 w-5 text-green-500" />
+                           <h4 className="font-semibold text-base">
+                              Order Summary
+                           </h4>
+                        </div>
+                        <div className="space-y-2">
+                           <div className="flex justify-between">
+                              <p className="text-muted-foreground">Subtotal</p>
+                              <p>
+                                 {Number(order.subtotal || 0).toLocaleString()}{" "}
+                                 RWF
+                              </p>
                            </div>
-                        ) : (
-                           <p className="text-sm text-muted-foreground">
-                              No rider assigned
-                           </p>
-                        )}
-                     </div>
-                  </Card>
-               </div>
-            </ScrollArea>
-         </DialogContent>
-      </Dialog>
+                           <div className="flex justify-between">
+                              <p className="text-muted-foreground">
+                                 Transport fee
+                              </p>
+                              <p>
+                                 {Number(order.tax || 0).toLocaleString()} RWF
+                              </p>
+                           </div>
+                           <div className="flex justify-between font-semibold border-t pt-2">
+                              <p>Total</p>
+                              <p>
+                                 {Number(order.total || 0).toLocaleString()} RWF
+                              </p>
+                           </div>
+                        </div>
+                     </Card>
+
+                     {/* Rider Section (full-width, below other sections) */}
+                     <Card className="p-4">
+                        <div className="flex items-center gap-2 mb-2">
+                           <BadgeCheck className="h-5 w-5 text-blue-500" />
+                           <h4 className="font-semibold text-base">Rider</h4>
+                        </div>
+
+                        <div>
+                           {riderLoading ? (
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                 <Loader2 className="h-4 w-4 animate-spin" />
+                                 <span>Loading rider...</span>
+                              </div>
+                           ) : rider ? (
+                              <div className="flex items-start gap-4">
+                                 <UserAvatarProfile
+                                    user={{
+                                       fullName:
+                                          rider.full_name ||
+                                          (rider as any).name ||
+                                          "Unknown Rider",
+                                       subTitle:
+                                          rider.phone || rider.email || "",
+                                       imageUrl:
+                                          (rider as any).image_url ||
+                                          (rider as any).imageUrl ||
+                                          undefined,
+                                    }}
+                                    showInfo={false}
+                                 />
+                                 <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium truncate">
+                                       {rider.full_name ||
+                                          (rider as any).name ||
+                                          rider.email ||
+                                          "Unknown Rider"}
+                                    </p>
+                                    <div className="flex flex-wrap items-center gap-3 mt-2">
+                                       {rider.email && (
+                                          <div className="flex items-center gap-2">
+                                             <p className="text-sm text-muted-foreground truncate">
+                                                {rider.email}
+                                             </p>
+                                             <CopyButton
+                                                text={rider.email}
+                                                label="Copy email"
+                                             />
+                                          </div>
+                                       )}
+                                       {rider.phone && (
+                                          <div className="flex items-center gap-2">
+                                             <p className="text-sm text-muted-foreground">
+                                                {rider.phone}
+                                             </p>
+                                             <CopyButton
+                                                text={rider.phone}
+                                                label="Copy phone"
+                                             />
+                                          </div>
+                                       )}
+                                    </div>
+                                 </div>
+                              </div>
+                           ) : (
+                              <p className="text-sm text-muted-foreground">
+                                 No rider assigned
+                              </p>
+                           )}
+                        </div>
+                     </Card>
+                  </div>
+               </ScrollArea>
+            </DialogContent>
+         </Dialog>
+         {manageItem && (
+            <ManageRefundDialog
+               open={manageDialogOpen}
+               onOpenChange={(v: boolean) => {
+                  setManageDialogOpen(v);
+                  if (!v) setManageItem(null);
+               }}
+               order={order}
+               item={manageItem}
+            />
+         )}
+      </>
    );
 }

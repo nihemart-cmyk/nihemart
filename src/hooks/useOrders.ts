@@ -429,10 +429,12 @@ export function useRejectOrderItem() {
       mutationFn: ({
          orderItemId,
          reason,
+         adminInitiated,
       }: {
          orderItemId: string;
          reason: string;
-      }) => requestRefundForItem(orderItemId, reason),
+         adminInitiated?: boolean;
+      }) => requestRefundForItem(orderItemId, reason, Boolean(adminInitiated)),
       onMutate: async ({
          orderItemId,
          reason,
