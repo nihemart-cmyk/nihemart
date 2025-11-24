@@ -35,7 +35,7 @@ const promos = [
 
 const services = [
   { label: "Customer service", Icon: Icons.landingPage.headSets },
-  { label: "Fast free Delivery", Icon: Icons.landingPage.ship },
+  { label: "Fast Delivery", Icon: Icons.landingPage.ship },
   { label: "Refer a friend", Icon: Icons.landingPage.friends },
   { label: "Secure payment", Icon: Icons.landingPage.verified },
 ];

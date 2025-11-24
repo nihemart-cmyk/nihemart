@@ -1946,7 +1946,7 @@ Total: ${total.toLocaleString()} RWF
                            className="border-gray-300 text-gray-700 hover:bg-gray-50 w-full sm:w-auto text-xs sm:text-sm"
                         >
                            <Plus className="h-3 w-3 sm:h-4 sm:w-4 mr-1" />
-                           Add delivery address (save for this session)
+                           {t("checkout.addAddress")}
                         </Button>
                      )}
 
@@ -2200,7 +2200,7 @@ Total: ${total.toLocaleString()} RWF
                         <CollapsibleTrigger asChild>
                            <button className="w-full text-left p-0 flex items-center space-x-2 sm:space-x-3 text-gray-600 hover:text-orange-600 transition-colors">
                               <span className="text-base sm:text-lg font-medium">
-                                 More info (for guests only)
+                                 {t("checkout.guestInfo")}
                               </span>
                            </button>
                         </CollapsibleTrigger>
