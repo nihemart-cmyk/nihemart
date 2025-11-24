@@ -42,8 +42,6 @@ const CustomTooltip = ({ active, payload, label }: any) => {
             <p className="font-medium">{label}</p>
             <p className="text-sm text-muted-foreground">
                {new Intl.NumberFormat("en-RW", {
-                  style: "currency",
-                  currency: "RWF",
                   maximumFractionDigits: 0,
                }).format(payload[0].value || 0)}
             </p>
@@ -91,20 +89,22 @@ const CustomerTrendGraph = () => {
       filters: { ...(rangeFilter as any) } as any,
    });
 
+   // Selected metric tab: Active Customers | Orders (week) | Completed
+   const [selectedMetric, setSelectedMetric] =
+      useState<string>("Active Customers");
+
    const chartData = useMemo(() => {
-      // If we have explicit daily stats from RPC use them (backwards compatible)
+      // If we have explicit daily stats from RPC use them as order counts
       if (
          statsData &&
          Array.isArray(statsData.daily) &&
          statsData.daily.length
       ) {
-         // detect ISO or weekday labels
          const sample = statsData.daily[0] || {};
          const sampleDay = String(sample.day || "");
          const looksLikeISO = /\d{4}-\d{2}-\d{2}/.test(sampleDay);
 
          if (!looksLikeISO) {
-            // assume weekday labels: ensure Sun..Sat order
             const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
             const byDay: Record<string, number> = {};
             for (const d of statsData.daily) {
@@ -113,7 +113,7 @@ const CustomerTrendGraph = () => {
             }
             return days.map((day) => ({ day, value: byDay[day] || 0 }));
          }
-         // If ISO date-based, map to recent 7-day weekday series (backwards compatible behavior)
+
          const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
          const byDay: Record<string, number> = {};
          for (const d of statsData.daily) {
@@ -130,33 +130,72 @@ const CustomerTrendGraph = () => {
       // If we have orders data, aggregate by date within the selected range
       if (ordersResponse && Array.isArray(ordersResponse.data)) {
          const orders = ordersResponse.data as any[];
-         const map = new Map<string, number>();
+
+         // Group orders by YYYY-MM-DD
+         const map = new Map<string, any[]>();
          for (const o of orders) {
             const created = o?.created_at || o?.createdAt || o?.date || null;
             if (!created) continue;
             const d = new Date(created);
             if (isNaN(d.getTime())) continue;
-            const key = d.toISOString().slice(0, 10); // YYYY-MM-DD
-            map.set(key, (map.get(key) || 0) + 1);
+            const key = d.toISOString().slice(0, 10);
+            const arr = map.get(key) || [];
+            arr.push(o);
+            map.set(key, arr);
          }
 
-         // sort keys
          const keys = Array.from(map.keys()).sort();
-         // If no keys (e.g. no orders) return fallback
          if (!keys.length) return fallbackData;
 
-         // Build chart points with localized labels
-         return keys.map((k) => ({
-            day: new Date(k).toLocaleDateString("en-US", {
-               month: "short",
-               day: "numeric",
-            }),
-            value: map.get(k) || 0,
-         }));
+         return keys.map((k) => {
+            const arr = map.get(k) || [];
+            let value = 0;
+            if (selectedMetric === "Active Customers") {
+               const set = new Set(
+                  arr.map((x: any) => x.user_id || x.userId || x.user)
+               );
+               value = set.size;
+            } else if (selectedMetric === "Completed") {
+               value = arr.filter((x: any) => {
+                  const s = String(x.status || "").toLowerCase();
+                  return [
+                     "delivered",
+                     "shipped",
+                     "completed",
+                     "refunded",
+                  ].includes(s);
+               }).length;
+            } else {
+               value = arr.length;
+            }
+
+            return {
+               day: new Date(k).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+               }),
+               value,
+            };
+         });
       }
 
       return fallbackData;
-   }, [statsData, ordersResponse]);
+   }, [statsData, ordersResponse, selectedMetric]);
+
+   // Debug: log source data used by the chart to the browser console
+   try {
+      // eslint-disable-next-line no-console
+      console.debug("CustomerTrendGraph - statsData:", statsData);
+      // eslint-disable-next-line no-console
+      console.debug("CustomerTrendGraph - ordersResponse:", ordersResponse);
+      // eslint-disable-next-line no-console
+      console.debug(
+         "CustomerTrendGraph - chartData:",
+         chartData,
+         "selectedMetric:",
+         selectedMetric
+      );
+   } catch (e) {}
 
    // Build simple metrics from available data
    const metrics = useMemo(() => {
@@ -178,11 +217,6 @@ const CustomerTrendGraph = () => {
          { title: "Completed", value: completed.toLocaleString("en-RW") },
       ];
    }, [users, chartData, statsData]);
-
-   const [selectedMetric, setSelectedMetric] = useState(
-      metrics[0]?.title || ""
-   );
-
    return (
       <div className="space-y-3 bg-white p-5 rounded-xl border shadow">
          <div className="flex items-center justify-between mb-0 lg:mb-5">
@@ -287,14 +321,12 @@ const CustomerTrendGraph = () => {
                            tick={{ fontSize: 12, fill: "#6b7280" }}
                            tickFormatter={(value) =>
                               new Intl.NumberFormat("en-RW", {
-                                 style: "currency",
-                                 currency: "RWF",
                                  maximumFractionDigits: 0,
                               }).format(value)
                            }
                            domain={[
                               0,
-                              Math.max(...chartData.map((d) => d.value), 1000),
+                              Math.max(...chartData.map((d) => d.value), 10),
                            ]}
                            tickMargin={10}
                         />

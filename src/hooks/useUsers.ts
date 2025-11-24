@@ -29,16 +29,27 @@ export function useUsers() {
          setLoading(true);
          setError(null);
          // 1. Fetch profiles
-         // Fetch profiles for the current page range. We still fetch profiles for
-         // the requested page window to avoid loading every profile on large
-         // datasets. The admin API will return a paginated union of auth/profiles
-         // and aggregates that we merge with the profile rows we fetched.
-         const start = (p - 1) * l;
-         const end = start + l - 1;
-         const { data: profiles, error: profilesError } = await supabase
-            .from("profiles")
-            .select("id, full_name, phone, created_at")
-            .range(start, end);
+         // If `l === 0` the caller requests ALL users: fetch all profiles
+         // (no range). Otherwise fetch the page window to avoid loading every
+         // profile on large datasets.
+         let profiles: any[] | null = null;
+         let profilesError: any = null;
+         if (l === 0) {
+            const r = await supabase
+               .from("profiles")
+               .select("id, full_name, phone, created_at");
+            profiles = r.data as any[];
+            profilesError = r.error;
+         } else {
+            const start = (p - 1) * l;
+            const end = start + l - 1;
+            const r = await supabase
+               .from("profiles")
+               .select("id, full_name, phone, created_at")
+               .range(start, end);
+            profiles = r.data as any[];
+            profilesError = r.error;
+         }
          if (profilesError) {
             setError(profilesError.message);
             setLoading(false);
@@ -49,9 +60,15 @@ export function useUsers() {
          let apiCount: number | null = null;
          try {
             const q = new URLSearchParams();
-            q.set("page", String(p));
-            q.set("limit", String(l));
-            const res = await fetch(`/api/admin/list-users?${q.toString()}`);
+            // If l === 0 request all users from the admin API by omitting
+            // the `limit` param. Otherwise pass page & limit as before.
+            if (l !== 0) {
+               q.set("page", String(p));
+               q.set("limit", String(l));
+            }
+            const qs = q.toString();
+            const url = `/api/admin/list-users${qs ? `?${qs}` : ""}`;
+            const res = await fetch(url);
             if (res.ok) {
                const json = await res.json();
                enriched = json.users || [];

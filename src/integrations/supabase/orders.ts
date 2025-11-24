@@ -1072,6 +1072,19 @@ export async function fetchAllOrders(options: OrderQueryOptions = {}) {
    }
 
    const dataQuery = buildOrdersQuery(options, true);
+   // If no explicit pagination was provided, request a large range so
+   // Supabase/PostgREST doesn't silently cap results to a small default.
+   // This is used by admin UI components that request the full dataset
+   // for client-side aggregation (charts, metrics). Adjust the upper
+   // bound if you expect more rows.
+   if (!options.pagination) {
+      try {
+         dataQuery.range(0, 1000000);
+      } catch (e) {
+         // ignore if range can't be applied
+      }
+   }
+
    const { data, error } = await dataQuery.select("*, items:order_items(*)");
 
    if (error) {

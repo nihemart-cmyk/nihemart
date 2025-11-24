@@ -57,7 +57,10 @@ export function CustomerTable() {
    const [limit, setLimit] = useState<number>(10);
 
    useEffect(() => {
-      fetchUsers();
+      // Request the full enriched user set from the admin API so the
+      // component can perform client-side searching and pagination.
+      // Passing limit=0 to `fetchUsers` signals "fetch all".
+      fetchUsers(1, 0);
    }, [fetchUsers]);
 
    const handleViewCustomer = (customer: Customer) => {
