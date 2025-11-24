@@ -29,9 +29,10 @@ export default async function handler(
       });
    }
    try {
-      // Parse pagination params (defaults)
+      // Parse pagination params (defaults). If `limit` is not provided,
+      // return all users (no pagination).
       const page = Math.max(1, Number(req.query.page || 1));
-      const limit = Math.max(1, Number(req.query.limit || 50));
+      const limitParam = req.query.limit;
 
       // Run roles, auth users and aggregates in parallel for speed
       const [
@@ -44,7 +45,11 @@ export default async function handler(
          supabase
             .from("profiles")
             .select("id, full_name, phone, created_at")
-            .not("id", "in", supabase.from("user_roles").select("user_id").eq("role", "rider")),
+            .not(
+               "id",
+               "in",
+               supabase.from("user_roles").select("user_id").eq("role", "rider")
+            ),
          supabase.from("user_roles").select("user_id, role"),
          supabase.from("users").select("id, email, created_at"),
          // Call RPC that aggregates orders per user (see migration)
@@ -126,12 +131,27 @@ export default async function handler(
       });
 
       const totalCount = usersArr.length;
-      const start = (page - 1) * limit;
-      const paginated = usersArr.slice(start, start + limit);
 
-      return res
-         .status(200)
-         .json({ users: paginated, count: totalCount, page, limit });
+      let paginated: any[];
+      let limitUsed: number;
+
+      if (limitParam === undefined) {
+         // No limit provided - return all users
+         paginated = usersArr;
+         limitUsed = totalCount;
+      } else {
+         const limit = Math.max(1, Number(limitParam || 50));
+         const start = (page - 1) * limit;
+         paginated = usersArr.slice(start, start + limit);
+         limitUsed = limit;
+      }
+
+      return res.status(200).json({
+         users: paginated,
+         count: totalCount,
+         page: limitParam === undefined ? 1 : page,
+         limit: limitUsed,
+      });
    } catch (err: any) {
       console.error("list-users failed", err);
       return res
