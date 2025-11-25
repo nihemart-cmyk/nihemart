@@ -11,6 +11,7 @@ import { useCart } from "@/contexts/CartContext";
 import { toast } from "sonner";
 import MaxWidthWrapper from "@/components/MaxWidthWrapper";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { cn } from "@/lib/utils";
 
 export default function WishlistPage() {
   const { t } = useLanguage(); // Use the language context for translations
@@ -21,19 +22,17 @@ export default function WishlistPage() {
   const handleAddToCart = async (product: any) => {
     setAddingToCart(product.id);
     try {
-      const itemToAdd = {
-        product_id: product.id,
-        name: product.name,
-        price: product.price,
-        image: product.main_image_url || "/placeholder.svg",
-        variant: undefined,
-        id: product.id,
-      };
-
-      addItem(itemToAdd);
-      toast.success(t("wishlist.addedToCart"));
+      const stock = (product as any).stock ?? product.stock ?? 0;
+      if (stock <= 0) {
+        toast.error(
+          t("products.outOfStock") || "This product is out of stock."
+        );
+        return;
+      }
+      await addItem(product);
+      toast.success(t("cart.addedToCart") || "Added to cart successfully");
     } catch (error) {
-      toast.error(t("wishlist.failedAddToCart"));
+      toast.error("Failed to add to cart");
     } finally {
       setAddingToCart(null);
     }
@@ -95,45 +94,54 @@ export default function WishlistPage() {
             <Card key={item.id} className="group overflow-hidden">
               <CardContent className="p-0">
                 <Link href={`/products/${item.product.id}`}>
-                  <div className="relative aspect-square bg-gray-100">
+                  <div className="relative aspect-square bg-gray-100 rounded-md overflow-hidden p-2 sm:p-3">
                     <Image
                       src={item.product.main_image_url || "/placeholder.svg"}
                       alt={item.product.name}
                       fill
-                      className="object-cover group-hover:scale-105 transition-transform duration-300"
+                      className="object-cover group-hover:scale-105 transition-transform duration-300 rounded-sm"
                     />
                   </div>
                 </Link>
 
-                <div className="p-4">
+                <div className="p-3 sm:p-4">
                   <Link href={`/products/${item.product.id}`}>
-                    <h3 className="font-semibold text-lg mb-2 line-clamp-2 hover:text-orange-600 transition-colors">
+                    <h3 className="font-semibold text-base sm:text-lg mb-1 line-clamp-2 hover:text-orange-600 transition-colors">
                       {item.product.name}
                     </h3>
                   </Link>
 
-                  <p className="text-gray-600 text-sm mb-2 line-clamp-2">
+                  <p className="text-gray-600 text-sm mb-2 line-clamp-1 sm:line-clamp-2">
                     {item.product.short_description}
                   </p>
 
-                  <div className="flex items-center justify-between mb-4">
-                    <span className="text-xl font-bold text-orange-600">
-                      {t(
-                        "wishlist.price"
-                      )} {item.product.price.toLocaleString()}
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-lg sm:text-xl font-bold text-orange-600">
+                      {t("wishlist.price")}{" "}
+                      {item.product.price.toLocaleString()}
                     </span>
                   </div>
 
                   <div className="flex gap-2">
                     <Button
                       onClick={() => handleAddToCart(item.product)}
-                      disabled={addingToCart === item.product.id}
-                      className="flex-1 bg-orange-600 hover:bg-orange-700"
+                      disabled={
+                        addingToCart === item.product.id ||
+                        (item.product?.stock ?? 0) <= 0
+                      }
+                      className={cn(
+                        "flex-1 h-9 text-sm",
+                        (item.product?.stock ?? 0) <= 0
+                          ? "bg-gray-200 text-gray-500 cursor-not-allowed"
+                          : "bg-orange-600 hover:bg-orange-700"
+                      )}
                     >
                       <ShoppingCart className="h-4 w-4 mr-2" />
-                      {addingToCart === item.product.id
-                        ? t("wishlist.adding")
-                        : t("wishlist.addToCart")}
+                      {(item.product?.stock ?? 0) <= 0
+                        ? t("products.outOfStock") || "Out of Stock"
+                        : addingToCart === item.product.id
+                          ? t("wishlist.adding")
+                          : t("wishlist.addToCart")}
                     </Button>
 
                     <Button
