@@ -97,8 +97,7 @@ const CheckoutPage = ({
 
    const [formData, setFormData] = useState({
       email: "",
-      firstName: "",
-      lastName: "",
+      fullName: "",
       address: "",
       city: "",
       phone: "",
@@ -477,8 +476,20 @@ const CheckoutPage = ({
 
          // Only restore when not in retry mode and when user hasn't already filled fields
          if (!effectiveIsRetry) {
-            if (persisted.formData)
-               setFormData((prev) => ({ ...prev, ...persisted.formData }));
+            if (persisted.formData) {
+               const incoming = { ...persisted.formData } as any;
+               // Backwards compatibility: if persisted snapshot has firstName/lastName
+               // but not fullName, synthesize fullName.
+               if (
+                  !incoming.fullName &&
+                  (incoming.firstName || incoming.lastName)
+               ) {
+                  incoming.fullName = `${incoming.firstName || ""} ${
+                     incoming.lastName || ""
+                  }`.trim();
+               }
+               setFormData((prev) => ({ ...prev, ...incoming }));
+            }
             if (persisted.paymentMethod)
                setPaymentMethod(persisted.paymentMethod);
             if (persisted.mobileMoneyPhones)
@@ -645,12 +656,8 @@ const CheckoutPage = ({
                               const derivedFullNameNow =
                                  user?.user_metadata?.full_name?.trim() ||
                                  `${
-                                    (snapshot.formData?.firstName as string) ||
-                                    formData.firstName ||
-                                    ""
-                                 } ${
-                                    (snapshot.formData?.lastName as string) ||
-                                    formData.lastName ||
+                                    (snapshot.formData?.fullName as string) ||
+                                    formData.fullName ||
                                     ""
                                  }`.trim();
 
@@ -1317,10 +1324,7 @@ const CheckoutPage = ({
          setFormData((prev) => ({
             ...prev,
             email: user.email || "",
-            firstName: user.user_metadata?.full_name?.split(" ")[0] || "",
-            lastName:
-               user.user_metadata?.full_name?.split(" ").slice(1).join(" ") ||
-               "",
+            fullName: user.user_metadata?.full_name || "",
          }));
       }
    }, [cartItems, user, effectiveIsRetry]);
@@ -1555,10 +1559,9 @@ const CheckoutPage = ({
 
       // When placing an order as a guest require the customer's name and phone
       if (!isLoggedIn) {
-         if (!formData.firstName || !String(formData.firstName).trim()) {
-            formErrors.firstName =
-               t("checkout.errors.firstNameRequired") ||
-               "First name is required";
+         if (!formData.fullName || !String(formData.fullName).trim()) {
+            formErrors.fullName =
+               t("checkout.errors.fullNameRequired") || "Full name is required";
          }
 
          try {
@@ -1676,7 +1679,7 @@ const CheckoutPage = ({
 *New Order Request*
 
 *Customer Details:*
-Name: ${formData.firstName} ${formData.lastName}
+   Name: ${formData.fullName}
 Email: ${formData.email}
 Phone: ${formData.phone}
 Address: ${formData.address}, ${derivedCity || formData.city}

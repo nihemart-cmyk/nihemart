@@ -37,40 +37,25 @@ const GuestCheckoutForm: React.FC<Props> = ({
          </div>
 
          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
-            <div>
+            <div className="sm:col-span-2">
                <Label className="text-xs sm:text-sm">
-                  {t("checkout.firstName")}{" "}
+                  {t("checkout.fullName") || "Full name"}{" "}
                   <span className="text-red-500">*</span>
                </Label>
                <Input
-                  value={formData.firstName || ""}
-                  placeholder={
-                     t("checkout.firstNamePlaceholder") || "First name"
-                  }
+                  value={formData.fullName || ""}
+                  placeholder={t("checkout.fullNamePlaceholder") || "Full name"}
                   onChange={(e) =>
                      setFormData((prev: any) => ({
                         ...prev,
-                        firstName: e.target.value,
+                        fullName: e.target.value,
                      }))
                   }
-                  className={errors?.firstName ? "border-red-500" : ""}
+                  className={errors?.fullName ? "border-red-500" : ""}
                />
-            </div>
-
-            <div>
-               <Label className="text-xs sm:text-sm">
-                  {t("checkout.lastName")}
-               </Label>
-               <Input
-                  value={formData.lastName || ""}
-                  placeholder={t("checkout.lastNamePlaceholder") || "Last name"}
-                  onChange={(e) =>
-                     setFormData((prev: any) => ({
-                        ...prev,
-                        lastName: e.target.value,
-                     }))
-                  }
-               />
+               {errors?.fullName && (
+                  <p className="text-xs text-red-600 mt-1">{errors.fullName}</p>
+               )}
             </div>
 
             <div className="sm:col-span-2">

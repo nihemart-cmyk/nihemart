@@ -29,32 +29,57 @@ export default async function handler(
       });
    }
    try {
-      // Parse pagination params (defaults)
+      // Debug: log incoming query and URL to help diagnose why `limit` is set
+      console.debug("list-users incoming url:", req.url, "query:", req.query);
+      // Parse pagination params (defaults). If `limit` is not provided,
+      // return all users (no pagination).
       const page = Math.max(1, Number(req.query.page || 1));
-      const limit = Math.max(1, Number(req.query.limit || 50));
+      const limitParam = req.query.limit;
 
       // Run roles, auth users and aggregates in parallel for speed
-      const [
-         { data: profiles },
-         { data: roles },
-         { data: authUsers },
-         { data: ordersAgg },
-      ] = await Promise.all([
-         // fetch profiles excluding riders (users with role "rider")
-         supabase
-            .from("profiles")
-            .select("id, full_name, phone, created_at")
-            .not("id", "in", supabase.from("user_roles").select("user_id").eq("role", "rider")),
-         supabase.from("user_roles").select("user_id, role"),
-         supabase.from("users").select("id, email, created_at"),
-         // Call RPC that aggregates orders per user (see migration)
-         supabase.rpc("get_orders_aggregate_per_user"),
-      ] as any);
+      const [profilesRes, rolesRes, authUsersRes, ordersAggRes] =
+         (await Promise.all([
+            // fetch profiles (we'll exclude riders in JS to avoid complex subquery
+            // expressions that can behave inconsistently across runtimes)
+            supabase
+               .from("profiles")
+               .select("id, full_name, phone, created_at"),
+            supabase.from("user_roles").select("user_id, role"),
+            supabase.from("users").select("id, email, created_at"),
+            // Call RPC that aggregates orders per user (see migration)
+            supabase.rpc("get_orders_aggregate_per_user"),
+         ] as any)) as any;
 
-      const profilesArr = (profiles as any[]) || [];
-      const rolesArr = (roles as any[]) || [];
-      const authArr = (authUsers as any[]) || [];
-      const ordersAggAny = (ordersAgg as any) || [];
+      // Log Supabase response summaries to help diagnose empty results
+      try {
+         console.debug("list-users supabase results:", {
+            profilesError: profilesRes?.error,
+            profilesCount: Array.isArray(profilesRes?.data)
+               ? profilesRes.data.length
+               : profilesRes?.data
+               ? 1
+               : 0,
+            rolesError: rolesRes?.error,
+            rolesCount: Array.isArray(rolesRes?.data)
+               ? rolesRes.data.length
+               : 0,
+            authError: authUsersRes?.error,
+            authCount: Array.isArray(authUsersRes?.data)
+               ? authUsersRes.data.length
+               : 0,
+            ordersAggError: ordersAggRes?.error,
+            ordersAggCount: Array.isArray(ordersAggRes?.data)
+               ? ordersAggRes.data.length
+               : ordersAggRes?.data
+               ? 1
+               : 0,
+         });
+      } catch (e) {}
+
+      const profilesArr = (profilesRes?.data as any[]) || [];
+      const rolesArr = (rolesRes?.data as any[]) || [];
+      const authArr = (authUsersRes?.data as any[]) || [];
+      const ordersAggAny = (ordersAggRes?.data as any) || [];
 
       // Create a union map keyed by user id. Profiles take precedence for name/phone
       const byId: Record<string, any> = {};
@@ -126,12 +151,27 @@ export default async function handler(
       });
 
       const totalCount = usersArr.length;
-      const start = (page - 1) * limit;
-      const paginated = usersArr.slice(start, start + limit);
 
-      return res
-         .status(200)
-         .json({ users: paginated, count: totalCount, page, limit });
+      let paginated: any[];
+      let limitUsed: number;
+
+      if (limitParam === undefined) {
+         // No limit provided - return all users
+         paginated = usersArr;
+         limitUsed = totalCount;
+      } else {
+         const limit = Math.max(1, Number(limitParam || 50));
+         const start = (page - 1) * limit;
+         paginated = usersArr.slice(start, start + limit);
+         limitUsed = limit;
+      }
+
+      return res.status(200).json({
+         users: paginated,
+         count: totalCount,
+         page: limitParam === undefined ? 1 : page,
+         limit: limitUsed,
+      });
    } catch (err: any) {
       console.error("list-users failed", err);
       return res

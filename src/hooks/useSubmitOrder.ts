@@ -99,7 +99,7 @@ export default function useSubmitOrder(args: any) {
                   user.user_metadata &&
                   user.user_metadata.full_name &&
                   user.user_metadata.full_name.trim()) ||
-               `${formData.firstName || ""} ${formData.lastName || ""}`.trim();
+               `${formData.fullName || ""}`.trim();
 
             const [derivedFirstName, ...derivedLastParts] = (
                derivedFullNameForOrder || ""
@@ -545,9 +545,7 @@ export default function useSubmitOrder(args: any) {
                         user.user_metadata &&
                         user.user_metadata.full_name &&
                         user.user_metadata.full_name.trim()) ||
-                     `${formData.firstName || ""} ${
-                        formData.lastName || ""
-                     }`.trim();
+                     `${formData.fullName || ""}`.trim();
 
                   const cartSnapshot = orderItems.map((it: any) => ({
                      product_id: it.product_id || it.id,

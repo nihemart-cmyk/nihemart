@@ -24,6 +24,7 @@ import { MoreHorizontal, PlusCircle, Dot } from "lucide-react";
 import { UserAvatarProfile } from "@/components/user-avatar-profile";
 import { DataTable } from "@/components/orders/data-table";
 import { ManageRefundDialog } from "@/components/orders/ManageRefundDialog";
+import { OrderDetailsDialog } from "@/components/orders/OrderDetailsDialog";
 import { AssignRiderDialog } from "@/components/orders/AssignRiderDialog";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
@@ -125,6 +126,9 @@ export default function ExternalOrdersPage() {
    const requestRefundOrder = useRequestRefundOrder();
    const [showManageRefund, setShowManageRefund] = useState(false);
    const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+   const [selectedOrderDetail, setSelectedOrderDetail] = useState<Order | null>(
+      null
+   );
    const [showAssignDialog, setShowAssignDialog] = useState(false);
    const [assignOrderId, setAssignOrderId] = useState<string | null>(null);
 
@@ -287,7 +291,36 @@ export default function ExternalOrdersPage() {
                            </DropdownMenuItem>
                         )}
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem>View order details</DropdownMenuItem>
+                        <DropdownMenuItem
+                           onClick={async () => {
+                              try {
+                                 const full = ordersResponse?.data?.find(
+                                    (o: Order) => o.id === order.id
+                                 );
+                                 if (full) {
+                                    setSelectedOrderDetail(full as Order);
+                                 } else {
+                                    const resp = await fetch(
+                                       `/api/orders/get?id=${encodeURIComponent(
+                                          order.id
+                                       )}`
+                                    );
+                                    const json = await resp.json();
+                                    const fetched = json?.order || null;
+                                    if (!fetched)
+                                       throw new Error("Order not found");
+                                    setSelectedOrderDetail(fetched as Order);
+                                 }
+                              } catch (e) {
+                                 console.error(
+                                    "Failed to fetch order details:",
+                                    e
+                                 );
+                              }
+                           }}
+                        >
+                           View order details
+                        </DropdownMenuItem>
                         <DropdownMenuItem>Update status</DropdownMenuItem>
                      </DropdownMenuContent>
                   </DropdownMenu>
@@ -463,6 +496,15 @@ export default function ExternalOrdersPage() {
                      if (!v) setSelectedOrder(null);
                   }}
                   order={selectedOrder}
+               />
+            )}
+            {selectedOrderDetail && (
+               <OrderDetailsDialog
+                  open={Boolean(selectedOrderDetail)}
+                  onOpenChange={(v: boolean) => {
+                     if (!v) setSelectedOrderDetail(null);
+                  }}
+                  order={selectedOrderDetail}
                />
             )}
             <AssignRiderDialog

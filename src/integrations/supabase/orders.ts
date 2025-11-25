@@ -1,5 +1,10 @@
 // Request a refund for an order item (customer)
-export async function requestRefundForItem(itemId: string, reason: string) {
+// Request a refund for an order item (customer or admin-initiated)
+export async function requestRefundForItem(
+   itemId: string,
+   reason: string,
+   adminInitiated: boolean = false
+) {
    const { data: existing, error: fetchError } = await sb
       .from("order_items")
       .select("id, order_id, product_name, price, quantity, created_at")
@@ -40,8 +45,12 @@ export async function requestRefundForItem(itemId: string, reason: string) {
       // ignore other errors fetching order
    }
 
-   // If parent order was not delivered -> this is a client-side reject and should be final
-   const isReject = !parentOrder?.delivered_at;
+   // If parent order was not delivered -> this is normally a client-side reject
+   // and should be final. However, when an admin initiates the flow we want
+   // to create a reviewable refund request (refund_status = 'requested').
+   const isParentDelivered = Boolean(parentOrder?.delivered_at);
+
+   const isReject = !isParentDelivered && !adminInitiated;
 
    const updatePayload: any = isReject
       ? {
@@ -554,6 +563,84 @@ export async function respondToRefundRequest(
       }
    }
 
+   // Recompute order totals and possibly update order status when a single
+   // item change may affect the whole order (e.g., single-item orders).
+   try {
+      if (parentOrder) {
+         const { data: allItems, error: itemsErr } = await sb
+            .from("order_items")
+            .select("total, refund_status")
+            .eq("order_id", existing.order_id);
+
+         if (itemsErr) {
+            console.warn(
+               "Failed to fetch order items for total recalculation (post-response):",
+               itemsErr
+            );
+         }
+
+         const remainingSubtotal = Array.isArray(allItems)
+            ? allItems
+                 .filter(
+                    (it: any) =>
+                       it.refund_status !== "approved" &&
+                       it.refund_status !== "refunded" &&
+                       it.refund_status !== "rejected"
+                 )
+                 .reduce((s: number, it: any) => s + Number(it.total || 0), 0)
+            : Math.max(0, Number(parentOrder.subtotal || 0));
+
+         const previousSubtotal = Number(parentOrder.subtotal || 0);
+         const previousTax = Number(parentOrder.tax || 0);
+         const taxRate =
+            previousSubtotal > 0 ? previousTax / previousSubtotal : 0;
+         const newTax = Math.max(0, remainingSubtotal * taxRate);
+         const newTotal = Math.max(0, remainingSubtotal + newTax);
+
+         const upd: any = {
+            subtotal: Number(remainingSubtotal.toFixed(2)),
+            tax: Number(newTax.toFixed(2)),
+            total: Number(newTotal.toFixed(2)),
+         };
+
+         try {
+            const { data: siblingItems, error: siblingErr } = await sb
+               .from("order_items")
+               .select("refund_status")
+               .eq("order_id", existing.order_id);
+            if (!siblingErr && Array.isArray(siblingItems)) {
+               const allProcessed = siblingItems.every(
+                  (it: any) =>
+                     it.refund_status === "approved" ||
+                     it.refund_status === "refunded" ||
+                     it.refund_status === "rejected"
+               );
+               if (allProcessed) {
+                  upd.status = mode === "refund" ? "refunded" : "cancelled";
+               }
+            }
+         } catch (e) {
+            // ignore
+         }
+
+         try {
+            const { error: orderUpdErr } = await sb
+               .from("orders")
+               .update(upd)
+               .eq("id", existing.order_id);
+            if (orderUpdErr)
+               console.warn(
+                  "Failed to update order totals (post-response):",
+                  orderUpdErr
+               );
+         } catch (e) {
+            console.warn("Failed to update order totals (post-response):", e);
+         }
+      }
+   } catch (e) {
+      console.warn("Recompute after refund response failed:", e);
+   }
+
    return data;
 }
 
@@ -985,6 +1072,19 @@ export async function fetchAllOrders(options: OrderQueryOptions = {}) {
    }
 
    const dataQuery = buildOrdersQuery(options, true);
+   // If no explicit pagination was provided, request a large range so
+   // Supabase/PostgREST doesn't silently cap results to a small default.
+   // This is used by admin UI components that request the full dataset
+   // for client-side aggregation (charts, metrics). Adjust the upper
+   // bound if you expect more rows.
+   if (!options.pagination) {
+      try {
+         dataQuery.range(0, 1000000);
+      } catch (e) {
+         // ignore if range can't be applied
+      }
+   }
+
    const { data, error } = await dataQuery.select("*, items:order_items(*)");
 
    if (error) {

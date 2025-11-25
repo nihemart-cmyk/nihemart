@@ -162,11 +162,24 @@ export const columns: ColumnDef<Order>[] = [
          const phone = row.original.customer_phone || null;
 
          if (isGuest) {
+            const guestFullName = fullName || null;
+            const guestLabel = guestFullName || phone || email || "Guest";
+            const subLabel = guestFullName ? phone || email || "" : "";
             return (
-               <div className="flex items-center">
+               <div className="flex items-center gap-3">
                   <Badge className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 font-semibold">
                      Guest
                   </Badge>
+                  <div className="flex flex-col">
+                     <span className="text-text-primary text-sm font-medium">
+                        {guestLabel}
+                     </span>
+                     {subLabel && (
+                        <span className="text-text-secondary text-xs">
+                           {subLabel}
+                        </span>
+                     )}
+                  </div>
                </div>
             );
          }
