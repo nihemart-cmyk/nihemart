@@ -71,7 +71,7 @@ const ProductCard = ({ product }: { product: StoreProduct }) => (
         })}
         alt={product.name}
         fill
-        className="object-fit transition-transform duration-300 group-hover:scale-105"
+        className="object-cover transition-transform duration-300 group-hover:scale-105"
         sizes="(max-width: 640px) 100vw, 33vw"
       />
     </div>

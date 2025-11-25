@@ -13,6 +13,7 @@ export interface StoreProduct {
   review_count: number | null;
   brand: string | null;
   category: { id: string; name: string } | null;
+  stock?: number | null | undefined;
 }
 export interface StoreCategory {
   id: string;
@@ -20,10 +21,10 @@ export interface StoreCategory {
   products_count: number;
 }
 export interface StoreSubcategory {
-   id: string;
-   name: string;
-   category_id: string;
-   products_count: number;
+  id: string;
+  name: string;
+  category_id: string;
+  products_count: number;
 }
 export interface StoreFilters {
   categories?: string[];
@@ -111,92 +112,136 @@ const applyStoreFilters = (
   if (search.trim()) {
     // Try FTS first, but since we need to combine with other filters,
     // we'll use a more targeted approach
-    q = q.or(`name.ilike.%${search.trim()}%,brand.ilike.%${search.trim()}%,short_description.ilike.%${search.trim()}%`);
+    q = q.or(
+      `name.ilike.%${search.trim()}%,brand.ilike.%${search.trim()}%,short_description.ilike.%${search.trim()}%`
+    );
   }
 
   return q;
 };
 
-export const fetchStoreProducts = cache(async (
-  options: StoreQueryOptions
-): Promise<{ data: StoreProduct[]; count: number }> => {
-  // If filtering by categories or subcategories, we need to use a different approach
-  if ((options.filters?.categories && options.filters.categories.length > 0) ||
-      (options.filters?.subcategories && options.filters.subcategories.length > 0)) {
+export const fetchStoreProducts = cache(
+  async (
+    options: StoreQueryOptions
+  ): Promise<{ data: StoreProduct[]; count: number }> => {
+    // If filtering by categories or subcategories, we need to use a different approach
+    if (
+      (options.filters?.categories && options.filters.categories.length > 0) ||
+      (options.filters?.subcategories &&
+        options.filters.subcategories.length > 0)
+    ) {
+      // First get product IDs that match the category/subcategory filters
+      let productIds: string[] = [];
 
-    // First get product IDs that match the category/subcategory filters
-    let productIds: string[] = [];
+      if (options.filters.categories && options.filters.categories.length > 0) {
+        const { data: catProductIds, error: catError } = await sb
+          .from("product_categories")
+          .select("product_id")
+          .in("category_id", options.filters.categories);
 
-    if (options.filters.categories && options.filters.categories.length > 0) {
-      const { data: catProductIds, error: catError } = await sb
-        .from("product_categories")
-        .select("product_id")
-        .in("category_id", options.filters.categories);
-
-      if (catError) throw catError;
-      productIds = (catProductIds || []).map((pc: any) => pc.product_id);
-    }
-
-    if (options.filters.subcategories && options.filters.subcategories.length > 0) {
-      const { data: subProductIds, error: subError } = await sb
-        .from("product_subcategories")
-        .select("product_id")
-        .in("subcategory_id", options.filters.subcategories);
-
-      if (subError) throw subError;
-      const subIds = (subProductIds || []).map((ps: any) => ps.product_id);
-
-      // If we have both category and subcategory filters, intersect the results
-      if (productIds.length > 0) {
-        productIds = productIds.filter(id => subIds.includes(id));
-      } else {
-        productIds = subIds;
+        if (catError) throw catError;
+        productIds = (catProductIds || []).map((pc: any) => pc.product_id);
       }
+
+      if (
+        options.filters.subcategories &&
+        options.filters.subcategories.length > 0
+      ) {
+        const { data: subProductIds, error: subError } = await sb
+          .from("product_subcategories")
+          .select("product_id")
+          .in("subcategory_id", options.filters.subcategories);
+
+        if (subError) throw subError;
+        const subIds = (subProductIds || []).map((ps: any) => ps.product_id);
+
+        // If we have both category and subcategory filters, intersect the results
+        if (productIds.length > 0) {
+          productIds = productIds.filter((id) => subIds.includes(id));
+        } else {
+          productIds = subIds;
+        }
+      }
+
+      if (productIds.length === 0) {
+        return { data: [], count: 0 };
+      }
+
+      // Now query products with these IDs and apply other filters
+      let query = sb
+        .from("products")
+        .select("id", { count: "exact", head: true })
+        .in("id", productIds)
+        .in("status", ["active", "out_of_stock"]);
+
+      // Apply other filters
+      if (options.filters.rating) {
+        query = query.gte("average_rating", options.filters.rating);
+      }
+      if (options.search && options.search.trim()) {
+        const searchTerm = options.search.trim();
+        query = query.or(
+          `name.ilike.%${searchTerm}%,brand.ilike.%${searchTerm}%,short_description.ilike.%${searchTerm}%`
+        );
+      }
+
+      const { count, error: countError } = await query;
+      if (countError) throw countError;
+
+      const from = (options.pagination.page - 1) * options.pagination.limit;
+      const to = from + options.pagination.limit - 1;
+
+      // Now get the actual data
+      let dataQuery = sb
+        .from("products")
+        .select(
+          "id, name, price, stock, short_description, main_image_url, average_rating, review_count, brand, category:categories(id, name)"
+        )
+        .in("id", productIds)
+        .in("status", ["active", "out_of_stock"]);
+
+      // Apply other filters again
+      if (options.filters.rating) {
+        dataQuery = dataQuery.gte("average_rating", options.filters.rating);
+      }
+      if (options.search && options.search.trim()) {
+        const searchTerm = options.search.trim();
+        dataQuery = dataQuery.or(
+          `name.ilike.%${searchTerm}%,brand.ilike.%${searchTerm}%,short_description.ilike.%${searchTerm}%`
+        );
+      }
+
+      const { data, error } = await dataQuery
+        .order(options.sort?.column || "created_at", {
+          ascending: options.sort?.direction === "asc",
+        })
+        .range(from, to);
+
+      if (error) throw error;
+      return { data: data as StoreProduct[], count: count ?? 0 };
     }
 
-    if (productIds.length === 0) {
-      return { data: [], count: 0 };
-    }
-
-    // Now query products with these IDs and apply other filters
-    let query = sb
+    // Standard query without category/subcategory filtering
+    let countQuery = sb
       .from("products")
-      .select("id", { count: "exact", head: true })
-      .in("id", productIds)
-      .in("status", ["active", "out_of_stock"]);
+      .select("id", { count: "exact", head: true });
+    // Apply all filters
+    countQuery = applyStoreFilters(countQuery, options);
 
-    // Apply other filters
-    if (options.filters.rating) {
-      query = query.gte("average_rating", options.filters.rating);
-    }
-    if (options.search && options.search.trim()) {
-      const searchTerm = options.search.trim();
-      query = query.or(`name.ilike.%${searchTerm}%,brand.ilike.%${searchTerm}%,short_description.ilike.%${searchTerm}%`);
-    }
-
-    const { count, error: countError } = await query;
+    const { count, error: countError } = await countQuery;
     if (countError) throw countError;
 
     const from = (options.pagination.page - 1) * options.pagination.limit;
     const to = from + options.pagination.limit - 1;
 
-    // Now get the actual data
+    // Start the data query chain with a select
     let dataQuery = sb
       .from("products")
       .select(
-        "id, name, price, short_description, main_image_url, average_rating, review_count, brand, category:categories(id, name)"
-      )
-      .in("id", productIds)
-      .in("status", ["active", "out_of_stock"]);
-
-    // Apply other filters again
-    if (options.filters.rating) {
-      dataQuery = dataQuery.gte("average_rating", options.filters.rating);
-    }
-    if (options.search && options.search.trim()) {
-      const searchTerm = options.search.trim();
-      dataQuery = dataQuery.or(`name.ilike.%${searchTerm}%,brand.ilike.%${searchTerm}%,short_description.ilike.%${searchTerm}%`);
-    }
+        "id, name, price, stock, short_description, main_image_url, average_rating, review_count, brand, category:categories(id, name)"
+      );
+    // Apply all filters again
+    dataQuery = applyStoreFilters(dataQuery, options);
 
     const { data, error } = await dataQuery
       .order(options.sort?.column || "created_at", {
@@ -207,70 +252,48 @@ export const fetchStoreProducts = cache(async (
     if (error) throw error;
     return { data: data as StoreProduct[], count: count ?? 0 };
   }
+);
 
-  // Standard query without category/subcategory filtering
-  let countQuery = sb
-    .from("products")
-    .select("id", { count: "exact", head: true });
-  // Apply all filters
-  countQuery = applyStoreFilters(countQuery, options);
+export const fetchStoreFilterData = cache(
+  async (): Promise<{ categories: StoreCategory[] }> => {
+    const { data, error } = await sb.rpc("get_categories_with_product_count");
+    if (error) throw error;
+    return { categories: data as StoreCategory[] };
+  }
+);
 
-  const { count, error: countError } = await countQuery;
-  if (countError) throw countError;
-
-  const from = (options.pagination.page - 1) * options.pagination.limit;
-  const to = from + options.pagination.limit - 1;
-
-  // Start the data query chain with a select
-  let dataQuery = sb
-    .from("products")
-    .select(
-      "id, name, price, short_description, main_image_url, average_rating, review_count, brand, category:categories(id, name)"
-    );
-  // Apply all filters again
-  dataQuery = applyStoreFilters(dataQuery, options);
-
-  const { data, error } = await dataQuery
-    .order(options.sort?.column || "created_at", {
-      ascending: options.sort?.direction === "asc",
-    })
-    .range(from, to);
-
-  if (error) throw error;
-  return { data: data as StoreProduct[], count: count ?? 0 };
-});
-
-export const fetchStoreFilterData = cache(async (): Promise<{ categories: StoreCategory[] }> => {
-   const { data, error } = await sb.rpc("get_categories_with_product_count");
-   if (error) throw error;
-   return { categories: data as StoreCategory[] };
-});
-
-export const fetchAllCategoriesWithSubcategories = cache(async (): Promise<{ categories: StoreCategory[], subcategories: StoreSubcategory[] }> => {
-   try {
+export const fetchAllCategoriesWithSubcategories = cache(
+  async (): Promise<{
+    categories: StoreCategory[];
+    subcategories: StoreSubcategory[];
+  }> => {
+    try {
       const [categoriesRes, subcategoriesRes] = await Promise.all([
-         sb.rpc("get_categories_with_product_count"),
-         sb.from("subcategories").select("id, name, category_id").order("name")
+        sb.rpc("get_categories_with_product_count"),
+        sb.from("subcategories").select("id, name, category_id").order("name"),
       ]);
 
       if (categoriesRes.error) throw categoriesRes.error;
       if (subcategoriesRes.error) throw subcategoriesRes.error;
 
       // Add products_count to subcategories (we'll calculate this client-side or set to 0 for now)
-      const subcategoriesWithCount = (subcategoriesRes.data || []).map((sub: any) => ({
-         ...sub,
-         products_count: 0 // We'll calculate this properly later if needed
-      }));
+      const subcategoriesWithCount = (subcategoriesRes.data || []).map(
+        (sub: any) => ({
+          ...sub,
+          products_count: 0, // We'll calculate this properly later if needed
+        })
+      );
 
       return {
-         categories: categoriesRes.data as StoreCategory[],
-         subcategories: subcategoriesWithCount as StoreSubcategory[]
+        categories: categoriesRes.data as StoreCategory[],
+        subcategories: subcategoriesWithCount as StoreSubcategory[],
       };
-   } catch (error) {
+    } catch (error) {
       console.error("Error in fetchAllCategoriesWithSubcategories:", error);
       throw error;
-   }
-});
+    }
+  }
+);
 export async function fetchStoreSubcategories(categoryIds: string[] = []) {
   const { data, error } = await sb.rpc("get_subcategories_with_product_count", {
     parent_category_ids: categoryIds,
@@ -278,82 +301,90 @@ export async function fetchStoreSubcategories(categoryIds: string[] = []) {
   if (error) throw error;
   return { subcategories: data as StoreSubcategory[] };
 }
-export const fetchStoreProductById = cache(async (id: string): Promise<ProductPageData | null> => {
-  const { data: product, error } = await sb
-    .from("products")
-    .select(
-      `id, name, description, short_description, stock, price, compare_at_price, main_image_url, average_rating, review_count, brand, social_media_link, category:categories(id, name), categories:product_categories(category:categories(id, name)), subcategories:product_subcategories(subcategory:subcategories(id, name))`
-    )
-    .eq("id", id)
-    .in("status", ["active", "out_of_stock"])
-    .maybeSingle();
-  if (error || !product) {
-    return null;
-  }
-
-  // Transform the product data to flatten nested relations
-  const transformedProduct = {
-    ...product,
-    categories: product.categories?.map((pc: any) => pc.category).filter(Boolean) || [],
-    subcategories: product.subcategories?.map((ps: any) => ps.subcategory).filter(Boolean) || [],
-  };
-
-  const [variationsRes, imagesRes, reviewsRes] = await Promise.all([
-    sb
-      .from("product_variations")
-      .select("id, name, price, stock, attributes")
-      .eq("product_id", id),
-    sb
-      .from("product_images")
-      .select("id, url, product_variation_id")
-      .eq("product_id", id),
-    sb
-      .from("reviews")
+export const fetchStoreProductById = cache(
+  async (id: string): Promise<ProductPageData | null> => {
+    const { data: product, error } = await sb
+      .from("products")
       .select(
-        "id, rating, title, content, image_url, created_at, author:profiles!user_id(full_name)"
+        `id, name, description, short_description, stock, price, compare_at_price, main_image_url, average_rating, review_count, brand, social_media_link, category:categories(id, name), categories:product_categories(category:categories(id, name)), subcategories:product_subcategories(subcategory:subcategories(id, name))`
       )
-      .eq("product_id", id),
-  ]);
-  if (variationsRes.error) throw variationsRes.error;
-  if (imagesRes.error) throw imagesRes.error;
-  if (reviewsRes.error) throw reviewsRes.error;
-
-  // Get similar products based on shared categories
-  let similarProducts: StoreProduct[] = [];
-  const productCategories = transformedProduct.categories;
-  if (productCategories && productCategories.length > 0) {
-    // Get product IDs that share categories with this product
-    const categoryIds = productCategories.map((cat: any) => cat.id);
-    const { data: similarProductIds, error: similarError } = await sb
-      .from("product_categories")
-      .select("product_id")
-      .in("category_id", categoryIds)
-      .neq("product_id", id);
-
-    if (!similarError && similarProductIds && similarProductIds.length > 0) {
-      const uniqueProductIds = [...new Set(similarProductIds.map((sp: any) => sp.product_id))];
-
-      const { data: similarData } = await sb
-        .from("products")
-        .select(
-          "id, name, price, main_image_url, short_description, average_rating, category:categories(id, name)"
-        )
-        .in("id", uniqueProductIds)
-        .in("status", ["active", "out_of_stock"])
-        .limit(6);
-
-      similarProducts = similarData || [];
+      .eq("id", id)
+      .in("status", ["active", "out_of_stock"])
+      .maybeSingle();
+    if (error || !product) {
+      return null;
     }
-  }
 
-  return {
-    product: transformedProduct as ProductDetail,
-    variations: (variationsRes.data || []) as ProductVariationDetail[],
-    images: (imagesRes.data || []) as ProductImageDetail[],
-    reviews: (reviewsRes.data || []) as ProductReview[],
-    similarProducts,
-  };
-});
+    // Transform the product data to flatten nested relations
+    const transformedProduct = {
+      ...product,
+      categories:
+        product.categories?.map((pc: any) => pc.category).filter(Boolean) || [],
+      subcategories:
+        product.subcategories
+          ?.map((ps: any) => ps.subcategory)
+          .filter(Boolean) || [],
+    };
+
+    const [variationsRes, imagesRes, reviewsRes] = await Promise.all([
+      sb
+        .from("product_variations")
+        .select("id, name, price, stock, attributes")
+        .eq("product_id", id),
+      sb
+        .from("product_images")
+        .select("id, url, product_variation_id")
+        .eq("product_id", id),
+      sb
+        .from("reviews")
+        .select(
+          "id, rating, title, content, image_url, created_at, author:profiles!user_id(full_name)"
+        )
+        .eq("product_id", id),
+    ]);
+    if (variationsRes.error) throw variationsRes.error;
+    if (imagesRes.error) throw imagesRes.error;
+    if (reviewsRes.error) throw reviewsRes.error;
+
+    // Get similar products based on shared categories
+    let similarProducts: StoreProduct[] = [];
+    const productCategories = transformedProduct.categories;
+    if (productCategories && productCategories.length > 0) {
+      // Get product IDs that share categories with this product
+      const categoryIds = productCategories.map((cat: any) => cat.id);
+      const { data: similarProductIds, error: similarError } = await sb
+        .from("product_categories")
+        .select("product_id")
+        .in("category_id", categoryIds)
+        .neq("product_id", id);
+
+      if (!similarError && similarProductIds && similarProductIds.length > 0) {
+        const uniqueProductIds = [
+          ...new Set(similarProductIds.map((sp: any) => sp.product_id)),
+        ];
+
+        const { data: similarData } = await sb
+          .from("products")
+          .select(
+            "id, name, price, main_image_url, short_description, average_rating, category:categories(id, name)"
+          )
+          .in("id", uniqueProductIds)
+          .in("status", ["active", "out_of_stock"])
+          .limit(6);
+
+        similarProducts = similarData || [];
+      }
+    }
+
+    return {
+      product: transformedProduct as ProductDetail,
+      variations: (variationsRes.data || []) as ProductVariationDetail[],
+      images: (imagesRes.data || []) as ProductImageDetail[],
+      reviews: (reviewsRes.data || []) as ProductReview[],
+      similarProducts,
+    };
+  }
+);
 export async function createStoreReview(
   reviewData: ReviewBase,
   imageFile?: File
@@ -403,33 +434,35 @@ export async function createStoreReview(
   }
   return data as ProductReview;
 }
-export const fetchStoreCategories = cache(async (): Promise<StoreCategorySimple[]> => {
-  const { data, error } = await sb
-    .from("categories")
-    .select("id, name")
-    .limit(8);
-  if (error) throw error;
-  return data || [];
-});
-export const fetchProductsUnder15k = cache(async (
-  categoryId?: string
-): Promise<StoreProduct[]> => {
-  let query = sb
-    .from("products")
-    .select(
-      "id, name, price, main_image_url, short_description, average_rating, brand, category:categories(id, name)"
-    )
-    .in("status", ["active", "out_of_stock"])
-    .lte("price", 15000)
-    .order("description", { ascending: false })
-    .limit(15);
-  if (categoryId && categoryId !== "all") {
-    query = query.eq("category_id", categoryId);
+export const fetchStoreCategories = cache(
+  async (): Promise<StoreCategorySimple[]> => {
+    const { data, error } = await sb
+      .from("categories")
+      .select("id, name")
+      .limit(8);
+    if (error) throw error;
+    return data || [];
   }
-  const { data, error } = await query;
-  if (error) throw error;
-  return data as StoreProduct[];
-});
+);
+export const fetchProductsUnder15k = cache(
+  async (categoryId?: string): Promise<StoreProduct[]> => {
+    let query = sb
+      .from("products")
+      .select(
+        "id, name, price, stock, main_image_url, short_description, average_rating, brand, category:categories(id, name)"
+      )
+      .in("status", ["active", "out_of_stock"])
+      .lte("price", 15000)
+      .order("description", { ascending: false })
+      .limit(15);
+    if (categoryId && categoryId !== "all") {
+      query = query.eq("category_id", categoryId);
+    }
+    const { data, error } = await query;
+    if (error) throw error;
+    return data as StoreProduct[];
+  }
+);
 // export async function fetchLandingPageProducts({ categoryId, featured, limit }: { categoryId?: string, featured?: boolean, limit: number }): Promise<StoreProduct[]> {
 //     let query = sb.from('products').select('id, name, price, short_description, main_image_url, average_rating, brand, category:categories(id, name)').in('status', ['active', 'out_of_stock']).order('created_at', { ascending: false }).limit(limit);
 //     if (featured !== undefined) { query = query.eq('featured', featured); }
@@ -439,46 +472,54 @@ export const fetchProductsUnder15k = cache(async (
 //     return data as StoreProduct[];
 // }
 
-export const fetchLandingPageProducts = cache(async ({
-  categoryId,
-  featured,
-  limit,
-  offset = 0,
-  sortBy,
-}: {
-  categoryId?: string;
-  featured?: boolean;
-  limit: number;
-  offset?: number;
-  sortBy?: string;
-}): Promise<StoreProduct[]> => {
-  let query = sb
-    .from("products")
-    .select(
-      "id, name, price, short_description, main_image_url, average_rating, brand, category:categories(id, name)"
-    )
-    .in("status", ["active", "out_of_stock"]);
+export const fetchLandingPageProducts = cache(
+  async ({
+    categoryId,
+    featured,
+    limit,
+    offset = 0,
+    sortBy,
+  }: {
+    categoryId?: string;
+    featured?: boolean;
+    limit: number;
+    offset?: number;
+    sortBy?: string;
+  }): Promise<StoreProduct[]> => {
+    let query = sb
+      .from("products")
+      .select(
+        "id, name, price, stock, short_description, main_image_url, average_rating, brand, category:categories(id, name)"
+      )
+      .in("status", ["active", "out_of_stock"]);
 
-  if (featured !== undefined) {
-    query = query.eq("featured", featured);
-  }
-  if (categoryId && categoryId !== "all") {
-    query = query.eq("category_id", categoryId);
-  }
+    if (featured !== undefined) {
+      query = query.eq("featured", featured);
+    }
+    if (categoryId && categoryId !== "all") {
+      query = query.eq("category_id", categoryId);
+    }
 
-  // Apply ordering and pagination
-  if (sortBy) {
-    // Custom sorting by specified column, with secondary sort by id for stability
-    query = query.order(sortBy, { ascending: true }).order("id", { ascending: true }).range(offset, offset + limit - 1);
-  } else {
-    // Default to latest ordering
-    query = query.order("created_at", { ascending: false }).order("id", { ascending: true }).range(offset, offset + limit - 1);
-  }
+    // Apply ordering and pagination
+    if (sortBy) {
+      // Custom sorting by specified column, with secondary sort by id for stability
+      query = query
+        .order(sortBy, { ascending: true })
+        .order("id", { ascending: true })
+        .range(offset, offset + limit - 1);
+    } else {
+      // Default to latest ordering
+      query = query
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: true })
+        .range(offset, offset + limit - 1);
+    }
 
-  const { data, error } = await query;
-  if (error) throw error;
-  return data as StoreProduct[];
-});
+    const { data, error } = await query;
+    if (error) throw error;
+    return data as StoreProduct[];
+  }
+);
 
 export interface SearchResult {
   id: string;
@@ -486,39 +527,41 @@ export interface SearchResult {
   main_image_url: string | null;
   short_description: string | null;
 }
-export const searchProductsByName = cache(async (
-  query: string
-): Promise<SearchResult[]> => {
-  if (!query.trim() || query.trim().length < 2) {
-    return [];
-  }
-
-  const searchTerm = query.trim();
-
-  // Use the new Full-Text Search RPC function for better relevance and ranking
-  const { data, error } = await sb.rpc('search_products_fts', {
-    search_term: searchTerm
-  });
-
-  if (error) {
-    console.error("Error searching products with FTS:", error);
-    // Fallback to basic search if FTS is not available
-    const { data: fallbackData, error: fallbackError } = await sb
-      .from("products")
-      .select("id, name, main_image_url, short_description")
-      .in("status", ["active", "out_of_stock"])
-      .or(`name.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%,short_description.ilike.%${searchTerm}%,tags.cs.{${searchTerm}}`)
-      .limit(5);
-
-    if (fallbackError) {
-      console.error("Error with fallback search:", fallbackError);
+export const searchProductsByName = cache(
+  async (query: string): Promise<SearchResult[]> => {
+    if (!query.trim() || query.trim().length < 2) {
       return [];
     }
-    return fallbackData as SearchResult[];
-  }
 
-  return data as SearchResult[];
-});
+    const searchTerm = query.trim();
+
+    // Use the new Full-Text Search RPC function for better relevance and ranking
+    const { data, error } = await sb.rpc("search_products_fts", {
+      search_term: searchTerm,
+    });
+
+    if (error) {
+      console.error("Error searching products with FTS:", error);
+      // Fallback to basic search if FTS is not available
+      const { data: fallbackData, error: fallbackError } = await sb
+        .from("products")
+        .select("id, name, main_image_url, short_description")
+        .in("status", ["active", "out_of_stock"])
+        .or(
+          `name.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%,short_description.ilike.%${searchTerm}%,tags.cs.{${searchTerm}}`
+        )
+        .limit(5);
+
+      if (fallbackError) {
+        console.error("Error with fallback search:", fallbackError);
+        return [];
+      }
+      return fallbackData as SearchResult[];
+    }
+
+    return data as SearchResult[];
+  }
+);
 
 export const fetchAllProductIds = cache(async (): Promise<string[]> => {
   const { data, error } = await sb

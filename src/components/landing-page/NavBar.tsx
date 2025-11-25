@@ -215,8 +215,8 @@ const NavBar: FC<NavBarProps> = ({}) => {
             </Link>
           </Button>
 
-          {/* Notifications (keep it before the user control) */}
-          <NotificationsBell />
+          {/* Notifications (show only when logged in) */}
+          {isLoggedIn && <NotificationsBell />}
 
           {/* Desktop ellipsis menu (always present on large screens). */}
           <DropdownMenu>

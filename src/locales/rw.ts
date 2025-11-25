@@ -374,7 +374,7 @@ export const rw: Record<string, string> = {
     "Ubasha kubona urutonde rw'amakomande yawe n'ibisobanuro byazo",
   "thankYou.createAccount.benefits.6": "N'ibindi byinshi",
   "thankYou.createAccount.cta": "Kora Konti",
-  "thankYou.createAccount.registerLink": "Iyandikishe hano",
+  "thankYou.createAccount.registerLink": "Injira hano",
 
   "thankYou.refundPolicy.title": "Uburyo bwo Gusubizwa Amafaranga",
   "thankYou.refundPolicy.text":

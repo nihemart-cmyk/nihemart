@@ -391,7 +391,7 @@ export const en: Record<string, string> = {
     "You get a list of past orders and more analytics",
   "thankYou.createAccount.benefits.6": "And much more than that",
   "thankYou.createAccount.cta": "Create Account",
-  "thankYou.createAccount.registerLink": "Register here",
+  "thankYou.createAccount.registerLink": "Login here",
 
   "thankYou.refundPolicy.title": "Refund Policy",
   "thankYou.refundPolicy.text":

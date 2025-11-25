@@ -293,7 +293,7 @@ const ThankYou: React.FC<ThankYouProps> = ({ message }) => {
                 {t("thankYou.createAccount.cta")}
               </Link>
               <Link
-                href="/signup"
+                href="/signin"
                 className="rounded-lg border border-sky-200 px-4 py-2 text-sky-600 font-medium"
               >
                 {t("thankYou.createAccount.registerLink")}
