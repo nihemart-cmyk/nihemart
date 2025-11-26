@@ -79,6 +79,13 @@ export function OrderDetailsDialog({
    const { user, hasRole } = useAuth();
    const isOwner = user?.id === order.user_id;
    const isAdmin = typeof hasRole === "function" ? hasRole("admin") : false;
+   const statusLower = (order.status || "").toLowerCase();
+   const orderRefundStatus = (order.refund_status || "").toLowerCase();
+   const nonRefundableOrder =
+      statusLower === "cancelled" ||
+      statusLower === "refunded" ||
+      orderRefundStatus === "approved" ||
+      orderRefundStatus === "refunded";
    const [loadingItemId, setLoadingItemId] = useState<string | null>(null);
    const [manageDialogOpen, setManageDialogOpen] = useState(false);
    const [manageItem, setManageItem] = useState<OrderItem | null>(null);
@@ -445,7 +452,8 @@ export function OrderDetailsDialog({
                                              )}
                                              {isAdmin &&
                                                 item.refund_status ===
-                                                   "requested" && (
+                                                   "requested" &&
+                                                !nonRefundableOrder && (
                                                    <Button
                                                       size="sm"
                                                       variant="outline"
@@ -461,7 +469,8 @@ export function OrderDetailsDialog({
                                                 )}
 
                                              {isAdmin &&
-                                                !item.refund_status && (
+                                                !item.refund_status &&
+                                                !nonRefundableOrder && (
                                                    <Button
                                                       size="sm"
                                                       variant="ghost"

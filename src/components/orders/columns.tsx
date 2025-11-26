@@ -367,6 +367,13 @@ export const columns: ColumnDef<Order>[] = [
       size: 10,
       cell: ({ row }) => {
          const order = row.original;
+         const statusLower = (order.status || "").toLowerCase();
+         const orderRefundStatus = (order.refund_status || "").toLowerCase();
+         const nonRefundableOrder =
+            statusLower === "cancelled" ||
+            statusLower === "refunded" ||
+            orderRefundStatus === "approved" ||
+            orderRefundStatus === "refunded";
          const { updateOrderStatus } = useOrders();
          const hasRefund =
             (Array.isArray(order.items) &&
@@ -433,15 +440,17 @@ export const columns: ColumnDef<Order>[] = [
                      >
                         View order details
                      </DropdownMenuItem>
-                     {hasRefund && isAdmin && (
-                        <DropdownMenuItem
-                           onClick={() => setShowManageRefund(true)}
-                        >
-                           {order.is_external
-                              ? "Refund By Admin"
-                              : "Manage refund"}
-                        </DropdownMenuItem>
-                     )}
+                     {isAdmin &&
+                        order.status === "delivered" &&
+                        !order.is_external && (
+                           <DropdownMenuItem
+                              onClick={() => setShowManageRefund(true)}
+                           >
+                              {order.is_external
+                                 ? "Refund By Admin"
+                                 : "Refund By Admin"}
+                           </DropdownMenuItem>
+                        )}
                      {order.status === "pending" && (
                         <DropdownMenuItem
                            onClick={() => setShowAssignDialog(true)}
@@ -487,7 +496,7 @@ export const columns: ColumnDef<Order>[] = [
                   order={order}
                />
 
-               {isAdmin && hasRefund && (
+               {isAdmin && (
                   <ManageRefundDialog
                      open={showManageRefund}
                      onOpenChange={setShowManageRefund}
