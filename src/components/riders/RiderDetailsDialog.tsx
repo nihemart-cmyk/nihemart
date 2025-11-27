@@ -130,10 +130,23 @@ export default function RiderDetailsDialog({
             m.delivered++;
             // Calculate earnings for completed deliveries
             const o = a.orders || a.order || null;
-            const fee =
-               o?.tax ?? o?.delivery_fee ?? a.delivery_fee ?? a.fee ?? 0;
-            const feeNum =
-               typeof fee === "string" ? parseFloat(fee) : Number(fee || 0);
+            // Base rider fee may live on the assignment or order; prefer assignment values
+            const baseFeeRaw =
+               a?.fee ?? a?.delivery_fee ?? o?.delivery_fee ?? 0;
+            const baseFee =
+               typeof baseFeeRaw === "string"
+                  ? parseFloat(baseFeeRaw)
+                  : Number(baseFeeRaw || 0);
+            const transportRaw = o?.tax ?? 0;
+            const transportNum =
+               typeof transportRaw === "string"
+                  ? parseFloat(transportRaw)
+                  : Number(transportRaw || 0);
+            const feeNum = Math.max(
+               0,
+               (isNaN(baseFee) ? 0 : baseFee) +
+                  (isNaN(transportNum) ? 0 : transportNum)
+            );
             if (!isNaN(feeNum)) {
                m.totalEarnings += feeNum;
             }
@@ -354,16 +367,22 @@ export default function RiderDetailsDialog({
                         )}
                         {displayedAssignments.map((a: any) => {
                            const o = a.orders || a.order || null;
-                           const fee =
-                              o?.tax ??
-                              o?.delivery_fee ??
-                              a.delivery_fee ??
-                              a.fee ??
-                              0;
-                           const feeNum =
-                              typeof fee === "string"
-                                 ? parseFloat(fee)
-                                 : Number(fee || 0);
+                           const baseFeeRaw =
+                              a?.fee ?? a?.delivery_fee ?? o?.delivery_fee ?? 0;
+                           const baseFee =
+                              typeof baseFeeRaw === "string"
+                                 ? parseFloat(baseFeeRaw)
+                                 : Number(baseFeeRaw || 0);
+                           const transportRaw = o?.tax ?? 0;
+                           const transportNum =
+                              typeof transportRaw === "string"
+                                 ? parseFloat(transportRaw)
+                                 : Number(transportRaw || 0);
+                           const feeNum = Math.max(
+                              0,
+                              (isNaN(baseFee) ? 0 : baseFee) +
+                                 (isNaN(transportNum) ? 0 : transportNum)
+                           );
                            return (
                               <div
                                  key={a.id}

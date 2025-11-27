@@ -33,7 +33,10 @@ export default async function handler(
       // Use the same logic as RiderDetailsDialog for calculating earnings
       const { data, error } = await supabase
          .from("order_assignments")
-         .select("rider_id, status, orders:orders(id, status, tax)")
+         // include assignment-level fee/delivery_fee and order tax/delivery_fee
+         .select(
+            "rider_id, status, fee, delivery_fee, orders:orders(id, status, tax, delivery_fee)"
+         )
          .gte("assigned_at", cutoff.toISOString());
 
       if (error) return res.status(500).json({ error: error.message || error });
@@ -48,8 +51,15 @@ export default async function handler(
          if (s === "accepted" || s === "completed" || s === "delivered") {
             // Calculate earnings for completed deliveries (same logic as dialog)
             const o = order || null;
-            const fee = o?.tax ?? 0;
-            const feeNum = Number(fee || 0);
+            const baseFeeRaw =
+               row?.fee ?? row?.delivery_fee ?? o?.delivery_fee ?? 0;
+            const baseFee = Number(baseFeeRaw || 0);
+            const transport = Number(o?.tax || 0);
+            const feeNum = Math.max(
+               0,
+               (isNaN(baseFee) ? 0 : baseFee) +
+                  (isNaN(transport) ? 0 : transport)
+            );
             if (!isNaN(feeNum) && feeNum > 0) {
                earnings[rid] = (earnings[rid] || 0) + feeNum;
             }

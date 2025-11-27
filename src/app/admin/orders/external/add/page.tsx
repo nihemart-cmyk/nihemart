@@ -51,6 +51,7 @@ interface ExternalOrderFormData {
    status: "pending" | "processing" | "shipped" | "delivered" | "cancelled";
    source: "whatsapp" | "phone" | "other";
    total: number;
+   transport?: number;
    items: ExternalOrderItemInput[];
    is_external: boolean;
    is_paid: boolean;
@@ -80,6 +81,7 @@ export default function AddExternalOrderPage() {
       delivery_notes: "",
       status: "pending",
       total: 0,
+      transport: 0,
       source: "whatsapp",
       is_external: true,
       is_paid: true,
@@ -202,12 +204,15 @@ export default function AddExternalOrderPage() {
             (sum, item) => sum + item.price * item.quantity,
             0
          );
+         const transportFee = Number(formData.transport || 0);
 
          console.log("Calculated total:", calculatedTotal);
 
          const orderData = {
             ...formData,
+            // send items subtotal as `total` and transport as separate field
             total: calculatedTotal,
+            transport: transportFee,
             items: formData.items.map((item) => ({
                ...item,
                total: item.price * item.quantity,
@@ -655,10 +660,27 @@ export default function AddExternalOrderPage() {
                         </CardHeader>
                         <CardContent className="space-y-4">
                            <div className="space-y-2">
-                              <div className="flex justify-between font-semibold text-lg border-t pt-2">
-                                 <span>Total</span>
+                              <div className="flex justify-between font-medium text-sm">
+                                 <span>Items subtotal</span>
                                  <span>
                                     {formData.total.toLocaleString()} RWF
+                                 </span>
+                              </div>
+                              <div className="flex justify-between font-medium text-sm">
+                                 <span>Transport fee</span>
+                                 <span>
+                                    {(formData.transport || 0).toLocaleString()}{" "}
+                                    RWF
+                                 </span>
+                              </div>
+                              <div className="flex justify-between font-semibold text-lg border-t pt-2">
+                                 <span>Grand Total</span>
+                                 <span>
+                                    {(
+                                       Number(formData.total || 0) +
+                                       Number(formData.transport || 0)
+                                    ).toLocaleString()}{" "}
+                                    RWF
                                  </span>
                               </div>
                            </div>
@@ -730,6 +752,36 @@ export default function AddExternalOrderPage() {
                                  <span className="text-sm capitalize">
                                     {formData.source}
                                  </span>
+                              </div>
+                           </div>
+                           <div className="rounded-lg border p-3">
+                              <Label
+                                 htmlFor="transport"
+                                 className="text-base"
+                              >
+                                 Transport Fee (RWF)
+                              </Label>
+                              <div className="mt-2">
+                                 <Input
+                                    id="transport"
+                                    type="number"
+                                    min={0}
+                                    step={1}
+                                    value={(formData.transport || 0).toString()}
+                                    onChange={(e) =>
+                                       setFormData((prev) => ({
+                                          ...prev,
+                                          transport: e.target.value
+                                             ? parseFloat(e.target.value)
+                                             : 0,
+                                       }))
+                                    }
+                                 />
+                                 <div className="text-xs text-muted-foreground mt-1">
+                                    Optional transport fee for this external
+                                    order. This will be added on top of rider
+                                    earnings.
+                                 </div>
                               </div>
                            </div>
                         </CardContent>

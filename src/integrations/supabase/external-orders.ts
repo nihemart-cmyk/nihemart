@@ -20,7 +20,10 @@ export interface ExternalOrderInput {
    delivery_notes?: string;
    status: "pending" | "processing" | "shipped" | "delivered" | "cancelled";
    source: "whatsapp" | "phone" | "other";
+   // `total` here represents the items subtotal. Transport (tax) can be
+   // supplied separately and will be added to compute the final order total.
    total: number;
+   transport?: number;
    items: ExternalOrderItemInput[];
    is_external: boolean;
    is_paid: boolean;
@@ -39,6 +42,7 @@ export async function createExternalOrder(
       status,
       source,
       total,
+      transport = 0,
       items,
       is_external,
       is_paid,
@@ -75,7 +79,11 @@ export async function createExternalOrder(
          {
             status,
             subtotal: total,
-            total,
+            // store transport fee in `tax` (existing checkout uses tax for transport)
+            tax: transport,
+            total: Number(
+               (Number(total || 0) + Number(transport || 0)).toFixed(2)
+            ),
             currency: "RWF",
             user_id: userId, // attach user id when available to satisfy RLS
             customer_email: customer_email || "",
@@ -136,7 +144,10 @@ export async function createExternalOrder(
 
          const paymentRow: any = {
             order_id: orderData.id,
-            amount: total,
+            // Payment amount should include transport
+            amount: Number(
+               (Number(total || 0) + Number(transport || 0)).toFixed(2)
+            ),
             currency: "RWF",
             payment_method: "manual",
             status: "completed",
