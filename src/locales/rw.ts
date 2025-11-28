@@ -108,6 +108,8 @@ export const rw: Record<string, string> = {
   "checkout.guestDetails": "Ibikuranga",
   "checkout.orderInfo": "Amakuru ya Komande",
   "checkout.email": "Imeyili",
+  "checkout.fullName": "Amazina yawe",
+  "checkout.fullNamePlaceholder": "Shyiramo amazina yawe",
   "checkout.firstName": "Izina rya mbere",
   "checkout.lastName": "Izina rya nyuma",
   "checkout.firstNamePlaceholder": "Izina ",

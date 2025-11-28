@@ -132,6 +132,8 @@ export const en: Record<string, string> = {
     "All payments are processed securely using industry-standard encryption.",
   "checkout.orderInfo": "Order Information",
   "checkout.email": "Email",
+  "checkout.fullName": "Full Name",
+  "checkout.fullNamePlaceholder": "Enter your Full Name",
   "checkout.firstName": "First Name",
   "checkout.firstNamePlaceholder": "First name",
   "checkout.lastName": "Last Name",

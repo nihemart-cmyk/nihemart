@@ -44,7 +44,7 @@ const GuestCheckoutForm: React.FC<Props> = ({
                </Label>
                <Input
                   value={formData.fullName || ""}
-                  placeholder={t("checkout.fullNamePlaceholder") || "Full name"}
+                  placeholder={t("checkout.fullNamePlaceholder") || "Enter yourFull name"}
                   onChange={(e) =>
                      setFormData((prev: any) => ({
                         ...prev,

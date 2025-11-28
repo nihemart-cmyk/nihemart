@@ -310,7 +310,11 @@ const ThankYou: React.FC<ThankYouProps> = ({ message }) => {
           </div>
 
           {/* Continue Shopping Button */}
-          <button className="w-full group relative overflow-hidden rounded-2xl bg-gradient-to-r from-sky-500 to-sky-600 p-px transition-all duration-300 hover:shadow-xl hover:shadow-sky-300/40 hover:scale-[1.02] active:scale-[0.98]">
+          <Link
+            href="/products"
+            className="w-full group relative overflow-hidden rounded-2xl bg-gradient-to-r from-sky-500 to-sky-600 p-px transition-all duration-300 hover:shadow-xl hover:shadow-sky-300/40 hover:scale-[1.02] active:scale-[0.98]"
+            aria-label={t("thankYou.continueShopping")}
+          >
             <div className="relative flex items-center justify-center gap-3 rounded-2xl bg-gradient-to-r from-sky-500 to-sky-600 px-8 py-4 transition-all">
               <span className="text-lg font-semibold text-white">
                 {t("thankYou.continueShopping")}
@@ -330,7 +334,7 @@ const ThankYou: React.FC<ThankYouProps> = ({ message }) => {
               </svg>
             </div>
             <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent group-hover:translate-x-full transition-transform duration-700" />
-          </button>
+          </Link>
         </div>
       </div>
 
