@@ -123,7 +123,7 @@ const getDateRangeFromFilter = (
 };
 
 // Main Dashboard Component
-const Dashboard: React.FC = () => {
+const DashboardContent: React.FC = () => {
   const [filterType, setFilterType] = useState<FilterType>("today");
   const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>(
     undefined
@@ -908,13 +908,12 @@ const Dashboard: React.FC = () => {
       </ScrollArea>
     </div>
   );
-}
+};
+
+export default function Page() {
   return (
     <ProtectedRoute requiredSection="dashboard">
       <DashboardContent />
     </ProtectedRoute>
   );
 }
-
-function DashboardContent() {
-  return (
