@@ -110,6 +110,11 @@ export function CustomerTable() {
     return () => clearTimeout(t);
   }, [searchQuery, setSearch, setPage]);
 
+  const filteredBySearch = useMemo(
+    () => customers,
+    [customers]
+  );
+
   const columns = useMemo(
     () =>
       createCustomerColumns(
