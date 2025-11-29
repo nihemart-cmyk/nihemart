@@ -130,7 +130,7 @@ const ProductCard = ({ product }: { product: StoreProduct }) => {
                 productId={product.id}
                 size="sm"
                 variant="ghost"
-                className="bg-white/90 backdrop-blur-sm hover:bg-white shadow-sm rounded-full p-1.5"
+                className="bg-white/90 backdrop-blur-sm hover:bg-white shadow-sm p-2"
               />
             {/* )} */}
           </div>
