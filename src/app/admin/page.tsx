@@ -36,6 +36,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchRiders } from "@/integrations/supabase/riders";
 import { useUsers } from "@/hooks/useUsers";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 const sb = supabase as any;
 import {
   Area,
@@ -907,6 +908,13 @@ const Dashboard: React.FC = () => {
       </ScrollArea>
     </div>
   );
-};
+}
+  return (
+    <ProtectedRoute requiredSection="dashboard">
+      <DashboardContent />
+    </ProtectedRoute>
+  );
+}
 
-export default Dashboard;
+function DashboardContent() {
+  return (
