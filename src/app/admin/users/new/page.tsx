@@ -25,7 +25,7 @@ export default function CreateUserPage() {
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [role, setRole] = useState<
-    "admin" | "user" | "rider" | "manager" | "stock_manager"
+    "admin" | "user" | "rider" | "manager" | "stock_manager" | "staff"
   >("user");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -258,6 +258,7 @@ export default function CreateUserPage() {
                         | "rider"
                         | "manager"
                         | "stock_manager"
+                        | "staff"
                     ) => setRole(value)}
                     disabled={loading}
                   >
@@ -310,6 +311,15 @@ export default function CreateUserPage() {
                           </span>
                         </div>
                       </SelectItem>
+
+                      <SelectItem value="staff">
+                        <div className="flex flex-col items-start">
+                          <span className="font-medium">Staff</span>
+                          <span className="text-sm text-gray-500">
+                            Has access to orders, riders and refunds
+                          </span>
+                        </div>
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -331,6 +341,8 @@ export default function CreateUserPage() {
                       "Managers oversee operations, teams, and are responsible for day-to-day activities."}
                     {role === "stock_manager" &&
                       "Stock Managers handle inventory, stock updates, and warehouse control."}
+                    {role === "staff" &&
+                      "Staff have access to orders, riders, and refunds."}
                   </p>
                 </div>
               </CardContent>
