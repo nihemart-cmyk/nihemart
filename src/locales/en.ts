@@ -85,6 +85,8 @@ export const en: Record<string, string> = {
   "products.buyNow": "Buy Now",
   "products.outOfStock": "Out of Stock",
   "products.viewDetails": "View Details",
+  "products.more": "For more about this product, please watch this video",
+  "products.visit": "Visit us on",
 
   //   how to buy
   "howToBuy.title": "How to Buy",

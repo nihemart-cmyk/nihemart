@@ -85,6 +85,8 @@ export const rw: Record<string, string> = {
   "products.buyNow": "Gura Nonaha",
   "products.outOfStock": "Ntibihari",
   "products.viewDetails": "Reba Amakuru",
+  "products.more": "Kugira ngo umenye byinshi kuri iki gicuruzwa, reba iyi video",
+  "products.visit": "Dusure kuri",
 
   // Cart
   "cart.title": "Agatebo kawe",

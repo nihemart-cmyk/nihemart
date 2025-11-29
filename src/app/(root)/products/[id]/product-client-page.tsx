@@ -310,7 +310,7 @@ export default function ProductClientPage({
         emoji: "💬",
         color: "from-green-500 to-green-600",
       };
-    if (u.includes("youtube"))
+    if (u.includes("youtu"))
       return { name: "YouTube", emoji: "🎥", color: "from-red-600 to-red-700" };
     if (u.includes("tiktok"))
       return {
@@ -423,7 +423,7 @@ export default function ProductClientPage({
             <div className="flex items-start justify-between">
               <div className="flex-1">
                 {/* <div className="flex items-baseline gap-2"><span className="text-3xl font-bold text-orange-600">{currentPrice.toFixed(2)} frw</span>{comparePrice && <span className="text-lg text-gray-500 line-through">€{comparePrice.toFixed(2)}</span>}</div> */}
-                <div className="flex items-baseline gap-2">
+                <div className="flex items-baseline gap-2 md:hidden">
                   <span className="text-3xl font-bold text-orange-600">
                     {currentPrice.toLocaleString()} frw
                   </span>
@@ -453,16 +453,16 @@ export default function ProductClientPage({
             </div>
             <div className="space-y-2">
               {/* <div className="flex items-baseline gap-2"><span className="text-3xl font-bold text-orange-600">{currentPrice.toFixed(2)} frw</span>{comparePrice && <span className="text-lg text-gray-500 line-through">€{comparePrice.toFixed(2)}</span>}</div> */}
-              {/* <div className="flex items-baseline gap-2">
-                        <span className="text-3xl font-bold text-orange-600">
-                           {currentPrice.toLocaleString()} frw
-                        </span>
-                        {comparePrice && (
-                           <span className="text-lg text-gray-500 line-through">
-                              {comparePrice} frw
-                           </span>
-                        )}
-                     </div> */}
+              <div className="md:flex items-baseline gap-2 hidden">
+                <span className="text-3xl font-bold text-orange-600">
+                  {currentPrice.toLocaleString()} frw
+                </span>
+                {comparePrice && (
+                  <span className="text-lg text-gray-500 line-through">
+                    {comparePrice} frw
+                  </span>
+                )}
+              </div>
 
               <div className="flex items-center gap-2">
                 <div className="flex items-center">
@@ -577,7 +577,7 @@ export default function ProductClientPage({
                   return (
                     <div className="w-full">
                       <h3 className="font-bold text-lg text-gray-900 mb-3">
-                        More about the product
+                        {t('products.more')}
                       </h3>
                       <a
                         href={product.social_media_link}
@@ -591,7 +591,7 @@ export default function ProductClientPage({
                           </span>
                           <div className="min-w-0 flex-1">
                             <div className="text-sm font-semibold text-gray-900">
-                              Visit us on {meta?.name}
+                              {t("products.visit")} {meta?.name}
                             </div>
                             <div className="text-xs text-gray-600 truncate sm:text-sm">
                               {product.social_media_link.replace(
