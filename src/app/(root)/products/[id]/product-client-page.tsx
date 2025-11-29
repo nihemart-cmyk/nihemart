@@ -337,6 +337,20 @@ export default function ProductClientPage({
     };
   };
 
+  // Calculate price range from variations
+  const priceRange = useMemo(() => {
+    if (variations.length === 0) return null;
+    const prices = variations
+      .map((v) => v.price)
+      .filter((p) => p != null && p !== undefined)
+      .sort((a, b) => (a ?? 0) - (b ?? 0));
+    if (prices.length === 0) return null;
+    return {
+      min: prices[0],
+      max: prices[prices.length - 1],
+    };
+  }, [variations]);
+
   const currentPrice = singleSelectedVariation?.price ?? product.price;
   const comparePrice = product.compare_at_price;
   const inStock =
@@ -424,9 +438,19 @@ export default function ProductClientPage({
               <div className="flex-1">
                 {/* <div className="flex items-baseline gap-2"><span className="text-3xl font-bold text-orange-600">{currentPrice.toFixed(2)} frw</span>{comparePrice && <span className="text-lg text-gray-500 line-through">€{comparePrice.toFixed(2)}</span>}</div> */}
                 <div className="flex items-baseline gap-2 md:hidden">
-                  <span className="text-3xl font-bold text-orange-600">
-                    {currentPrice.toLocaleString()} frw
-                  </span>
+                  {!singleSelectedVariation && priceRange ? (
+                    <>
+                      <span className="text-3xl font-bold text-orange-600">
+                        {priceRange.min === priceRange.max
+                          ? `${priceRange.min.toLocaleString()} frw`
+                          : `${priceRange.min.toLocaleString()} - ${priceRange.max.toLocaleString()} frw`}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-3xl font-bold text-orange-600">
+                      {currentPrice.toLocaleString()} frw
+                    </span>
+                  )}
                   {comparePrice && (
                     <span className="text-lg text-gray-500 line-through">
                       {comparePrice} frw
@@ -454,9 +478,19 @@ export default function ProductClientPage({
             <div className="space-y-2">
               {/* <div className="flex items-baseline gap-2"><span className="text-3xl font-bold text-orange-600">{currentPrice.toFixed(2)} frw</span>{comparePrice && <span className="text-lg text-gray-500 line-through">€{comparePrice.toFixed(2)}</span>}</div> */}
               <div className="md:flex items-baseline gap-2 hidden">
-                <span className="text-3xl font-bold text-orange-600">
-                  {currentPrice.toLocaleString()} frw
-                </span>
+                {!singleSelectedVariation && priceRange ? (
+                  <>
+                    <span className="text-3xl font-bold text-orange-600">
+                      {priceRange.min === priceRange.max
+                        ? `${priceRange.min.toLocaleString()} frw`
+                        : `${priceRange.min.toLocaleString()} - ${priceRange.max.toLocaleString()} frw`}
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-3xl font-bold text-orange-600">
+                    {currentPrice.toLocaleString()} frw
+                  </span>
+                )}
                 {comparePrice && (
                   <span className="text-lg text-gray-500 line-through">
                     {comparePrice} frw
@@ -577,7 +611,7 @@ export default function ProductClientPage({
                   return (
                     <div className="w-full">
                       <h3 className="font-bold text-lg text-gray-900 mb-3">
-                        {t('products.more')}
+                        {t("products.more")}
                       </h3>
                       <a
                         href={product.social_media_link}
@@ -879,7 +913,14 @@ export default function ProductClientPage({
                         />
                       </div>
                     </div>
-                    <p className="font-bold text-orange-600">FRW {p.price}</p>
+                    <p className="font-bold text-orange-600">
+                      FRW{" "}
+                      {p.minPrice && p.maxPrice
+                        ? p.minPrice === p.maxPrice
+                          ? p.minPrice.toLocaleString()
+                          : `${p.minPrice.toLocaleString()} - ${p.maxPrice.toLocaleString()}`
+                        : p.price.toLocaleString()}
+                    </p>
                     <h3 className="font-medium text-sm mb-1 truncate">
                       {p.name}
                     </h3>

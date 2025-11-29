@@ -118,7 +118,13 @@ export default function WishlistPage() {
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-lg sm:text-xl font-bold text-orange-600">
                       {t("wishlist.price")}{" "}
-                      {item.product.price.toLocaleString()}
+                      {(item.product as any).minPrice &&
+                      (item.product as any).maxPrice
+                        ? (item.product as any).minPrice ===
+                          (item.product as any).maxPrice
+                          ? (item.product as any).minPrice.toLocaleString()
+                          : `${(item.product as any).minPrice.toLocaleString()}-${(item.product as any).maxPrice.toLocaleString()}`
+                        : item.product.price.toLocaleString()}
                     </span>
                   </div>
 

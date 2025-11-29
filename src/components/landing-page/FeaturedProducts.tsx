@@ -44,7 +44,12 @@ const ProductCard = ({ product }: { product: StoreProduct }) => (
     {/* Wishlist button */}
     <div className="absolute z-20 top-3 flex justify-between w-full px-2">
       <span className="md:hidden text-white bg-orange-500 my-auto py-1 px-3 text-center rounded-lg text-sm font-bold">
-        RWF {product?.price.toLocaleString()}
+        RWF{" "}
+        {product.minPrice && product.maxPrice
+          ? product.minPrice === product.maxPrice
+            ? product.minPrice.toLocaleString()
+            : `${product.minPrice.toLocaleString()}-${product.maxPrice.toLocaleString()}`
+          : product?.price.toLocaleString()}
       </span>
       <WishlistButton
         productId={product.id}
@@ -68,7 +73,12 @@ const ProductCard = ({ product }: { product: StoreProduct }) => (
     {/* Card Content: reduced text sizes on mobile */}
     <div className="flex-col flex-1 px-3 md:px-4 pt-2 md:pt-3 pb-3 gap-1 hidden md:flex ">
       <span className="text-orange-500 text-base md:text-lg font-bold">
-        RWF {product?.price.toLocaleString()}
+        RWF{" "}
+        {product.minPrice && product.maxPrice
+          ? product.minPrice === product.maxPrice
+            ? product.minPrice.toLocaleString()
+            : `${product.minPrice.toLocaleString()}-${product.maxPrice.toLocaleString()}`
+          : product?.price.toLocaleString()}
       </span>
       <h4 className="font-bold text-gray-900 text-sm md:text-base line-clamp-2 truncate">
         {product.name}

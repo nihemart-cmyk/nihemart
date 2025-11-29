@@ -25,44 +25,54 @@ const ProductGridSkeleton = ({ count = 4 }: { count?: number }) => (
   </div>
 );
 
-const ProductCard = ({ product }: { product: StoreProduct }) => (
-  <Link
-    href={`/products/${product.id}`}
-    className="group flex flex-col bg-white rounded-xl overflow-hidden shadow hover:shadow-lg transition-all duration-300 border border-gray-100 h-full relative"
-    aria-label={`View details for ${product.name}`}
-    tabIndex={0}
-  >
-    {/* Wishlist Button */}
-    <div className="absolute z-20 right-2 top-2">
-      <WishlistButton
-        productId={product.id}
-        size="sm"
-        variant="ghost"
-        className="bg-white/80 backdrop-blur-sm hover:bg-white shadow-sm"
-      />
-    </div>
+const ProductCard = ({ product }: { product: StoreProduct }) => {
+  // Display price range if min/max prices exist, otherwise show single price
+  const displayPrice =
+    product.minPrice && product.maxPrice
+      ? product.minPrice === product.maxPrice
+        ? `RWF ${product.minPrice.toLocaleString()}`
+        : `RWF ${product.minPrice.toLocaleString()} - ${product.maxPrice.toLocaleString()}`
+      : `RWF ${product.price.toLocaleString()}`;
 
-    <div className="relative w-full h-[120px] md:h-[35vh] bg-gray-100">
-      <Image
-        src={product.main_image_url || "/placeholder.svg"}
-        alt={product.name}
-        fill
-        className="object-cover transition-transform duration-300 group-hover:scale-105"
-        sizes="(max-width: 640px) 100vw, 33vw"
-      />
-    </div>
+  return (
+    <Link
+      href={`/products/${product.id}`}
+      className="group flex flex-col bg-white rounded-xl overflow-hidden shadow hover:shadow-lg transition-all duration-300 border border-gray-100 h-full relative"
+      aria-label={`View details for ${product.name}`}
+      tabIndex={0}
+    >
+      {/* Wishlist Button */}
+      <div className="absolute z-20 right-2 top-2">
+        <WishlistButton
+          productId={product.id}
+          size="sm"
+          variant="ghost"
+          className="bg-white/80 backdrop-blur-sm hover:bg-white shadow-sm"
+        />
+      </div>
 
-    {/* ✅ More compact text area */}
-    <div className="flex flex-col flex-1 px-2 pt-1 pb-2 gap-0.5 sm:gap-1.5">
-      <span className="text-orange-500 text-xs sm:text-sm md:text-lg font-bold">
-        RWF {product.price.toLocaleString()}
-      </span>
-      <h4 className="font-semibold text-gray-900 text-[11px] sm:text-sm md:text-base line-clamp-2">
-        {product.name}
-      </h4>
-    </div>
-  </Link>
-);
+      <div className="relative w-full h-[120px] md:h-[35vh] bg-gray-100">
+        <Image
+          src={product.main_image_url || "/placeholder.svg"}
+          alt={product.name}
+          fill
+          className="object-cover transition-transform duration-300 group-hover:scale-105"
+          sizes="(max-width: 640px) 100vw, 33vw"
+        />
+      </div>
+
+      {/* ✅ More compact text area */}
+      <div className="flex flex-col flex-1 px-2 pt-1 pb-2 gap-0.5 sm:gap-1.5">
+        <span className="text-orange-500 text-xs sm:text-sm md:text-lg font-bold">
+          {displayPrice}
+        </span>
+        <h4 className="font-semibold text-gray-900 text-[11px] sm:text-sm md:text-base line-clamp-2">
+          {product.name}
+        </h4>
+      </div>
+    </Link>
+  );
+};
 
 const MoreToLove: FC<MoreToLoveProps> = ({}) => {
   const { t } = useLanguage();

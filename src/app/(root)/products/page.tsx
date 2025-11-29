@@ -522,7 +522,16 @@ function ProductListingComponent() {
                                 </span>
                               ) : (
                                 <span className="hidden md:inline-block bg-orange-500 text-white text-xs font-bold rounded-lg px-3 py-1 shadow-md">
-                                  RWF {product?.price.toLocaleString()}
+                                  RWF{" "}
+                                  {(product as any).minPrice &&
+                                  (product as any).maxPrice
+                                    ? (product as any).minPrice ===
+                                      (product as any).maxPrice
+                                      ? (
+                                          product as any
+                                        ).minPrice.toLocaleString()
+                                      : `${(product as any).minPrice.toLocaleString()}-${(product as any).maxPrice.toLocaleString()}`
+                                    : product?.price.toLocaleString()}
                                 </span>
                               )}
                             </div>
@@ -557,7 +566,14 @@ function ProductListingComponent() {
                           {/* Content */}
                           <div className="space-y-2">
                             <p className="md:hidden font-bold text-orange-500 text-lg">
-                              {product?.price.toLocaleString()} frw
+                              {(product as any).minPrice &&
+                              (product as any).maxPrice
+                                ? (product as any).minPrice ===
+                                  (product as any).maxPrice
+                                  ? (product as any).minPrice.toLocaleString()
+                                  : `${(product as any).minPrice.toLocaleString()}-${(product as any).maxPrice.toLocaleString()}`
+                                : product?.price.toLocaleString()}{" "}
+                              frw
                             </p>
                             <h3 className="font-semibold text-gray-900 text-sm md:text-lg truncate">
                               {product?.name}
