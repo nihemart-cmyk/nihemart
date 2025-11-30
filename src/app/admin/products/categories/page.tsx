@@ -1,40 +1,53 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useCallback } from 'react';
-import { Plus, Search } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import CategoriesTable from '@/components/admin/categories-table';
-import ViewCategoryDialog from '@/components/admin/view-category-dialog';
-import AddEditCategoryDialog from '@/components/admin/add-category-dialog';
-import AddEditSubcategoryDialog from '@/components/admin/add-subcategory-dialog';
-import { fetchCategories, deleteCategory } from '@/integrations/supabase/categories';
-import { fetchSubcategories, deleteSubcategory } from '@/integrations/supabase/subcategories';
-import type { Category } from '@/integrations/supabase/categories';
-import type { Subcategory } from '@/integrations/supabase/subcategories';
-import { useDebounce } from '@/hooks/use-debounce';
+import { useState, useEffect, useCallback } from "react";
+import { Plus, Search } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import CategoriesTable from "@/components/admin/categories-table";
+import ViewCategoryDialog from "@/components/admin/view-category-dialog";
+import AddEditCategoryDialog from "@/components/admin/add-category-dialog";
+import AddEditSubcategoryDialog from "@/components/admin/add-subcategory-dialog";
+import {
+  fetchCategories,
+  deleteCategory,
+} from "@/integrations/supabase/categories";
+import {
+  fetchSubcategories,
+  deleteSubcategory,
+} from "@/integrations/supabase/subcategories";
+import type { Category } from "@/integrations/supabase/categories";
+import type { Subcategory } from "@/integrations/supabase/subcategories";
+import { useDebounce } from "@/hooks/use-debounce";
 
 export default function CategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
-  const [categorySubcategories, setCategorySubcategories] = useState<Subcategory[]>([]);
+  const [categorySubcategories, setCategorySubcategories] = useState<
+    Subcategory[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false);
   const [isCategoryDialogOpen, setIsCategoryDialogOpen] = useState(false);
   const [isSubcategoryDialogOpen, setIsSubcategoryDialogOpen] = useState(false);
   const [viewingCategory, setViewingCategory] = useState<Category | null>(null);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
-  const [editingSubcategory, setEditingSubcategory] = useState<Subcategory | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [editingSubcategory, setEditingSubcategory] =
+    useState<Subcategory | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
   const loadCategories = useCallback(async () => {
     setLoading(true);
     try {
-      const { data } = await fetchCategories({ search: debouncedSearchTerm });
+      // Request a large limit so the admin view shows all categories by default
+      const { data } = await fetchCategories({
+        search: debouncedSearchTerm,
+        limit: 1000,
+      });
       setCategories(data);
     } catch (error) {
-      console.error('Failed to fetch categories:', error);
+      console.error("Failed to fetch categories:", error);
       setCategories([]);
     } finally {
       setLoading(false);
@@ -46,7 +59,7 @@ export default function CategoriesPage() {
       const { data } = await fetchSubcategories({ category_id: categoryId });
       setCategorySubcategories(data);
     } catch (error) {
-      console.error('Failed to fetch category subcategories:', error);
+      console.error("Failed to fetch category subcategories:", error);
       setCategorySubcategories([]);
     }
   }, []);
@@ -81,12 +94,16 @@ export default function CategoriesPage() {
   };
 
   const handleDeleteCategory = async (id: string) => {
-    if (window.confirm('Are you sure you want to delete this category? This cannot be undone.')) {
+    if (
+      window.confirm(
+        "Are you sure you want to delete this category? This cannot be undone."
+      )
+    ) {
       try {
         await deleteCategory(id);
         loadCategories();
       } catch (error) {
-        console.error('Failed to delete category:', error);
+        console.error("Failed to delete category:", error);
       }
     }
   };
@@ -109,14 +126,18 @@ export default function CategoriesPage() {
   };
 
   const handleDeleteSubcategory = async (id: string) => {
-    if (window.confirm('Are you sure you want to delete this subcategory? This cannot be undone.')) {
+    if (
+      window.confirm(
+        "Are you sure you want to delete this subcategory? This cannot be undone."
+      )
+    ) {
       try {
         await deleteSubcategory(id);
         if (viewingCategory) {
           await loadCategorySubcategories(viewingCategory.id);
         }
       } catch (error) {
-        console.error('Failed to delete subcategory:', error);
+        console.error("Failed to delete subcategory:", error);
       }
     }
   };
@@ -125,12 +146,17 @@ export default function CategoriesPage() {
     <div className="flex flex-col space-y-6 p-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Categories & Subcategories</h1>
+          <h1 className="text-2xl font-bold tracking-tight">
+            Categories & Subcategories
+          </h1>
           <p className="text-sm text-muted-foreground">
             Manage product categories and subcategories across your store.
           </p>
         </div>
-        <Button onClick={handleAddCategory} className="sm:self-start flex items-center space-x-2 bg-green-600 hover:bg-green-700">
+        <Button
+          onClick={handleAddCategory}
+          className="sm:self-start flex items-center space-x-2 bg-green-600 hover:bg-green-700"
+        >
           <Plus className="mr-2 h-4 w-4" />
           Add Category
         </Button>
