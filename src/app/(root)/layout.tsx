@@ -1,30 +1,28 @@
-import { Geist, Geist_Mono } from "next/font/google";
 import NavBar from "@/components/landing-page/NavBar";
 import AnnouncementBar from "@/components/landing-page/AnnouncementBar";
 import Footer from "@/components/landing-page/Footer";
 import "../globals.css";
 
-const geistSans = Geist({
-   variable: "--font-geist-sans",
-   subsets: ["latin"],
-});
+// Using system fonts instead of Google Fonts to avoid network dependencies
+const geistSans = {
+  variable: "--font-geist-sans",
+};
 
-const geistMono = Geist_Mono({
-   variable: "--font-geist-mono",
-   subsets: ["latin"],
-});
+const geistMono = {
+  variable: "--font-geist-mono",
+};
 
 export default function RootLayout({
-   children,
+  children,
 }: Readonly<{
-   children: React.ReactNode;
+  children: React.ReactNode;
 }>) {
-   return (
-      <>
-         <AnnouncementBar />
-         <NavBar />
-         {children}
-         <Footer />
-      </>
-   );
+  return (
+    <>
+      <AnnouncementBar />
+      <NavBar />
+      {children}
+      <Footer />
+    </>
+  );
 }
