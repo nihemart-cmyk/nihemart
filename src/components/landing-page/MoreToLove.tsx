@@ -7,12 +7,13 @@ import {
 import React, { FC, useEffect, useState } from "react";
 import { Button } from "../ui/button";
 import Image from "next/image";
+import { optimizeImageUrl } from "@/lib/utils";
 import Link from "next/link";
 import MaxWidthWrapper from "../MaxWidthWrapper";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { WishlistButton } from "../ui/wishlist-button";
-import { toast } from "sonner";
-import { Heart } from "lucide-react";
+// import { toast } from "sonner";
+// import { Heart } from "lucide-react";
 
 interface MoreToLoveProps {}
 
@@ -31,12 +32,12 @@ const ProductCard = ({ product }: { product: StoreProduct }) => {
   const { t } = useLanguage();
 
   // Display price range if min/max prices exist, otherwise show single price
-  const displayPrice =
-    product.minPrice && product.maxPrice
-      ? product.minPrice === product.maxPrice
-        ? `RWF ${product.minPrice.toLocaleString()}`
-        : `RWF ${product.minPrice.toLocaleString()} - ${product.maxPrice.toLocaleString()}`
-      : `RWF ${product.price.toLocaleString()}`;
+  // const displayPrice =
+  //   product.minPrice && product.maxPrice
+  //     ? product.minPrice === product.maxPrice
+  //       ? `RWF ${product.minPrice.toLocaleString()}`
+  //       : `RWF ${product.minPrice.toLocaleString()} - ${product.maxPrice.toLocaleString()}`
+  //     : `RWF ${product.price.toLocaleString()}`;
 
   return (
     <Link
@@ -86,10 +87,18 @@ const ProductCard = ({ product }: { product: StoreProduct }) => {
         <div className="relative mb-4">
           <div className="bg-gradient-to-br from-slate-100 to-slate-200 rounded-xl p-4 aspect-square">
             <Image
-              src={product?.main_image_url || "/placeholder.svg"}
+              src={optimizeImageUrl(
+                product?.main_image_url || "/placeholder.svg",
+                {
+                  width: 800,
+                  quality: 75,
+                }
+              )}
               alt={product?.name}
               fill
               className="object-cover rounded-lg"
+              priority
+              loading="eager"
             />
           </div>
           <div className="absolute z-20 left-3 top-3">
@@ -98,7 +107,7 @@ const ProductCard = ({ product }: { product: StoreProduct }) => {
                 Out of Stock
               </span>
             ) : ( */}
-              {/* <span className="hidden md:inline-block bg-orange-500 text-white text-xs font-bold rounded-lg px-3 py-1 shadow-md">
+            {/* <span className="hidden md:inline-block bg-orange-500 text-white text-xs font-bold rounded-lg px-3 py-1 shadow-md">
                 RWF{" "}
                 {(product as any).minPrice && (product as any).maxPrice
                   ? (product as any).minPrice === (product as any).maxPrice
@@ -126,12 +135,12 @@ const ProductCard = ({ product }: { product: StoreProduct }) => {
                 <Heart className="h-4 w-4 text-gray-300" aria-hidden="true" />
               </button>
             ) : ( */}
-              <WishlistButton
-                productId={product.id}
-                size="sm"
-                variant="ghost"
-                className="bg-white/90 backdrop-blur-sm hover:bg-white shadow-sm p-2"
-              />
+            <WishlistButton
+              productId={product.id}
+              size="sm"
+              variant="ghost"
+              className="bg-white/90 backdrop-blur-sm hover:bg-white shadow-sm p-2"
+            />
             {/* )} */}
           </div>
         </div>

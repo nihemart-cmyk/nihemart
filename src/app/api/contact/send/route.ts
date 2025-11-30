@@ -135,7 +135,7 @@ export async function POST(req: NextRequest) {
          subjectLine
       )}</title></head><body style="margin:0;padding:0;background:#f5f5f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#f5f5f5"><tr><td align="center" style="padding:40px 20px"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:680px;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,0.08)"><tr><td style="padding:28px 28px 20px 28px;text-align:center;background:linear-gradient(135deg, ${primaryBlue} 0%, #1ac4f7 100%)">${
          logoUrl
-            ? `<img src="${logoUrl}" alt="${appName}" width="80" height="80" style="display:inline-block;border-radius:16px;background:#ffffff;padding:8px;box-shadow:0 2px 8px rgba(0,0,0,0.15)" />`
+            ? `<Image src="${logoUrl}" alt="${appName}" width="80" height="80" style="display:inline-block;border-radius:16px;background:#ffffff;padding:8px;box-shadow:0 2px 8px rgba(0,0,0,0.15)" />`
             : `<div style="display:inline-block;width:80px;height:80px;border-radius:16px;background:#ffffff;line-height:80px;font-size:36px;font-weight:700;color:${primaryBlue}">N</div>`
       }<div style="font-size:20px;font-weight:700;color:#ffffff;margin-top:12px">${appName.replace(
          /\s+/g,

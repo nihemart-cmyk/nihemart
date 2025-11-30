@@ -838,7 +838,14 @@ export default function ProductClientPage({
                           {review.image_url && (
                             <div className="mb-4">
                               <Image
-                                src={review.image_url}
+                                src={optimizeImageUrl(
+                                  review.image_url || "/placeholder.svg",
+                                  {
+                                    width: 600,
+                                    height: 400,
+                                    quality: 75,
+                                  }
+                                )}
                                 alt="Review image"
                                 width={300}
                                 height={200}

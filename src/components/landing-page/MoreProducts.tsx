@@ -6,7 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useMediaQuery } from "@/hooks/user-media-query";
 import { fetchLandingPageProducts } from "@/integrations/supabase/store";
-// import { optimizeImageUrl } from "@/lib/utils";
+import { optimizeImageUrl } from "@/lib/utils";
 import type {
   StoreProduct,
   // StoreCategorySimple,
@@ -71,10 +71,15 @@ const ProductCard = ({ product }: { product: StoreProduct }) => (
       {/* Mobile Image */}
       <div className="bg-gradient-to-br from-slate-100 to-slate-200 rounded-xl p-4 aspect-square">
         <Image
-          src={product?.main_image_url || "/placeholder.svg"}
+          src={optimizeImageUrl(product?.main_image_url || "/placeholder.svg", {
+            width: 800,
+            quality: 75,
+          })}
           alt={product?.name}
           fill
           className="object-cover rounded-lg"
+          priority
+          loading="eager"
         />
       </div>
     </div>
@@ -85,10 +90,18 @@ const ProductCard = ({ product }: { product: StoreProduct }) => (
         <div className="relative mb-4">
           <div className="bg-gradient-to-br from-slate-100 to-slate-200 rounded-xl p-4 aspect-square">
             <Image
-              src={product?.main_image_url || "/placeholder.svg"}
+              src={optimizeImageUrl(
+                product?.main_image_url || "/placeholder.svg",
+                {
+                  width: 900,
+                  quality: 80,
+                }
+              )}
               alt={product?.name}
               fill
               className="object-cover rounded-lg"
+              priority
+              loading="eager"
             />
           </div>
           <div className="absolute z-20 left-3 top-3"></div>

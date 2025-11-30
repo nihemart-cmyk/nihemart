@@ -1,7 +1,8 @@
 "use client";
 import { cn } from "@/lib/utils";
-import { ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import Image from "next/image";
+import { optimizeImageUrl } from "@/lib/utils";
 import { FC, RefObject, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { fetchCategoriesLight } from "@/integrations/supabase/categories";
@@ -198,7 +199,7 @@ const Collection: FC<CollectionProps> = ({}) => {
                   <div
                     key={pageIndex}
                     className="min-w-full snap-start grid grid-cols-2 grid-rows-2 gap-2"
-                    aria-hidden={false}
+                    aria-hidden="false"
                   >
                     {page.map((category) => (
                       <Link
@@ -207,11 +208,19 @@ const Collection: FC<CollectionProps> = ({}) => {
                         className="w-full h-32 md:h-40 border-2 border-blue-100 rounded-lg flex flex-col items-center justify-center group hover:border-orange-200 transition-colors p-2"
                       >
                         <Image
-                          src={category.icon_url || "/placeholder.svg"}
+                          src={optimizeImageUrl(
+                            category.icon_url || "/placeholder.svg",
+                            {
+                              width: 160,
+                              quality: 75,
+                            }
+                          )}
                           alt={category.name}
                           width={80}
                           height={80}
                           className="group-hover:scale-105 transition-transform duration-300 mb-2"
+                          priority
+                          loading="eager"
                         />
                         <h4 className="text-center font-medium text-gray-800 group-hover:text-orange-600 transition-colors px-2 truncate text-sm">
                           {category.name}
@@ -227,7 +236,7 @@ const Collection: FC<CollectionProps> = ({}) => {
                           <div
                             key={`empty-${idx}`}
                             className="w-full h-32 md:h-40 border-2 border-transparent rounded-lg"
-                            aria-hidden
+                            aria-hidden="true"
                           />
                         ))}
                   </div>
@@ -240,11 +249,18 @@ const Collection: FC<CollectionProps> = ({}) => {
                     className="lg:w-60 w-52 h-48 lg:h-60 border-2 border-blue-100 rounded-lg shrink-0 flex flex-col items-center justify-center group hover:border-orange-200 transition-colors"
                   >
                     <Image
-                      src={category.icon_url || "/placeholder.svg"}
+                      src={optimizeImageUrl(
+                        category.icon_url || "/placeholder.svg",
+                        {
+                          width: 240,
+                          quality: 80,
+                        }
+                      )}
                       alt={category.name}
                       width={120}
                       height={120}
                       className="group-hover:scale-105 transition-transform duration-300 mb-3"
+                      priority
                     />
                     <h4 className="text-center font-medium text-gray-800 group-hover:text-orange-600 transition-colors px-2 truncate">
                       {category.name}
@@ -260,7 +276,7 @@ const Collection: FC<CollectionProps> = ({}) => {
               <button
                 key={`dot-${idx}`}
                 onClick={() => scrollToPage(idx)}
-                aria-current={currentPage === idx}
+                aria-current={currentPage === idx ? "true" : "false"}
                 aria-label={`Go to page ${idx + 1}`}
                 className={cn(
                   "w-2 h-2 rounded-full transition-colors",
