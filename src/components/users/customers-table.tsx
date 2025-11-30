@@ -336,8 +336,6 @@ export function CustomerTable() {
                     size="sm"
                     onClick={() => {
                       setSearchQuery("");
-                      setFromDate("");
-                      setToDate("");
                       resetFilters();
                       setPage(1);
                     }}
