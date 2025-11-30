@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import Image from "next/image";
+import { optimizeImageUrl } from "@/lib/utils";
 
 type Props = {
   open: boolean;
