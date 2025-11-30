@@ -3,10 +3,18 @@
 import { useState, useCallback, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
-export type AppRole = "admin" | "user";
+export type AppRole =
+  | "admin"
+  | "user"
+  | "rider"
+  | "manager"
+  | "staff"
+  | "stock_manager";
 export type SortBy =
   | "recent"
   | "oldest"
+  | "time_registered_asc"
+  | "time_registered_desc"
   | "most_orders"
   | "highest_spend"
   | "lowest_spend";
@@ -23,6 +31,7 @@ export interface UserRow {
 }
 
 export interface UserFilters {
+  role?: AppRole | null;
   sortBy?: SortBy;
   fromDate?: Date | null;
   toDate?: Date | null;
@@ -41,7 +50,9 @@ export function useUsers() {
   const [limit, setLimit] = useState<number>(50);
   const [totalCount, setTotalCount] = useState<number | null>(null);
   const [filteredCount, setFilteredCount] = useState<number | null>(null);
+  const [roleCounts, setRoleCounts] = useState<Record<string, number>>({});
   const [filters, setFilters] = useState<UserFilters>({
+    role: null,
     sortBy: "recent",
     fromDate: null,
     toDate: null,
@@ -52,7 +63,7 @@ export function useUsers() {
     search: "",
   });
 
-  // Fetch all users from profiles and merge with emails from admin API
+  // Fetch all users from API with filters and sorting applied
   const fetchUsers = useCallback(
     async (
       p: number = page,
@@ -61,46 +72,16 @@ export function useUsers() {
     ) => {
       setLoading(true);
       setError(null);
-      // 1. Fetch profiles
-      // If `l === 0` the caller requests ALL users: fetch all profiles
-      // (no range). Otherwise fetch the page window to avoid loading every
-      // profile on large datasets.
-      let profiles: any[] | null = null;
-      let profilesError: any = null;
-      if (l === 0) {
-        const r = await supabase
-          .from("profiles")
-          .select("id, full_name, phone, created_at");
-        profiles = r.data as any[];
-        profilesError = r.error;
-      } else {
-        const start = (p - 1) * l;
-        const end = start + l - 1;
-        const r = await supabase
-          .from("profiles")
-          .select("id, full_name, phone, created_at")
-          .range(start, end);
-        profiles = r.data as any[];
-        profilesError = r.error;
-      }
-      if (profilesError) {
-        setError(profilesError.message);
-        setLoading(false);
-        return;
-      }
 
-      // 2. Fetch enriched users from API route (order aggregates + email + role)
-      // with applied filters and sorting
-      let enriched: any[] = [];
-      let apiCount: number | null = null;
-      let apiFilteredCount: number | null = null;
       try {
         const q = new URLSearchParams();
-        // If l === 0 request all users from the admin API by omitting
-        // the `limit` param. Otherwise pass page & limit as before.
-        if (l !== 0) {
-          q.set("page", String(p));
-          q.set("limit", String(l));
+        // Always pass page and limit for proper pagination
+        q.set("page", String(p));
+        q.set("limit", String(l));
+
+        // Add role filter
+        if (appliedFilters.role) {
+          q.set("role", appliedFilters.role);
         }
 
         // Add filter parameters
@@ -146,59 +127,63 @@ export function useUsers() {
         const res = await fetch(url);
         if (res.ok) {
           const json = await res.json();
-          enriched = json.users || [];
-          apiCount =
+          const apiUsers = (json.users || []).map((u: any) => ({
+            id: u.id,
+            email: u.email || "",
+            full_name: u.full_name || "",
+            phone: u.phone || "",
+            created_at: u.created_at,
+            role: (u.role as AppRole) || "user",
+            orderCount: Number(u.order_count || 0),
+            totalSpend: Number(u.total_spend || 0),
+          }));
+
+          const apiCount =
             typeof json.total_count === "number" ? json.total_count : null;
-          apiFilteredCount = typeof json.count === "number" ? json.count : null;
+          const apiFilteredCount =
+            typeof json.count === "number" ? json.count : null;
+
+          setUsers(apiUsers);
+          setTotalCount(apiCount ?? apiUsers.length);
+          setFilteredCount(apiFilteredCount ?? apiUsers.length);
+
+          // Store role counts from API
+          if (json.role_counts) {
+            setRoleCounts(json.role_counts);
+          }
+          // Fallback: if API didn't provide a total_count, fetch unpaginated
+          // list to obtain the real total users count. This ensures the
+          // upper card shows an accurate total instead of a page-limited
+          // length (e.g. 50).
+          if (apiCount === null) {
+            try {
+              const fullRes = await fetch(`/api/admin/list-users`);
+              if (fullRes.ok) {
+                const fullJson = await fullRes.json();
+                if (typeof fullJson.total_count === "number") {
+                  setTotalCount(fullJson.total_count);
+                }
+              }
+            } catch (e) {
+              // ignore fallback errors
+            }
+          }
+        } else {
+          setError("Failed to fetch users");
+          setUsers([]);
+          setTotalCount(0);
+          setFilteredCount(0);
         }
-      } catch (e) {
-        // ignore, fallback to profiles only
+      } catch (e: any) {
+        setError(e.message || "Failed to fetch users");
+        setUsers([]);
+        setTotalCount(0);
+        setFilteredCount(0);
+      } finally {
+        setLoading(false);
       }
-
-      // 3. Merge by id to produce UserRow[] with aggregates.
-      // Also include any users returned by the enriched API that don't have a
-      // corresponding profile row (enriched-only). This ensures we show all
-      // users available to the admin API.
-      const profilesArr: any[] = (profiles as any[]) || [];
-      const mergedById: Record<string, UserRow> = {};
-
-      // Start with profiles
-      for (const p of profilesArr) {
-        mergedById[p.id] = {
-          id: p.id,
-          email: "",
-          full_name: p.full_name,
-          phone: p.phone,
-          created_at: p.created_at,
-          role: "user",
-          orderCount: 0,
-          totalSpend: 0,
-        };
-      }
-
-      // Merge/enrich with API data
-      for (const e of enriched) {
-        if (!e || !e.id) continue;
-        const existing = mergedById[e.id];
-        mergedById[e.id] = {
-          id: e.id,
-          email: e.email || existing?.email || "",
-          full_name: existing?.full_name || e.full_name || "",
-          phone: existing?.phone || e.phone || "",
-          created_at: existing?.created_at || e.created_at || undefined,
-          role: (e.role as AppRole) || existing?.role || "user",
-          orderCount: Number(e.order_count || existing?.orderCount || 0),
-          totalSpend: Number(e.total_spend || existing?.totalSpend || 0),
-        };
-      }
-
-      const users: UserRow[] = Object.values(mergedById);
-      setUsers(users);
-      setTotalCount(apiCount ?? users.length);
-      setFilteredCount(apiFilteredCount ?? users.length);
-      setLoading(false);
     },
-    []
+    [page, limit, filters]
   );
 
   // Auto-fetch when the hook is used in a client component so multiple
@@ -207,13 +192,18 @@ export function useUsers() {
   useEffect(() => {
     // Fetch current page when hook mounts or page/limit/filters change
     fetchUsers(page, limit, filters);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, limit, filters]);
+  }, [fetchUsers]);
 
   // Update sort filter
   const setSortBy = useCallback((sortBy: SortBy) => {
     setFilters((prev) => ({ ...prev, sortBy }));
     setPage(1); // Reset to first page when filter changes
+  }, []);
+
+  // Update role filter
+  const setRoleFilter = useCallback((role: AppRole | null) => {
+    setFilters((prev) => ({ ...prev, role }));
+    setPage(1);
   }, []);
 
   // Update date range filter
@@ -252,6 +242,7 @@ export function useUsers() {
   // Reset all filters
   const resetFilters = useCallback(() => {
     setFilters({
+      role: null,
       sortBy: "recent",
       fromDate: null,
       toDate: null,
@@ -328,10 +319,12 @@ export function useUsers() {
     deleteUser,
     filters,
     setSortBy,
+    setRoleFilter,
     setDateRange,
     setOrderCountFilter,
     setSpendFilter,
     resetFilters,
     setSearch,
+    roleCounts,
   };
 }

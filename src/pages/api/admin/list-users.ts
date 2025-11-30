@@ -57,6 +57,9 @@ export default async function handler(
     // Search query (simple case-insensitive match against name/email/phone)
     const q = req.query.q ? String(req.query.q).trim().toLowerCase() : "";
 
+    // Parse role filter parameter
+    const roleFilter = req.query.role ? String(req.query.role) : null;
+
     // Run roles, auth users and aggregates in parallel for speed
     const [profilesRes, rolesRes, authUsersRes, ordersAggRes] =
       (await Promise.all([
@@ -149,20 +152,18 @@ export default async function handler(
       byId[key].total_spend = Number(o.total_spend || 0);
     }
 
-    // Convert to array and filter to ONLY show users with role "user" (customers)
-    // Exclude admins, managers, staff, stock_managers, and riders
-    const usersArr = Object.values(byId)
-      .filter((u: any) => (u.role || "user") === "user")
-      .map((u: any) => ({
-        id: u.id,
-        full_name: u.full_name,
-        phone: u.phone,
-        role: u.role || "user",
-        email: u.email || "",
-        order_count: Number(u.order_count || 0),
-        total_spend: Number(u.total_spend || 0),
-        created_at: u.created_at || null,
-      }));
+    // Convert to array - include ALL users regardless of role
+    // Role filtering happens below if roleFilter is specified
+    const usersArr = Object.values(byId).map((u: any) => ({
+      id: u.id,
+      full_name: u.full_name,
+      phone: u.phone,
+      role: u.role || "user",
+      email: u.email || "",
+      order_count: Number(u.order_count || 0),
+      total_spend: Number(u.total_spend || 0),
+      created_at: u.created_at || null,
+    }));
 
     // Parse sort parameter (defaults to recent: most recent first)
     const sortBy = (req.query.sort || "recent") as string;
@@ -173,6 +174,18 @@ export default async function handler(
         const ta = a.created_at ? Date.parse(String(a.created_at)) : 0;
         const tb = b.created_at ? Date.parse(String(b.created_at)) : 0;
         return ta - tb; // ascending
+      });
+    } else if (sortBy === "time_registered_asc") {
+      usersArr.sort((a: any, b: any) => {
+        const ta = a.created_at ? Date.parse(String(a.created_at)) : 0;
+        const tb = b.created_at ? Date.parse(String(b.created_at)) : 0;
+        return ta - tb; // oldest first
+      });
+    } else if (sortBy === "time_registered_desc") {
+      usersArr.sort((a: any, b: any) => {
+        const ta = a.created_at ? Date.parse(String(a.created_at)) : 0;
+        const tb = b.created_at ? Date.parse(String(b.created_at)) : 0;
+        return tb - ta; // newest first
       });
     } else if (sortBy === "most_orders") {
       usersArr.sort((a: any, b: any) => b.order_count - a.order_count);
@@ -189,8 +202,11 @@ export default async function handler(
       });
     }
 
-    // Apply date range, order count, and spend filters
+    // Apply date range, order count, spend filters, and role filter
     const filtered = usersArr.filter((u: any) => {
+      // Role filter
+      if (roleFilter && u.role !== roleFilter) return false;
+
       // Search filter
       if (q) {
         const full = (u.full_name || "").toLowerCase();
@@ -224,6 +240,13 @@ export default async function handler(
       return true;
     });
 
+    // Count users by role for the frontend
+    const roleCountsMap: Record<string, number> = {};
+    for (const u of usersArr) {
+      const role = u.role || "user";
+      roleCountsMap[role] = (roleCountsMap[role] || 0) + 1;
+    }
+
     const totalCount = usersArr.length;
 
     let paginated: any[];
@@ -246,6 +269,7 @@ export default async function handler(
       total_count: totalCount, // Total count before filters
       page: limitParam === undefined ? 1 : page,
       limit: limitUsed,
+      role_counts: roleCountsMap, // Count of users by role
     });
   } catch (err: any) {
     console.error("list-users failed", err);

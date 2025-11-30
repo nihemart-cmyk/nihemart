@@ -45,7 +45,6 @@ export function CustomerTable() {
   );
   const [viewCustomerModalOpened, setViewCustomerModalOpened] =
     useState<boolean>(false);
-  const [showFilters, setShowFilters] = useState(false);
 
   // Fetch initial data (server-side filtering)
   const {
@@ -62,16 +61,15 @@ export function CustomerTable() {
     deleteUser,
     filters,
     setSortBy,
+    setRoleFilter,
     setDateRange,
     resetFilters,
     setSearch,
+    roleCounts,
   } = useUsers();
 
-  // Local state for simple filters
+  // Local state for search query
   const [searchQuery, setSearchQuery] = useState("");
-  const [fromDate, setFromDate] = useState<string>("");
-  const [toDate, setToDate] = useState<string>("");
-  const [customRangeOpen, setCustomRangeOpen] = useState(false);
 
   const handleViewCustomer = (customer: Customer) => {
     setSelectedCustomer(customer);
@@ -82,24 +80,22 @@ export function CustomerTable() {
     setViewCustomerModalOpened(false);
   };
 
-  // Map users to Customer type for DataTable
-  const customers: Customer[] = users
-    .filter((u) => u.role === "user") // Only show customers, not admins/managers/etc
-    .map((u) => ({
-      id: u.id,
-      name: u.full_name || u.email,
-      email: u.email,
-      phone: u.phone || "",
-      location: (u as any).city || "",
-      orderCount: u.orderCount || 0,
-      totalSpend: u.totalSpend || 0,
-      status: "Active",
-      role: u.role,
-      totalOrders: u.orderCount || 0,
-      completedOrders: (u as any).completedOrders || 0,
-      cancelledOrders: (u as any).cancelledOrders || 0,
-      registeredDate: u.created_at,
-    }));
+  // Map users to Customer type for DataTable - show ALL users
+  const customers: Customer[] = users.map((u) => ({
+    id: u.id,
+    name: u.full_name || u.email,
+    email: u.email,
+    phone: u.phone || "",
+    location: (u as any).city || "",
+    orderCount: u.orderCount || 0,
+    totalSpend: u.totalSpend || 0,
+    status: "Active",
+    role: u.role,
+    totalOrders: u.orderCount || 0,
+    completedOrders: (u as any).completedOrders || 0,
+    cancelledOrders: (u as any).cancelledOrders || 0,
+    registeredDate: u.created_at,
+  }));
 
   // When searchQuery changes, update server-side filter
   useEffect(() => {
@@ -110,10 +106,8 @@ export function CustomerTable() {
     return () => clearTimeout(t);
   }, [searchQuery, setSearch, setPage]);
 
-  const filteredBySearch = useMemo(
-    () => customers,
-    [customers]
-  );
+  // Use the filtered data from the server (don't filter again client-side)
+  const filteredBySearch = useMemo(() => customers, [customers]);
 
   const columns = useMemo(
     () =>
@@ -132,28 +126,9 @@ export function CustomerTable() {
     [handleViewCustomer, updateUserRole, deleteUser]
   );
 
-  // Apply filter button (simplified)
-  const handleApplyFilters = () => {
-    setSortBy((filters.sortBy || "recent") as SortBy);
-
-    const from = fromDate ? new Date(fromDate) : null;
-    const to = toDate ? new Date(toDate) : null;
-    setDateRange(from, to);
-
-    setPage(1);
-  };
-
-  // Reset all filters (simplified)
-  const handleResetFilters = () => {
-    setSearchQuery("");
-    setFromDate("");
-    setToDate("");
-    resetFilters();
-    setPage(1);
-  };
-
   const hasActiveFilters = Boolean(
-    filters.fromDate ||
+    filters.role ||
+      filters.fromDate ||
       filters.toDate ||
       filters.minOrders !== null ||
       filters.maxOrders !== null ||
@@ -171,55 +146,107 @@ export function CustomerTable() {
     <>
       <Card>
         <CardHeader>
-          <div className="w-full flex flex-col gap-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="w-full flex flex-col gap-4">
+            {/* Title and Search Section */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <CardTitle className="text-xl font-semibold">
-                  Customer Details
+                <CardTitle className="text-2xl font-bold">
+                  User Management
                 </CardTitle>
-                <div className="text-sm text-muted-foreground">
-                  {filteredCount ?? 0} of {totalCount ?? 0} customers
+                <div className="text-sm text-muted-foreground mt-1">
+                  {filteredCount ?? 0} of {totalCount ?? 0} users
                   {hasActiveFilters && " (filtered)"}
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="w-full sm:w-auto">
                 <Input
-                  placeholder="Search name, email, phone..."
+                  placeholder="Search by name, email, phone..."
                   value={searchQuery}
                   onChange={(e) => {
                     setSearchQuery(e.target.value);
                     setPage(1);
                   }}
-                  className="max-w-xs"
+                  className="w-full"
                 />
-                <Button
-                  variant={showFilters ? "default" : "outline"}
-                  onClick={() => setShowFilters(!showFilters)}
-                >
-                  {showFilters ? "Hide Filters" : "Filters"}
-                </Button>
-                {hasActiveFilters && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleResetFilters}
-                    className="text-red-600 hover:text-red-700"
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
-                )}
               </div>
             </div>
 
-            {/* Simple Filters Section */}
-            {showFilters && (
-              <div className="border-t pt-4 mt-4">
-                <div className="flex flex-col sm:flex-row gap-4 items-center">
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      onClick={() => {
-                        // Today
+            {/* Filter and Sort Controls */}
+            <div className="border-t pt-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Sort By */}
+                <div>
+                  <Label className="text-xs font-semibold text-gray-700 mb-2 block">
+                    Sort By
+                  </Label>
+                  <Select
+                    value={filters.sortBy || "recent"}
+                    onValueChange={(v) => setSortBy(v as SortBy)}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="recent">Newest Registered</SelectItem>
+                      <SelectItem value="oldest">Oldest Registered</SelectItem>
+                      <SelectItem value="time_registered_desc">
+                        Time (Newest)
+                      </SelectItem>
+                      <SelectItem value="time_registered_asc">
+                        Time (Oldest)
+                      </SelectItem>
+                      <SelectItem value="most_orders">Most Orders</SelectItem>
+                      <SelectItem value="highest_spend">
+                        Highest Spend
+                      </SelectItem>
+                      <SelectItem value="lowest_spend">Lowest Spend</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Role Filter */}
+                <div>
+                  <Label className="text-xs font-semibold text-gray-700 mb-2 block">
+                    Role
+                  </Label>
+                  <Select
+                    value={filters.role || "all"}
+                    onValueChange={(v) =>
+                      setRoleFilter(v === "all" ? null : (v as any))
+                    }
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">
+                        All Roles ({totalCount ?? 0})
+                      </SelectItem>
+                      {Object.entries(roleCounts)
+                        .sort((a, b) => b[1] - a[1])
+                        .map(([role, count]) => (
+                          <SelectItem key={role} value={role}>
+                            {role.charAt(0).toUpperCase() + role.slice(1)} (
+                            {count})
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Date Range */}
+                <div>
+                  <Label className="text-xs font-semibold text-gray-700 mb-2 block">
+                    Registration Date
+                  </Label>
+                  <Select
+                    value={
+                      filters.fromDate || filters.toDate ? "custom" : "all"
+                    }
+                    onValueChange={(v) => {
+                      if (v === "all") {
+                        setDateRange(null, null);
+                      } else if (v === "today") {
                         const t = new Date();
                         const start = new Date(
                           t.getFullYear(),
@@ -229,100 +256,99 @@ export function CustomerTable() {
                         const end = new Date(start);
                         end.setDate(end.getDate() + 1);
                         setDateRange(start, end);
-                      }}
-                    >
-                      Today
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      onClick={() => {
-                        // Last 7 days
+                      } else if (v === "week") {
                         const end = new Date();
                         const start = new Date();
                         start.setDate(end.getDate() - 6);
                         setDateRange(start, end);
-                      }}
-                    >
-                      Last 7 days
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      onClick={() => {
-                        // All time
-                        setDateRange(null, null);
-                      }}
-                    >
-                      All time
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => setCustomRangeOpen(!customRangeOpen)}
-                    >
-                      Custom
-                    </Button>
-                  </div>
-
-                  {customRangeOpen && (
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="date"
-                        value={fromDate}
-                        onChange={(e) => setFromDate(e.target.value)}
-                      />
-                      <Input
-                        type="date"
-                        value={toDate}
-                        onChange={(e) => setToDate(e.target.value)}
-                      />
-                      <Button
-                        onClick={() => {
-                          const from = fromDate ? new Date(fromDate) : null;
-                          const to = toDate ? new Date(toDate) : null;
-                          setDateRange(from, to);
-                        }}
-                      >
-                        Apply
-                      </Button>
-                    </div>
-                  )}
-
-                  <div className="ml-auto">
-                    <Label className="text-xs font-medium mb-2 block">
-                      Per Page
-                    </Label>
-                    <Select
-                      value={String(limit)}
-                      onValueChange={(v) => {
-                        setLimit(Number(v));
-                        setPage(1);
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="10">10</SelectItem>
-                        <SelectItem value="25">25</SelectItem>
-                        <SelectItem value="50">50</SelectItem>
-                        <SelectItem value="100">100</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div className="flex gap-2 mt-4">
-                  <Button
-                    onClick={() => {
-                      setSearch("");
-                      setSearchQuery("");
-                      resetFilters();
+                      } else if (v === "month") {
+                        const end = new Date();
+                        const start = new Date();
+                        start.setMonth(end.getMonth() - 1);
+                        setDateRange(start, end);
+                      }
                     }}
-                    className="flex-1 sm:flex-none"
                   >
-                    Clear Filters
-                  </Button>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Time</SelectItem>
+                      <SelectItem value="today">Today</SelectItem>
+                      <SelectItem value="week">Last 7 Days</SelectItem>
+                      <SelectItem value="month">Last 30 Days</SelectItem>
+                      <SelectItem value="custom">Custom Range</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Per Page */}
+                <div>
+                  <Label className="text-xs font-semibold text-gray-700 mb-2 block">
+                    Per Page
+                  </Label>
+                  <Select
+                    value={String(limit)}
+                    onValueChange={(v) => {
+                      setLimit(Number(v));
+                      setPage(1);
+                    }}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="25">25</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                      <SelectItem value="100">100</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
-            )}
+
+              {/* Custom Date Range */}
+              {filters.fromDate || filters.toDate ? (
+                <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-medium text-blue-900">
+                      Selected Range:
+                    </span>
+                    {filters.fromDate && (
+                      <span className="text-xs text-blue-800">
+                        From {new Date(filters.fromDate).toLocaleDateString()}
+                      </span>
+                    )}
+                    {filters.toDate && (
+                      <span className="text-xs text-blue-800">
+                        To {new Date(filters.toDate).toLocaleDateString()}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ) : null}
+
+              {/* Clear Filters Button */}
+              {hasActiveFilters && (
+                <div className="mt-4 flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSearchQuery("");
+                      setFromDate("");
+                      setToDate("");
+                      resetFilters();
+                      setPage(1);
+                    }}
+                    className="gap-2"
+                  >
+                    <X className="w-4 h-4" />
+                    Clear All Filters
+                  </Button>
+                </div>
+              )}
+            </div>
           </div>
         </CardHeader>
 
@@ -445,6 +471,12 @@ export function CustomerTable() {
                     <MapPin className="h-4 w-4 text-gray-500" />
                     <span className="text-sm">
                       {selectedCustomer?.location || "N/A"}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                    <span className="text-xs font-medium">Role:</span>
+                    <span className="capitalize px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium">
+                      {selectedCustomer?.role || "user"}
                     </span>
                   </div>
                 </div>

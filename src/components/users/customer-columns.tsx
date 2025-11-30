@@ -90,6 +90,18 @@ export const createCustomerColumns = (
     header: "Phone",
   },
   {
+    accessorKey: "role",
+    header: "Role",
+    cell: ({ row }) => {
+      const role = row.getValue("role");
+      return (
+        <span className="capitalize px-2 py-1 bg-gray-100 text-gray-800 rounded text-sm">
+          {String(role || "user")}
+        </span>
+      );
+    },
+  },
+  {
     accessorKey: "registeredDate",
     header: "Registered",
     cell: ({ row }) => {
