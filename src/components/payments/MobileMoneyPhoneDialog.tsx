@@ -189,40 +189,35 @@ export default function MobileMoneyPhoneDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[480px] p-0 overflow-hidden">
-        {/* Header with Brand Logo */}
-        <div className={`${methodInfo.bgColor} border-b ${methodInfo.borderColor} px-6 py-5`}>
-          <DialogHeader className="space-y-3">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-white rounded-lg shadow-sm flex items-center justify-center p-2">
-                <Image
-                  src={methodInfo.logo}
-                  alt={methodInfo.name}
-                  width={40}
-                  height={40}
-                  className="object-contain"
-                />
-              </div>
-              <div>
-                <DialogTitle className="text-xl font-bold text-gray-900">
-                  {methodInfo.name}
-                </DialogTitle>
-                <p className="text-sm text-gray-600 mt-0.5">
-                  Mobile Money Payment
-                </p>
-              </div>
+      <DialogContent className="sm:max-w-[440px] p-0 overflow-hidden">
+        {/* Compact Header */}
+        <div className={`${methodInfo.bgColor} px-6 py-4`}>
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 bg-white rounded-lg shadow-sm flex items-center justify-center p-2">
+              <Image
+                src={methodInfo.logo}
+                alt={methodInfo.name}
+                width={40}
+                height={40}
+                className="object-contain"
+              />
             </div>
-            <DialogDescription className="text-sm text-gray-700 leading-relaxed">
-              Enter your {methodInfo.name} number below. You'll receive an SMS prompt to authorize the payment.
-            </DialogDescription>
-          </DialogHeader>
+            <div>
+              <DialogTitle className="text-lg font-bold text-gray-900">
+                {methodInfo.name}
+              </DialogTitle>
+              <DialogDescription className="text-xs text-gray-600 mt-0.5">
+                Mobile Money Payment
+              </DialogDescription>
+            </div>
+          </div>
         </div>
 
-        {/* Main Content */}
-        <div className="px-6 py-5 space-y-5">
+        {/* Main Content - Compact */}
+        <div className="px-6 py-5 space-y-4">
           {/* Phone Number Input */}
-          <div className="space-y-3">
-            <Label htmlFor="phone" className="text-sm font-semibold text-gray-900">
+          <div className="space-y-2">
+            <Label htmlFor="phone" className="text-sm font-medium text-gray-900">
               Phone Number <span className="text-red-500">*</span>
             </Label>
             <div className="relative">
@@ -237,110 +232,53 @@ export default function MobileMoneyPhoneDialog({
                 value={phoneDisplay}
                 onChange={handlePhoneChange}
                 onKeyPress={handleKeyPress}
-                className={`pl-20 pr-12 h-12 text-base transition-all ${
+                className={`pl-20 pr-12 h-11 text-base transition-all ${
                   error 
-                    ? 'border-red-500 focus-visible:ring-red-500 bg-red-50' 
+                    ? 'border-red-500 focus-visible:ring-red-500' 
                     : isValid 
-                    ? 'border-green-500 focus-visible:ring-green-500 bg-green-50' 
+                    ? 'border-green-500 focus-visible:ring-green-500' 
                     : 'border-gray-300'
                 }`}
                 autoFocus
-                maxLength={12} // 10 digits + 2 spaces
+                maxLength={12}
               />
               {isValid && (
-                <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                  <div className="bg-green-100 rounded-full p-1">
-                    <CheckCircle2 className="h-5 w-5 text-green-600" />
-                  </div>
-                </div>
+                <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-green-600" />
               )}
             </div>
             
-            {/* Character counter */}
-            <div className="flex items-center justify-between">
+            {/* Compact info/error */}
+            {error ? (
+              <div className="flex items-center gap-2 text-xs text-red-600">
+                <AlertCircle className="h-3 w-3 flex-shrink-0" />
+                <span>{error}</span>
+              </div>
+            ) : (
               <p className="text-xs text-gray-500">
-                {phoneValue.length}/10 digits entered
+                Starts with: {methodInfo.prefixes.join(', ')} • {phoneValue.length}/10 digits
               </p>
-              {isValid && (
-                <p className="text-xs text-green-600 font-medium flex items-center gap-1">
-                  <CheckCircle2 className="h-3 w-3" />
-                  Valid number
-                </p>
-              )}
-            </div>
-            
-            {/* Error message */}
-            {error && (
-              <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg animate-in fade-in slide-in-from-top-1">
-                <AlertCircle className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
-                <p className="text-sm text-red-700 leading-relaxed">{error}</p>
-              </div>
             )}
-          </div>
-
-          {/* Info Card */}
-          <div className={`${methodInfo.bgColor} border ${methodInfo.borderColor} rounded-xl p-4 shadow-sm`}>
-            <div className="flex items-start gap-3">
-              <div className={`${methodInfo.iconBg} rounded-lg p-2 flex-shrink-0`}>
-                <Info className={`h-5 w-5 ${methodInfo.color}`} />
-              </div>
-              <div className="space-y-2 text-sm">
-                <p className="font-semibold text-gray-900">
-                  Accepted Number Formats
-                </p>
-                <div className="space-y-1">
-                  <p className="text-gray-700 leading-relaxed">
-                    <span className="font-medium">Starts with:</span>{' '}
-                    <span className="font-mono font-semibold text-gray-900">
-                      {methodInfo.prefixes.join(', ')}
-                    </span>
-                  </p>
-                  <p className="text-gray-600 text-xs">
-                    Example: <span className="font-mono">{methodInfo.prefixes[0]} 123 4567</span>
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Payment Process Info */}
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-            <div className="flex items-start gap-3">
-              <div className="bg-blue-100 rounded-lg p-2 flex-shrink-0">
-                <Smartphone className="h-5 w-5 text-blue-600" />
-              </div>
-              <div className="space-y-1 text-sm">
-                <p className="font-semibold text-blue-900">
-                  What happens next?
-                </p>
-                <ol className="list-decimal list-inside space-y-1 text-blue-800 text-xs leading-relaxed">
-                  <li>You'll receive an SMS prompt on your phone</li>
-                  <li>Enter your Mobile Money PIN to confirm</li>
-                  <li>Your payment will be processed instantly</li>
-                </ol>
-              </div>
-            </div>
           </div>
         </div>
 
-        {/* Footer with Actions */}
+        {/* Compact Footer */}
         <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
-          <DialogFooter className="flex-row gap-3 sm:gap-3">
+          <div className="flex gap-3">
             <Button 
               variant="outline" 
               onClick={handleCancel}
-              className="flex-1 h-11 border-gray-300 hover:bg-gray-100"
+              className="flex-1 h-10 text-sm"
             >
               Cancel
             </Button>
             <Button 
               onClick={handleConfirm}
               disabled={!isValid}
-              className="flex-1 h-11 bg-orange-600 hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-300 transition-all"
+              className="flex-1 h-10 text-sm bg-orange-600 hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-300"
             >
-              {isValid ? 'Continue Payment' : 'Enter Phone Number'}
+              Continue
             </Button>
-          </DialogFooter>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
