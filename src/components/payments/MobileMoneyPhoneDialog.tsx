@@ -12,8 +12,11 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Smartphone, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Smartphone, AlertCircle, CheckCircle2, Info } from 'lucide-react';
 import { PAYMENT_METHODS } from '@/lib/services/kpay';
+import Image from 'next/image';
+import mtnLogo from '@/assets/icons/mtn.png';
+import airtelLogo from '@/assets/icons/airtel.png';
 
 interface MobileMoneyPhoneDialogProps {
   isOpen: boolean;
@@ -169,14 +172,16 @@ export default function MobileMoneyPhoneDialog({
 
   const getPaymentMethodInfo = () => {
     const method = PAYMENT_METHODS[paymentMethod];
+    const isMTN = paymentMethod === 'mtn_momo';
+    
     return {
       name: method.name,
-      prefixes: paymentMethod === 'mtn_momo' 
-        ? ['078', '077', '076', '079'] 
-        : ['073', '072', '070'],
-      color: paymentMethod === 'mtn_momo' ? 'text-yellow-600' : 'text-red-600',
-      bgColor: paymentMethod === 'mtn_momo' ? 'bg-yellow-50' : 'bg-red-50',
-      borderColor: paymentMethod === 'mtn_momo' ? 'border-yellow-200' : 'border-red-200',
+      prefixes: isMTN ? ['078', '077', '076', '079'] : ['073', '072', '070'],
+      color: isMTN ? 'text-yellow-600' : 'text-red-600',
+      bgColor: isMTN ? 'bg-gradient-to-br from-yellow-50 to-orange-50' : 'bg-gradient-to-br from-red-50 to-pink-50',
+      borderColor: isMTN ? 'border-yellow-300' : 'border-red-300',
+      iconBg: isMTN ? 'bg-yellow-100' : 'bg-red-100',
+      logo: isMTN ? mtnLogo : airtelLogo,
     };
   };
 
@@ -184,86 +189,159 @@ export default function MobileMoneyPhoneDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Smartphone className={`h-5 w-5 ${methodInfo.color}`} />
-            {methodInfo.name} Payment
-          </DialogTitle>
-          <DialogDescription>
-            Please enter your {methodInfo.name} phone number to complete the payment.
-            You will receive an SMS prompt to authorize the transaction.
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent className="sm:max-w-[480px] p-0 overflow-hidden">
+        {/* Header with Brand Logo */}
+        <div className={`${methodInfo.bgColor} border-b ${methodInfo.borderColor} px-6 py-5`}>
+          <DialogHeader className="space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-white rounded-lg shadow-sm flex items-center justify-center p-2">
+                <Image
+                  src={methodInfo.logo}
+                  alt={methodInfo.name}
+                  width={40}
+                  height={40}
+                  className="object-contain"
+                />
+              </div>
+              <div>
+                <DialogTitle className="text-xl font-bold text-gray-900">
+                  {methodInfo.name}
+                </DialogTitle>
+                <p className="text-sm text-gray-600 mt-0.5">
+                  Mobile Money Payment
+                </p>
+              </div>
+            </div>
+            <DialogDescription className="text-sm text-gray-700 leading-relaxed">
+              Enter your {methodInfo.name} number below. You'll receive an SMS prompt to authorize the payment.
+            </DialogDescription>
+          </DialogHeader>
+        </div>
 
-        <div className="grid gap-4 py-4">
-          <div className="space-y-2">
-            <Label htmlFor="phone" className="text-sm font-medium">
-              Phone Number
+        {/* Main Content */}
+        <div className="px-6 py-5 space-y-5">
+          {/* Phone Number Input */}
+          <div className="space-y-3">
+            <Label htmlFor="phone" className="text-sm font-semibold text-gray-900">
+              Phone Number <span className="text-red-500">*</span>
             </Label>
             <div className="relative">
+              <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-2 pointer-events-none">
+                <Smartphone className="h-4 w-4 text-gray-400" />
+                <span className="text-sm font-medium text-gray-500">+250</span>
+              </div>
               <Input
                 id="phone"
                 type="tel"
-                placeholder={methodInfo.name === 'MTN Mobile Money' ? '078 123 4567' : '073 123 4567'}
+                placeholder={methodInfo.prefixes[0] + ' 123 4567'}
                 value={phoneDisplay}
                 onChange={handlePhoneChange}
                 onKeyPress={handleKeyPress}
-                className={`pr-10 ${
+                className={`pl-20 pr-12 h-12 text-base transition-all ${
                   error 
-                    ? 'border-red-500 focus-visible:ring-red-500' 
+                    ? 'border-red-500 focus-visible:ring-red-500 bg-red-50' 
                     : isValid 
-                    ? 'border-green-500 focus-visible:ring-green-500' 
-                    : ''
+                    ? 'border-green-500 focus-visible:ring-green-500 bg-green-50' 
+                    : 'border-gray-300'
                 }`}
                 autoFocus
                 maxLength={12} // 10 digits + 2 spaces
               />
               {isValid && (
-                <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 h-5 w-5 text-green-500" />
+                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <div className="bg-green-100 rounded-full p-1">
+                    <CheckCircle2 className="h-5 w-5 text-green-600" />
+                  </div>
+                </div>
               )}
             </div>
-            <p className="text-xs text-gray-500">
-              {phoneValue.length}/10 digits
-            </p>
+            
+            {/* Character counter */}
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-gray-500">
+                {phoneValue.length}/10 digits entered
+              </p>
+              {isValid && (
+                <p className="text-xs text-green-600 font-medium flex items-center gap-1">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Valid number
+                </p>
+              )}
+            </div>
+            
+            {/* Error message */}
             {error && (
-              <div className="flex items-center gap-2 text-sm text-red-600">
-                <AlertCircle className="h-4 w-4" />
-                {error}
+              <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg animate-in fade-in slide-in-from-top-1">
+                <AlertCircle className="h-4 w-4 text-red-600 mt-0.5 flex-shrink-0" />
+                <p className="text-sm text-red-700 leading-relaxed">{error}</p>
               </div>
             )}
           </div>
 
-          <div className={`${methodInfo.bgColor} border ${methodInfo.borderColor} rounded-lg p-3`}>
-            <div className="flex items-start gap-2">
-              <Smartphone className={`h-4 w-4 ${methodInfo.color} mt-0.5 flex-shrink-0`} />
-              <div className="text-sm">
-                <p className="font-medium mb-1">
-                  {methodInfo.name} Number Format
+          {/* Info Card */}
+          <div className={`${methodInfo.bgColor} border ${methodInfo.borderColor} rounded-xl p-4 shadow-sm`}>
+            <div className="flex items-start gap-3">
+              <div className={`${methodInfo.iconBg} rounded-lg p-2 flex-shrink-0`}>
+                <Info className={`h-5 w-5 ${methodInfo.color}`} />
+              </div>
+              <div className="space-y-2 text-sm">
+                <p className="font-semibold text-gray-900">
+                  Accepted Number Formats
                 </p>
-                <p className="text-xs leading-relaxed text-gray-700">
-                  {methodInfo.name} numbers in Rwanda start with: <span className="font-semibold">{methodInfo.prefixes.join(', ')}</span>
+                <div className="space-y-1">
+                  <p className="text-gray-700 leading-relaxed">
+                    <span className="font-medium">Starts with:</span>{' '}
+                    <span className="font-mono font-semibold text-gray-900">
+                      {methodInfo.prefixes.join(', ')}
+                    </span>
+                  </p>
+                  <p className="text-gray-600 text-xs">
+                    Example: <span className="font-mono">{methodInfo.prefixes[0]} 123 4567</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Payment Process Info */}
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+            <div className="flex items-start gap-3">
+              <div className="bg-blue-100 rounded-lg p-2 flex-shrink-0">
+                <Smartphone className="h-5 w-5 text-blue-600" />
+              </div>
+              <div className="space-y-1 text-sm">
+                <p className="font-semibold text-blue-900">
+                  What happens next?
                 </p>
-                <p className="text-xs leading-relaxed text-gray-700 mt-1">
-                  Example: {methodInfo.prefixes[0]} 123 4567
-                </p>
+                <ol className="list-decimal list-inside space-y-1 text-blue-800 text-xs leading-relaxed">
+                  <li>You'll receive an SMS prompt on your phone</li>
+                  <li>Enter your Mobile Money PIN to confirm</li>
+                  <li>Your payment will be processed instantly</li>
+                </ol>
               </div>
             </div>
           </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={handleCancel}>
-            Cancel
-          </Button>
-          <Button 
-            onClick={handleConfirm}
-            disabled={!isValid}
-            className="bg-orange-600 hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Continue Payment
-          </Button>
-        </DialogFooter>
+        {/* Footer with Actions */}
+        <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
+          <DialogFooter className="flex-row gap-3 sm:gap-3">
+            <Button 
+              variant="outline" 
+              onClick={handleCancel}
+              className="flex-1 h-11 border-gray-300 hover:bg-gray-100"
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleConfirm}
+              disabled={!isValid}
+              className="flex-1 h-11 bg-orange-600 hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-300 transition-all"
+            >
+              {isValid ? 'Continue Payment' : 'Enter Phone Number'}
+            </Button>
+          </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );
