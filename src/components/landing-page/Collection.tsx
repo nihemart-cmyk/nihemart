@@ -219,8 +219,8 @@ const Collection: FC<CollectionProps> = ({}) => {
                           width={80}
                           height={80}
                           className="group-hover:scale-105 transition-transform duration-300 mb-2"
-                          priority
-                          loading="eager"
+                          // priority
+                          // loading="eager"
                         />
                         <h4 className="text-center font-medium text-gray-800 group-hover:text-orange-600 transition-colors px-2 truncate text-sm">
                           {category.name}
