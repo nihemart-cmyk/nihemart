@@ -97,8 +97,8 @@ const ProductCard = ({ product }: { product: StoreProduct }) => {
               alt={product?.name}
               fill
               className="object-cover rounded-lg"
-              priority
-              loading="eager"
+              // priority
+              // loading="eager"
             />
           </div>
           <div className="absolute z-20 left-3 top-3">
