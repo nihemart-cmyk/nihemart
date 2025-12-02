@@ -44,7 +44,7 @@ const GuestCheckoutForm: React.FC<Props> = ({
                </Label>
                <Input
                   value={formData.fullName || ""}
-                  placeholder={t("checkout.fullNamePlaceholder") || "Full name"}
+                  placeholder={t("checkout.fullNamePlaceholder") || "Enter yourFull name"}
                   onChange={(e) =>
                      setFormData((prev: any) => ({
                         ...prev,
@@ -57,9 +57,6 @@ const GuestCheckoutForm: React.FC<Props> = ({
                   <p className="text-xs text-red-600 mt-1">{errors.fullName}</p>
                )}
             </div>
-
-            {/* Email field removed as per requirement */}
-            {/* Phone is collected from the selected address; do not show phone input here */}
          </div>
       </div>
    );

@@ -85,6 +85,8 @@ export const rw: Record<string, string> = {
   "products.buyNow": "Gura Nonaha",
   "products.outOfStock": "Ntibihari",
   "products.viewDetails": "Reba Amakuru",
+  "products.more": "Kugira ngo umenye byinshi kuri iki gicuruzwa, reba iyi video",
+  "products.visit": "Dusure kuri",
 
   // Cart
   "cart.title": "Agatebo kawe",
@@ -108,6 +110,8 @@ export const rw: Record<string, string> = {
   "checkout.guestDetails": "Ibikuranga",
   "checkout.orderInfo": "Amakuru ya Komande",
   "checkout.email": "Imeyili",
+  "checkout.fullName": "Amazina yawe",
+  "checkout.fullNamePlaceholder": "Shyiramo amazina yawe",
   "checkout.firstName": "Izina rya mbere",
   "checkout.lastName": "Izina rya nyuma",
   "checkout.firstNamePlaceholder": "Izina ",
@@ -229,6 +233,9 @@ export const rw: Record<string, string> = {
   "checkout.phonePlaceholder": "Telefoni (ngombwa)",
   "checkout.errors.selectSector": "Nyamuneka hitamo umurenge wo koherezwamo",
   "checkout.errors.phoneRequired": "Telefoni ni ngombwa",
+  "checkout.errors.fullNameRequired": "Amazina yawe ni ngombwa",
+  "checkout.errors.validEmailRequired": "Nyamuneka andika imeyili ikwiye",
+  "checkout.errors.addressRequired": "Aderesi yo koherezaho ni ngombwa",
   "checkout.updatedSuccess": "Aderesi yahinduwe",
   "checkout.updateFailed": "Ntibyakunze guhindura aderesi",
   "checkout.savedSuccess": "Aderesi yabitswe",
@@ -243,6 +250,10 @@ export const rw: Record<string, string> = {
   "checkout.loginToPlaceOrder": "Nyamuneka winjire kugirango ushyireho komande",
   "checkout.loginToContinue": "Injira kugirango ukomeze",
   "checkout.errors.validPhone": "Tanga nimero ya telefone iboneye (imibare 10)",
+  "checkout.ordersDisabled": "Gutanga komande byahagaritswe. Mwongere mugerageze mukanya.",
+  "checkout.useThisAddress": "Koresha iyi Aderesi",
+  "checkout.saveForLater": "Bika Kugirango Ukoreshe Nyuma",
+  "checkout.addressReadyForCheckout": "Aderesi yiteguye kugurisha",
   "checkout.addAddress": "Hitamo aho tubikoherereza",
   "checkout.guestInfo": "Andi makuru (ku bashyitsi gusa)",
 
@@ -330,6 +341,7 @@ export const rw: Record<string, string> = {
   "common.error": "Ikosa",
   "common.loadMore": "Reba ibindi",
   "common.success": "Byagenze neza",
+  "common.optional": "Niba ubishaka",
 
   // Footer
   "footer.quickLinks": "Ibyihutirwa",

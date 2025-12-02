@@ -8,6 +8,8 @@ export interface StoreProduct {
   id: string;
   name: string;
   price: number;
+  minPrice?: number | null;
+  maxPrice?: number | null;
   main_image_url: string | null;
   average_rating: number | null;
   review_count: number | null;
@@ -85,6 +87,31 @@ export interface ReviewBase {
 export interface StoreCategorySimple {
   id: string;
   name: string;
+}
+
+// --- HELPER FUNCTIONS ---
+
+/**
+ * Calculate the min and max price from product variations
+ * @param variations Array of product variations with prices
+ * @returns Object with minPrice and maxPrice, or null if no variations
+ */
+function calculatePriceRange(
+  variations: any[]
+): { minPrice: number; maxPrice: number } | null {
+  if (!variations || variations.length === 0) return null;
+
+  const prices = variations
+    .map((v) => v.price)
+    .filter((p) => p != null && p !== undefined)
+    .sort((a, b) => a - b);
+
+  if (prices.length === 0) return null;
+
+  return {
+    minPrice: prices[0],
+    maxPrice: prices[prices.length - 1],
+  };
 }
 
 // --- DATA FETCHING FUNCTIONS ---
@@ -218,6 +245,38 @@ export const fetchStoreProducts = cache(
         .range(from, to);
 
       if (error) throw error;
+
+      // Fetch variations for price range calculation
+      if (data && data.length > 0) {
+        const productIdsForVariations = data.map((p: any) => p.id);
+        const { data: variationsData } = await sb
+          .from("product_variations")
+          .select("product_id, price")
+          .in("product_id", productIdsForVariations);
+
+        // Map variations by product_id and calculate price ranges
+        const variationsByProduct: { [key: string]: any[] } = {};
+        (variationsData || []).forEach((v: any) => {
+          if (!variationsByProduct[v.product_id]) {
+            variationsByProduct[v.product_id] = [];
+          }
+          variationsByProduct[v.product_id].push(v);
+        });
+
+        // Add price ranges to products
+        return {
+          data: (data as StoreProduct[]).map((p: any) => {
+            const priceRange = calculatePriceRange(variationsByProduct[p.id]);
+            return {
+              ...p,
+              minPrice: priceRange?.minPrice,
+              maxPrice: priceRange?.maxPrice,
+            };
+          }),
+          count: count ?? 0,
+        };
+      }
+
       return { data: data as StoreProduct[], count: count ?? 0 };
     }
 
@@ -250,6 +309,38 @@ export const fetchStoreProducts = cache(
       .range(from, to);
 
     if (error) throw error;
+
+    // Fetch variations for price range calculation
+    if (data && data.length > 0) {
+      const productIds = data.map((p: any) => p.id);
+      const { data: variationsData } = await sb
+        .from("product_variations")
+        .select("product_id, price")
+        .in("product_id", productIds);
+
+      // Map variations by product_id and calculate price ranges
+      const variationsByProduct: { [key: string]: any[] } = {};
+      (variationsData || []).forEach((v: any) => {
+        if (!variationsByProduct[v.product_id]) {
+          variationsByProduct[v.product_id] = [];
+        }
+        variationsByProduct[v.product_id].push(v);
+      });
+
+      // Add price ranges to products
+      return {
+        data: (data as StoreProduct[]).map((p: any) => {
+          const priceRange = calculatePriceRange(variationsByProduct[p.id]);
+          return {
+            ...p,
+            minPrice: priceRange?.minPrice,
+            maxPrice: priceRange?.maxPrice,
+          };
+        }),
+        count: count ?? 0,
+      };
+    }
+
     return { data: data as StoreProduct[], count: count ?? 0 };
   }
 );
@@ -372,7 +463,32 @@ export const fetchStoreProductById = cache(
           .in("status", ["active", "out_of_stock"])
           .limit(6);
 
-        similarProducts = similarData || [];
+        if (similarData && similarData.length > 0) {
+          // Fetch variations for price range calculation
+          const { data: variationsData } = await sb
+            .from("product_variations")
+            .select("product_id, price")
+            .in("product_id", uniqueProductIds);
+
+          // Map variations by product_id and calculate price ranges
+          const variationsByProduct: { [key: string]: any[] } = {};
+          (variationsData || []).forEach((v: any) => {
+            if (!variationsByProduct[v.product_id]) {
+              variationsByProduct[v.product_id] = [];
+            }
+            variationsByProduct[v.product_id].push(v);
+          });
+
+          // Add price ranges to products
+          similarProducts = similarData.map((p: any) => {
+            const priceRange = calculatePriceRange(variationsByProduct[p.id]);
+            return {
+              ...p,
+              minPrice: priceRange?.minPrice,
+              maxPrice: priceRange?.maxPrice,
+            };
+          });
+        }
       }
     }
 
@@ -460,6 +576,35 @@ export const fetchProductsUnder15k = cache(
     }
     const { data, error } = await query;
     if (error) throw error;
+
+    // Fetch variations for price range calculation
+    if (data && data.length > 0) {
+      const productIds = (data as any[]).map((p) => p.id);
+      const { data: variationsData } = await sb
+        .from("product_variations")
+        .select("product_id, price")
+        .in("product_id", productIds);
+
+      // Map variations by product_id and calculate price ranges
+      const variationsByProduct: { [key: string]: any[] } = {};
+      (variationsData || []).forEach((v: any) => {
+        if (!variationsByProduct[v.product_id]) {
+          variationsByProduct[v.product_id] = [];
+        }
+        variationsByProduct[v.product_id].push(v);
+      });
+
+      // Add price ranges to products
+      return (data as StoreProduct[]).map((p: any) => {
+        const priceRange = calculatePriceRange(variationsByProduct[p.id]);
+        return {
+          ...p,
+          minPrice: priceRange?.minPrice,
+          maxPrice: priceRange?.maxPrice,
+        };
+      });
+    }
+
     return data as StoreProduct[];
   }
 );
@@ -517,6 +662,35 @@ export const fetchLandingPageProducts = cache(
 
     const { data, error } = await query;
     if (error) throw error;
+
+    // Fetch variations for price range calculation
+    if (data && data.length > 0) {
+      const productIds = (data as any[]).map((p) => p.id);
+      const { data: variationsData } = await sb
+        .from("product_variations")
+        .select("product_id, price")
+        .in("product_id", productIds);
+
+      // Map variations by product_id and calculate price ranges
+      const variationsByProduct: { [key: string]: any[] } = {};
+      (variationsData || []).forEach((v: any) => {
+        if (!variationsByProduct[v.product_id]) {
+          variationsByProduct[v.product_id] = [];
+        }
+        variationsByProduct[v.product_id].push(v);
+      });
+
+      // Add price ranges to products
+      return (data as StoreProduct[]).map((p: any) => {
+        const priceRange = calculatePriceRange(variationsByProduct[p.id]);
+        return {
+          ...p,
+          minPrice: priceRange?.minPrice,
+          maxPrice: priceRange?.maxPrice,
+        };
+      });
+    }
+
     return data as StoreProduct[];
   }
 );

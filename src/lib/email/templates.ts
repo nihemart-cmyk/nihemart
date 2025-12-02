@@ -102,7 +102,7 @@ export function buildBrandedAuthEmail(
             <td style="padding:32px 32px 24px 32px;text-align:center;background:linear-gradient(135deg, ${primaryBlue} 0%, #1ac4f7 100%)">
               ${
                  logoUrl
-                    ? `<img src="${logoUrl}" alt="${appName}" width="80" height="80" style="display:inline-block;border-radius:16px;background:#ffffff;padding:8px;box-shadow:0 2px 8px rgba(0,0,0,0.15)" />`
+                    ? `<Image src="${logoUrl}" alt="${appName}" width="80" height="80" style="display:inline-block;border-radius:16px;background:#ffffff;padding:8px;box-shadow:0 2px 8px rgba(0,0,0,0.15)" />`
                     : `<div style="display:inline-block;width:80px;height:80px;border-radius:16px;background:#ffffff;line-height:80px;font-size:36px;font-weight:700;color:${primaryBlue}">N</div>`
               }
               <div style="font-size:28px;font-weight:700;color:#ffffff;margin-top:16px;letter-spacing:-0.5px">

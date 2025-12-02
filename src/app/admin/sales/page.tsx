@@ -1,18 +1,52 @@
-"use client"
+"use client";
 
-import { FC } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts'
-import { Download, TrendingUp, TrendingDown, Package, Users, DollarSign, ShoppingCart, MapPin } from 'lucide-react'
-import { ScrollArea } from '@/components/ui/scroll-area'
+import { FC } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart";
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+} from "recharts";
+import {
+  Download,
+  TrendingUp,
+  TrendingDown,
+  Package,
+  Users,
+  DollarSign,
+  ShoppingCart,
+  MapPin,
+} from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 
-interface pageProps {
+interface pageProps {}
 
-}
+const page: FC<pageProps> = ({}) => {
+  return (
+    <ProtectedRoute requiredSection="sales">
+      <SalesContent />
+    </ProtectedRoute>
+  );
+};
 
-const page: FC<pageProps> = ({ }) => {
+function SalesContent() {
   // Mock data for sales metrics
   const salesMetrics = [
     {
@@ -21,7 +55,7 @@ const page: FC<pageProps> = ({ }) => {
       change: "+12.5%",
       isPositive: true,
       icon: DollarSign,
-      period: "Last 30 days"
+      period: "Last 30 days",
     },
     {
       title: "Total Orders",
@@ -29,7 +63,7 @@ const page: FC<pageProps> = ({ }) => {
       change: "+8.2%",
       isPositive: true,
       icon: ShoppingCart,
-      period: "Last 30 days"
+      period: "Last 30 days",
     },
     {
       title: "Active Customers",
@@ -37,7 +71,7 @@ const page: FC<pageProps> = ({ }) => {
       change: "+15.3%",
       isPositive: true,
       icon: Users,
-      period: "Last 30 days"
+      period: "Last 30 days",
     },
     {
       title: "Refunds",
@@ -45,9 +79,9 @@ const page: FC<pageProps> = ({ }) => {
       change: "-2.1%",
       isPositive: true,
       icon: TrendingDown,
-      period: "Last 30 days"
-    }
-  ]
+      period: "Last 30 days",
+    },
+  ];
 
   // Mock data for sales chart
   const salesChartData = [
@@ -57,8 +91,8 @@ const page: FC<pageProps> = ({ }) => {
     { day: "Thu", revenue: 61000, orders: 61 },
     { day: "Fri", revenue: 55000, orders: 55 },
     { day: "Sat", revenue: 67000, orders: 67 },
-    { day: "Sun", revenue: 58000, orders: 58 }
-  ]
+    { day: "Sun", revenue: 58000, orders: 58 },
+  ];
 
   const salesChartConfig = {
     revenue: {
@@ -68,8 +102,8 @@ const page: FC<pageProps> = ({ }) => {
     orders: {
       label: "Orders",
       color: "hsl(var(--chart-2))",
-    }
-  }
+    },
+  };
 
   // Mock data for top products
   const topProducts = [
@@ -77,23 +111,23 @@ const page: FC<pageProps> = ({ }) => {
     { name: "Smart Watch", sales: 98, revenue: 58800, growth: "+18%" },
     { name: "Laptop Stand", sales: 87, revenue: 26100, growth: "+12%" },
     { name: "USB Cable", sales: 76, revenue: 11400, growth: "+8%" },
-    { name: "Phone Case", sales: 65, revenue: 9750, growth: "+5%" }
-  ]
+    { name: "Phone Case", sales: 65, revenue: 9750, growth: "+5%" },
+  ];
 
   // Mock data for category performance
   const categoryData = [
     { category: "Electronics", sales: 450, percentage: 45 },
     { category: "Accessories", sales: 320, percentage: 32 },
     { category: "Clothing", sales: 150, percentage: 15 },
-    { category: "Home", sales: 80, percentage: 8 }
-  ]
+    { category: "Home", sales: 80, percentage: 8 },
+  ];
 
   const categoryChartConfig = {
     sales: {
       label: "Sales",
       color: "hsl(var(--chart-3))",
-    }
-  }
+    },
+  };
 
   return (
     <ScrollArea className="h-screen pb-20">
@@ -101,8 +135,12 @@ const page: FC<pageProps> = ({ }) => {
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Sales Analytics</h1>
-            <p className="text-gray-600 mt-1">Track your sales performance and insights</p>
+            <h1 className="text-3xl font-bold text-gray-900">
+              Sales Analytics
+            </h1>
+            <p className="text-gray-600 mt-1">
+              Track your sales performance and insights
+            </p>
           </div>
           <Button className="bg-orange-500 hover:bg-orange-600 text-white">
             <Download className="w-4 h-4 mr-2" />
@@ -121,9 +159,13 @@ const page: FC<pageProps> = ({ }) => {
                 <metric.icon className="h-4 w-4 text-orange-500" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-gray-900">{metric.value}</div>
+                <div className="text-2xl font-bold text-gray-900">
+                  {metric.value}
+                </div>
                 <div className="flex items-center text-xs text-gray-600 mt-1">
-                  <span className={`flex items-center ${metric.isPositive ? 'text-green-600' : 'text-red-600'}`}>
+                  <span
+                    className={`flex items-center ${metric.isPositive ? "text-green-600" : "text-red-600"}`}
+                  >
                     {metric.isPositive ? (
                       <TrendingUp className="w-3 h-3 mr-1" />
                     ) : (
@@ -144,7 +186,9 @@ const page: FC<pageProps> = ({ }) => {
           {/* Sales Revenue Chart */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg font-semibold">Revenue & Orders Trend</CardTitle>
+              <CardTitle className="text-lg font-semibold">
+                Revenue & Orders Trend
+              </CardTitle>
               <CardDescription>Weekly performance overview</CardDescription>
             </CardHeader>
             <CardContent>
@@ -178,17 +222,26 @@ const page: FC<pageProps> = ({ }) => {
           {/* Category Performance */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg font-semibold">Sales by Category</CardTitle>
+              <CardTitle className="text-lg font-semibold">
+                Sales by Category
+              </CardTitle>
               <CardDescription>Product category performance</CardDescription>
             </CardHeader>
             <CardContent>
-              <ChartContainer config={categoryChartConfig} className="h-[300px]">
+              <ChartContainer
+                config={categoryChartConfig}
+                className="h-[300px]"
+              >
                 <BarChart data={categoryData}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="category" />
                   <YAxis />
                   <ChartTooltip content={<ChartTooltipContent />} />
-                  <Bar dataKey="sales" fill="hsl(var(--chart-3))" radius={[4, 4, 0, 0]} />
+                  <Bar
+                    dataKey="sales"
+                    fill="hsl(var(--chart-3))"
+                    radius={[4, 4, 0, 0]}
+                  />
                 </BarChart>
               </ChartContainer>
             </CardContent>
@@ -200,24 +253,37 @@ const page: FC<pageProps> = ({ }) => {
           {/* Top Products */}
           <Card className="lg:col-span-2">
             <CardHeader>
-              <CardTitle className="text-lg font-semibold">Best Selling Products</CardTitle>
-              <CardDescription>Top performing products this month</CardDescription>
+              <CardTitle className="text-lg font-semibold">
+                Best Selling Products
+              </CardTitle>
+              <CardDescription>
+                Top performing products this month
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 {topProducts.map((product, index) => (
-                  <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                  <div
+                    key={index}
+                    className="flex items-center justify-between p-4 bg-gray-50 rounded-lg"
+                  >
                     <div className="flex items-center space-x-4">
                       <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
                         <Package className="w-5 h-5 text-orange-600" />
                       </div>
                       <div>
-                        <p className="font-medium text-gray-900">{product.name}</p>
-                        <p className="text-sm text-gray-600">{product.sales} units sold</p>
+                        <p className="font-medium text-gray-900">
+                          {product.name}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          {product.sales} units sold
+                        </p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="font-semibold text-gray-900">Rwf {product.revenue.toLocaleString()}</p>
+                      <p className="font-semibold text-gray-900">
+                        Rwf {product.revenue.toLocaleString()}
+                      </p>
                       <p className="text-sm text-green-600">{product.growth}</p>
                     </div>
                   </div>
@@ -229,7 +295,9 @@ const page: FC<pageProps> = ({ }) => {
           {/* Regional Performance */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg font-semibold">Regional Sales</CardTitle>
+              <CardTitle className="text-lg font-semibold">
+                Regional Sales
+              </CardTitle>
               <CardDescription>Sales distribution by region</CardDescription>
             </CardHeader>
             <CardContent>
@@ -238,16 +306,23 @@ const page: FC<pageProps> = ({ }) => {
                   { region: "Kigali", sales: 450, percentage: 45 },
                   { region: "Northern", sales: 280, percentage: 28 },
                   { region: "Southern", sales: 180, percentage: 18 },
-                  { region: "Eastern", sales: 90, percentage: 9 }
+                  { region: "Eastern", sales: 90, percentage: 9 },
                 ].map((region, index) => (
-                  <div key={index} className="flex items-center justify-between">
+                  <div
+                    key={index}
+                    className="flex items-center justify-between"
+                  >
                     <div className="flex items-center space-x-2">
                       <MapPin className="w-4 h-4 text-orange-500" />
-                      <span className="text-sm font-medium">{region.region}</span>
+                      <span className="text-sm font-medium">
+                        {region.region}
+                      </span>
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-semibold">{region.sales}</p>
-                      <p className="text-xs text-gray-600">{region.percentage}%</p>
+                      <p className="text-xs text-gray-600">
+                        {region.percentage}%
+                      </p>
                     </div>
                   </div>
                 ))}
@@ -257,7 +332,7 @@ const page: FC<pageProps> = ({ }) => {
         </div>
       </div>
     </ScrollArea>
-  )
+  );
 }
 
-export default page
+export default page;

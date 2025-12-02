@@ -1940,13 +1940,15 @@ Total: ${total.toLocaleString()} RWF
 
          <div className="grid lg:grid-cols-2 gap-6 sm:gap-8">
             {/* Left Column - Forms */}
-            <div className="space-y-4 sm:space-y-6">
+            <div className="space-y-5 sm:space-y-7">
                {/* Add delivery address section */}
-               <div className="space-y-3 sm:space-y-4">
+               <div className="space-y-4 sm:space-y-5 border border-gray-200 rounded-xl p-4 sm:p-5 bg-gradient-to-b from-gray-50 to-white shadow-sm">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0">
                      <div className="flex items-center space-x-2 sm:space-x-3">
-                        <MapPin className="h-4 w-4 sm:h-5 sm:w-5 text-orange-600" />
-                        <h2 className="text-base sm:text-lg font-medium">
+                        <div className="p-2 bg-orange-100 rounded-lg">
+                           <MapPin className="h-4 w-4 sm:h-5 sm:w-5 text-orange-600" />
+                        </div>
+                        <h2 className="text-base sm:text-lg font-semibold text-gray-900">
                            {t("checkout.addDeliveryAddress")}
                         </h2>
                      </div>
@@ -2036,15 +2038,15 @@ Total: ${total.toLocaleString()} RWF
                      onOpenChange={setAddressOpen}
                   >
                      <CollapsibleTrigger asChild>
-                        <button className="w-full text-left p-0 flex items-center space-x-2 text-gray-600 hover:text-orange-600 transition-colors text-sm">
-                           {addressOpen ? (
-                              <ChevronDown className="h-3 w-3 sm:h-4 sm:w-4" />
-                           ) : (
-                              <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4" />
-                           )}
+                        <button className="w-full text-left p-3 sm:p-3.5 flex items-center justify-between text-gray-700 hover:text-orange-600 hover:bg-orange-50/50 transition-all rounded-lg border border-gray-200 bg-white">
                            <span className="text-xs sm:text-sm font-medium">
                               {t("checkout.selectDeliveryAddress")}
                            </span>
+                           {addressOpen ? (
+                              <ChevronDown className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0 transition-transform" />
+                           ) : (
+                              <ChevronRight className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0 transition-transform" />
+                           )}
                         </button>
                      </CollapsibleTrigger>
                      <CollapsibleContent className="mt-3 sm:mt-4">
@@ -2235,35 +2237,26 @@ Total: ${total.toLocaleString()} RWF
                   </Collapsible>
                </div>
 
-               {/* Guest details (for unauthenticated users) - shown for guests below payment section */}
+               {/* Guest details (for unauthenticated users) - displayed explicitly without collapsible */}
                {!isLoggedIn && (
-                  <div className="space-y-3 sm:space-y-4 mt-4">
-                     <Collapsible>
-                        <CollapsibleTrigger asChild>
-                           <button className="w-full text-left p-0 flex items-center space-x-2 sm:space-x-3 text-gray-600 hover:text-orange-600 transition-colors">
-                              <span className="text-base sm:text-lg font-medium">
-                                 {t("checkout.guestInfo")}
-                              </span>
-                           </button>
-                        </CollapsibleTrigger>
-                        <CollapsibleContent className="mt-3 sm:mt-4">
-                           <GuestCheckoutForm
-                              formData={formData}
-                              setFormData={setFormData}
-                              errors={errors}
-                              onPhoneChange={handleGuestPhoneChange}
-                              phoneValue={formData.phone}
-                           />
-                        </CollapsibleContent>
-                     </Collapsible>
+                  <div className="space-y-4 sm:space-y-5 border border-gray-200 rounded-xl p-4 sm:p-5 bg-gradient-to-b from-blue-50 to-white shadow-sm">
+                     <GuestCheckoutForm
+                        formData={formData}
+                        setFormData={setFormData}
+                        errors={errors}
+                        onPhoneChange={handleGuestPhoneChange}
+                        phoneValue={formData.phone}
+                     />
                   </div>
                )}
 
                {/* Delivery instructions section - simplified, no collapse/expand required */}
-               <div className="space-y-3 sm:space-y-4 border border-gray-200 rounded-lg p-3 sm:p-4 bg-gray-50">
+               <div className="space-y-4 sm:space-y-5 border border-gray-200 rounded-xl p-4 sm:p-5 bg-gradient-to-b from-gray-50 to-white shadow-sm">
                   <div className="flex items-center space-x-2 sm:space-x-3 mb-2">
-                     <Package className="h-4 w-4 sm:h-5 sm:w-5 text-gray-600" />
-                     <span className="text-base sm:text-lg font-medium text-gray-900">
+                     <div className="p-2 bg-blue-100 rounded-lg">
+                        <Package className="h-4 w-4 sm:h-5 sm:w-5 text-blue-600" />
+                     </div>
+                     <span className="text-base sm:text-lg font-semibold text-gray-900">
                         {t("checkout.deliveryInstructions")}
                      </span>
                      <span className="text-xs text-gray-500">
@@ -2295,20 +2288,29 @@ Total: ${total.toLocaleString()} RWF
                </div>
 
                {/* Payment Method section */}
-               <div className="space-y-3 sm:space-y-4">
+               <div className="space-y-4 sm:space-y-5 border border-gray-200 rounded-xl p-4 sm:p-5 bg-gradient-to-b from-gray-50 to-white shadow-sm">
                   <Collapsible
                      open={paymentOpen}
                      onOpenChange={setPaymentOpen}
                   >
                      <CollapsibleTrigger asChild>
-                        <button className="w-full text-left p-0 flex items-center space-x-2 sm:space-x-3 text-gray-600 hover:text-orange-600 transition-colors">
-                           <CreditCard className="h-4 w-4 sm:h-5 sm:w-5" />
-                           <span className="text-base sm:text-lg font-medium">
-                              {t("checkout.paymentMethod")}
-                           </span>
+                        <button className="w-full text-left p-0 flex items-center justify-between text-gray-700 hover:text-orange-600 transition-colors group">
+                           <div className="flex items-center space-x-2 sm:space-x-3">
+                              <div className="p-2 bg-green-100 rounded-lg group-hover:bg-green-200 transition-colors">
+                                 <CreditCard className="h-4 w-4 sm:h-5 sm:w-5 text-green-600" />
+                              </div>
+                              <span className="text-base sm:text-lg font-semibold text-gray-900">
+                                 {t("checkout.paymentMethod")}
+                              </span>
+                           </div>
+                           {paymentOpen ? (
+                              <ChevronDown className="h-5 w-5 sm:h-6 sm:w-6 flex-shrink-0 transition-transform text-gray-500" />
+                           ) : (
+                              <ChevronRight className="h-5 w-5 sm:h-6 sm:w-6 flex-shrink-0 transition-transform text-gray-500" />
+                           )}
                         </button>
                      </CollapsibleTrigger>
-                     <CollapsibleContent className="mt-3 sm:mt-4">
+                     <CollapsibleContent className="mt-4 sm:mt-5">
                         <PaymentSection
                            paymentMethod={paymentMethod}
                            setPaymentMethod={setPaymentMethod}

@@ -85,6 +85,8 @@ export const en: Record<string, string> = {
   "products.buyNow": "Buy Now",
   "products.outOfStock": "Out of Stock",
   "products.viewDetails": "View Details",
+  "products.more": "For more about this product, please watch this video",
+  "products.visit": "Visit us on",
 
   //   how to buy
   "howToBuy.title": "How to Buy",
@@ -132,6 +134,8 @@ export const en: Record<string, string> = {
     "All payments are processed securely using industry-standard encryption.",
   "checkout.orderInfo": "Order Information",
   "checkout.email": "Email",
+  "checkout.fullName": "Full Name",
+  "checkout.fullNamePlaceholder": "Enter your Full Name",
   "checkout.firstName": "First Name",
   "checkout.firstNamePlaceholder": "First name",
   "checkout.lastName": "Last Name",
@@ -245,6 +249,9 @@ export const en: Record<string, string> = {
   "checkout.phonePlaceholder": "Phone (required)",
   "checkout.errors.selectSector": "Please select a sector for delivery",
   "checkout.errors.phoneRequired": "Phone is required",
+  "checkout.errors.fullNameRequired": "Full name is required",
+  "checkout.errors.validEmailRequired": "Please enter a valid email address",
+  "checkout.errors.addressRequired": "Delivery address is required",
   "checkout.updatedSuccess": "Address updated",
   "checkout.updateFailed": "Failed to update address",
   "checkout.savedSuccess": "Address saved",
@@ -264,6 +271,10 @@ export const en: Record<string, string> = {
   "checkout.missing.header":
     "Please fill the following before placing an order:",
   "checkout.errors.validPhone": "Enter a valid phone number (10 digits)",
+  "checkout.ordersDisabled": "Orders are currently disabled. Please try again later.",
+  "checkout.useThisAddress": "Use This Address",
+  "checkout.saveForLater": "Save for Later",
+  "checkout.addressReadyForCheckout": "Address ready for checkout",
 
   // Auth
   "auth.login.title": "Login to Your Account",
@@ -349,6 +360,7 @@ export const en: Record<string, string> = {
   "common.loadMore": "Load More",
   "common.error": "Error",
   "common.success": "Success",
+  "common.optional": "Optional",
 
   // Footer
   "footer.quickLinks": "Quick Links",

@@ -182,6 +182,12 @@ const NavBar: FC<NavBarProps> = ({}) => {
             <Search className="h-5 w-5 text-slate-700" />
           </Button>
 
+          {showMobileSearch && (
+            <div className="absolute top-full left-0 w-full bg-white border-t shadow-md px-4 py-2 z-[999] md:hidden">
+              <SearchPopover />
+            </div>
+          )}
+
           {/* <Button
                   aria-label={t("nav.language") || "Select language"}
                   className="flex lg:items-center bg-white text-orange-500 hover:bg-white/90 outline-none border-none"

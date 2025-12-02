@@ -1,6 +1,7 @@
 import React from 'react';
 import Magnifier from './Magnifier';
 import { cn } from '@/lib/utils';
+import Image from 'next/image';
 
 interface LookingGlassProps {
   src: string;
