@@ -301,7 +301,42 @@ const CheckoutPage = ({
       reloadSaved,
    } = useAddresses();
 
+   // State for temporary address used during checkout (not saved to DB until after order)
+   const [tempCheckoutAddress, setTempCheckoutAddress] = useState<any>(null);
+
+   // Use temporary address if available, otherwise use selected saved address
+   const effectiveAddress = tempCheckoutAddress || selectedAddress;
+
    const { items: cartItems, clearCart, removeItem } = useCart();
+
+   // Handler for using address directly without saving to DB first
+   const handleUseAddressDirectly = (addressData: any) => {
+      // Create a temporary address object that matches the saved address structure
+      const tempAddress = {
+         id: "temp-checkout-address", // Temporary ID
+         display_name: addressData.display_name,
+         street: addressData.street,
+         house_number: addressData.house_number,
+         phone: addressData.phone,
+         city: addressData.city,
+         _isTemp: true, // Flag to identify this as temporary
+         ...addressData,
+      };
+
+      setTempCheckoutAddress(tempAddress);
+      // Also call selectAddress to integrate with existing flow
+      // But since it's temp, we manually set form data instead
+      setFormData((prev) => ({
+         ...prev,
+         address: addressData.street || addressData.display_name || "",
+         city: addressData.city || "",
+         phone: addressData.phone || "",
+      }));
+
+      toast.success(
+         t("checkout.addressReadyForCheckout") || "Address ready for checkout"
+      );
+   };
 
    // KPay payment functionality
    const {
@@ -418,7 +453,7 @@ const CheckoutPage = ({
    useEffect(() => {
       try {
          const addr = (
-            selectedAddress?.street ||
+            effectiveAddress?.street ||
             formData.address ||
             ""
          ).trim();
@@ -1455,7 +1490,7 @@ const CheckoutPage = ({
       selectedProvinceObj,
    } = useCheckoutFlags({
       orderItemsCount: orderItems.length,
-      selectedAddress,
+      selectedAddress: effectiveAddress,
       formData,
       selectedProvince,
       provinces,
@@ -1551,11 +1586,16 @@ const CheckoutPage = ({
       // First/last name are optional on the checkout form because the
       // customer's name should be derived from their user profile when
       // they're logged in. If not logged in, fallback to form values.
-      if (!formData.email.trim() || !emailPattern.test(formData.email)) {
-         formErrors.email =
-            t("checkout.errors.validEmailRequired") ||
-            "Please enter a valid email";
+
+      // For logged in users, validate email if provided
+      if (isLoggedIn && formData.email && formData.email.trim()) {
+         if (!emailPattern.test(formData.email)) {
+            formErrors.email =
+               t("checkout.errors.validEmailRequired") ||
+               "Please enter a valid email";
+         }
       }
+      // For guest users, email is no longer required (removed from form)
 
       // When placing an order as a guest require the customer's name and phone
       if (!isLoggedIn) {
@@ -1636,7 +1676,7 @@ const CheckoutPage = ({
       formatPhoneNumber,
       validatePaymentRequest,
       paymentVerified,
-      selectedAddress,
+      selectedAddress: effectiveAddress,
       scheduleNotes,
       ordersDisabledMessage,
       paymentMethod,
@@ -1983,6 +2023,8 @@ Total: ${total.toLocaleString()} RWF
                            reloadSaved={reloadSaved}
                            setAddNewOpen={setAddNewOpen}
                            setAddressOpen={setAddressOpen}
+                           onUseDirectly={handleUseAddressDirectly}
+                           isLoggedIn={isLoggedIn}
                            t={t}
                         />
                      </CollapsibleContent>
@@ -2217,69 +2259,39 @@ Total: ${total.toLocaleString()} RWF
                   </div>
                )}
 
-               {/* Delivery instructions section */}
-               <div className="space-y-3 sm:space-y-4">
-                  <Collapsible
-                     open={instructionsOpen}
-                     onOpenChange={setInstructionsOpen}
-                  >
-                     <CollapsibleTrigger asChild>
-                        <button className="w-full text-left p-0 flex items-center space-x-2 sm:space-x-3 text-gray-600 hover:text-orange-600 transition-colors">
-                           <Package className="h-4 w-4 sm:h-5 sm:w-5" />
-                           <span className="text-base sm:text-lg font-medium">
-                              {t("checkout.deliveryInstructions")}
-                           </span>
-                        </button>
-                     </CollapsibleTrigger>
-                     <CollapsibleContent className="mt-3 sm:mt-4">
-                        <div className="space-y-3 sm:space-y-4 border border-gray-200 rounded-lg p-3 sm:p-4 bg-gray-50">
-                           <div>
-                              <Label
-                                 htmlFor="delivery_notes"
-                                 className="text-xs sm:text-sm font-medium text-gray-700"
-                              >
-                                 {t("checkout.deliveryInstructions")}
-                              </Label>
-                              <textarea
-                                 id="delivery_notes"
-                                 rows={3}
-                                 placeholder={t(
-                                    "checkout.writeDeliveryInstructions"
-                                 )}
-                                 value={formData.delivery_notes || ""}
-                                 onChange={(e) =>
-                                    setFormData((prev) => ({
-                                       ...prev,
-                                       delivery_notes: e.target.value,
-                                    }))
-                                 }
-                                 className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 resize-none transition-colors text-xs sm:text-sm"
-                              />
-                              <p className="mt-2 text-xs text-gray-500">
-                                 {t("checkout.deliveryInstructionsHelper")}
-                              </p>
-                           </div>
-                           <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 pt-1 sm:pt-2">
-                              <Button
-                                 variant="outline"
-                                 onClick={() => setInstructionsOpen(false)}
-                                 className="border-gray-300 text-gray-700 hover:bg-gray-50 text-xs sm:text-sm h-9 sm:h-10"
-                              >
-                                 {t("common.previous")}
-                              </Button>
-                              <Button
-                                 className="bg-orange-500 hover:bg-orange-600 text-white text-xs sm:text-sm h-9 sm:h-10"
-                                 onClick={() => {
-                                    setInstructionsOpen(false);
-                                    setPaymentOpen(true);
-                                 }}
-                              >
-                                 {t("common.next")}
-                              </Button>
-                           </div>
-                        </div>
-                     </CollapsibleContent>
-                  </Collapsible>
+               {/* Delivery instructions section - simplified, no collapse/expand required */}
+               <div className="space-y-3 sm:space-y-4 border border-gray-200 rounded-lg p-3 sm:p-4 bg-gray-50">
+                  <div className="flex items-center space-x-2 sm:space-x-3 mb-2">
+                     <Package className="h-4 w-4 sm:h-5 sm:w-5 text-gray-600" />
+                     <span className="text-base sm:text-lg font-medium text-gray-900">
+                        {t("checkout.deliveryInstructions")}
+                     </span>
+                     <span className="text-xs text-gray-500">
+                        ({t("common.optional") || "Optional"})
+                     </span>
+                  </div>
+                  <div>
+                     <textarea
+                        id="delivery_notes"
+                        rows={3}
+                        placeholder={
+                           t("checkout.writeDeliveryInstructions") ||
+                           "Enter any special delivery instructions..."
+                        }
+                        value={formData.delivery_notes || ""}
+                        onChange={(e) =>
+                           setFormData((prev) => ({
+                              ...prev,
+                              delivery_notes: e.target.value,
+                           }))
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 resize-none transition-colors text-xs sm:text-sm"
+                     />
+                     <p className="mt-2 text-xs text-gray-500">
+                        {t("checkout.deliveryInstructionsHelper") ||
+                           "Add any special instructions for delivery (e.g., landmarks, preferred time)"}
+                     </p>
+                  </div>
                </div>
 
                {/* Payment Method section */}

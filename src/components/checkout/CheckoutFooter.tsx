@@ -27,7 +27,7 @@ export default function CheckoutFooter({
       isInitiating ||
       !hasItems ||
       !hasAddress ||
-      !hasEmail ||
+      // Email is no longer required for guest checkout
       !hasValidPhone ||
       !paymentMethod ||
       (ordersEnabled === false &&

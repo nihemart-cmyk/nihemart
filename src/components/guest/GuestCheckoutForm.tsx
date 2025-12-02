@@ -58,28 +58,7 @@ const GuestCheckoutForm: React.FC<Props> = ({
                )}
             </div>
 
-            <div className="sm:col-span-2">
-               <Label className="text-xs sm:text-sm">
-                  {t("checkout.email")} <span className="text-red-500">*</span>
-               </Label>
-               <Input
-                  value={formData.email || ""}
-                  placeholder={
-                     t("checkout.emailPlaceholder") || "you@domain.com"
-                  }
-                  onChange={(e) =>
-                     setFormData((prev: any) => ({
-                        ...prev,
-                        email: e.target.value,
-                     }))
-                  }
-                  className={errors?.email ? "border-red-500" : ""}
-               />
-               {errors?.email && (
-                  <p className="text-xs text-red-600 mt-1">{errors.email}</p>
-               )}
-            </div>
-
+            {/* Email field removed as per requirement */}
             {/* Phone is collected from the selected address; do not show phone input here */}
          </div>
       </div>

@@ -37,6 +37,9 @@ type Props = {
    setAddNewOpen: (v: boolean) => void;
    setAddressOpen: (v: boolean) => void;
    t: (k: string) => string;
+   // New prop to enable "use directly without saving" mode for checkout
+   onUseDirectly?: (addressData: any) => void;
+   isLoggedIn?: boolean;
 };
 
 export default function CheckoutAddressForm(props: Props) {
@@ -62,6 +65,8 @@ export default function CheckoutAddressForm(props: Props) {
       setAddNewOpen,
       setAddressOpen,
       t,
+      onUseDirectly,
+      isLoggedIn,
    } = props;
 
    const { formatPhoneInput, normalizePhone } = useGuestInfo();
@@ -72,6 +77,68 @@ export default function CheckoutAddressForm(props: Props) {
       const formatted = formatPhoneInput(e.target.value);
       setPhoneInput(formatted);
       if (errors?.phone) setErrors((p: any) => ({ ...p, phone: undefined }));
+   };
+
+   const useDirectlyClicked = () => {
+      if (isSavingAddress) return;
+      const selectedProvinceObj = provinces.find(
+         (p: any) => String(p.prv_id) === String(selectedProvince)
+      );
+      const provinceIsKigali = Boolean(
+         selectedProvinceObj?.prv_name?.toLowerCase().includes("kigali")
+      );
+
+      if (provinceIsKigali && !selectedSector) {
+         toast.error("Please select a sector for delivery");
+         return;
+      }
+
+      // simple phone validation
+      try {
+         const cleaned = phoneInput?.replace(/[^\d+]/g, "") || "";
+         if (!/^\+250\d{9}$/.test(cleaned) && !/^07\d{8}$/.test(cleaned)) {
+            throw new Error(t("checkout.errors.validPhone") || "Invalid phone");
+         }
+      } catch (ve: any) {
+         const first = ve?.message || t("checkout.errors.validPhone");
+         setErrors((prev: any) => ({ ...prev, phone: first }));
+         toast.error(String(first));
+         return;
+      }
+
+      const sectorObj = sectors.find((s) => s.sct_id === selectedSector);
+      const districtObj = districts.find((d) => d.dst_id === selectedDistrict);
+      const cityName = provinceIsKigali
+         ? sectorObj?.sct_name || ""
+         : districtObj?.dst_name || "";
+      const derivedDisplayName = sectorObj
+         ? `${sectorObj.sct_name} address`
+         : "Address";
+
+      const normalizedPhone = normalizePhone(phoneInput || "");
+
+      // Call the onUseDirectly callback with address data (no DB save)
+      if (onUseDirectly) {
+         onUseDirectly({
+            display_name: derivedDisplayName,
+            street: cityName,
+            house_number: houseNumber,
+            phone: normalizedPhone,
+            city: cityName,
+            // Include location IDs for potential later use
+            _temp: {
+               selectedProvince,
+               selectedDistrict,
+               selectedSector,
+            },
+         });
+      }
+
+      setAddNewOpen(false);
+      setAddressOpen(true);
+      setEditingAddressId(null);
+      setHouseNumber("");
+      setPhoneInput("");
    };
 
    const saveClicked = async () => {
@@ -320,20 +387,50 @@ export default function CheckoutAddressForm(props: Props) {
             </div>
 
             <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 pt-1 sm:pt-2">
-               <Button
-                  onClick={saveClicked}
-                  disabled={isSavingAddress}
-                  className="bg-orange-500 hover:bg-orange-600 text-white text-xs sm:text-sm h-9 sm:h-10"
-               >
-                  {isSavingAddress ? (
-                     <>
-                        <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 animate-spin" />
-                        {t("common.saving") || "Saving..."}
-                     </>
-                  ) : (
-                     t("common.save")
-                  )}
-               </Button>
+               {/* Show "Use This Address" button for checkout without saving, or "Save" for normal flow */}
+               {onUseDirectly ? (
+                  <>
+                     <Button
+                        onClick={useDirectlyClicked}
+                        disabled={isSavingAddress}
+                        className="bg-orange-500 hover:bg-orange-600 text-white text-xs sm:text-sm h-9 sm:h-10"
+                     >
+                        {t("checkout.useThisAddress") || "Use This Address"}
+                     </Button>
+                     {isLoggedIn && (
+                        <Button
+                           onClick={saveClicked}
+                           disabled={isSavingAddress}
+                           variant="outline"
+                           className="border-orange-300 text-orange-600 hover:bg-orange-50 text-xs sm:text-sm h-9 sm:h-10"
+                        >
+                           {isSavingAddress ? (
+                              <>
+                                 <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 animate-spin" />
+                                 {t("common.saving") || "Saving..."}
+                              </>
+                           ) : (
+                              t("checkout.saveForLater") || "Save for Later"
+                           )}
+                        </Button>
+                     )}
+                  </>
+               ) : (
+                  <Button
+                     onClick={saveClicked}
+                     disabled={isSavingAddress}
+                     className="bg-orange-500 hover:bg-orange-600 text-white text-xs sm:text-sm h-9 sm:h-10"
+                  >
+                     {isSavingAddress ? (
+                        <>
+                           <Loader2 className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2 animate-spin" />
+                           {t("common.saving") || "Saving..."}
+                        </>
+                     ) : (
+                        t("common.save")
+                     )}
+                  </Button>
+               )}
                <Button
                   variant="outline"
                   onClick={() => {

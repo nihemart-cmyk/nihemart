@@ -106,13 +106,18 @@ export default function useSubmitOrder(args: any) {
             ).split(" ");
             const derivedLastName = derivedLastParts.join(" ");
 
+            // For guest users, use placeholder email if not provided
+            const customerEmail =
+               (formData.email || "").trim() ||
+               (!user ? "guest@nihemart.rw" : "");
+
             const orderData: any = {
                order: {
                   user_id: user?.id || undefined,
                   subtotal: subtotal,
                   tax: transport,
                   total: total,
-                  customer_email: (formData.email || "").trim(),
+                  customer_email: customerEmail,
                   customer_first_name: (derivedFirstName || "").trim(),
                   customer_last_name: (derivedLastName || "").trim(),
                   customer_phone:

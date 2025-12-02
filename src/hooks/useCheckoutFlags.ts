@@ -71,6 +71,7 @@ export default function useCheckoutFlags({
                  (formData.address && formData.address.trim())
            );
 
+      // Email is now optional for guest users (not shown in form)
       const hasEmail = Boolean(formData.email && String(formData.email).trim());
 
       const phoneForCheck = (
@@ -87,7 +88,8 @@ export default function useCheckoutFlags({
       let missingSteps: string[] = [];
       if (!hasItems) missingSteps.push("checkout.missing.addItems");
       if (!hasAddress) missingSteps.push("checkout.missing.address");
-      if (!hasEmail) missingSteps.push("checkout.missing.email");
+      // Email is no longer required for guest checkout
+      // if (!hasEmail) missingSteps.push("checkout.missing.email");
       if (!hasValidPhone) missingSteps.push("checkout.missing.phone");
       if (!paymentMethod) missingSteps.push("checkout.missing.paymentMethod");
       if (paymentRequiresVerification && !paymentVerified)
@@ -103,7 +105,7 @@ export default function useCheckoutFlags({
       const allStepsCompleted =
          hasItems &&
          hasAddress &&
-         hasEmail &&
+         // Email is no longer required for checkout
          hasValidPhone &&
          Boolean(paymentMethod) &&
          (!paymentRequiresVerification ||
