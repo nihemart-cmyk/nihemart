@@ -81,9 +81,7 @@ export async function createExternalOrder(
             subtotal: total,
             // store transport fee in `tax` (existing checkout uses tax for transport)
             tax: transport,
-            total: Number(
-               (Number(total || 0) + Number(transport || 0)).toFixed(2)
-            ),
+            total: Number(total || 0), // For external orders, total is just items subtotal
             currency: "RWF",
             user_id: userId, // attach user id when available to satisfy RLS
             customer_email: customer_email || "",

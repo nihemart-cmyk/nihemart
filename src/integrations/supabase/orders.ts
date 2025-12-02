@@ -459,13 +459,32 @@ export async function respondToRefundRequest(
                     )
                : Math.max(0, Number(parentOrder.subtotal || 0));
 
-            // Preserve previous tax proportion if available, otherwise keep tax as-is
+            // For external orders, tax represents a fixed delivery fee that should not change
+            // For regular orders, tax is a percentage that should be recalculated proportionally
             const previousSubtotal = Number(parentOrder.subtotal || 0);
             const previousTax = Number(parentOrder.tax || 0);
-            const taxRate =
-               previousSubtotal > 0 ? previousTax / previousSubtotal : 0;
-            const newTax = Math.max(0, remainingSubtotal * taxRate);
-            const newTotal = Math.max(0, remainingSubtotal + newTax);
+            let newTax: number;
+            let newTotal: number;
+
+            // Check if this is an external order by fetching the is_external field
+            const { data: orderInfo } = await sb
+               .from("orders")
+               .select("is_external")
+               .eq("id", existing.order_id)
+               .maybeSingle();
+
+            if (orderInfo?.is_external) {
+               // For external orders, keep the delivery fee fixed in tax field
+               newTax = previousTax;
+               // For external orders, total is just the remaining items subtotal
+               newTotal = Math.max(0, remainingSubtotal);
+            } else {
+               // For regular orders, recalculate tax as a percentage of remaining subtotal
+               const taxRate =
+                  previousSubtotal > 0 ? previousTax / previousSubtotal : 0;
+               newTax = Math.max(0, remainingSubtotal * taxRate);
+               newTotal = Math.max(0, remainingSubtotal + newTax);
+            }
 
             const upd: any = {
                subtotal: Number(remainingSubtotal.toFixed(2)),
@@ -592,10 +611,28 @@ export async function respondToRefundRequest(
 
          const previousSubtotal = Number(parentOrder.subtotal || 0);
          const previousTax = Number(parentOrder.tax || 0);
-         const taxRate =
-            previousSubtotal > 0 ? previousTax / previousSubtotal : 0;
-         const newTax = Math.max(0, remainingSubtotal * taxRate);
-         const newTotal = Math.max(0, remainingSubtotal + newTax);
+         let newTax: number;
+         let newTotal: number;
+
+         // Check if this is an external order by fetching the is_external field
+         const { data: orderInfo } = await sb
+            .from("orders")
+            .select("is_external")
+            .eq("id", existing.order_id)
+            .maybeSingle();
+
+         if (orderInfo?.is_external) {
+            // For external orders, keep the delivery fee fixed in tax field
+            newTax = previousTax;
+            // For external orders, total is just the remaining items subtotal
+            newTotal = Math.max(0, remainingSubtotal);
+         } else {
+            // For regular orders, recalculate tax as a percentage of remaining subtotal
+            const taxRate =
+               previousSubtotal > 0 ? previousTax / previousSubtotal : 0;
+            newTax = Math.max(0, remainingSubtotal * taxRate);
+            newTotal = Math.max(0, remainingSubtotal + newTax);
+         }
 
          const upd: any = {
             subtotal: Number(remainingSubtotal.toFixed(2)),
@@ -1140,24 +1177,8 @@ export async function fetchUserOrders(
 
 // Fetch single order
 export async function fetchOrderById(id: string) {
-   // Use server-side client when running on server so we pick up request cookies
-   // (session) instead of relying on the module-level `sb` which may be the
-   // browser client when executed in Node. This ensures RLS policies see the
-   // authenticated user and returns related `order_items` rows.
-   let client: any = sb;
-   if (typeof window === "undefined") {
-      try {
-         const { createServerSupabaseClient } = await import(
-            "@/utils/supabase/server"
-         );
-         // createServerSupabaseClient returns a Supabase client wired to
-         // the current request's cookies (session). Use it when available.
-         const serverClient = await createServerSupabaseClient();
-         if (serverClient) client = serverClient;
-      } catch (e) {
-         // if creating server client fails, fall back to module client
-      }
-   }
+   // Use the configured Supabase client
+   const client = sb;
 
    // Use maybeSingle() so when the query returns 0 rows we get `null` instead of a PostgREST coercion error
    const { data, error } = await client
