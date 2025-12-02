@@ -286,9 +286,8 @@ export function useKPayPayment() {
             errors.push("Customer name is required");
          }
 
-         if (!request.customerEmail?.trim()) {
-            errors.push("Customer email is required");
-         }
+         // Email is optional for guests - will use placeholder if not provided
+         // No validation error if email is missing
 
          if (!request.customerPhone?.trim()) {
             errors.push("Customer phone is required");

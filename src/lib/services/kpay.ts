@@ -314,8 +314,8 @@ export class KPayService {
    private async requestWithRetries(
       url: string,
       options: RequestInit,
-      timeoutMs = 10000,
-      maxAttempts = 2
+      timeoutMs = 15000,
+      maxAttempts = 3
    ): Promise<any> {
       let lastErr: any = null;
 
@@ -331,11 +331,15 @@ export class KPayService {
             const controller = new AbortController();
             const id = setTimeout(() => controller.abort(), timeoutMs);
 
-            const resp = await fetch(url, {
-               ...options,
-               signal: controller.signal,
-            } as any);
-            clearTimeout(id);
+            let resp: Response;
+            try {
+               resp = await fetch(url, {
+                  ...options,
+                  signal: controller.signal,
+               } as any);
+            } finally {
+               clearTimeout(id);
+            }
 
             if (!resp.ok) {
                let textBody: string | undefined = undefined;
@@ -359,11 +363,13 @@ export class KPayService {
             lastErr = err;
             // If DNS not found or connect timeout and alternate URL is different, try alternate once
             const cause = err?.cause || err;
-            const isDnsOrConnectError =
+            const isDnsOrConnectError = !!(
                (cause &&
                   (cause.code === "ENOTFOUND" ||
                      cause.code === "UND_ERR_CONNECT_TIMEOUT")) ||
-               err?.name === "AbortError";
+               // treat AbortError as a timeout/network issue so alternate URL may be attempted
+               err?.name === "AbortError"
+            );
 
             console.warn(`KPay request attempt ${attempt} failed`, {
                url,

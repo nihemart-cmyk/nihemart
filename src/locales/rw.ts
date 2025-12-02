@@ -342,6 +342,11 @@ export const rw: Record<string, string> = {
   "common.loadMore": "Reba ibindi",
   "common.success": "Byagenze neza",
   "common.optional": "Niba ubishaka",
+  "common.clear": "Siba",
+
+  // Checkout - Address
+  "checkout.selectedAddress": "Aderesi Yatoranijwe",
+  "checkout.tempAddress": "By'agateganyo",
 
   // Footer
   "footer.quickLinks": "Ibyihutirwa",

@@ -49,10 +49,33 @@ export async function POST(request: NextRequest) {
          );
       }
 
-      if (!body.customerEmail || !body.customerPhone || !body.redirectUrl) {
-         return NextResponse.json(
-            { error: "Customer details and redirect URL are required" },
-            { status: 400 }
+      // Provide sensible defaults for missing customer email or redirect URL
+      // so clients that omit optional fields (e.g., guest checkout) still work.
+      if (!body.customerEmail) {
+         const phoneSafe = (body.customerPhone || "")
+            .toString()
+            .replace(/\D/g, "");
+         body.customerEmail =
+            phoneSafe && phoneSafe.length > 0
+               ? `guest-${phoneSafe}@nihemart.rw`
+               : `guest-${Date.now()}@nihemart.rw`;
+         logger.info(
+            "api",
+            "Payment initiation missing email, using fallback",
+            {
+               fallbackEmail: body.customerEmail,
+            }
+         );
+      }
+
+      if (!body.redirectUrl) {
+         body.redirectUrl = `${request.nextUrl.origin}/checkout?payment=success`;
+         logger.info(
+            "api",
+            "Payment initiation missing redirectUrl, using default",
+            {
+               redirectUrl: body.redirectUrl,
+            }
          );
       }
 
@@ -213,6 +236,29 @@ export async function POST(request: NextRequest) {
          if (foundByGeneratedRef) existingPayment = foundByGeneratedRef;
       }
 
+      // If an existing payment row was found, ensure the client is not
+      // attempting to change the payment method for the same session.
+      // Reusing a session created for a different method (e.g., Momo)
+      // will lead to incorrect UX (redirect to /payment/[id]) or gateway
+      // errors. In that case, treat it as no existing payment so a new
+      // row is created for the chosen method.
+      if (
+         existingPayment &&
+         existingPayment.payment_method &&
+         existingPayment.payment_method !== body.paymentMethod
+      ) {
+         logger.info(
+            "api",
+            "Existing payment method differs; creating new payment instead of reusing",
+            {
+               existingMethod: existingPayment.payment_method,
+               requestedMethod: body.paymentMethod,
+               paymentId: existingPayment.id,
+            }
+         );
+         existingPayment = null;
+      }
+
       if (existingPayment) {
          logger.info("api", "Found existing payment session", {
             paymentId: existingPayment.id,
@@ -281,6 +327,36 @@ export async function POST(request: NextRequest) {
                      paymentId: existingPayment.id,
                      error: updErr.message,
                   }
+               );
+            }
+
+            // If gateway returned a non-success code, surface a user-friendly error
+            // instead of returning a silent success with no checkout URL.
+            if (
+               typeof (kpayResponse as any).retcode !== "undefined" &&
+               (kpayResponse as any).retcode !== 0
+            ) {
+               const userError = kpayService.getErrorMessage(
+                  (kpayResponse as any).retcode
+               );
+               // Mark payment as failed
+               await supabase
+                  .from("payments")
+                  .update({
+                     status: "failed",
+                     failure_reason: userError,
+                     updated_at: new Date().toISOString(),
+                  })
+                  .eq("id", existingPayment.id);
+
+               return NextResponse.json(
+                  {
+                     success: false,
+                     error: userError,
+                     errorCode: (kpayResponse as any).retcode,
+                     technical: kpayResponse,
+                  },
+                  { status: 400 }
                );
             }
 

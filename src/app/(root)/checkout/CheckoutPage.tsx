@@ -309,6 +309,40 @@ const CheckoutPage = ({
 
    const { items: cartItems, clearCart, removeItem } = useCart();
 
+   // Load temporary address from localStorage on mount
+   useEffect(() => {
+      try {
+         const savedTempAddress = localStorage.getItem('checkout_temp_address');
+         if (savedTempAddress) {
+            const parsedAddress = JSON.parse(savedTempAddress);
+            setTempCheckoutAddress(parsedAddress);
+            
+            // CRITICAL: Restore province/district/sector selections for Kigali detection
+            if (parsedAddress._temp) {
+               if (parsedAddress._temp.selectedProvince) {
+                  setSelectedProvince(parsedAddress._temp.selectedProvince);
+               }
+               if (parsedAddress._temp.selectedDistrict) {
+                  setSelectedDistrict(parsedAddress._temp.selectedDistrict);
+               }
+               if (parsedAddress._temp.selectedSector) {
+                  setSelectedSector(parsedAddress._temp.selectedSector);
+               }
+            }
+            
+            // Also update form data
+            setFormData((prev) => ({
+               ...prev,
+               address: parsedAddress.street || parsedAddress.display_name || "",
+               city: parsedAddress.city || "",
+               phone: parsedAddress.phone || "",
+            }));
+         }
+      } catch (error) {
+         console.error("Error loading temp address from localStorage:", error);
+      }
+   }, []);
+
    // Handler for using address directly without saving to DB first
    const handleUseAddressDirectly = (addressData: any) => {
       // Create a temporary address object that matches the saved address structure
@@ -319,13 +353,37 @@ const CheckoutPage = ({
          house_number: addressData.house_number,
          phone: addressData.phone,
          city: addressData.city,
+         lat: addressData.lat,
+         lon: addressData.lon,
          _isTemp: true, // Flag to identify this as temporary
          ...addressData,
       };
 
+      // CRITICAL: Set province/district/sector selections from the temp address
+      // This ensures Kigali detection works properly for temporary addresses
+      if (addressData._temp) {
+         if (addressData._temp.selectedProvince) {
+            setSelectedProvince(addressData._temp.selectedProvince);
+         }
+         if (addressData._temp.selectedDistrict) {
+            setSelectedDistrict(addressData._temp.selectedDistrict);
+         }
+         if (addressData._temp.selectedSector) {
+            setSelectedSector(addressData._temp.selectedSector);
+         }
+      }
+
+      // Save to state
       setTempCheckoutAddress(tempAddress);
-      // Also call selectAddress to integrate with existing flow
-      // But since it's temp, we manually set form data instead
+      
+      // Save to localStorage for persistence (including _temp data)
+      try {
+         localStorage.setItem('checkout_temp_address', JSON.stringify(tempAddress));
+      } catch (error) {
+         console.error("Error saving temp address to localStorage:", error);
+      }
+
+      // Update form data
       setFormData((prev) => ({
          ...prev,
          address: addressData.street || addressData.display_name || "",
@@ -333,9 +391,24 @@ const CheckoutPage = ({
          phone: addressData.phone || "",
       }));
 
+      // Close the address form
+      setAddNewOpen(false);
+      setAddressOpen(false);
+
       toast.success(
-         t("checkout.addressReadyForCheckout") || "Address ready for checkout"
+         t("checkout.addressReadyForCheckout") || "Address ready for checkout!"
       );
+   };
+
+   // Handler to clear temporary address
+   const handleClearTempAddress = () => {
+      setTempCheckoutAddress(null);
+      try {
+         localStorage.removeItem('checkout_temp_address');
+      } catch (error) {
+         console.error("Error removing temp address from localStorage:", error);
+      }
+      toast.info("Address cleared");
    };
 
    // KPay payment functionality
@@ -374,6 +447,7 @@ const CheckoutPage = ({
       string | null
    >(null);
    const [paymentVerified, setPaymentVerified] = useState<boolean>(false);
+   const [previousPaymentMethod, setPreviousPaymentMethod] = useState<string | null>(null);
    // Track payment failures/timeouts so we can offer retry/alternate method UX
    const [paymentFailure, setPaymentFailure] = useState<{
       kind: "timedout" | "failed" | "not_found";
@@ -510,7 +584,7 @@ const CheckoutPage = ({
          if (!persisted) return;
 
          // Only restore when not in retry mode and when user hasn't already filled fields
-         if (!effectiveIsRetry) {
+         if (!effectiveIsRetry && !isRetryMode) {
             if (persisted.formData) {
                const incoming = { ...persisted.formData } as any;
                // Backwards compatibility: if persisted snapshot has firstName/lastName
@@ -680,7 +754,12 @@ const CheckoutPage = ({
                                     ? loadCheckoutFromStorage()
                                     : null;
 
-                              const snapshot = persisted || {
+                              // In retry mode, always use current payment method, not persisted one
+                              const snapshot = persisted ? {
+                                 ...persisted,
+                                 paymentMethod: paymentMethod,  // Override with current selection
+                                 mobileMoneyPhones: mobileMoneyPhones,  // Override with current phones
+                              } : {
                                  formData,
                                  paymentMethod,
                                  mobileMoneyPhones,
@@ -848,7 +927,7 @@ const CheckoutPage = ({
                                        setSuppressEmptyCartRedirect(false);
                                        setIsFinalizing(false);
                                        toast.error(
-                                          "Failed to create order automatically. Please return to checkout to retry."
+                                          "Failed to create order automatically. Please contact support with your payment reference."
                                        );
                                     },
                                     onSettled: () => {
@@ -1325,6 +1404,34 @@ const CheckoutPage = ({
                // reset certain transient UI state when restoring
                setPaymentMethod("");
                setMobileMoneyPhones({});
+
+               // Clear the persisted checkout data to prevent old payment method from being restored
+               clearCheckoutStorage();
+
+               // Fetch previous payment method for retry notice
+               if (effectiveRetryOrderId) {
+                  (async () => {
+                     try {
+                        const resp = await fetch(`/api/payments/order/${effectiveRetryOrderId}`);
+                        if (resp.ok) {
+                           const payments = await resp.json();
+                           if (Array.isArray(payments) && payments.length > 0) {
+                              // Get the most recent failed payment
+                              const failedPayment = payments
+                                 .filter((p: any) => p.status === 'failed' || p.status === 'cancelled' || p.status === 'timeout')
+                                 .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+
+                              if (failedPayment) {
+                                 setPreviousPaymentMethod(failedPayment.payment_method);
+                              }
+                           }
+                        }
+                     } catch (e) {
+                        console.warn("Failed to fetch previous payment method:", e);
+                     }
+                  })();
+               }
+
                return;
             }
          }
@@ -1680,6 +1787,8 @@ const CheckoutPage = ({
       scheduleNotes,
       ordersDisabledMessage,
       paymentMethod,
+      effectiveIsRetry,
+      effectiveRetryOrderId,
    });
 
    const generateWhatsAppMessage = () => {
@@ -1818,75 +1927,11 @@ Total: ${total.toLocaleString()} RWF
             }
             missingSteps={missingSteps}
             t={t}
+            isRetryMode={isRetryMode}
+            previousPaymentMethod={previousPaymentMethod}
          />
 
-         {/* Payment failure / timeout banner offering retry or alternate methods */}
-         {paymentFailure && (
-            <div className="sticky top-16 z-40 mb-4">
-               <div className="mx-auto max-w-[90vw] sm:max-w-7xl px-2 sm:px-0">
-                  <div className="p-3 rounded-lg bg-yellow-50 border border-yellow-100 text-yellow-900 shadow-sm">
-                     <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                           <div className="font-semibold text-sm">
-                              Payment issue
-                           </div>
-                           <div className="text-sm mt-1">
-                              {paymentFailure.message ||
-                                 "There was a problem verifying your payment."}
-                           </div>
-                           <div className="mt-2 flex flex-wrap gap-2">
-                              <button
-                                 className="px-3 py-1 text-sm bg-orange-500 text-white rounded"
-                                 onClick={() => {
-                                    // Retry using existing method: re-run handleCreateOrder
-                                    setPaymentFailure(null);
-                                    try {
-                                       handleCreateOrder();
-                                    } catch (e) {
-                                       console.error(
-                                          "Retry payment failed:",
-                                          e
-                                       );
-                                    }
-                                 }}
-                              >
-                                 Retry payment
-                              </button>
-                              <button
-                                 className="px-3 py-1 text-sm bg-white border border-gray-300 rounded"
-                                 onClick={() => {
-                                    // Expand payment selection UI so user can pick another method
-                                    setPaymentFailure(null);
-                                    setPaymentOpen(true);
-                                 }}
-                              >
-                                 Choose another method
-                              </button>
-                              <button
-                                 className="px-3 py-1 text-sm bg-white border border-gray-300 rounded"
-                                 onClick={() => {
-                                    setPaymentFailure(null);
-                                    setPaymentMethod("cash_on_delivery");
-                                 }}
-                              >
-                                 Pay with Cash on Delivery
-                              </button>
-                           </div>
-                        </div>
-                        <div className="flex-shrink-0">
-                           <button
-                              className="text-sm text-yellow-800 underline"
-                              onClick={() => setPaymentFailure(null)}
-                           >
-                              Dismiss
-                           </button>
-                        </div>
-                     </div>
-                  </div>
-               </div>
-               {/* Guest details for unauthenticated users are rendered below the Payment section */}
-            </div>
-         )}
+         {/* Payment failure banner removed - redundant in retry mode */}
 
          {/* Finalizing banner shown while attempting to finalize a returned session */}
          {isFinalizing && (
@@ -1904,12 +1949,12 @@ Total: ${total.toLocaleString()} RWF
             </div>
          )}
 
-         {/* Retry mode banner (generic) */}
+         {/* Retry mode banner with previous payment method info */}
          {isRetryMode && (
             <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                <div className="flex items-center">
                   <AlertCircle className="h-5 w-5 text-blue-600 mr-3" />
-                  <div>
+                  <div className="flex-1">
                      <p className="text-sm font-medium text-blue-900">
                         Retry Payment
                      </p>
@@ -1918,22 +1963,37 @@ Total: ${total.toLocaleString()} RWF
                         payment method below. Your cart and delivery details
                         were restored from your browser.
                      </p>
-                     <div className="mt-2 text-xs text-blue-800">
+                     <div className="mt-2 text-xs text-blue-800 space-y-1">
                         <div>Amount: RWF {Number(total).toLocaleString()}</div>
+                        {(() => {
+                           const persisted = loadCheckoutFromStorage();
+                           const oldMethod = persisted?.paymentMethod;
+                           if (oldMethod) {
+                              const methodName = 
+                                 oldMethod === "mtn_momo" ? "MTN Mobile Money" :
+                                 oldMethod === "airtel_money" ? "Airtel Money" :
+                                 oldMethod === "visa_card" ? "Visa Card" :
+                                 oldMethod === "mastercard" ? "MasterCard" :
+                                 oldMethod === "cash_on_delivery" ? "Cash on Delivery" :
+                                 oldMethod;
+                              return (
+                                 <div className="flex items-center gap-2">
+                                    <span>Previous method:</span>
+                                    <span className="bg-blue-100 text-blue-900 px-2 py-0.5 rounded font-medium">
+                                       {methodName}
+                                    </span>
+                                 </div>
+                              );
+                           }
+                           return null;
+                        })()}
                      </div>
                   </div>
                </div>
             </div>
          )}
 
-         {isRetryMode && retryTimedOut && (
-            <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-               <p className="text-xs text-yellow-900">
-                  The previous payment attempt timed out. You can try a
-                  different payment method now.
-               </p>
-            </div>
-         )}
+         {/* Retry timeout banner removed - redundant, user already knows */}
 
          {/* Loading existing order */}
          {/* No server-side order loading in retry mode; state is restored from localStorage */}
@@ -2051,14 +2111,50 @@ Total: ${total.toLocaleString()} RWF
                      </CollapsibleTrigger>
                      <CollapsibleContent className="mt-3 sm:mt-4">
                         <div className="border border-gray-200 rounded-lg p-3 sm:p-4 bg-gray-50">
-                           {savedAddresses && savedAddresses.length > 0 ? (
+                           {(() => {
+                              // Combine saved addresses with temp address
+                              const allAddresses = [];
+                              
+                              // Add temp address first if it exists
+                              if (tempCheckoutAddress) {
+                                 allAddresses.push(tempCheckoutAddress);
+                              }
+                              
+                              // Add saved addresses
+                              if (savedAddresses && savedAddresses.length > 0) {
+                                 allAddresses.push(...savedAddresses);
+                              }
+                              
+                              return allAddresses.length > 0 ? (
                               <div className="space-y-2 sm:space-y-3">
-                                 {savedAddresses.map((addr) => (
+                                 {allAddresses.map((addr) => (
                                     <div
                                        key={addr.id}
                                        role="button"
                                        tabIndex={0}
                                        onClick={() => {
+                                          // Handle temp address differently
+                                          if (addr._isTemp) {
+                                             // Just select it, don't clear it
+                                             setFormData((prev) => ({
+                                                ...prev,
+                                                address: addr.street || addr.display_name || "",
+                                                city: addr.city || "",
+                                                phone: addr.phone || "",
+                                             }));
+                                             setAddressOpen(false);
+                                             toast.success("Address selected");
+                                             return;
+                                          }
+
+                                          // Clear temp address when selecting a saved one
+                                          setTempCheckoutAddress(null);
+                                          try {
+                                             localStorage.removeItem('checkout_temp_address');
+                                          } catch (error) {
+                                             console.error("Error clearing temp address:", error);
+                                          }
+
                                           selectAddress(addr.id);
                                           const foundSector = sectors.find(
                                              (s) =>
@@ -2092,7 +2188,7 @@ Total: ${total.toLocaleString()} RWF
                                           const firstSegment =
                                              streetOrName
                                                 .split(",")
-                                                .map((p) => p.trim())
+                                                .map((p: string) => p.trim())
                                                 .filter(Boolean)[0] ||
                                              streetOrName;
                                           setFormData((prev) => ({
@@ -2102,9 +2198,34 @@ Total: ${total.toLocaleString()} RWF
                                              city: addr.city ?? prev.city,
                                              phone: addr.phone ?? prev.phone,
                                           }));
+
+                                          // Close the address selection
+                                          setAddressOpen(false);
+                                          toast.success("Address selected");
                                        }}
                                        onKeyDown={(e) => {
                                           if (e.key === "Enter") {
+                                             // Handle temp address differently
+                                             if (addr._isTemp) {
+                                                setFormData((prev) => ({
+                                                   ...prev,
+                                                   address: addr.street || addr.display_name || "",
+                                                   city: addr.city || "",
+                                                   phone: addr.phone || "",
+                                                }));
+                                                setAddressOpen(false);
+                                                toast.success("Address selected");
+                                                return;
+                                             }
+
+                                             // Clear temp address when selecting a saved one
+                                             setTempCheckoutAddress(null);
+                                             try {
+                                                localStorage.removeItem('checkout_temp_address');
+                                             } catch (error) {
+                                                console.error("Error clearing temp address:", error);
+                                             }
+
                                              selectAddress(addr.id);
                                              const foundSector = sectors.find(
                                                 (s) =>
@@ -2138,7 +2259,7 @@ Total: ${total.toLocaleString()} RWF
                                              const firstSegment =
                                                 streetOrName
                                                    .split(",")
-                                                   .map((p) => p.trim())
+                                                   .map((p: string) => p.trim())
                                                    .filter(Boolean)[0] ||
                                                 streetOrName;
 
@@ -2149,10 +2270,14 @@ Total: ${total.toLocaleString()} RWF
                                                 city: addr.city ?? prev.city,
                                                 phone: addr.phone ?? prev.phone,
                                              }));
+
+                                             // Close the address selection
+                                             setAddressOpen(false);
+                                             toast.success("Address selected");
                                           }
                                        }}
                                        className={`p-3 sm:p-4 rounded-lg cursor-pointer transition-all duration-200 border-2 bg-white hover:border-orange-300 hover:shadow-sm ${
-                                          selectedAddress?.id === addr.id
+                                          (addr._isTemp && tempCheckoutAddress) || selectedAddress?.id === addr.id
                                              ? "border-orange-400 bg-orange-50 shadow-sm"
                                              : "border-gray-200"
                                        }`}
@@ -2161,22 +2286,27 @@ Total: ${total.toLocaleString()} RWF
                                           <div className="flex items-center mr-2 sm:mr-3 mt-0.5">
                                              <div
                                                 className={`h-3 w-3 sm:h-4 sm:w-4 rounded-full border-2 flex items-center justify-center transition-colors ${
-                                                   selectedAddress?.id ===
-                                                   addr.id
+                                                   (addr._isTemp && tempCheckoutAddress) || selectedAddress?.id === addr.id
                                                       ? "bg-orange-500 border-orange-500"
                                                       : "border-gray-300"
                                                 }`}
                                              >
-                                                {selectedAddress?.id ===
-                                                   addr.id && (
+                                                {((addr._isTemp && tempCheckoutAddress) || selectedAddress?.id === addr.id) && (
                                                    <div className="h-1 w-1 sm:h-2 sm:w-2 bg-white rounded-full" />
                                                 )}
                                              </div>
                                           </div>
                                           <div className="flex-1 min-w-0">
-                                             <p className="font-medium text-xs sm:text-sm text-gray-800 truncate">
-                                                {addr.display_name}
-                                             </p>
+                                             <div className="flex items-center gap-2 mb-0.5">
+                                                <p className="font-medium text-xs sm:text-sm text-gray-800 truncate">
+                                                   {addr.display_name}
+                                                </p>
+                                                {addr._isTemp && (
+                                                   <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium flex-shrink-0">
+                                                      {t("checkout.tempAddress") || "Temporary"}
+                                                   </span>
+                                                )}
+                                             </div>
                                              <p className="text-xs text-gray-600 mt-0.5">
                                                 {addr.city}
                                              </p>
@@ -2231,7 +2361,8 @@ Total: ${total.toLocaleString()} RWF
                                     </div>
                                  </div>
                               </div>
-                           )}
+                           );
+                           })()}
                         </div>
                      </CollapsibleContent>
                   </Collapsible>

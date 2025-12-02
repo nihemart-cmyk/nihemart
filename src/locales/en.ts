@@ -268,13 +268,16 @@ export const en: Record<string, string> = {
   "checkout.missing.address": "Please fill in your address",
   "checkout.missing.email": "Please provide a valid email address",
   "checkout.missing.phone": "Please provide a valid phone number",
+  "checkout.missing.selectAnotherMethod": "Select another payment method",
   "checkout.missing.header":
     "Please fill the following before placing an order:",
   "checkout.errors.validPhone": "Enter a valid phone number (10 digits)",
   "checkout.ordersDisabled": "Orders are currently disabled. Please try again later.",
   "checkout.useThisAddress": "Use This Address",
   "checkout.saveForLater": "Save for Later",
-  "checkout.addressReadyForCheckout": "Address ready for checkout",
+  "checkout.addressReadyForCheckout": "Address ready for checkout!",
+  "checkout.selectedAddress": "Selected Address",
+  "checkout.tempAddress": "Temporary",
 
   // Auth
   "auth.login.title": "Login to Your Account",
@@ -361,6 +364,7 @@ export const en: Record<string, string> = {
   "common.error": "Error",
   "common.success": "Success",
   "common.optional": "Optional",
+  "common.clear": "Clear",
 
   // Footer
   "footer.quickLinks": "Quick Links",

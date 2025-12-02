@@ -152,7 +152,9 @@ export default function PaymentPage() {
                   subtotal,
                   tax: transport,
                   total,
-                  customer_email: snapshot?.formData?.email || undefined,
+                  // Always provide email with fallback - prevents NOT NULL constraint error
+                  customer_email: (snapshot?.formData?.email || "").trim() || 
+                     `guest-${(snapshot?.formData?.phone || "").replace(/\D/g, '') || Date.now()}@nihemart.rw`,
                   customer_first_name: (fName || "").trim(),
                   customer_last_name: (lName || "").trim(),
                   customer_phone: (snapshot?.formData?.phone ||
@@ -160,7 +162,8 @@ export default function PaymentPage() {
                   delivery_address: (snapshot?.formData?.address || "") as any,
                   delivery_city: (snapshot?.formData?.city || "") as any,
                   status: "pending",
-                  payment_method: (snapshot?.paymentMethod as any) || "",
+                  // Use actual payment method from payment record, not snapshot (fixes retry mode)
+                  payment_method: payment?.payment_method || (snapshot?.paymentMethod as any) || "",
                   delivery_notes: (snapshot?.formData?.delivery_notes ||
                      undefined) as any,
                },
@@ -216,7 +219,7 @@ export default function PaymentPage() {
                         err
                      );
                      toast.error(
-                        "Failed to create order automatically. Please return to checkout and try again."
+                        "Failed to create order automatically. Please contact support with your payment reference."
                      );
                   },
                });
@@ -266,8 +269,7 @@ export default function PaymentPage() {
    // Check payment status periodically (interval configured elsewhere)
    const checkStatus = async () => {
       if (!payment || paymentCompleted || loading) return;
-      if (stoppedPolling) return;
-      if (timeoutReportedRef.current) return;
+      if (stoppedPolling || timeoutReportedRef.current) return;
       // Throttle: ensure at most one status check every 30s regardless of callers
       const now = Date.now();
       if (now - lastStatusCheckRef.current < 29500) return;
@@ -432,8 +434,9 @@ export default function PaymentPage() {
                               subtotal,
                               tax: transport,
                               total,
-                              customer_email:
-                                 snapshot?.formData?.email || undefined,
+                              // Always provide email with fallback - prevents NOT NULL constraint error
+                              customer_email: (snapshot?.formData?.email || "").trim() || 
+                                 `guest-${(snapshot?.formData?.phone || "").replace(/\D/g, '') || Date.now()}@nihemart.rw`,
                               customer_first_name: (fName || "").trim(),
                               customer_last_name: (lName || "").trim(),
                               customer_phone: (snapshot?.formData?.phone ||
@@ -443,8 +446,8 @@ export default function PaymentPage() {
                               delivery_city: (snapshot?.formData?.city ||
                                  "") as any,
                               status: "pending",
-                              payment_method:
-                                 (snapshot?.paymentMethod as any) || "",
+                              // Use actual payment method from payment record, not snapshot (fixes retry mode)
+                              payment_method: payment?.payment_method || (snapshot?.paymentMethod as any) || "",
                               delivery_notes: (snapshot?.formData
                                  ?.delivery_notes || undefined) as any,
                            },
@@ -731,6 +734,20 @@ export default function PaymentPage() {
          }
       };
    }, [payment, paymentCompleted, loading, stoppedPolling]);
+
+   // Cleanup intervals on unmount
+   useEffect(() => {
+      return () => {
+         if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current as unknown as number);
+            pollingIntervalRef.current = null;
+         }
+         if (countdownIntervalRef.current) {
+            clearInterval(countdownIntervalRef.current as unknown as number);
+            countdownIntervalRef.current = null;
+         }
+      };
+   }, []);
 
    const getStatusIcon = (status: string) => {
       switch (status) {

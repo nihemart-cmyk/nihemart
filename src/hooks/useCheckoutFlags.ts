@@ -82,18 +82,19 @@ export default function useCheckoutFlags({
       const formattedPhoneForCheck = formatPhoneNumber(phoneForCheck || "");
       const hasValidPhone = /^07\d{8}$/.test(formattedPhoneForCheck);
 
-      const paymentRequiresVerification =
-         paymentMethod && paymentMethod !== "cash_on_delivery";
+   const paymentRequiresVerification =
+      paymentMethod && paymentMethod !== "cash_on_delivery";
 
-      let missingSteps: string[] = [];
-      if (!hasItems) missingSteps.push("checkout.missing.addItems");
-      if (!hasAddress) missingSteps.push("checkout.missing.address");
-      // Email is no longer required for guest checkout
-      // if (!hasEmail) missingSteps.push("checkout.missing.email");
-      if (!hasValidPhone) missingSteps.push("checkout.missing.phone");
-      if (!paymentMethod) missingSteps.push("checkout.missing.paymentMethod");
-      if (paymentRequiresVerification && !paymentVerified)
-         missingSteps.push("checkout.missing.completePayment");
+   let missingSteps: string[] = [];
+   if (!hasItems) missingSteps.push("checkout.missing.addItems");
+   if (!hasAddress) missingSteps.push("checkout.missing.address");
+   // Email is no longer required for guest checkout
+   // if (!hasEmail) missingSteps.push("checkout.missing.email");
+   if (!hasValidPhone) missingSteps.push("checkout.missing.phone");
+   if (!paymentMethod) missingSteps.push("checkout.missing.paymentMethod");
+   // Payment verification happens AFTER order placement, not before
+   // if (paymentRequiresVerification && !paymentVerified)
+   //    missingSteps.push("checkout.missing.completePayment");
 
       if (effectiveIsRetry) {
          const retryOnly: string[] = [];
@@ -102,15 +103,13 @@ export default function useCheckoutFlags({
          missingSteps = retryOnly;
       }
 
-      const allStepsCompleted =
-         hasItems &&
-         hasAddress &&
-         // Email is no longer required for checkout
-         hasValidPhone &&
-         Boolean(paymentMethod) &&
-         (!paymentRequiresVerification ||
-            paymentVerified ||
-            String(paymentMethod) === "cash_on_delivery");
+   // All steps completed when: items, address, phone, and payment method are set
+   // Payment verification happens AFTER placing order (except COD which creates order first)
+   const allStepsCompleted =
+      hasItems &&
+      hasAddress &&
+      hasValidPhone &&
+      Boolean(paymentMethod);
 
       return {
          hasItems,

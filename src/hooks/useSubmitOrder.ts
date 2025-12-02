@@ -34,6 +34,8 @@ export default function useSubmitOrder(args: any) {
          router,
          validatePaymentRequest,
          selectedAddress,
+         effectiveIsRetry,
+         effectiveRetryOrderId,
       } = args;
 
       // Track whether we've navigated to an order page so the checkout
@@ -106,10 +108,11 @@ export default function useSubmitOrder(args: any) {
             ).split(" ");
             const derivedLastName = derivedLastParts.join(" ");
 
-            // For guest users, use placeholder email if not provided
+            // Always ensure we have an email - use placeholder if not provided
+            // This handles both guest users AND authenticated users without email
             const customerEmail =
                (formData.email || "").trim() ||
-               (!user ? "guest@nihemart.rw" : "");
+               `guest-${(formData.phone || args.selectedAddress?.phone || "").replace(/\D/g, '') || Date.now()}@nihemart.rw`;
 
             const orderData: any = {
                order: {
@@ -532,6 +535,7 @@ export default function useSubmitOrder(args: any) {
                args.paymentMethod !== "cash_on_delivery"
             ) {
                try {
+                  console.log("[useSubmitOrder] Initiating payment with method:", args.paymentMethod);
                   setPaymentInProgress && setPaymentInProgress(true);
 
                   const customerPhone =
@@ -552,38 +556,94 @@ export default function useSubmitOrder(args: any) {
                         user.user_metadata.full_name.trim()) ||
                      `${formData.fullName || ""}`.trim();
 
-                  const cartSnapshot = orderItems.map((it: any) => ({
-                     product_id: it.product_id || it.id,
-                     name: it.name,
-                     price: it.price,
-                     quantity: it.quantity,
-                     sku: it.sku,
-                     variation_id: it.variation_id,
-                     variation_name: it.variation_name,
-                  }));
+                  // Ensure we always have customer name (required for guests)
+                  const paymentCustomerName = derivedFullName || formData.fullName || "Guest Customer";
 
-                  const paymentRequest: any = {
-                     amount: total,
-                     customerName: derivedFullName || undefined,
-                     customerEmail: formData.email,
-                     customerPhone,
-                     paymentMethod: args.paymentMethod,
-                     redirectUrl: `${window.location.origin}/checkout?payment=success`,
-                     cart: cartSnapshot,
-                  };
+                  // Email is optional - will use fallback in API if not provided
+                  const paymentCustomerEmail = (formData.email || "").trim();
 
-                  const validationErrors = validatePaymentRequest
-                     ? validatePaymentRequest(paymentRequest)
-                     : [];
-                  if (validationErrors.length > 0) {
-                     setPaymentInProgress && setPaymentInProgress(false);
-                     toast.error(
-                        `Payment validation failed: ${validationErrors[0]}`
-                     );
-                     return;
+                  let paymentResult;
+
+                  if (effectiveIsRetry && effectiveRetryOrderId) {
+                     // Use retry API for retry mode
+                     console.log("[useSubmitOrder] Retrying payment for order:", effectiveRetryOrderId, "with method:", args.paymentMethod);
+
+                     const retryRequest = {
+                        orderId: effectiveRetryOrderId,
+                        amount: total,
+                        customerName: paymentCustomerName,
+                        customerEmail: paymentCustomerEmail,
+                        customerPhone,
+                        paymentMethod: args.paymentMethod,
+                        redirectUrl: `${window.location.origin}/checkout?payment=success`,
+                     };
+
+                     console.log("[useSubmitOrder] Retry request payload:", retryRequest);
+
+                     const retryResponse = await fetch("/api/payments/retry", {
+                        method: "POST",
+                        headers: {
+                           "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify(retryRequest),
+                     });
+
+                     const retryData = await retryResponse.json();
+
+                     if (!retryResponse.ok) {
+                        throw new Error(retryData.error || "Retry payment failed");
+                     }
+
+                     paymentResult = {
+                        success: retryData.success,
+                        paymentId: retryData.paymentId,
+                        transactionId: retryData.transactionId,
+                        checkoutUrl: retryData.checkoutUrl,
+                        status: retryData.status,
+                        reference: retryData.reference,
+                     };
+                  } else {
+                     // Use normal initiate API for new payments
+                     const cartSnapshot = orderItems.map((it: any) => ({
+                        product_id: it.product_id || it.id,
+                        name: it.name,
+                        price: it.price,
+                        quantity: it.quantity,
+                        sku: it.sku,
+                        variation_id: it.variation_id,
+                        variation_name: it.variation_name,
+                     }));
+
+                     const paymentRequest: any = {
+                        amount: total,
+                        customerName: paymentCustomerName,
+                        customerEmail: paymentCustomerEmail,
+                        customerPhone,
+                        paymentMethod: args.paymentMethod,
+                        redirectUrl: `${window.location.origin}/checkout?payment=success`,
+                        cart: cartSnapshot,
+                     };
+
+                     console.log("[useSubmitOrder] Payment request:", {
+                        paymentMethod: paymentRequest.paymentMethod,
+                        amount: paymentRequest.amount,
+                        customerName: paymentRequest.customerName,
+                     });
+
+                     const validationErrors = validatePaymentRequest
+                        ? validatePaymentRequest(paymentRequest)
+                        : [];
+                     if (validationErrors.length > 0) {
+                        setPaymentInProgress && setPaymentInProgress(false);
+                        setIsSubmitting && setIsSubmitting(false);
+                        toast.error(
+                           `Payment validation failed: ${validationErrors[0]}`
+                        );
+                        return;
+                     }
+
+                     paymentResult = await initiatePayment(paymentRequest);
                   }
-
-                  const paymentResult = await initiatePayment(paymentRequest);
 
                   if (paymentResult.success) {
                      toast.success("Redirecting to payment gateway...");
@@ -626,9 +686,11 @@ export default function useSubmitOrder(args: any) {
                         "Payment started but no redirect information was provided. Please check your payments page or contact support."
                      );
                      setPaymentInProgress && setPaymentInProgress(false);
+                     setIsSubmitting && setIsSubmitting(false);
                      return;
                   } else {
                      setPaymentInProgress && setPaymentInProgress(false);
+                     setIsSubmitting && setIsSubmitting(false);
                      toast.error(
                         `Payment initiation failed: ${
                            paymentResult.error || "Unknown error"
@@ -642,6 +704,7 @@ export default function useSubmitOrder(args: any) {
                      err
                   );
                   setPaymentInProgress && setPaymentInProgress(false);
+                  setIsSubmitting && setIsSubmitting(false);
                   toast.error("Failed to start payment. Please try again.");
                   return;
                }

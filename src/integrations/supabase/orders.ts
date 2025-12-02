@@ -1140,8 +1140,27 @@ export async function fetchUserOrders(
 
 // Fetch single order
 export async function fetchOrderById(id: string) {
+   // Use server-side client when running on server so we pick up request cookies
+   // (session) instead of relying on the module-level `sb` which may be the
+   // browser client when executed in Node. This ensures RLS policies see the
+   // authenticated user and returns related `order_items` rows.
+   let client: any = sb;
+   if (typeof window === "undefined") {
+      try {
+         const { createServerSupabaseClient } = await import(
+            "@/utils/supabase/server"
+         );
+         // createServerSupabaseClient returns a Supabase client wired to
+         // the current request's cookies (session). Use it when available.
+         const serverClient = await createServerSupabaseClient();
+         if (serverClient) client = serverClient;
+      } catch (e) {
+         // if creating server client fails, fall back to module client
+      }
+   }
+
    // Use maybeSingle() so when the query returns 0 rows we get `null` instead of a PostgREST coercion error
-   const { data, error } = await sb
+   const { data, error } = await client
       .from("orders")
       .select("*, items:order_items(*)")
       .eq("id", id)

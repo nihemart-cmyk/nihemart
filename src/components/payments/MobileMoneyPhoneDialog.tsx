@@ -221,10 +221,6 @@ export default function MobileMoneyPhoneDialog({
               Phone Number <span className="text-red-500">*</span>
             </Label>
             <div className="relative">
-              <div className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-2 pointer-events-none">
-                <Smartphone className="h-4 w-4 text-gray-400" />
-                <span className="text-sm font-medium text-gray-500">+250</span>
-              </div>
               <Input
                 id="phone"
                 type="tel"
@@ -232,7 +228,7 @@ export default function MobileMoneyPhoneDialog({
                 value={phoneDisplay}
                 onChange={handlePhoneChange}
                 onKeyPress={handleKeyPress}
-                className={`pl-20 pr-12 h-11 text-base transition-all ${
+                className={`px-4 pr-12 h-12 text-lg font-bold tracking-wide transition-all ${
                   error 
                     ? 'border-red-500 focus-visible:ring-red-500' 
                     : isValid 
