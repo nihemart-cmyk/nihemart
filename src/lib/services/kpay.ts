@@ -149,7 +149,7 @@ export class KPayService {
             ? process.env.KPAY_LIVE_BASE_URL || "https://pay.esicia.rw"
             : this.config.baseUrl;
 
-      // Log the effective API URL and masked username for troubleshooting
+      // Enhanced logging for troubleshooting environment issues
       try {
          const maskedUser = this.config.username
             ? `${this.config.username
@@ -158,13 +158,61 @@ export class KPayService {
                  Math.max(0, this.config.username.length - 2)
               )}`
             : "<missing>";
-         console.info("KPay: using API URL", {
-            url,
+
+         const isLiveEnv = this.config.environment === "live";
+         const isLiveUrl = url.includes("esicia.rw");
+         const isSandboxUrl = url.includes("esicia.com");
+
+         // Log with clear indicators
+         console.info("🔧 KPay Configuration:", {
             environment: this.config.environment,
+            url,
             username: maskedUser,
+            retailerId: this.config.retailerId
+               ? `${this.config.retailerId.slice(0, 2)}****`
+               : "<missing>",
+            isLiveEnvironment: isLiveEnv,
+            isUsingSandboxUrl: isSandboxUrl,
+            isUsingLiveUrl: isLiveUrl,
+         });
+
+         // Critical warning if environment and URL don't match
+         if (isLiveEnv && isSandboxUrl) {
+            console.error("🚨 CRITICAL CONFIGURATION ERROR 🚨");
+            console.error(
+               "Environment is set to 'live' but using SANDBOX URL!"
+            );
+            console.error(
+               "This means payments will NOT be processed in live mode!"
+            );
+            console.error("Current URL:", url);
+            console.error("Expected URL: https://pay.esicia.rw");
+            console.error(
+               "Check KPAY_ENVIRONMENT and KPAY_LIVE_BASE_URL environment variables"
+            );
+         }
+
+         if (!isLiveEnv && isLiveUrl) {
+            console.warn(
+               "⚠️ WARNING: Using LIVE URL but environment is set to 'sandbox'"
+            );
+            console.warn("This configuration may cause unexpected behavior");
+         }
+
+         // Log environment variable status
+         console.info("📋 Environment Variables Check:", {
+            KPAY_ENVIRONMENT:
+               process.env.KPAY_ENVIRONMENT ||
+               "<not set, defaulting to sandbox>",
+            KPAY_LIVE_BASE_URL:
+               process.env.KPAY_LIVE_BASE_URL || "<not set, using default>",
+            KPAY_BASE_URL:
+               process.env.KPAY_BASE_URL || "<not set, using default>",
+            KPAY_WEBHOOK_URL: process.env.KPAY_WEBHOOK_URL || "<not set>",
          });
       } catch (e) {
-         // swallow logging errors
+         // swallow logging errors but log the error itself
+         console.error("Error in KPay logging:", e);
       }
 
       return url;
@@ -544,12 +592,45 @@ export function initializeKPayService(): KPayService {
          "https://nihemart.rw/api/webhooks/kpay",
    };
 
+   // Log initialization with clear environment indicator
+   console.info("🚀 Initializing KPay Service");
+   console.info("Environment Mode:", config.environment.toUpperCase());
+
    // Validate required configuration
    if (!config.username || !config.password || !config.retailerId) {
+      console.error("❌ KPay Initialization Failed - Missing credentials");
+      console.error("Check these environment variables:");
+      console.error(
+         "- KPAY_USERNAME:",
+         config.username ? "✓ Set" : "✗ Missing"
+      );
+      console.error(
+         "- KPAY_PASSWORD:",
+         config.password ? "✓ Set" : "✗ Missing"
+      );
+      console.error(
+         "- KPAY_RETAILER_ID:",
+         config.retailerId ? "✓ Set" : "✗ Missing"
+      );
       throw new Error(
          "KPay configuration is incomplete. Please check your environment variables."
       );
    }
+
+   // Warning for sandbox in production-like URLs
+   if (
+      config.environment === "sandbox" &&
+      config.webhookUrl.includes("nihemart.rw")
+   ) {
+      console.warn(
+         "⚠️ WARNING: Using SANDBOX mode with production webhook URL"
+      );
+      console.warn("If this is production, set KPAY_ENVIRONMENT=live");
+   }
+
+   // Success message
+   console.info("✅ KPay Service initialized successfully");
+   console.info("Webhook URL:", config.webhookUrl);
 
    return new KPayService(config);
 }

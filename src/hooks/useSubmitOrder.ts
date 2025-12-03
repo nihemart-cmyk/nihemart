@@ -112,7 +112,12 @@ export default function useSubmitOrder(args: any) {
             // This handles both guest users AND authenticated users without email
             const customerEmail =
                (formData.email || "").trim() ||
-               `guest-${(formData.phone || args.selectedAddress?.phone || "").replace(/\D/g, '') || Date.now()}@nihemart.rw`;
+               `guest-${
+                  (formData.phone || args.selectedAddress?.phone || "").replace(
+                     /\D/g,
+                     ""
+                  ) || Date.now()
+               }@nihemart.rw`;
 
             const orderData: any = {
                order: {
@@ -192,48 +197,8 @@ export default function useSubmitOrder(args: any) {
                }
             }
 
-            // When orders are disabled by schedule and the customer confirmed
-            // delivery for the next working day, provide a server-validated
-            // `delivery_time` timestamp. Server expects a delivery_time that
-            // maps to the next calendar day in Kigali local time. We construct
-            // an ISO timestamp that represents 10:00 AM Kigali (UTC+2) on the
-            // next calendar day so server-side validation passes reliably.
-            try {
-               if (
-                  ordersEnabled === false &&
-                  ordersSource === "schedule" &&
-                  scheduleConfirmChecked
-               ) {
-                  // Kigali offset (UTC+2)
-                  const KIGALI_OFFSET_HOURS = 2;
-                  const OFFSET_MS = KIGALI_OFFSET_HOURS * 60 * 60 * 1000;
-                  const now = Date.now();
-                  const kigaliMs = now + OFFSET_MS;
-                  const kigaliDate = new Date(kigaliMs);
-                  const kYear = kigaliDate.getUTCFullYear();
-                  const kMonth = kigaliDate.getUTCMonth();
-                  const kDate = kigaliDate.getUTCDate();
-
-                  // Build a UTC timestamp that corresponds to 10:00 AM Kigali
-                  // on the *next* calendar day. 10:00 Kigali == 08:00 UTC.
-                  const deliveryUtcMs = Date.UTC(
-                     kYear,
-                     kMonth,
-                     kDate + 1,
-                     8,
-                     0,
-                     0,
-                     0
-                  );
-                  const deliveryIso = new Date(deliveryUtcMs).toISOString();
-                  orderData.order.delivery_time = deliveryIso;
-               }
-            } catch (e) {
-               console.warn(
-                  "Failed to compute delivery_time for scheduled order:",
-                  e
-               );
-            }
+            // Orders can proceed with checkbox confirmation during non-working hours
+            // No delivery_time field required
 
             if (!createOrder || typeof createOrder.mutate !== "function") {
                console.error(
@@ -535,7 +500,10 @@ export default function useSubmitOrder(args: any) {
                args.paymentMethod !== "cash_on_delivery"
             ) {
                try {
-                  console.log("[useSubmitOrder] Initiating payment with method:", args.paymentMethod);
+                  console.log(
+                     "[useSubmitOrder] Initiating payment with method:",
+                     args.paymentMethod
+                  );
                   setPaymentInProgress && setPaymentInProgress(true);
 
                   const customerPhone =
@@ -557,7 +525,8 @@ export default function useSubmitOrder(args: any) {
                      `${formData.fullName || ""}`.trim();
 
                   // Ensure we always have customer name (required for guests)
-                  const paymentCustomerName = derivedFullName || formData.fullName || "Guest Customer";
+                  const paymentCustomerName =
+                     derivedFullName || formData.fullName || "Guest Customer";
 
                   // Email is optional - will use fallback in API if not provided
                   const paymentCustomerEmail = (formData.email || "").trim();
@@ -566,7 +535,12 @@ export default function useSubmitOrder(args: any) {
 
                   if (effectiveIsRetry && effectiveRetryOrderId) {
                      // Use retry API for retry mode
-                     console.log("[useSubmitOrder] Retrying payment for order:", effectiveRetryOrderId, "with method:", args.paymentMethod);
+                     console.log(
+                        "[useSubmitOrder] Retrying payment for order:",
+                        effectiveRetryOrderId,
+                        "with method:",
+                        args.paymentMethod
+                     );
 
                      const retryRequest = {
                         orderId: effectiveRetryOrderId,
@@ -578,7 +552,10 @@ export default function useSubmitOrder(args: any) {
                         redirectUrl: `${window.location.origin}/checkout?payment=success`,
                      };
 
-                     console.log("[useSubmitOrder] Retry request payload:", retryRequest);
+                     console.log(
+                        "[useSubmitOrder] Retry request payload:",
+                        retryRequest
+                     );
 
                      const retryResponse = await fetch("/api/payments/retry", {
                         method: "POST",
@@ -591,7 +568,9 @@ export default function useSubmitOrder(args: any) {
                      const retryData = await retryResponse.json();
 
                      if (!retryResponse.ok) {
-                        throw new Error(retryData.error || "Retry payment failed");
+                        throw new Error(
+                           retryData.error || "Retry payment failed"
+                        );
                      }
 
                      paymentResult = {

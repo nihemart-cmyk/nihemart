@@ -1449,53 +1449,8 @@ export async function createOrder({
          const enabled =
             adminEnabled !== null ? Boolean(adminEnabled) : !scheduleDisabled;
 
-         if (!enabled) {
-            // Must provide delivery_time
-            const dt = (order as any).delivery_time;
-            if (!dt) {
-               const e: any = new Error(
-                  "Delivery time required when orders are disabled"
-               );
-               e.code = "ORDERS_NEED_DELIVERY_TIME";
-               throw e;
-            }
-            const parsed = new Date(dt);
-            if (isNaN(parsed.getTime())) {
-               const e: any = new Error("Invalid delivery_time format");
-               e.code = "ORDERS_INVALID_DELIVERY_TIME";
-               throw e;
-            }
-
-            // Convert provided timestamp to Kigali local calendar date by adding offset
-            const deliveryKigaliMs = parsed.getTime() + OFFSET_MS;
-            const deliveryKigali = new Date(deliveryKigaliMs);
-            const dYear = deliveryKigali.getUTCFullYear();
-            const dMonth = deliveryKigali.getUTCMonth();
-            const dDate = deliveryKigali.getUTCDate();
-
-            // Tomorrow's Kigali local date
-            const tomorrowKigaliUtcMs = Date.UTC(
-               kYear,
-               kMonth,
-               kDate + 1,
-               0,
-               0,
-               0,
-               0
-            );
-            const tomorrow = new Date(tomorrowKigaliUtcMs);
-            const tYear = tomorrow.getUTCFullYear();
-            const tMonth = tomorrow.getUTCMonth();
-            const tDate = tomorrow.getUTCDate();
-
-            if (!(dYear === tYear && dMonth === tMonth && dDate === tDate)) {
-               const e: any = new Error(
-                  "Delivery time must be for the next calendar day (Kigali local time)"
-               );
-               e.code = "ORDERS_DELIVERY_TIME_NOT_NEXT_DAY";
-               throw e;
-            }
-         }
+         // Orders can proceed with checkbox confirmation during non-working hours
+         // No delivery_time validation required
       } catch (svErr) {
          // If this is a structured validation error, rethrow to be handled by outer catch
          if ((svErr as any)?.code) throw svErr;

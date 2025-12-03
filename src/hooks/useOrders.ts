@@ -157,52 +157,8 @@ export function useCreateOrder() {
          try {
             // Check if orders are enabled (server-side setting).
             // This check is best-effort; transient failures should not block checkout.
-            try {
-               const resp = await fetch("/api/admin/settings/orders-enabled");
-               if (resp.ok) {
-                  const j = await resp.json();
-                  const enabled = Boolean(j.enabled);
-                  if (!enabled && !orderData.order.is_external) {
-                     const dt = orderData.order.delivery_time;
-                     if (!dt) {
-                        const e: any = new Error(
-                           j.message ||
-                              "Ordering is currently restricted — please choose a delivery time for next day."
-                        );
-                        e.code = "ORDERS_NEED_DELIVERY_TIME";
-                        throw e;
-                     }
-                     const delivery = new Date(dt);
-                     if (isNaN(delivery.getTime())) {
-                        const e: any = new Error(
-                           "Invalid delivery time format"
-                        );
-                        e.code = "ORDERS_INVALID_DELIVERY_TIME";
-                        throw e;
-                     }
-                     const now = new Date();
-                     const tomorrow = new Date(
-                        now.getFullYear(),
-                        now.getMonth(),
-                        now.getDate() + 1
-                     );
-                     const dayAfter = new Date(
-                        tomorrow.getFullYear(),
-                        tomorrow.getMonth(),
-                        tomorrow.getDate() + 1
-                     );
-                     if (delivery < tomorrow || delivery >= dayAfter) {
-                        const e: any = new Error(
-                           "When orders are disabled delivery must be scheduled for the next day"
-                        );
-                        e.code = "ORDERS_DELIVERY_TIME_NOT_NEXT_DAY";
-                        throw e;
-                     }
-                  }
-               }
-            } catch (flagErr) {
-               console.warn("Failed to verify orders_enabled flag:", flagErr);
-            }
+            // Orders can proceed with checkbox confirmation during non-working hours
+            // No delivery_time validation required
 
             // Create the order via a server-side API so the insertion uses the
             // service role (avoids RLS denial when invoked from the browser).
