@@ -302,7 +302,7 @@ export async function POST(request: NextRequest) {
                orderReference: useReference,
                orderDetails: `Order from Nihemart - ${useReference}`,
                redirectUrl: redirectTo,
-               logoUrl: `${request.nextUrl.origin}/logo.png`,
+               logoUrl: process.env.NEXT_PUBLIC_LOGO_URL || `${request.nextUrl.origin}/logo.png`,
             });
 
             // Update the existing payment row with new kpay details and reset failure/status
@@ -483,7 +483,7 @@ export async function POST(request: NextRequest) {
             orderReference,
             orderDetails: `Order from Nihemart - ${orderReference}`,
             redirectUrl: redirectTo,
-            logoUrl: `${request.nextUrl.origin}/logo.png`,
+            logoUrl: process.env.NEXT_PUBLIC_LOGO_URL || `${request.nextUrl.origin}/logo.png`,
          });
 
          // Update payment with KPay details

@@ -171,7 +171,7 @@ export async function POST(request: NextRequest) {
          orderReference,
          orderDetails: `Order #${body.orderId} retry payment`,
          redirectUrl: body.redirectUrl,
-         logoUrl: `${request.nextUrl.origin}/logo.png`,
+         logoUrl: process.env.NEXT_PUBLIC_LOGO_URL || `${request.nextUrl.origin}/logo.png`,
       });
 
       // Update payment record with kpay info
