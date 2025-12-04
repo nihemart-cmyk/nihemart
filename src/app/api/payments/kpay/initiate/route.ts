@@ -7,6 +7,7 @@ import {
 import { createServiceSupabaseClient } from "@/utils/supabase/service";
 import { logger } from "@/lib/logger";
 import crypto from "crypto";
+import { getPublicBaseUrl } from "@/lib/getPublicBaseUrl";
 
 export interface PaymentInitiationRequest {
    orderId?: string;
@@ -22,6 +23,7 @@ export interface PaymentInitiationRequest {
 export async function POST(request: NextRequest) {
    const startTime = Date.now();
    let orderId: string | undefined;
+   const appBaseUrl = getPublicBaseUrl(request);
 
    try {
       const body: PaymentInitiationRequest = await request.json();
@@ -69,7 +71,7 @@ export async function POST(request: NextRequest) {
       }
 
       if (!body.redirectUrl) {
-         body.redirectUrl = `${request.nextUrl.origin}/checkout?payment=success`;
+         body.redirectUrl = `${appBaseUrl}/checkout?payment=success`;
          logger.info(
             "api",
             "Payment initiation missing redirectUrl, using default",
@@ -291,7 +293,7 @@ export async function POST(request: NextRequest) {
             const useReference = existingPayment.reference || orderReference;
 
             // Force the gateway redirect to our internal payment status page
-            const redirectTo = `${request.nextUrl.origin}/payment/${existingPayment.id}`;
+            const redirectTo = `${appBaseUrl}/payment/${existingPayment.id}`;
             const kpayResponse = await kpayService.initiatePayment({
                amount: body.amount,
                customerName: body.customerName,
@@ -302,7 +304,8 @@ export async function POST(request: NextRequest) {
                orderReference: useReference,
                orderDetails: `Order from Nihemart - ${useReference}`,
                redirectUrl: redirectTo,
-               logoUrl: process.env.NEXT_PUBLIC_LOGO_URL || `${request.nextUrl.origin}/logo.png`,
+               logoUrl:
+                  process.env.NEXT_PUBLIC_LOGO_URL || `${appBaseUrl}/logo.png`,
             });
 
             // Update the existing payment row with new kpay details and reset failure/status
@@ -472,7 +475,7 @@ export async function POST(request: NextRequest) {
 
          // Force redirect to our internal payment status page so the gateway
          // returns the user to /payment/{paymentId} rather than /checkout.
-         const redirectTo = `${request.nextUrl.origin}/payment/${payment.id}`;
+         const redirectTo = `${appBaseUrl}/payment/${payment.id}`;
          const kpayResponse = await kpayService.initiatePayment({
             amount: body.amount,
             customerName: body.customerName,
@@ -483,7 +486,8 @@ export async function POST(request: NextRequest) {
             orderReference,
             orderDetails: `Order from Nihemart - ${orderReference}`,
             redirectUrl: redirectTo,
-            logoUrl: process.env.NEXT_PUBLIC_LOGO_URL || `${request.nextUrl.origin}/logo.png`,
+            logoUrl:
+               process.env.NEXT_PUBLIC_LOGO_URL || `${appBaseUrl}/logo.png`,
          });
 
          // Update payment with KPay details

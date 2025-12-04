@@ -6,6 +6,7 @@ import {
 } from "@/lib/services/kpay";
 import { createServerSupabaseClient } from "@/utils/supabase/server";
 import { logger } from "@/lib/logger";
+import { getPublicBaseUrl } from "@/lib/getPublicBaseUrl";
 
 interface RetryRequest {
    orderId: string;
@@ -21,6 +22,7 @@ export async function POST(request: NextRequest) {
    let orderId: string | undefined;
    try {
       const body: RetryRequest = await request.json();
+      const appBaseUrl = getPublicBaseUrl(request);
       orderId = body.orderId;
 
       if (!body.orderId || !body.amount || !body.paymentMethod) {
@@ -171,7 +173,8 @@ export async function POST(request: NextRequest) {
          orderReference,
          orderDetails: `Order #${body.orderId} retry payment`,
          redirectUrl: body.redirectUrl,
-         logoUrl: process.env.NEXT_PUBLIC_LOGO_URL || `${request.nextUrl.origin}/logo.png`,
+         logoUrl:
+            process.env.NEXT_PUBLIC_LOGO_URL || `${appBaseUrl}/logo.png`,
       });
 
       // Update payment record with kpay info
